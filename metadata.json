@@ -1,0 +1,7 @@
+{
+  "name": "ATL Urban Farms - Premium Seedlings",
+  "description": "A modern e-commerce platform for high-tech urban gardening, featuring the Sage AI assistant and premium live plant seedlings.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
