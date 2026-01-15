@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import {
@@ -13,13 +12,16 @@ import {
 } from '../hooks/useOrders';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 
-const OrderDetailPage: React.FC = () => {
-  const { orderId } = useParams<{ orderId: string }>();
-  const navigate = useNavigate();
+interface OrderDetailPageProps {
+  orderId: string;
+  onBack: () => void;
+}
+
+const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) => {
   const { adminUser } = useAdminAuth();
 
   // Fetch order data
-  const { order, loading, error, refetch } = useOrder(orderId || null);
+  const { order, loading, error, refetch } = useOrder(orderId);
 
   // Hooks for actions
   const { updateStatus, loading: updatingStatus } = useUpdateOrderStatus();
@@ -186,7 +188,7 @@ const OrderDetailPage: React.FC = () => {
       <AdminPageWrapper>
         <div className="space-y-4">
           <button
-            onClick={() => navigate('/admin/orders')}
+            onClick={() => onBack()}
             className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,7 +209,7 @@ const OrderDetailPage: React.FC = () => {
       <div className="space-y-6 print:space-y-4">
         {/* Back Button */}
         <button
-          onClick={() => navigate('/admin/orders')}
+          onClick={() => onBack()}
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors print:hidden"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -396,15 +398,9 @@ const OrderDetailPage: React.FC = () => {
                   </div>
                 )}
                 {order.customer_id && (
-                  <Link
-                    to={`/admin/customers/${order.customer_id}`}
-                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 text-sm mt-2 print:hidden"
-                  >
-                    View Profile
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
+                  <span className="inline-flex items-center gap-1 text-slate-500 text-sm mt-2 print:hidden">
+                    Customer ID: {order.customer_id.slice(0, 8)}...
+                  </span>
                 )}
               </div>
             </div>

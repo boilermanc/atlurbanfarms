@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus } from '../hooks/useOrders';
 
-const OrdersPage: React.FC = () => {
-  const navigate = useNavigate();
+interface OrdersPageProps {
+  onViewOrder: (orderId: string) => void;
+}
+
+const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
 
   // Filter state
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -81,7 +83,7 @@ const OrdersPage: React.FC = () => {
 
   // Navigate to order detail
   const handleRowClick = (orderId: string) => {
-    navigate(`/admin/orders/${orderId}`);
+    onViewOrder(orderId);
   };
 
   // Pagination component
