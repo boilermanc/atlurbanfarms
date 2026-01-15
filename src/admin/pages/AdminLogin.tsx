@@ -19,18 +19,14 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
     setIsLoading(true);
 
     try {
-      console.log('[AdminLogin] Attempting sign in...');
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
-        console.error('[AdminLogin] Sign in error:', signInError);
         throw signInError;
       }
-
-      console.log('[AdminLogin] Sign in successful, session:', !!data.session);
 
       // Verify session is established before redirecting
       if (data.session) {
@@ -39,10 +35,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
 
         // Verify we can get the session back
         const { data: sessionData } = await supabase.auth.getSession();
-        console.log('[AdminLogin] Session verified:', !!sessionData.session);
 
         if (sessionData.session) {
-          console.log('[AdminLogin] Redirecting to /admin...');
           // Redirect directly to avoid React state race conditions
           window.location.href = '/admin';
           return;
@@ -50,10 +44,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
       }
 
       // Fallback if session check fails
-      console.log('[AdminLogin] Fallback: calling onSuccess');
       onSuccess();
     } catch (err: any) {
-      console.error('[AdminLogin] Error:', err);
       setError(err.message || 'Invalid credentials. Please try again.');
       setIsLoading(false);
     }
