@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import CategorySection from './components/CategorySection';
@@ -51,12 +51,40 @@ interface OrderData {
   isGuest: boolean;
 }
 
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login';
+
+// Get initial view based on URL path
+const getViewFromPath = (pathname: string): ViewType => {
+  if (pathname === '/admin/login') return 'admin-login';
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
+  return 'home';
+};
+
+// Get URL path for a given view
+const getPathForView = (view: ViewType): string => {
+  switch (view) {
+    case 'admin-login': return '/admin/login';
+    case 'admin': return '/admin';
+    default: return '/';
+  }
+};
+
 const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [view, setView] = useState<'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login'>('home');
+  const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      setView(getViewFromPath(window.location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const handleAddToCart = useCallback((product: Product, quantity: number = 1) => {
     setCart(prev => {
@@ -85,9 +113,16 @@ const App: React.FC = () => {
     setCart(prev => prev.filter(item => item.id !== id));
   }, []);
 
-  const handleNavigate = useCallback((newView: 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login', category: string = 'All') => {
+  const handleNavigate = useCallback((newView: ViewType, category: string = 'All') => {
     setView(newView);
     setSelectedCategory(category);
+
+    // Update browser URL for admin views
+    const newPath = getPathForView(newView);
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({ view: newView }, '', newPath);
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
