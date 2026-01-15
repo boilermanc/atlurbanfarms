@@ -1,7 +1,8 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 import { AdminProvider } from '../context/AdminContext';
+import { useAdminAuth } from '../hooks/useAdminAuth';
 import { supabase } from '../../lib/supabase';
 
 // Lazy load admin pages to avoid circular dependencies
@@ -73,32 +74,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Check authentication on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Redirect to admin login
-        window.history.pushState({}, '', '/admin/login');
-        window.location.href = '/admin/login';
-      } else {
-        setIsAuthenticated(true);
-      }
-    };
-
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        window.location.href = '/admin/login';
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { isAdmin, adminUser, loading } = useAdminAuth();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -106,10 +83,62 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   };
 
   // Show loading while checking auth
-  if (isAuthenticated === null) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-400 text-sm">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not authenticated - redirect to login
+  if (!adminUser) {
+    window.location.href = '/admin/login';
+    return null;
+  }
+
+  // Authenticated but not an admin - show access denied
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="bg-slate-800 rounded-2xl p-8 max-w-md text-center border border-slate-700">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+              />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold text-white mb-2">Access Denied</h1>
+          <p className="text-slate-400 mb-6">
+            You do not have permission to access the admin area.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+            >
+              Sign Out
+            </button>
+            <a
+              href="/"
+              className="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+            >
+              Return to Home
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
