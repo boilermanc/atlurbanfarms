@@ -1,7 +1,8 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 import { AdminProvider } from '../context/AdminContext';
+import { supabase } from '../../lib/supabase';
 
 // Lazy load admin pages to avoid circular dependencies
 const InventoryPage = lazy(() => import('../pages/InventoryPage'));
@@ -72,6 +73,46 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Redirect to admin login
+        window.history.pushState({}, '', '/admin/login');
+        window.location.href = '/admin/login';
+      } else {
+        setIsAuthenticated(true);
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        window.location.href = '/admin/login';
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/admin/login';
+  };
+
+  // Show loading while checking auth
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const handleNavigate = (page: string) => {
     setCurrentPage(page);
@@ -217,7 +258,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0 ml-[280px]">
           {/* Header */}
-          <AdminHeader title={pageTitle} />
+          <AdminHeader title={pageTitle} onLogout={handleLogout} />
 
           {/* Main content */}
           <main className="flex-1 p-6 overflow-auto">
