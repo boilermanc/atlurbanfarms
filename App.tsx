@@ -8,17 +8,55 @@ import ProductGrid from './components/ProductGrid';
 import SageAssistant from './components/SageAssistant';
 import CartDrawer from './components/CartDrawer';
 import Footer from './components/Footer';
-import CheckoutPage from './components/CheckoutPage';
+import CheckoutPage from './src/components/CheckoutPage';
+import OrderConfirmationPage from './src/components/OrderConfirmationPage';
 import ShopPage from './components/ShopPage';
 import FAQPage from './components/FAQPage';
 import AboutPage from './components/AboutPage';
+import GrowersPage from './components/GrowersPage';
+import LoginPage from './src/components/auth/LoginPage';
+import RegisterPage from './src/components/auth/RegisterPage';
+import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
+import { AccountPage } from './src/components/account';
+import { AuthProvider } from './src/context/AuthContext';
+import { AdminLayout } from './src/admin';
+import AdminLogin from './src/admin/pages/AdminLogin';
 import { Product, CartItem } from './types';
+
+interface OrderData {
+  order_number: string;
+  items: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    image: string;
+    category?: string;
+  }>;
+  customerFirstName: string;
+  customerEmail: string;
+  shippingAddress: {
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  totals: {
+    subtotal: number;
+    shipping: number;
+    tax: number;
+    total: number;
+  };
+  isGuest: boolean;
+}
 
 const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [view, setView] = useState<'home' | 'shop' | 'checkout' | 'faq' | 'about'>('home');
+  const [view, setView] = useState<'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login'>('home');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
 
   const handleAddToCart = useCallback((product: Product, quantity: number = 1) => {
     setCart(prev => {
@@ -47,7 +85,7 @@ const App: React.FC = () => {
     setCart(prev => prev.filter(item => item.id !== id));
   }, []);
 
-  const handleNavigate = useCallback((newView: 'home' | 'shop' | 'faq' | 'about', category: string = 'All') => {
+  const handleNavigate = useCallback((newView: 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login', category: string = 'All') => {
     setView(newView);
     setSelectedCategory(category);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -65,6 +103,13 @@ const App: React.FC = () => {
     window.scrollTo(0, 0);
   }, []);
 
+  const handleOrderComplete = useCallback((orderData: OrderData) => {
+    setCompletedOrder(orderData);
+    setCart([]);
+    setView('order-confirmation');
+    window.scrollTo(0, 0);
+  }, []);
+
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   // Router-like logic
@@ -72,10 +117,32 @@ const App: React.FC = () => {
     switch (view) {
       case 'checkout':
         return (
-          <CheckoutPage 
-            items={cart} 
-            onBack={() => setView('home')} 
-            onComplete={handleCompleteOrder} 
+          <CheckoutPage
+            items={cart}
+            onBack={() => {
+              setView('shop');
+              setIsCartOpen(true);
+            }}
+            onNavigate={(newView: string) => handleNavigate(newView as any)}
+            onOrderComplete={handleOrderComplete}
+          />
+        );
+      case 'order-confirmation':
+        if (!completedOrder) {
+          handleNavigate('home');
+          return null;
+        }
+        return (
+          <OrderConfirmationPage
+            items={completedOrder.items}
+            customerFirstName={completedOrder.customerFirstName}
+            customerEmail={completedOrder.customerEmail}
+            shippingAddress={completedOrder.shippingAddress}
+            totals={completedOrder.totals}
+            orderNumber={completedOrder.order_number}
+            isGuest={completedOrder.isGuest}
+            onContinueShopping={() => handleNavigate('shop')}
+            onCreateAccount={() => handleNavigate('register')}
           />
         );
       case 'shop':
@@ -102,6 +169,47 @@ const App: React.FC = () => {
             <Footer onNavigate={handleNavigate} />
           </>
         );
+      case 'growers':
+        return (
+          <>
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <GrowersPage onBack={() => setView('home')} />
+            <Footer onNavigate={handleNavigate} />
+          </>
+        );
+      case 'login':
+        return (
+          <LoginPage
+            onNavigate={handleNavigate}
+            onSuccess={() => handleNavigate('account')}
+          />
+        );
+      case 'register':
+        return (
+          <RegisterPage
+            onNavigate={handleNavigate}
+            onSuccess={() => handleNavigate('account')}
+          />
+        );
+      case 'forgot-password':
+        return (
+          <ForgotPasswordPage
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'account':
+        return (
+          <AccountPage onNavigate={handleNavigate} />
+        );
+      case 'admin-login':
+        return (
+          <AdminLogin
+            onNavigate={handleNavigate}
+            onSuccess={() => handleNavigate('admin')}
+          />
+        );
+      case 'admin':
+        return <AdminLayout />;
       case 'home':
       default:
         return (
@@ -153,9 +261,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <>
+    <AuthProvider>
       {renderContent()}
-      <CartDrawer 
+      <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         items={cart}
@@ -163,7 +271,7 @@ const App: React.FC = () => {
         onUpdateQuantity={handleUpdateQuantity}
         onCheckout={handleProceedToCheckout}
       />
-    </>
+    </AuthProvider>
   );
 };
 

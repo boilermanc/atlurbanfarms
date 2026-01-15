@@ -133,20 +133,20 @@ const SageAssistant: React.FC = () => {
       </AnimatePresence>
 
       <div className="relative">
-        {/* Advanced Multi-Ring Idle Pulse */}
+        {/* Gentle Wave Flow */}
         {!isOpen && (
-          <>
-            <motion.div
-              animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-              className="absolute inset-0 sage-gradient rounded-full -z-10"
-            />
-            <motion.div
-              animate={{ scale: [1, 1.5], opacity: [0.3, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeOut", delay: 0.5 }}
-              className="absolute inset-0 sage-gradient rounded-full -z-10"
-            />
-          </>
+          <motion.div
+            animate={{
+              scale: [1, 1.15, 1],
+              opacity: [0.3, 0.15, 0.3]
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute inset-0 sage-gradient rounded-full -z-10"
+          />
         )}
 
         <motion.button

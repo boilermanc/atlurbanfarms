@@ -1,18 +1,24 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SHIPPING_NOTICE, SparkleIcon } from '../constants';
+import { useCategories } from '../src/hooks/useSupabase';
+import { useAuth } from '../src/hooks/useAuth';
 
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'growers' | 'login' | 'account', category?: string) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+
+  const { categories: rawCategories } = useCategories();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,13 +35,15 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
     setIsMobileMenuOpen(false);
   };
 
-  const SHOP_ITEMS = [
-    { name: 'All Products', category: 'All' },
-    { name: 'Herbs', category: 'Herbs' },
-    { name: 'Vegetables', category: 'Vegetables' },
-    { name: 'Flowers', category: 'Flowers' },
-    { name: 'Tower Planner', category: 'All', featured: true },
-  ];
+  // Build shop items from Supabase categories
+  const SHOP_ITEMS = useMemo(() => {
+    const items = [
+      { name: 'All Products', category: 'All' },
+      ...rawCategories.map((c: any) => ({ name: c.name, category: c.name })),
+      { name: 'Tower Planner', category: 'All', featured: true },
+    ];
+    return items;
+  }, [rawCategories]);
 
   const logo = (
     <div onClick={handleLogoClick} className="flex items-center gap-2 group cursor-pointer">
@@ -110,13 +118,19 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
               </AnimatePresence>
             </div>
             
-            <button 
+            <button
               onClick={() => onNavigate('faq')}
               className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
             >
               FAQ
             </button>
-            <button 
+            <button
+              onClick={() => onNavigate('growers')}
+              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+            >
+              Growers
+            </button>
+            <button
               onClick={() => onNavigate('about')}
               className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
             >
@@ -125,14 +139,105 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
           </div>
 
           <div className="flex-1 md:flex-none flex items-center justify-end gap-1 md:gap-4">
-            <button 
+            {/* Account/Login Button */}
+            {!authLoading && (
+              <>
+                {user ? (
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setIsUserDropdownOpen(true)}
+                    onMouseLeave={() => setIsUserDropdownOpen(false)}
+                  >
+                    <button
+                      className="p-2 text-gray-700 hover:text-emerald-600 transition-colors"
+                    >
+                      <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-emerald-600">
+                          {user.email?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    </button>
+                    <AnimatePresence>
+                      {isUserDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute top-full right-0 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden mt-1 py-2"
+                        >
+                          <div className="px-4 py-3 border-b border-gray-100">
+                            <p className="text-xs text-gray-400 font-medium">Signed in as</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{user.email}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              onNavigate('account');
+                              setIsUserDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex items-center gap-3"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                            My Account
+                          </button>
+                          <button
+                            onClick={() => {
+                              onNavigate('account');
+                              setIsUserDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex items-center gap-3"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            Order History
+                          </button>
+                          <div className="border-t border-gray-100 mt-1 pt-1">
+                            <button
+                              onClick={async () => {
+                                await signOut();
+                                setIsUserDropdownOpen(false);
+                                onNavigate('home');
+                              }}
+                              className="w-full text-left px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                <polyline points="16 17 21 12 16 7" />
+                                <line x1="21" x2="9" y1="12" y2="12" />
+                              </svg>
+                              Log Out
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onNavigate('login')}
+                    className="p-2 text-gray-700 hover:text-emerald-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Cart Button */}
+            <button
               onClick={onOpenCart}
               className="relative p-2 text-gray-700 hover:text-emerald-600 transition-colors group"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
               <AnimatePresence>
                 {cartCount > 0 && (
-                  <motion.span 
+                  <motion.span
                     key={cartCount}
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: [1.3, 1], opacity: 1 }}
@@ -186,7 +291,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                 </div>
                 
                 <div className="pt-8 border-t border-gray-50 space-y-4">
-                  <button 
+                  <button
                     onClick={() => {
                       onNavigate('faq');
                       setIsMobileMenuOpen(false);
@@ -195,7 +300,16 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                   >
                     FAQ
                   </button>
-                  <button 
+                  <button
+                    onClick={() => {
+                      onNavigate('growers');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left font-bold text-lg text-gray-800"
+                  >
+                    Meet the Growers
+                  </button>
+                  <button
                     onClick={() => {
                       onNavigate('about');
                       setIsMobileMenuOpen(false);
@@ -204,6 +318,43 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                   >
                     About
                   </button>
+                </div>
+
+                {/* Account Section */}
+                <div className="pt-8 border-t border-gray-50">
+                  {!authLoading && (
+                    <button
+                      onClick={() => {
+                        onNavigate(user ? 'account' : 'login');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 py-3 px-4 bg-emerald-50 rounded-xl"
+                    >
+                      {user ? (
+                        <>
+                          <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center">
+                            <span className="text-lg font-bold text-white">
+                              {user.email?.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="text-left">
+                            <span className="font-bold text-gray-900 block">My Account</span>
+                            <span className="text-sm text-gray-500">{user.email}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          </div>
+                          <span className="font-bold text-gray-900">Sign In / Register</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>

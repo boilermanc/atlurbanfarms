@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd /c \"dir /s /b c:\\\\Users\\\\clint\\\\Documents\\\\Github\\\\atlurbanfarms\\\\src\\\\admin\\\\*\")",
+      "Bash(grep:*)",
+      "Bash(for file in *.tsx)",
+      "Bash(do sed -i 's/<AdminLayout>/<AdminPageWrapper>/g; s/<\\\\/AdminLayout>/<\\\\/AdminPageWrapper>/g' \"$file\")",
+      "Bash(done)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"
+    ]
+  }
+}

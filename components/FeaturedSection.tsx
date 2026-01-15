@@ -1,18 +1,62 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { PRODUCTS } from '../constants';
+import { useProducts } from '../src/hooks/useSupabase';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
+import ProductDetailModal from './ProductDetailModal';
 
 interface FeaturedSectionProps {
   onAddToCart: (product: Product, quantity: number) => void;
 }
 
+// Map Supabase product to local Product type
+const mapProduct = (p: any): Product => ({
+  id: p.id,
+  name: p.name,
+  description: p.description || '',
+  price: p.price,
+  image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
+  category: p.category?.name || 'Uncategorized',
+  stock: p.quantity_available || 0
+});
+
 const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
-  // Curated list: Tomato (1), Basil (2), French Lavender (4)
-  const featuredIds = ['1', '2', '4'];
-  const featuredProducts = PRODUCTS.filter(p => featuredIds.includes(p.id));
+  const { products: rawProducts, loading, error } = useProducts();
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // Get first 3 products as featured (raw for modal, mapped for display)
+  const featuredRawProducts = rawProducts.slice(0, 3);
+  const featuredProducts = featuredRawProducts.map(mapProduct);
+
+  if (loading) {
+    return (
+      <section className="py-24 px-4 md:px-12 bg-white relative overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-16">
+            <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
+            <div className="h-12 w-80 bg-gray-100 rounded animate-pulse" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-[2.5rem] p-5 border border-gray-100 animate-pulse">
+                <div className="aspect-square rounded-[2rem] bg-gray-100 mb-6" />
+                <div className="px-1 space-y-4">
+                  <div className="h-6 w-32 bg-gray-100 rounded-lg" />
+                  <div className="h-4 w-full bg-gray-50 rounded" />
+                  <div className="h-12 w-full bg-gray-100 rounded-2xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || featuredProducts.length === 0) {
+    return null; // Don't show section if there's an error or no products
+  }
 
   return (
     <section className="py-24 px-4 md:px-12 bg-white relative overflow-hidden">
@@ -58,7 +102,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
               viewport={{ once: true }}
               transition={{ delay: idx * 0.1 }}
             >
-              <ProductCard 
+              <ProductCard
                 id={product.id}
                 image={product.image}
                 name={product.name}
@@ -66,11 +110,25 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
                 category={product.category}
                 inStock={product.stock > 0}
                 onAddToCart={(qty) => onAddToCart(product, qty)}
+                onClick={() => setSelectedProduct(featuredRawProducts[idx])}
               />
             </motion.div>
           ))}
         </div>
       </div>
+
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onAddToCart={(qty) => {
+          if (selectedProduct) {
+            const mappedProduct = mapProduct(selectedProduct);
+            onAddToCart(mappedProduct, qty);
+          }
+        }}
+      />
     </section>
   );
 };

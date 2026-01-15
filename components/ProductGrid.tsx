@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PRODUCTS } from '../constants';
+import { useProducts } from '../src/hooks/useSupabase';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
+import ProductDetailModal from './ProductDetailModal';
 
 interface ProductGridProps {
   onAddToCart: (product: Product, quantity: number) => void;
@@ -27,14 +28,23 @@ const ProductCardSkeleton = () => (
   </div>
 );
 
-const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) => {
-  const [loading, setLoading] = useState(true);
+// Map Supabase product to local Product type
+const mapProduct = (p: any): Product => ({
+  id: p.id,
+  name: p.name,
+  description: p.description || '',
+  price: p.price,
+  image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
+  category: p.category?.name || 'Uncategorized',
+  stock: p.quantity_available || 0
+});
 
-  // Simulate loading delay for demonstration
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) => {
+  const { products: rawProducts, loading, error } = useProducts();
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+  // Map Supabase data to local Product type
+  const products = rawProducts.map(mapProduct);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -89,11 +99,11 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {loading ? (
               // Skeleton Loading State
               Array.from({ length: 8 }).map((_, idx) => (
-                <motion.div 
+                <motion.div
                   key={`skeleton-${idx}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -102,15 +112,20 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
                   <ProductCardSkeleton />
                 </motion.div>
               ))
+            ) : error ? (
+              // Error State
+              <div className="col-span-full text-center py-12">
+                <p className="text-red-500">Failed to load products: {error}</p>
+              </div>
             ) : (
               // Actual Product Cards
-              PRODUCTS.map((product) => (
+              products.map((product, index) => (
                 <motion.div
                   key={product.id}
                   variants={itemVariants}
                   layout
                 >
-                  <ProductCard 
+                  <ProductCard
                     id={product.id}
                     image={product.image}
                     name={product.name}
@@ -118,6 +133,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
                     category={product.category}
                     inStock={product.stock > 0}
                     onAddToCart={(qty) => onAddToCart(product, qty)}
+                    onClick={() => setSelectedProduct(rawProducts[index])}
                   />
                 </motion.div>
               ))
@@ -154,6 +170,19 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
           </div>
         </motion.div>
       </div>
+
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProduct}
+        isOpen={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onAddToCart={(qty) => {
+          if (selectedProduct) {
+            const mappedProduct = mapProduct(selectedProduct);
+            onAddToCart(mappedProduct, qty);
+          }
+        }}
+      />
     </section>
   );
 };

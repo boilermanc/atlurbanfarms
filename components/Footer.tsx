@@ -4,11 +4,11 @@ import { motion } from 'framer-motion';
 import { SparkleIcon } from '../constants';
 
 interface FooterProps {
-  onNavigate?: (view: 'home' | 'shop' | 'faq' | 'about', category?: string) => void;
+  onNavigate?: (view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => void;
 }
 
 const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
-  const handleNav = (e: React.MouseEvent, view: 'home' | 'shop' | 'faq' | 'about', category?: string) => {
+  const handleNav = (e: React.MouseEvent, view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => {
     e.preventDefault();
     if (onNavigate) {
       onNavigate(view, category);
@@ -112,6 +112,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <h4 className="font-heading font-bold text-lg mb-8 text-emerald-500 uppercase tracking-widest text-xs">Company</h4>
             <ul className="space-y-4">
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">About Us</button></li>
+              <li><button onClick={(e) => handleNav(e, 'growers')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Meet the Growers</button></li>
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Our Story</button></li>
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Sustainability</button></li>
               <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Careers</button></li>

@@ -10,16 +10,18 @@ interface ProductCardProps {
   category: string;
   inStock: boolean;
   onAddToCart: (quantity: number) => void;
+  onClick?: () => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ 
+const ProductCard: React.FC<ProductCardProps> = ({
   id,
-  image, 
-  name, 
-  price, 
-  category, 
-  inStock, 
-  onAddToCart 
+  image,
+  name,
+  price,
+  category,
+  inStock,
+  onAddToCart,
+  onClick
 }) => {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -57,11 +59,18 @@ const ProductCard: React.FC<ProductCardProps> = ({
     setQuantity(prev => Math.max(1, prev - 1));
   };
 
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <motion.div
       whileHover={{ y: -8, boxShadow: "0 25px 50px -12px rgba(16, 185, 129, 0.15)" }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       className="group relative bg-white rounded-[2.5rem] p-5 border border-gray-100 shadow-sm transition-colors hover:border-emerald-100 flex flex-col h-full cursor-pointer"
+      onClick={handleCardClick}
     >
       {/* Image Container */}
       <div className="relative aspect-square rounded-[2rem] overflow-hidden mb-6 bg-gray-50">
