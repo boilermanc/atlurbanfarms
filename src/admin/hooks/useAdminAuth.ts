@@ -37,15 +37,15 @@ export function useAdminAuth(): UseAdminAuthReturn {
         setLoading(true);
         setError(null);
 
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('[useAdminAuth] Checking auth...');
 
-        if (userError) {
-          throw userError;
-        }
+        // First check session
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[useAdminAuth] Session exists:', !!session);
 
-        if (!user) {
+        if (!session) {
           if (isMounted) {
+            console.log('[useAdminAuth] No session, setting user to null');
             setAdminUser(null);
             setRole(null);
             setPermissions([]);
@@ -53,6 +53,27 @@ export function useAdminAuth(): UseAdminAuthReturn {
           }
           return;
         }
+
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('[useAdminAuth] User:', user?.email, 'Error:', userError?.message);
+
+        if (userError) {
+          throw userError;
+        }
+
+        if (!user) {
+          if (isMounted) {
+            console.log('[useAdminAuth] No user found');
+            setAdminUser(null);
+            setRole(null);
+            setPermissions([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        console.log('[useAdminAuth] User ID:', user.id);
 
         // Query admin_user_roles joined with admin_roles for current user
         const { data: userRoles, error: rolesError } = await supabase
@@ -67,9 +88,12 @@ export function useAdminAuth(): UseAdminAuthReturn {
           .eq('user_id', user.id)
           .single();
 
+        console.log('[useAdminAuth] Admin roles query result:', userRoles, 'Error:', rolesError?.message);
+
         if (rolesError) {
           // No admin role found is not necessarily an error
           if (rolesError.code === 'PGRST116') {
+            console.log('[useAdminAuth] No admin role found for user (PGRST116)');
             if (isMounted) {
               setAdminUser(user);
               setRole(null);
@@ -84,11 +108,13 @@ export function useAdminAuth(): UseAdminAuthReturn {
         if (isMounted) {
           setAdminUser(user);
           const adminRole = (userRoles as unknown as AdminUserRole)?.admin_roles;
+          console.log('[useAdminAuth] Admin role found:', adminRole?.name);
           setRole(adminRole?.name || null);
           setPermissions(adminRole?.permissions || []);
           setLoading(false);
         }
       } catch (err) {
+        console.error('[useAdminAuth] Error:', err);
         if (isMounted) {
           setError(err instanceof Error ? err.message : 'An error occurred');
           setLoading(false);

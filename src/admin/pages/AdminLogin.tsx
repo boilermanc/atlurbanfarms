@@ -19,23 +19,30 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
     setIsLoading(true);
 
     try {
+      console.log('[AdminLogin] Attempting sign in...');
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
+        console.error('[AdminLogin] Sign in error:', signInError);
         throw signInError;
       }
+
+      console.log('[AdminLogin] Sign in successful, session:', !!data.session);
 
       // Verify session is established before redirecting
       if (data.session) {
         // Small delay to ensure session is fully propagated
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         // Verify we can get the session back
         const { data: sessionData } = await supabase.auth.getSession();
+        console.log('[AdminLogin] Session verified:', !!sessionData.session);
+
         if (sessionData.session) {
+          console.log('[AdminLogin] Redirecting to /admin...');
           // Redirect directly to avoid React state race conditions
           window.location.href = '/admin';
           return;
@@ -43,8 +50,10 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
       }
 
       // Fallback if session check fails
+      console.log('[AdminLogin] Fallback: calling onSuccess');
       onSuccess();
     } catch (err: any) {
+      console.error('[AdminLogin] Error:', err);
       setError(err.message || 'Invalid credentials. Please try again.');
       setIsLoading(false);
     }
@@ -92,6 +101,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@atlurbanfarms.com"
                 required
+                autoComplete="email"
                 className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
               />
             </div>
@@ -108,6 +118,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
+                  autoComplete="current-password"
                   className="w-full px-4 py-3 pr-12 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                 />
                 <button
