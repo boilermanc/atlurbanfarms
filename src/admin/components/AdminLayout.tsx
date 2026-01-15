@@ -94,35 +94,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     );
   }
 
-  // Not authenticated - show debug info instead of redirecting (temporary)
+  // Not authenticated - redirect to login
   if (!adminUser) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-8">
-        <div className="bg-slate-800 rounded-2xl p-8 max-w-lg text-center border border-slate-700">
-          <h1 className="text-xl font-semibold text-white mb-4">Debug: No Admin User</h1>
-          <div className="text-left text-sm text-slate-400 space-y-2 mb-6">
-            <p><strong>adminUser:</strong> {String(adminUser)}</p>
-            <p><strong>isAdmin:</strong> {String(isAdmin)}</p>
-            <p><strong>loading:</strong> {String(loading)}</p>
-            <p className="text-yellow-400">Session was not found. Check browser console for [useAdminAuth] logs.</p>
-          </div>
-          <div className="flex gap-3 justify-center">
-            <a
-              href="/admin/login"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
-            >
-              Go to Login
-            </a>
-            <a
-              href="/"
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-            >
-              Return to Home
-            </a>
-          </div>
-        </div>
-      </div>
-    );
+    window.location.href = '/admin/login';
+    return null;
   }
 
   // Authenticated but not an admin - show access denied

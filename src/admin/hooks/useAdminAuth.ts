@@ -85,7 +85,7 @@ export function useAdminAuth(): UseAdminAuthReturn {
               permissions
             )
           `)
-          .eq('user_id', user.id)
+          .eq('customer_id', user.id)
           .single();
 
         console.log('[useAdminAuth] Admin roles query result:', userRoles, 'Error:', rolesError?.message);
