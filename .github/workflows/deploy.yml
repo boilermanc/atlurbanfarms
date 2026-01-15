@@ -15,9 +15,11 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,16 +30,18 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build site
         shell: bash
         run: |
           set -euo pipefail
           npm run build
+
           echo "commit=${GITHUB_SHA}" > dist/build-info.txt
           date -u +"built_utc=%Y-%m-%dT%H:%M:%SZ" >> dist/build-info.txt
+
           printf '%s\n' \
             '<!doctype html>' \
             '<meta charset="utf-8">' \
@@ -49,6 +53,7 @@ jobs:
             "  'built_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)';" \
             '</script>' \
             > dist/build-info.html
+
           printf '%s\n' \
             '<IfModule mod_headers.c>' \
             '  <Files "index.html">' \
@@ -68,16 +73,6 @@ jobs:
             '</IfModule>' \
             > dist/.htaccess
 
-      - name: Clean IONOS directory
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.IONOS_HOST }}
-          username: ${{ secrets.IONOS_USERNAME }}
-          password: ${{ secrets.IONOS_PASSWORD }}
-          port: ${{ secrets.IONOS_PORT }}
-          script: |
-            rm -rf ${{ secrets.IONOS_DEPLOY_PATH }}/*
-
       - name: Upload built site via SFTP
         uses: Dylan700/sftp-upload-action@v1.2.3
         with:
@@ -87,6 +82,7 @@ jobs:
           port: ${{ secrets.IONOS_PORT }}
           uploads: |
             ./dist/ => ${{ secrets.IONOS_DEPLOY_PATH }}/
+          delete: true
           ignore: |
             **/.git/**
             **/.github/**
