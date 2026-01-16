@@ -3,6 +3,11 @@ import { motion } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
 import { useShippingServices, useCreateOrder, useAuth } from '../hooks/useSupabase';
+import { useSetting } from '../admin/hooks/useSettings';
+import { useStripePayment } from '../hooks/useStripePayment';
+import { useEmailService } from '../hooks/useIntegrations';
+import StripePaymentWrapper from './StripePaymentForm';
+import { supabase } from '../lib/supabase';
 
 interface ShippingService {
   id: string;
@@ -70,10 +75,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { shippingServices, loading: shippingLoading } = useShippingServices();
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
+  const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
+  const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
+  const { sendOrderConfirmation } = useEmailService();
+
   const [selectedShipping, setSelectedShipping] = useState<string>('');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [paymentStep, setPaymentStep] = useState<'form' | 'payment'>('form');
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -156,6 +168,63 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       return;
     }
 
+    // If Stripe is enabled, create payment intent and show payment form
+    if (stripeEnabled) {
+      // Create order first with pending payment status
+      const result = await createOrder({
+        cartItems: items,
+        customerInfo: {
+          email: formData.email,
+          phone: formData.phone,
+          firstName: formData.firstName,
+          lastName: formData.lastName
+        },
+        shippingInfo: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          address1: formData.address1,
+          address2: formData.address2,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          country: formData.country
+        },
+        shippingMethod: selectedShippingService?.name || 'Standard',
+        shippingCost: shippingCost,
+        customerId: user?.id || null,
+        paymentStatus: 'pending'
+      });
+
+      if (!result.success || !result.order) {
+        setOrderError(result.error || 'Failed to create order. Please try again.');
+        return;
+      }
+
+      // Create payment intent
+      const paymentResult = await createPaymentIntent({
+        amount: total,
+        customerEmail: formData.email,
+        orderId: result.order.id,
+        metadata: {
+          orderNumber: result.order.order_number
+        }
+      });
+
+      if (!paymentResult) {
+        setOrderError(paymentError || 'Failed to initialize payment. Please try again.');
+        return;
+      }
+
+      setPendingOrderId(result.order.id);
+      setClientSecret(paymentResult.clientSecret);
+      setPaymentStep('payment');
+    } else {
+      // Test mode - create order without payment
+      await completeOrder();
+    }
+  };
+
+  const completeOrder = async () => {
     // Create the order in Supabase
     const result = await createOrder({
       cartItems: items,
@@ -181,37 +250,78 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     });
 
     if (result.success && result.order) {
-      // Prepare order data for confirmation page
-      const orderData: OrderData = {
-        order_number: result.order.order_number,
-        items: result.order.items,
-        customerFirstName: formData.firstName,
-        customerEmail: formData.email,
-        shippingAddress: {
-          name: `${formData.firstName} ${formData.lastName}`,
-          address: formData.address2
-            ? `${formData.address1}, ${formData.address2}`
-            : formData.address1,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip
-        },
-        totals: {
-          subtotal,
-          shipping: shippingCost,
-          tax,
-          total
-        },
-        isGuest: !user
-      };
-
-      // Navigate to order confirmation
-      if (onOrderComplete) {
-        onOrderComplete(orderData);
-      }
+      await handleOrderSuccess(result.order);
     } else {
       setOrderError(result.error || 'Failed to create order. Please try again.');
     }
+  };
+
+  const handleOrderSuccess = async (order: any) => {
+    // Prepare order data for confirmation page
+    const orderData: OrderData = {
+      order_number: order.order_number,
+      items: order.items,
+      customerFirstName: formData.firstName,
+      customerEmail: formData.email,
+      shippingAddress: {
+        name: `${formData.firstName} ${formData.lastName}`,
+        address: formData.address2
+          ? `${formData.address1}, ${formData.address2}`
+          : formData.address1,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip
+      },
+      totals: {
+        subtotal,
+        shipping: shippingCost,
+        tax,
+        total
+      },
+      isGuest: !user
+    };
+
+    // Send order confirmation email
+    try {
+      await sendOrderConfirmation(formData.email, {
+        orderNumber: order.order_number,
+        customerName: formData.firstName,
+        items: order.items,
+        subtotal,
+        shipping: shippingCost,
+        tax,
+        total,
+        shippingAddress: orderData.shippingAddress
+      });
+    } catch (emailError) {
+      console.error('Failed to send confirmation email:', emailError);
+      // Don't block the order flow if email fails
+    }
+
+    // Navigate to order confirmation
+    if (onOrderComplete) {
+      onOrderComplete(orderData);
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    // Payment succeeded, navigate to confirmation
+    if (pendingOrderId) {
+      // Fetch the order details and complete
+      const { data: order } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', pendingOrderId)
+        .single();
+
+      if (order) {
+        await handleOrderSuccess(order);
+      }
+    }
+  };
+
+  const handlePaymentError = (error: string) => {
+    setOrderError(error);
   };
 
   const getInputClassName = (fieldName: string) => {
@@ -530,7 +640,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
               <hr className="my-10 border-gray-100" />
 
-              {/* Payment (Test Mode) */}
+              {/* Payment Section */}
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -542,27 +652,55 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Payment</h3>
                 </div>
 
-                <div className="p-6 rounded-[2rem] border-2 border-amber-200 bg-amber-50/50">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2.5 py-0.5 bg-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-wider rounded-full">
-                          Test Mode
-                        </span>
+                {/* Show Stripe payment form if we have a client secret */}
+                {paymentStep === 'payment' && clientSecret ? (
+                  <div className="p-6 rounded-[2rem] border-2 border-emerald-200 bg-emerald-50/30">
+                    <StripePaymentWrapper
+                      clientSecret={clientSecret}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                    />
+                  </div>
+                ) : stripeEnabled && !stripeSettingLoading ? (
+                  // Stripe is enabled - show secure payment notice
+                  <div className="p-6 rounded-[2rem] border-2 border-emerald-200 bg-emerald-50/30">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
                       </div>
-                      <h4 className="font-bold text-gray-900 mb-1">No Payment Required</h4>
-                      <p className="text-sm text-gray-600">
-                        Payment processing is currently disabled. You can place a test order to complete the checkout flow.
-                        Stripe integration coming soon!
-                      </p>
+                      <div>
+                        <h4 className="font-bold text-gray-900 mb-1">Secure Payment</h4>
+                        <p className="text-sm text-gray-600">
+                          Your payment will be processed securely through Stripe. Click "Continue to Payment" to enter your card details.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  // Test mode - Stripe not enabled
+                  <div className="p-6 rounded-[2rem] border-2 border-amber-200 bg-amber-50/50">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2.5 py-0.5 bg-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-wider rounded-full">
+                            Test Mode
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-gray-900 mb-1">No Payment Required</h4>
+                        <p className="text-sm text-gray-600">
+                          Payment processing is currently disabled. You can place a test order to complete the checkout flow.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.section>
 
               {/* Order Error */}
@@ -582,33 +720,38 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
               )}
 
               {/* Submit Button - Desktop (hidden on mobile, shown in order summary on mobile) */}
-              <div className="hidden lg:block mt-12">
-                <button
-                  type="submit"
-                  disabled={orderLoading}
-                  className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-4 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {orderLoading ? (
-                    <>
-                      <svg className="animate-spin w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing Order...
-                    </>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Place Order
-                    </>
+              {/* Only show if not in payment step (Stripe form has its own submit) */}
+              {paymentStep !== 'payment' && (
+                <div className="hidden lg:block mt-12">
+                  <button
+                    type="submit"
+                    disabled={orderLoading || paymentProcessing}
+                    className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-4 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {orderLoading || paymentProcessing ? (
+                      <>
+                        <svg className="animate-spin w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {stripeEnabled ? 'Preparing Payment...' : 'Processing Order...'}
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
+                        </svg>
+                        {stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                      </>
+                    )}
+                  </button>
+                  {!stripeEnabled && (
+                    <p className="text-center text-xs text-gray-400 mt-4">
+                      Test Mode - No payment will be processed
+                    </p>
                   )}
-                </button>
-                <p className="text-center text-xs text-gray-400 mt-4">
-                  Test Mode - No payment will be processed
-                </p>
-              </div>
+                </div>
+              )}
             </form>
           </div>
 
@@ -674,35 +817,39 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </div>
                 </div>
 
-                {/* Mobile Submit Button */}
-                <div className="lg:hidden mt-8">
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={orderLoading}
-                    className="w-full py-5 rounded-[2rem] font-black text-lg text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    {orderLoading ? (
-                      <>
-                        <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Place Order
-                      </>
+                {/* Mobile Submit Button - Only show if not in payment step */}
+                {paymentStep !== 'payment' && (
+                  <div className="lg:hidden mt-8">
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={orderLoading || paymentProcessing}
+                      className="w-full py-5 rounded-[2rem] font-black text-lg text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {orderLoading || paymentProcessing ? (
+                        <>
+                          <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          {stripeEnabled ? 'Preparing...' : 'Processing...'}
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
+                          </svg>
+                          {stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                        </>
+                      )}
+                    </button>
+                    {!stripeEnabled && (
+                      <p className="text-center text-xs text-gray-400 mt-3">
+                        Test Mode - No payment required
+                      </p>
                     )}
-                  </button>
-                  <p className="text-center text-xs text-gray-400 mt-3">
-                    Test Mode - No payment required
-                  </p>
-                </div>
+                  </div>
+                )}
 
                 {/* Trust Badges */}
                 <div className="mt-8 pt-6 border-t border-gray-100">

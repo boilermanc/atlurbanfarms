@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings } from '../hooks/useSettings';
+import { useTestIntegration, useEmailService } from '../../hooks/useIntegrations';
 
 type IntegrationStatus = 'connected' | 'disconnected' | 'error';
 type HealthStatus = 'healthy' | 'warning' | 'error';
@@ -81,11 +82,16 @@ const DEFAULT_INTEGRATION_SETTINGS = {
   trellis_enabled: { value: false, dataType: 'boolean' as const },
   trellis_api_endpoint: { value: '', dataType: 'string' as const },
   trellis_api_key: { value: '', dataType: 'string' as const },
+  // Gemini (Sage AI)
+  gemini_enabled: { value: false, dataType: 'boolean' as const },
+  gemini_api_key: { value: '', dataType: 'string' as const },
 };
 
 const IntegrationsPage: React.FC = () => {
   const { settings, loading, error, refetch } = useSettings();
   const { bulkUpdate, loading: saving } = useBulkUpdateSettings();
+  const { testConnection: testIntegrationConnection, testing: testingIntegration } = useTestIntegration();
+  const { sendEmail } = useEmailService();
 
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -93,9 +99,11 @@ const IntegrationsPage: React.FC = () => {
     shipstation: false,
     resend: false,
     trellis: false,
+    gemini: false,
   });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
 
   // Initialize form data with defaults and loaded settings
@@ -159,11 +167,49 @@ const IntegrationsPage: React.FC = () => {
 
   const testConnection = async (integration: string) => {
     setTestingConnection(integration);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    setTestResult(null);
+
+    // Map display name to integration key
+    const integrationMap: Record<string, string> = {
+      'Stripe': 'stripe',
+      'Resend': 'resend',
+      'ShipStation': 'shipstation',
+      'Trellis': 'trellis',
+      'Gemini': 'gemini'
+    };
+
+    const integrationKey = integrationMap[integration] || integration.toLowerCase();
+    const result = await testIntegrationConnection(integrationKey);
+
     setTestingConnection(null);
-    setSaveMessage(`${integration} connection successful!`);
-    setTimeout(() => setSaveMessage(null), 3000);
+    setTestResult(result);
+
+    if (result.success) {
+      setSaveMessage(`${integration} connection successful!`);
+    } else {
+      setSaveMessage(`${integration} connection failed: ${result.message}`);
+    }
+    setTimeout(() => {
+      setSaveMessage(null);
+      setTestResult(null);
+    }, 5000);
+  };
+
+  const sendTestEmail = async () => {
+    setTestingConnection('ResendEmail');
+    const result = await sendEmail({
+      to: formData.resend_from_email || 'test@example.com',
+      subject: 'Test Email from ATL Urban Farms',
+      html: '<h1>Test Email</h1><p>This is a test email from your ATL Urban Farms integration.</p>'
+    });
+
+    setTestingConnection(null);
+    if (result.success) {
+      setSaveMessage('Test email sent successfully!');
+    } else {
+      setSaveMessage(`Failed to send test email: ${result.error}`);
+    }
+    setTimeout(() => setSaveMessage(null), 5000);
   };
 
   const triggerSync = async (integration: string) => {
@@ -219,6 +265,10 @@ const IntegrationsPage: React.FC = () => {
       formData.trellis_enabled,
       !!(formData.trellis_api_endpoint && formData.trellis_api_key)
     );
+    const geminiStatus = getConnectionStatus(
+      formData.gemini_enabled,
+      !!formData.gemini_api_key
+    );
 
     return {
       stripe: {
@@ -251,6 +301,14 @@ const IntegrationsPage: React.FC = () => {
         metrics: [
           { label: 'Subscribers', value: '1,234' },
           { label: 'Last Sync', value: '2 hours ago' },
+        ],
+      },
+      gemini: {
+        status: getHealthStatus(geminiStatus),
+        label: geminiStatus === 'connected' ? 'Connected' : geminiStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
+        metrics: [
+          { label: 'Model', value: 'Gemini 1.5 Flash' },
+          { label: 'Usage', value: 'Sage AI Assistant' },
         ],
       },
     };
@@ -573,7 +631,7 @@ const IntegrationsPage: React.FC = () => {
         )}
 
         {/* Health Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <HealthCard
             title="Stripe"
             icon={<span>💳</span>}
@@ -597,6 +655,12 @@ const IntegrationsPage: React.FC = () => {
             icon={<span>🌱</span>}
             health={health.trellis}
             onClick={() => toggleSection('trellis')}
+          />
+          <HealthCard
+            title="Gemini AI"
+            icon={<span>🤖</span>}
+            health={health.gemini}
+            onClick={() => toggleSection('gemini')}
           />
         </div>
 
@@ -990,6 +1054,84 @@ const IntegrationsPage: React.FC = () => {
                   className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Trellis' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Test Connection
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </IntegrationSection>
+
+          {/* GEMINI AI Section */}
+          <IntegrationSection
+            id="gemini"
+            title="Gemini AI (Sage)"
+            icon={<span>🤖</span>}
+            expanded={expandedSections.gemini}
+            onToggle={() => toggleSection('gemini')}
+            health={health.gemini}
+          >
+            <div className="space-y-6">
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+                <div>
+                  <h4 className="text-white font-medium">Enable Sage AI</h4>
+                  <p className="text-sm text-slate-400">Power the Sage gardening assistant with Google Gemini</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.gemini_enabled ?? false}
+                    onChange={(e) => updateField('gemini_enabled', e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              <SecretInput
+                label="Gemini API Key"
+                value={formData.gemini_api_key || ''}
+                onChange={(v) => updateField('gemini_api_key', v)}
+                placeholder="AIza..."
+                helpText="Get your API key from Google AI Studio (aistudio.google.com)"
+              />
+
+              {/* Info Box */}
+              <div className="p-4 bg-slate-900/50 rounded-lg">
+                <h4 className="text-sm font-medium text-slate-300 mb-2">About Sage AI</h4>
+                <p className="text-xs text-slate-400 mb-3">
+                  Sage is your AI-powered gardening assistant. It helps customers choose the right plants based on their sunlight, space, and experience level.
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500">Model:</span>
+                    <span className="text-slate-300 ml-2">Gemini 1.5 Flash</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Usage:</span>
+                    <span className="text-slate-300 ml-2">Customer Chat Widget</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Connection */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => testConnection('Gemini')}
+                  disabled={testingConnection === 'Gemini' || !formData.gemini_api_key}
+                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {testingConnection === 'Gemini' ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Testing...
