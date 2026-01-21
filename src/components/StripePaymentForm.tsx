@@ -28,9 +28,7 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({
   const elements = useElements()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-
+  const handleSubmit = async () => {
     if (!stripe || !elements) {
       return
     }
@@ -66,7 +64,7 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       <PaymentElement
         options={{
           layout: 'tabs'
@@ -85,7 +83,8 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({
       )}
 
       <button
-        type="submit"
+        type="button"
+        onClick={handleSubmit}
         disabled={!stripe || processing}
         className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-4 disabled:opacity-70 disabled:cursor-not-allowed"
       >
@@ -110,7 +109,7 @@ const CheckoutForm: React.FC<StripePaymentFormProps> = ({
       <p className="text-center text-xs text-gray-400">
         Payments are processed securely by Stripe
       </p>
-    </form>
+    </div>
   )
 }
 

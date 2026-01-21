@@ -430,7 +430,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
               {/* Items List */}
               <div className="lg:col-span-7 space-y-4">
-                {items.map((item) => (
+                {(items || []).map((item) => (
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, x: -10 }}

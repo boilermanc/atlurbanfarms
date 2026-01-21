@@ -1,10 +1,11 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useCategories } from '../src/hooks/useSupabase';
 
-const categories = [
-  {
-    name: 'Herbs',
+// Icon and style mapping for known categories
+const categoryStyles: Record<string, { icon: React.ReactNode; description: string; color: string }> = {
+  'Herbs': {
     icon: (
       <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 22V12M12 12C12 12 16 8 20 8M12 12C12 12 8 8 4 8M12 12C12 12 16 16 16 20M12 12C12 12 8 16 8 20" />
@@ -13,8 +14,7 @@ const categories = [
     description: 'Aromatic & Essential',
     color: 'emerald'
   },
-  {
-    name: 'Lettuce & Greens',
+  'Lettuce & Greens': {
     icon: (
       <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M11 20a7 7 0 0 1-7-7c0-3.87 3.13-7 7-7s7 3.13 7 7a7 7 0 0 1-7 7Z" />
@@ -25,8 +25,7 @@ const categories = [
     description: 'Crisp & Nutrient Dense',
     color: 'emerald'
   },
-  {
-    name: 'Vegetables',
+  'Vegetables': {
     icon: (
       <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
@@ -37,8 +36,7 @@ const categories = [
     description: 'High-Yield Crops',
     color: 'emerald'
   },
-  {
-    name: 'Flowers',
+  'Flowers': {
     icon: (
       <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
@@ -51,13 +49,26 @@ const categories = [
     description: 'Edible & Ornamental',
     color: 'purple'
   }
-];
+};
+
+// Default style for categories not in the mapping
+const defaultStyle = {
+  icon: (
+    <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+    </svg>
+  ),
+  description: 'Fresh & Local',
+  color: 'emerald'
+};
 
 interface CategorySectionProps {
   onCategoryClick: (category: string) => void;
 }
 
 const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) => {
+  const { categories: dbCategories, loading } = useCategories();
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -68,6 +79,11 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
+  // Don't render section if no categories
+  if (loading || !dbCategories || dbCategories.length === 0) {
+    return null;
+  }
+
   return (
     <section className="py-24 px-4 md:px-12 bg-white">
       <div className="max-w-7xl mx-auto">
@@ -76,22 +92,31 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
           <motion.h2 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-3xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight">Shop by <span className="sage-text-gradient">Garden Type</span></motion.h2>
         </div>
 
-        <motion.div variants={containerVariants} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {categories.map((cat) => (
-            <motion.div
-              key={cat.name}
-              onClick={() => onCategoryClick(cat.name === 'Lettuce & Greens' ? 'Vegetables' : cat.name)}
-              variants={itemVariants}
-              whileHover="hover"
-              className="cursor-pointer group relative p-8 rounded-[2.5rem] bg-gray-50 border border-transparent hover:border-emerald-100 hover:bg-emerald-50/50 transition-all duration-300 flex flex-col items-center text-center overflow-hidden"
-            >
-              <div className="w-20 h-20 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center mb-6 group-hover:shadow-lg group-hover:shadow-emerald-100/50 transition-all">
-                <div className={cat.color === 'purple' ? 'text-purple-500' : 'text-emerald-500'}>{cat.icon}</div>
-              </div>
-              <h3 className="font-heading font-extrabold text-lg text-gray-900 mb-1 tracking-tight">{cat.name}</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{cat.description}</p>
-            </motion.div>
-          ))}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          className={`grid grid-cols-2 gap-6 ${dbCategories.length <= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+        >
+          {dbCategories.map((cat: any) => {
+            const style = categoryStyles[cat.name] || defaultStyle;
+            return (
+              <motion.div
+                key={cat.id}
+                onClick={() => onCategoryClick(cat.name)}
+                variants={itemVariants}
+                whileHover="hover"
+                className="cursor-pointer group relative p-8 rounded-[2.5rem] bg-gray-50 border border-transparent hover:border-emerald-100 hover:bg-emerald-50/50 transition-all duration-300 flex flex-col items-center text-center overflow-hidden"
+              >
+                <div className="w-20 h-20 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center mb-6 group-hover:shadow-lg group-hover:shadow-emerald-100/50 transition-all">
+                  <div className={style.color === 'purple' ? 'text-purple-500' : 'text-emerald-500'}>{style.icon}</div>
+                </div>
+                <h3 className="font-heading font-extrabold text-lg text-gray-900 mb-1 tracking-tight">{cat.name}</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{cat.description || style.description}</p>
+              </motion.div>
+            );
+          })}
         </motion.div>
       </div>
     </section>

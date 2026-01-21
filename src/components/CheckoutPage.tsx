@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
-import { useShippingServices, useCreateOrder, useAuth } from '../hooks/useSupabase';
+import { useShippingServices, useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
 import { useSetting } from '../admin/hooks/useSettings';
 import { useStripePayment } from '../hooks/useStripePayment';
 import { useEmailService } from '../hooks/useIntegrations';
@@ -52,7 +52,7 @@ interface CheckoutPageProps {
   onOrderComplete?: (orderData: OrderData) => void;
 }
 
-interface FormData {
+interface CheckoutFormData {
   email: string;
   phone: string;
   firstName: string;
@@ -69,25 +69,85 @@ interface FormErrors {
   [key: string]: string;
 }
 
+// US States and territories for dropdown
+const US_STATES = [
+  { name: 'Alabama', abbreviation: 'AL' },
+  { name: 'Alaska', abbreviation: 'AK' },
+  { name: 'Arizona', abbreviation: 'AZ' },
+  { name: 'Arkansas', abbreviation: 'AR' },
+  { name: 'California', abbreviation: 'CA' },
+  { name: 'Colorado', abbreviation: 'CO' },
+  { name: 'Connecticut', abbreviation: 'CT' },
+  { name: 'Delaware', abbreviation: 'DE' },
+  { name: 'Florida', abbreviation: 'FL' },
+  { name: 'Georgia', abbreviation: 'GA' },
+  { name: 'Hawaii', abbreviation: 'HI' },
+  { name: 'Idaho', abbreviation: 'ID' },
+  { name: 'Illinois', abbreviation: 'IL' },
+  { name: 'Indiana', abbreviation: 'IN' },
+  { name: 'Iowa', abbreviation: 'IA' },
+  { name: 'Kansas', abbreviation: 'KS' },
+  { name: 'Kentucky', abbreviation: 'KY' },
+  { name: 'Louisiana', abbreviation: 'LA' },
+  { name: 'Maine', abbreviation: 'ME' },
+  { name: 'Maryland', abbreviation: 'MD' },
+  { name: 'Massachusetts', abbreviation: 'MA' },
+  { name: 'Michigan', abbreviation: 'MI' },
+  { name: 'Minnesota', abbreviation: 'MN' },
+  { name: 'Mississippi', abbreviation: 'MS' },
+  { name: 'Missouri', abbreviation: 'MO' },
+  { name: 'Montana', abbreviation: 'MT' },
+  { name: 'Nebraska', abbreviation: 'NE' },
+  { name: 'Nevada', abbreviation: 'NV' },
+  { name: 'New Hampshire', abbreviation: 'NH' },
+  { name: 'New Jersey', abbreviation: 'NJ' },
+  { name: 'New Mexico', abbreviation: 'NM' },
+  { name: 'New York', abbreviation: 'NY' },
+  { name: 'North Carolina', abbreviation: 'NC' },
+  { name: 'North Dakota', abbreviation: 'ND' },
+  { name: 'Ohio', abbreviation: 'OH' },
+  { name: 'Oklahoma', abbreviation: 'OK' },
+  { name: 'Oregon', abbreviation: 'OR' },
+  { name: 'Pennsylvania', abbreviation: 'PA' },
+  { name: 'Rhode Island', abbreviation: 'RI' },
+  { name: 'South Carolina', abbreviation: 'SC' },
+  { name: 'South Dakota', abbreviation: 'SD' },
+  { name: 'Tennessee', abbreviation: 'TN' },
+  { name: 'Texas', abbreviation: 'TX' },
+  { name: 'Utah', abbreviation: 'UT' },
+  { name: 'Vermont', abbreviation: 'VT' },
+  { name: 'Virginia', abbreviation: 'VA' },
+  { name: 'Washington', abbreviation: 'WA' },
+  { name: 'Washington, D.C.', abbreviation: 'DC' },
+  { name: 'West Virginia', abbreviation: 'WV' },
+  { name: 'Wisconsin', abbreviation: 'WI' },
+  { name: 'Wyoming', abbreviation: 'WY' },
+];
+
 const TAX_RATE = 0.08; // 8% tax rate
 
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete }) => {
   const { shippingServices, loading: shippingLoading } = useShippingServices();
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
+  const { profile } = useCustomerProfile(user?.id);
+  const { addresses } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
 
   const [selectedShipping, setSelectedShipping] = useState<string>('');
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [paymentStep, setPaymentStep] = useState<'form' | 'payment'>('form');
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [hasPrefilledForm, setHasPrefilledForm] = useState(false);
 
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     phone: '',
     firstName: '',
@@ -107,6 +167,39 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   }, [shippingServices, selectedShipping]);
 
+  // Pre-fill form with user data when logged in (only once)
+  useEffect(() => {
+    if (!user || hasPrefilledForm) return;
+
+    const defaultAddress = addresses?.find((addr: any) => addr.is_default) || addresses?.[0];
+
+    // Only pre-fill if we have user data loaded
+    if (user.email || profile || defaultAddress) {
+      // Mark the default address as selected in the UI
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        // Email from auth user
+        email: user.email || prev.email,
+        // Name and phone from profile or address
+        firstName: profile?.first_name || defaultAddress?.first_name || prev.firstName,
+        lastName: profile?.last_name || defaultAddress?.last_name || prev.lastName,
+        phone: profile?.phone || defaultAddress?.phone || prev.phone,
+        // Address from default address
+        address1: defaultAddress?.street || prev.address1,
+        address2: defaultAddress?.unit || prev.address2,
+        city: defaultAddress?.city || prev.city,
+        state: defaultAddress?.state || prev.state,
+        zip: defaultAddress?.zip || prev.zip,
+      }));
+
+      setHasPrefilledForm(true);
+    }
+  }, [user, profile, addresses, hasPrefilledForm]);
+
   const selectedShippingService = shippingServices.find(s => s.id === selectedShipping);
   const shippingCost = selectedShippingService?.price || 0;
 
@@ -114,7 +207,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const tax = subtotal * TAX_RATE;
   const total = subtotal + shippingCost + tax;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
@@ -128,9 +221,35 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   };
 
+  const handleSelectSavedAddress = (address: any) => {
+    setSelectedAddressId(address.id);
+    setFormData(prev => ({
+      ...prev,
+      firstName: address.first_name || prev.firstName,
+      lastName: address.last_name || prev.lastName,
+      phone: address.phone || prev.phone,
+      address1: address.street || '',
+      address2: address.unit || '',
+      city: address.city || '',
+      state: address.state || '',
+      zip: address.zip || '',
+    }));
+    // Clear any address-related errors
+    setFormErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.firstName;
+      delete newErrors.lastName;
+      delete newErrors.address1;
+      delete newErrors.city;
+      delete newErrors.state;
+      delete newErrors.zip;
+      return newErrors;
+    });
+  };
+
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
-    const requiredFields: (keyof FormData)[] = [
+    const requiredFields: (keyof CheckoutFormData)[] = [
       'email', 'phone', 'firstName', 'lastName', 'address1', 'city', 'state', 'zip'
     ];
 
@@ -192,7 +311,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         shippingMethod: selectedShippingService?.name || 'Standard',
         shippingCost: shippingCost,
         customerId: user?.id || null,
-        paymentStatus: 'pending'
+        paymentStatus: 'pending',
+        saveAddress: saveAddress
       });
 
       if (!result.success || !result.order) {
@@ -246,7 +366,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       },
       shippingMethod: selectedShippingService?.name || 'Standard',
       shippingCost: shippingCost,
-      customerId: user?.id || null
+      customerId: user?.id || null,
+      saveAddress: saveAddress
     });
 
     if (result.success && result.order) {
@@ -439,6 +560,57 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Shipping Address</h3>
                 </div>
 
+                {/* Saved Addresses Selector */}
+                {user && addresses && addresses.length > 0 && (
+                  <div className="mb-6">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3 block">
+                      Saved Addresses
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {addresses.map((address: any) => (
+                        <button
+                          key={address.id}
+                          type="button"
+                          onClick={() => handleSelectSavedAddress(address)}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                            selectedAddressId === address.id
+                              ? 'border-emerald-600 bg-emerald-50/30'
+                              : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                selectedAddressId === address.id
+                                  ? 'border-emerald-600'
+                                  : 'border-gray-300'
+                              }`}>
+                                {selectedAddressId === address.id && (
+                                  <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                                )}
+                              </div>
+                              <span className="font-bold text-gray-900 text-sm">{address.label || 'Address'}</span>
+                            </div>
+                            {address.is_default && (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 ml-6 text-xs text-gray-500 space-y-0.5">
+                            <p>{address.first_name} {address.last_name}</p>
+                            <p>{address.street}{address.unit ? `, ${address.unit}` : ''}</p>
+                            <p>{address.city}, {address.state} {address.zip}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-3">
+                      Select a saved address or enter a new one below
+                    </p>
+                  </div>
+                )}
+
                 {/* Name fields side by side */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -527,19 +699,29 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     )}
                   </div>
                   <div className="col-span-2 md:col-span-1 space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    <label htmlFor="state-select" className="text-xs font-black uppercase tracking-widest text-gray-400">
                       State <span className="text-red-400">*</span>
                     </label>
-                    <input
+                    <select
+                      id="state-select"
                       name="state"
                       value={formData.state}
                       onChange={handleInputChange}
-                      type="text"
-                      placeholder="GA"
+                      required
+                      aria-required="true"
+                      aria-invalid={formErrors.state && submitAttempted ? 'true' : 'false'}
+                      aria-describedby={formErrors.state && submitAttempted ? 'state-error' : undefined}
                       className={getInputClassName('state')}
-                    />
+                    >
+                      <option value="" disabled>Select a state</option>
+                      {US_STATES.map((state) => (
+                        <option key={state.abbreviation} value={state.abbreviation}>
+                          {state.name}
+                        </option>
+                      ))}
+                    </select>
                     {formErrors.state && submitAttempted && (
-                      <p className="text-xs text-red-500 mt-1">{formErrors.state}</p>
+                      <p id="state-error" className="text-xs text-red-500 mt-1">{formErrors.state}</p>
                     )}
                   </div>
                   <div className="col-span-2 md:col-span-1 space-y-2">
@@ -574,6 +756,33 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   />
                   <p className="text-xs text-gray-400">Currently shipping within the United States only</p>
                 </div>
+
+                {/* Save Address Checkbox - only show for logged in users */}
+                {user && (
+                  <div className="flex items-center gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setSaveAddress(!saveAddress)}
+                      className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        saveAddress
+                          ? 'bg-emerald-600 border-emerald-600'
+                          : 'border-gray-300 hover:border-emerald-400'
+                      }`}
+                    >
+                      {saveAddress && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                    <label
+                      onClick={() => setSaveAddress(!saveAddress)}
+                      className="text-sm text-gray-600 cursor-pointer select-none"
+                    >
+                      Save this address to my address book
+                    </label>
+                  </div>
+                )}
               </motion.section>
 
               <hr className="my-10 border-gray-100" />

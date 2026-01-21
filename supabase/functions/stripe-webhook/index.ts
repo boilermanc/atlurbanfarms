@@ -38,7 +38,7 @@ serve(async (req) => {
     // Verify webhook signature
     let event: Stripe.Event
     try {
-      event = stripe.webhooks.constructEvent(
+      event = await stripe.webhooks.constructEventAsync(
         body,
         signature,
         settings.stripe_webhook_secret
@@ -123,7 +123,7 @@ serve(async (req) => {
     }
 
     // Log webhook event
-    await supabaseClient
+    const { error: logError } = await supabaseClient
       .from('webhook_logs')
       .insert({
         source: 'stripe',
@@ -132,7 +132,10 @@ serve(async (req) => {
         status: 'processed',
         created_at: new Date().toISOString()
       })
-      .catch(err => console.error('Failed to log webhook:', err))
+
+    if (logError) {
+      console.error('Failed to log webhook:', logError)
+    }
 
     return new Response(JSON.stringify({ received: true }), {
       status: 200,

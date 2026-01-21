@@ -72,12 +72,31 @@ const getPathForView = (view: ViewType): string => {
   }
 };
 
+const CART_STORAGE_KEY = 'atl-urban-farms-cart';
+
 const App: React.FC = () => {
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    // Initialize cart from localStorage
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
+
+  // Persist cart to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // localStorage might be full or disabled
+    }
+  }, [cart]);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -219,7 +238,11 @@ const App: React.FC = () => {
         return (
           <LoginPage
             onNavigate={handleNavigate}
-            onSuccess={() => handleNavigate('account')}
+            onSuccess={() => {
+              // Check if user has seen welcome page before
+              const hasSeenWelcome = localStorage.getItem('atluf_welcome_seen') === 'true';
+              handleNavigate(hasSeenWelcome ? 'shop' : 'welcome');
+            }}
           />
         );
       case 'register':
