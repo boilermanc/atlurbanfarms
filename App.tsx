@@ -18,6 +18,7 @@ import LoginPage from './src/components/auth/LoginPage';
 import RegisterPage from './src/components/auth/RegisterPage';
 import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
 import { AccountPage } from './src/components/account';
+import { WelcomePage } from './src/pages';
 import { AuthProvider } from './src/context/AuthContext';
 import { AdminLayout } from './src/admin';
 import AdminLogin from './src/admin/pages/AdminLogin';
@@ -51,12 +52,13 @@ interface OrderData {
   isGuest: boolean;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'admin' | 'admin-login';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/admin/login') return 'admin-login';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
+  if (pathname === '/welcome') return 'welcome';
   return 'home';
 };
 
@@ -65,6 +67,7 @@ const getPathForView = (view: ViewType): string => {
   switch (view) {
     case 'admin-login': return '/admin/login';
     case 'admin': return '/admin';
+    case 'welcome': return '/welcome';
     default: return '/';
   }
 };
@@ -223,7 +226,7 @@ const App: React.FC = () => {
         return (
           <RegisterPage
             onNavigate={handleNavigate}
-            onSuccess={() => handleNavigate('account')}
+            onSuccess={() => handleNavigate('welcome')}
           />
         );
       case 'forgot-password':
@@ -235,6 +238,10 @@ const App: React.FC = () => {
       case 'account':
         return (
           <AccountPage onNavigate={handleNavigate} />
+        );
+      case 'welcome':
+        return (
+          <WelcomePage onNavigate={handleNavigate} />
         );
       case 'admin-login':
         return (

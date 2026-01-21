@@ -68,6 +68,7 @@ const DEFAULT_INTEGRATION_SETTINGS = {
   stripe_publishable_key: { value: '', dataType: 'string' as const },
   stripe_secret_key: { value: '', dataType: 'string' as const },
   stripe_webhook_secret: { value: '', dataType: 'string' as const },
+  stripe_webhook_url: { value: 'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/stripe-webhook', dataType: 'string' as const },
   // ShipStation
   shipstation_enabled: { value: false, dataType: 'boolean' as const },
   shipstation_api_key: { value: '', dataType: 'string' as const },
@@ -124,6 +125,7 @@ const IntegrationsPage: React.FC = () => {
   }, []);
 
   const handleSave = useCallback(async () => {
+    console.log('🔵 Save clicked');
     const settingsToSave: Record<string, { value: any; dataType: 'string' | 'number' | 'boolean' | 'json' }> = {};
 
     Object.entries(DEFAULT_INTEGRATION_SETTINGS).forEach(([key, config]) => {
@@ -133,12 +135,17 @@ const IntegrationsPage: React.FC = () => {
       };
     });
 
+    console.log('🔵 Saving data:', settingsToSave);
     const success = await bulkUpdate('integrations', settingsToSave);
+    console.log('🔵 Save result:', success);
 
     if (success) {
       setSaveMessage('Settings saved!');
       setTimeout(() => setSaveMessage(null), 3000);
       refetch();
+    } else {
+      setSaveMessage('Failed to save settings. Check console for details.');
+      setTimeout(() => setSaveMessage(null), 5000);
     }
   }, [formData, bulkUpdate, refetch]);
 
@@ -724,18 +731,19 @@ const IntegrationsPage: React.FC = () => {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={`${webhookBaseUrl}/stripe`}
-                    readOnly
-                    className="flex-1 px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-slate-400 font-mono text-sm"
+                    value={formData.stripe_webhook_url || ''}
+                    onChange={(e) => updateField('stripe_webhook_url', e.target.value)}
+                    className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="https://your-project.supabase.co/functions/v1/stripe-webhook"
                   />
                   <button
-                    onClick={() => navigator.clipboard.writeText(`${webhookBaseUrl}/stripe`)}
+                    onClick={() => navigator.clipboard.writeText(formData.stripe_webhook_url || '')}
                     className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
                   >
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Configure this URL in your Stripe Dashboard under Webhooks</p>
+                <p className="text-xs text-slate-400">Configure this URL in your Stripe Dashboard under Webhooks. Use your Supabase Edge Function URL.</p>
               </div>
 
               {/* Test Connection Button */}

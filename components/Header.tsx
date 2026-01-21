@@ -218,7 +218,20 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                 ) : (
                   <button
                     onClick={() => onNavigate('login')}
-                    className="p-2 text-gray-700 hover:text-emerald-600 transition-colors"
+                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-full hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    Sign In
+                  </button>
+                )}
+                {/* Mobile login icon (shown only on mobile when not logged in) */}
+                {!user && (
+                  <button
+                    onClick={() => onNavigate('login')}
+                    className="md:hidden p-2 text-gray-700 hover:text-emerald-600 transition-colors"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
