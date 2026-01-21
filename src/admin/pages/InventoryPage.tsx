@@ -241,7 +241,9 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-400">Showing batches for:</span>
             <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium flex items-center gap-2">
-              {batches.find((b) => b.product_id === selectedProductId)?.product_name || 'Selected Product'}
+              {batches.find((b) => b.product_id === selectedProductId)?.product_name ||
+                productInventory.find((p) => p.product_id === selectedProductId)?.product_name ||
+                'Selected Product'}
               <button
                 onClick={clearProductFilter}
                 className="hover:text-white transition-colors"
@@ -332,7 +334,12 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                               {product.batch_count}
                             </td>
                             <td className="px-6 py-4 text-center">
-                              {product.is_low_stock ? (
+                              {product.total_available === 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-medium">
+                                  <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                                  Out of Stock
+                                </span>
+                              ) : product.is_low_stock ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
                                   <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
                                   Low Stock
@@ -436,8 +443,30 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                     <tbody className="divide-y divide-slate-700">
                       {batches.length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="px-6 py-12 text-center text-slate-400">
-                            No batches found
+                          <td colSpan={11} className="px-6 py-12 text-center">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center">
+                                <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-slate-300 font-medium">
+                                  {selectedProductId ? 'No batches for this product yet' : 'No batches found'}
+                                </p>
+                                <p className="text-slate-500 text-sm mt-1">
+                                  {selectedProductId
+                                    ? 'Create a batch to start tracking inventory for this product'
+                                    : 'Create your first batch to start tracking inventory'}
+                                </p>
+                              </div>
+                              <button
+                                onClick={handleAddBatch}
+                                className="mt-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                              >
+                                + Add First Batch
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ) : (

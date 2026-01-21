@@ -226,7 +226,11 @@ const App: React.FC = () => {
         return (
           <RegisterPage
             onNavigate={handleNavigate}
-            onSuccess={() => handleNavigate('welcome')}
+            onSuccess={() => {
+              // Check if user has seen welcome page before
+              const hasSeenWelcome = localStorage.getItem('atluf_welcome_seen') === 'true';
+              handleNavigate(hasSeenWelcome ? 'shop' : 'welcome');
+            }}
           />
         );
       case 'forgot-password':

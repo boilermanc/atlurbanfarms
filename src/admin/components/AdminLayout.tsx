@@ -74,6 +74,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
 
@@ -150,6 +151,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     if (page === 'customers') setSelectedCustomerId(null);
     if (page === 'products') setSelectedProductId(null);
     if (page === 'content-pages') setSelectedContentId(null);
+    if (page === 'inventory') setSelectedBatchId(null);
+  };
+
+  const handleEditBatch = (batchId?: string) => {
+    setSelectedBatchId(batchId || null);
+    setCurrentPage('batch-edit');
   };
 
   const handleViewOrder = (orderId: string) => {
@@ -201,9 +208,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'categories':
         return <CategoriesPage />;
       case 'inventory':
-        return <InventoryPage onBatchEdit={() => handleNavigate('batch-edit')} />;
+        return <InventoryPage onNavigateToBatchEdit={handleEditBatch} />;
       case 'batch-edit':
-        return <BatchEditPage onBack={() => handleNavigate('inventory')} />;
+        return <BatchEditPage batchId={selectedBatchId || undefined} onNavigateBack={() => handleNavigate('inventory')} />;
       case 'customers':
         return <CustomersPage onViewCustomer={handleViewCustomer} />;
       case 'customer-detail':

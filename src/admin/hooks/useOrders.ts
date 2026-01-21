@@ -134,7 +134,7 @@ export function useOrders(filters: OrderFilters = {}) {
             line_total,
             products (
               name,
-              images
+              images:product_images(id, image_url, is_primary, sort_order)
             )
           )
         `)
@@ -202,7 +202,7 @@ export function useOrders(filters: OrderFilters = {}) {
           id: item.id,
           product_id: item.product_id,
           product_name: item.products?.name || 'Unknown Product',
-          product_image: item.products?.images?.[0] || null,
+          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.image_url || null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           line_total: item.line_total,
@@ -271,7 +271,7 @@ export function useOrder(orderId: string | null) {
             line_total,
             products (
               name,
-              images
+              images:product_images(id, image_url, is_primary, sort_order)
             )
           )
         `)
@@ -322,7 +322,7 @@ export function useOrder(orderId: string | null) {
           id: item.id,
           product_id: item.product_id,
           product_name: item.products?.name || 'Unknown Product',
-          product_image: item.products?.images?.[0] || null,
+          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.image_url || null,
           quantity: item.quantity,
           unit_price: item.unit_price,
           line_total: item.line_total,

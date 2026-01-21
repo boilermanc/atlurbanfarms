@@ -152,14 +152,19 @@ const WashiTape: React.FC<{ rotation?: number; color?: string; className?: strin
 
 // ============ MAIN COMPONENT ============
 const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
-  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Check if user has already seen the welcome page
     const welcomeSeen = localStorage.getItem('atluf_welcome_seen');
     if (welcomeSeen === 'true') {
-      setHasSeenWelcome(true);
+      // Redirect returning users to shop
+      onNavigate('shop');
+      return;
     }
-  }, []);
+    // Show welcome page for new users
+    setIsLoading(false);
+  }, [onNavigate]);
 
   const handlePathClick = (preference: GrowingPreference, filterParam: string) => {
     localStorage.setItem('atluf_welcome_seen', 'true');
@@ -211,6 +216,15 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
     { name: 'Cherry Tomatoes', emoji: '🍅', note: 'Kids love these' },
     { name: 'Bell Peppers', emoji: '🫑', note: 'So colorful!' },
   ];
+
+  // Show nothing while checking localStorage (prevents flash)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#faf8f3' }}>
+        <div className="text-emerald-600 font-handwriting text-2xl animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -551,21 +565,6 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
           <span>pg. 1</span>
         </motion.footer>
 
-        {/* Skip link for returning users */}
-        {hasSeenWelcome && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center mt-8"
-          >
-            <button
-              onClick={() => onNavigate('shop')}
-              className="font-handwriting-alt text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              or skip to shop →
-            </button>
-          </motion.div>
-        )}
       </motion.div>
 
       {/* Bottom decorative vine */}
