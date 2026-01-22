@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings } from '../hooks/useSettings';
 import { useTestIntegration, useEmailService } from '../../hooks/useIntegrations';
+import { supabase } from '../../lib/supabase';
 
 type IntegrationStatus = 'connected' | 'disconnected' | 'error';
 type HealthStatus = 'healthy' | 'warning' | 'error';
@@ -37,6 +38,293 @@ interface SyncLog {
   timestamp: string;
 }
 
+// Helper functions moved outside component
+const getStatusColor = (status: HealthStatus): string => {
+  switch (status) {
+    case 'healthy':
+      return 'bg-emerald-500';
+    case 'warning':
+      return 'bg-yellow-500';
+    case 'error':
+      return 'bg-red-500';
+  }
+};
+
+const getStatusBgColor = (status: HealthStatus): string => {
+  switch (status) {
+    case 'healthy':
+      return 'bg-emerald-500/10 border-emerald-500/20';
+    case 'warning':
+      return 'bg-yellow-500/10 border-yellow-500/20';
+    case 'error':
+      return 'bg-red-500/10 border-red-500/20';
+  }
+};
+
+const formatTimestamp = (timestamp: string): string => {
+  return new Date(timestamp).toLocaleString();
+};
+
+// Input with toggle visibility for secrets - moved outside
+const SecretInput = memo<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  readOnly?: boolean;
+  helpText?: string;
+}>(({ label, value, onChange, placeholder, readOnly, helpText }) => {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-medium text-slate-300">{label}</label>
+      <div className="relative">
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          readOnly={readOnly}
+          className="w-full px-4 py-3 pr-12 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible(!visible)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+        >
+          {visible ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          )}
+        </button>
+      </div>
+      {helpText && <p className="text-xs text-slate-400">{helpText}</p>}
+    </div>
+  );
+});
+SecretInput.displayName = 'SecretInput';
+
+// Health Overview Card Component - moved outside
+const HealthCard = memo<{
+  title: string;
+  icon: React.ReactNode;
+  health: IntegrationHealth;
+  onClick: () => void;
+}>(({ title, icon, health, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`p-4 rounded-xl border transition-all hover:scale-[1.02] text-left w-full ${getStatusBgColor(health.status)}`}
+  >
+    <div className="flex items-start justify-between mb-3">
+      <div className="flex items-center gap-3">
+        <div className="text-2xl">{icon}</div>
+        <div>
+          <h3 className="text-white font-medium">{title}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
+            <span className="text-sm text-slate-400">{health.label}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-2 mt-3">
+      {health.metrics.map((metric, idx) => (
+        <div key={idx} className="text-xs">
+          <span className="text-slate-500">{metric.label}:</span>
+          <span className="text-slate-300 ml-1">{metric.value}</span>
+        </div>
+      ))}
+    </div>
+  </button>
+));
+HealthCard.displayName = 'HealthCard';
+
+// Expandable Section Component - moved outside
+const IntegrationSection = memo<{
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  expanded: boolean;
+  onToggle: () => void;
+  health: IntegrationHealth;
+  children: React.ReactNode;
+}>(({ id, title, icon, expanded, onToggle, health, children }) => (
+  <div id={`section-${id}`} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+    <button
+      onClick={onToggle}
+      className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
+    >
+      <div className="flex items-center gap-4">
+        <div className="text-2xl">{icon}</div>
+        <div className="text-left">
+          <h3 className="text-lg font-medium text-white">{title}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
+            <span className="text-sm text-slate-400">{health.label}</span>
+          </div>
+        </div>
+      </div>
+      <motion.svg
+        animate={{ rotate: expanded ? 180 : 0 }}
+        className="w-5 h-5 text-slate-400"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </motion.svg>
+    </button>
+    <AnimatePresence>
+      {expanded && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <div className="px-6 pb-6 border-t border-slate-700 pt-4">
+            {children}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+));
+IntegrationSection.displayName = 'IntegrationSection';
+
+// Webhook/Events Table Component - moved outside
+const EventsTable = memo<{
+  title: string;
+  events: WebhookEvent[];
+}>(({ title, events }) => (
+  <div className="space-y-3">
+    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
+    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Type</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.slice(0, 10).map((event) => (
+            <tr key={event.id} className="border-b border-slate-700/50 last:border-0">
+              <td className="px-4 py-2 text-slate-300 font-mono text-xs">{event.type}</td>
+              <td className="px-4 py-2">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                  event.status === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    event.status === 'success' ? 'bg-emerald-400' : 'bg-red-400'
+                  }`} />
+                  {event.status}
+                </span>
+              </td>
+              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(event.timestamp)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+));
+EventsTable.displayName = 'EventsTable';
+
+// Email Log Table Component - moved outside
+const EmailsTable = memo<{
+  title: string;
+  emails: EmailLog[];
+}>(({ title, emails }) => (
+  <div className="space-y-3">
+    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
+    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">To</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Subject</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {emails.slice(0, 10).map((email) => (
+            <tr key={email.id} className="border-b border-slate-700/50 last:border-0">
+              <td className="px-4 py-2 text-slate-300 text-xs">{email.to}</td>
+              <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[200px]">{email.subject}</td>
+              <td className="px-4 py-2">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                  email.status === 'delivered'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : email.status === 'bounced'
+                    ? 'bg-yellow-500/10 text-yellow-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}>
+                  {email.status}
+                </span>
+              </td>
+              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(email.timestamp)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+));
+EmailsTable.displayName = 'EmailsTable';
+
+// Sync Log Table Component - moved outside
+const SyncLogTable = memo<{
+  title: string;
+  logs: SyncLog[];
+}>(({ title, logs }) => (
+  <div className="space-y-3">
+    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
+    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Action</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Items</th>
+            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((log) => (
+            <tr key={log.id} className="border-b border-slate-700/50 last:border-0">
+              <td className="px-4 py-2 text-slate-300 text-xs">{log.action}</td>
+              <td className="px-4 py-2">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                  log.status === 'success'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-red-500/10 text-red-400'
+                }`}>
+                  {log.status}
+                </span>
+              </td>
+              <td className="px-4 py-2 text-slate-400 text-xs">{log.itemsProcessed}</td>
+              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(log.timestamp)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+));
+SyncLogTable.displayName = 'SyncLogTable';
+
 // Mock data for demonstration - in production, these would come from APIs
 const MOCK_STRIPE_WEBHOOKS: WebhookEvent[] = [
   { id: '1', type: 'payment_intent.succeeded', status: 'success', timestamp: '2025-01-15T10:30:00Z' },
@@ -69,10 +357,9 @@ const DEFAULT_INTEGRATION_SETTINGS = {
   stripe_secret_key: { value: '', dataType: 'string' as const },
   stripe_webhook_secret: { value: '', dataType: 'string' as const },
   stripe_webhook_url: { value: 'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/stripe-webhook', dataType: 'string' as const },
-  // ShipStation
+  // ShipEngine (shipping integration)
   shipstation_enabled: { value: false, dataType: 'boolean' as const },
-  shipstation_api_key: { value: '', dataType: 'string' as const },
-  shipstation_api_secret: { value: '', dataType: 'string' as const },
+  shipengine_api_key: { value: '', dataType: 'string' as const },
   shipstation_store_id: { value: '', dataType: 'string' as const },
   // Resend
   resend_enabled: { value: false, dataType: 'boolean' as const },
@@ -106,6 +393,9 @@ const IntegrationsPage: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [testEmailAddress, setTestEmailAddress] = useState<string>('');
+  const [lastError, setLastError] = useState<{ integration: string; error: string; details?: string; timestamp: Date } | null>(null);
+  const [reportingIssue, setReportingIssue] = useState(false);
 
   // Initialize form data with defaults and loaded settings
   useEffect(() => {
@@ -153,6 +443,18 @@ const IntegrationsPage: React.FC = () => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   }, []);
 
+  const scrollToSection = useCallback((section: string) => {
+    // Expand the section
+    setExpandedSections(prev => ({ ...prev, [section]: true }));
+    // Scroll to the section after a brief delay to allow expansion
+    setTimeout(() => {
+      const element = document.getElementById(`section-${section}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  }, []);
+
   const maskValue = (value: string, showLast: number = 4): string => {
     if (!value || value.length <= showLast) return value;
     return '*'.repeat(Math.min(value.length - showLast, 20)) + value.slice(-showLast);
@@ -173,6 +475,7 @@ const IntegrationsPage: React.FC = () => {
   };
 
   const testConnection = async (integration: string) => {
+    console.log('🔵 testConnection called with:', integration);
     setTestingConnection(integration);
     setTestResult(null);
 
@@ -180,43 +483,134 @@ const IntegrationsPage: React.FC = () => {
     const integrationMap: Record<string, string> = {
       'Stripe': 'stripe',
       'Resend': 'resend',
-      'ShipStation': 'shipstation',
+      'ShipEngine': 'shipstation',
       'Trellis': 'trellis',
       'Gemini': 'gemini'
     };
 
     const integrationKey = integrationMap[integration] || integration.toLowerCase();
-    const result = await testIntegrationConnection(integrationKey);
+    console.log('🔵 Testing integration key:', integrationKey);
 
-    setTestingConnection(null);
-    setTestResult(result);
+    try {
+      const result = await testIntegrationConnection(integrationKey);
+      console.log('🔵 Test result:', result);
 
-    if (result.success) {
-      setSaveMessage(`${integration} connection successful!`);
-    } else {
-      setSaveMessage(`${integration} connection failed: ${result.message}`);
+      setTestingConnection(null);
+      setTestResult(result);
+
+      if (result.success) {
+        setSaveMessage(`${integration} connection successful!`);
+        setLastError(null);
+        setTimeout(() => {
+          setSaveMessage(null);
+          setTestResult(null);
+        }, 5000);
+      } else {
+        // Show detailed error with any additional details
+        const detailsStr = result.details ? JSON.stringify(result.details) : undefined;
+        const errorMsg = `${integration} failed: ${result.message}`;
+        setSaveMessage(errorMsg + (detailsStr ? ` | Details: ${detailsStr}` : ''));
+        setLastError({
+          integration,
+          error: result.message,
+          details: detailsStr,
+          timestamp: new Date()
+        });
+      }
+    } catch (err: any) {
+      console.error('🔴 testConnection error:', err);
+      setTestingConnection(null);
+      const errorMsg = err.message || String(err);
+      setSaveMessage(`${integration} test error: ${errorMsg}`);
+      setLastError({
+        integration,
+        error: errorMsg,
+        timestamp: new Date()
+      });
     }
-    setTimeout(() => {
-      setSaveMessage(null);
-      setTestResult(null);
-    }, 5000);
   };
 
   const sendTestEmail = async () => {
+    const recipient = testEmailAddress || formData.resend_from_email || 'test@example.com';
+    console.log('🔵 sendTestEmail called');
+    console.log('🔵 Sending to:', recipient);
     setTestingConnection('ResendEmail');
-    const result = await sendEmail({
-      to: formData.resend_from_email || 'test@example.com',
-      subject: 'Test Email from ATL Urban Farms',
-      html: '<h1>Test Email</h1><p>This is a test email from your ATL Urban Farms integration.</p>'
-    });
 
-    setTestingConnection(null);
-    if (result.success) {
-      setSaveMessage('Test email sent successfully!');
-    } else {
-      setSaveMessage(`Failed to send test email: ${result.error}`);
+    try {
+      const result = await sendEmail({
+        to: recipient,
+        subject: 'Test Email from ATL Urban Farms',
+        html: '<h1>Test Email</h1><p>This is a test email from your ATL Urban Farms integration.</p>'
+      });
+      console.log('🔵 sendEmail result:', result);
+
+      setTestingConnection(null);
+      if (result.success) {
+        setSaveMessage(`Test email sent to ${recipient}!`);
+        setLastError(null);
+        setTimeout(() => setSaveMessage(null), 5000);
+      } else {
+        // Show detailed error message
+        const errorDetails = result.details ? ` (${result.details})` : '';
+        setSaveMessage(`Failed to send email: ${result.error}${errorDetails}`);
+        setLastError({
+          integration: 'Resend Email',
+          error: result.error || 'Unknown error',
+          details: result.details,
+          timestamp: new Date()
+        });
+      }
+    } catch (err: any) {
+      console.error('🔴 sendTestEmail error:', err);
+      setTestingConnection(null);
+      const errorMsg = err.message || String(err);
+      setSaveMessage(`Failed to send email: ${errorMsg}`);
+      setLastError({
+        integration: 'Resend Email',
+        error: errorMsg,
+        timestamp: new Date()
+      });
     }
-    setTimeout(() => setSaveMessage(null), 5000);
+  };
+
+  const reportIssueToSupport = async () => {
+    if (!lastError) return;
+
+    setReportingIssue(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const result = await sendEmail({
+        to: 'team@sproutify.app',
+        subject: `Integration Issue Report: ${lastError.integration}`,
+        html: `
+          <h2>Integration Issue Report</h2>
+          <p><strong>Integration:</strong> ${lastError.integration}</p>
+          <p><strong>Error:</strong> ${lastError.error}</p>
+          ${lastError.details ? `<p><strong>Details:</strong> ${lastError.details}</p>` : ''}
+          <p><strong>Timestamp:</strong> ${lastError.timestamp.toISOString()}</p>
+          <hr/>
+          <h3>User Info</h3>
+          <p><strong>Email:</strong> ${user?.email || 'Unknown'}</p>
+          <p><strong>User ID:</strong> ${user?.id || 'Unknown'}</p>
+          <hr/>
+          <p><em>This report was automatically generated from the ATL Urban Farms admin panel.</em></p>
+        `
+      });
+
+      if (result.success) {
+        setSaveMessage('Issue reported to support team!');
+        setLastError(null);
+      } else {
+        setSaveMessage(`Failed to send report: ${result.error}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to report issue:', err);
+      setSaveMessage(`Failed to send report: ${err.message}`);
+    } finally {
+      setReportingIssue(false);
+      setTimeout(() => setSaveMessage(null), 5000);
+    }
   };
 
   const triggerSync = async (integration: string) => {
@@ -228,32 +622,6 @@ const IntegrationsPage: React.FC = () => {
     setTimeout(() => setSaveMessage(null), 3000);
   };
 
-  const formatTimestamp = (timestamp: string): string => {
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const getStatusColor = (status: HealthStatus): string => {
-    switch (status) {
-      case 'healthy':
-        return 'bg-emerald-500';
-      case 'warning':
-        return 'bg-yellow-500';
-      case 'error':
-        return 'bg-red-500';
-    }
-  };
-
-  const getStatusBgColor = (status: HealthStatus): string => {
-    switch (status) {
-      case 'healthy':
-        return 'bg-emerald-500/10 border-emerald-500/20';
-      case 'warning':
-        return 'bg-yellow-500/10 border-yellow-500/20';
-      case 'error':
-        return 'bg-red-500/10 border-red-500/20';
-    }
-  };
-
   // Calculate health metrics for each integration
   const getIntegrationHealth = (): Record<string, IntegrationHealth> => {
     const stripeStatus = getConnectionStatus(
@@ -262,7 +630,7 @@ const IntegrationsPage: React.FC = () => {
     );
     const shipstationStatus = getConnectionStatus(
       formData.shipstation_enabled,
-      !!(formData.shipstation_api_key && formData.shipstation_api_secret)
+      !!formData.shipengine_api_key
     );
     const resendStatus = getConnectionStatus(
       formData.resend_enabled,
@@ -322,260 +690,6 @@ const IntegrationsPage: React.FC = () => {
   };
 
   const health = getIntegrationHealth();
-
-  // Health Overview Card Component
-  const HealthCard: React.FC<{
-    title: string;
-    icon: React.ReactNode;
-    health: IntegrationHealth;
-    onClick: () => void;
-  }> = ({ title, icon, health, onClick }) => (
-    <button
-      onClick={onClick}
-      className={`p-4 rounded-xl border transition-all hover:scale-[1.02] text-left w-full ${getStatusBgColor(health.status)}`}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className="text-2xl">{icon}</div>
-          <div>
-            <h3 className="text-white font-medium">{title}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
-              <span className="text-sm text-slate-400">{health.label}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        {health.metrics.map((metric, idx) => (
-          <div key={idx} className="text-xs">
-            <span className="text-slate-500">{metric.label}:</span>
-            <span className="text-slate-300 ml-1">{metric.value}</span>
-          </div>
-        ))}
-      </div>
-    </button>
-  );
-
-  // Expandable Section Component
-  const IntegrationSection: React.FC<{
-    id: string;
-    title: string;
-    icon: React.ReactNode;
-    expanded: boolean;
-    onToggle: () => void;
-    health: IntegrationHealth;
-    children: React.ReactNode;
-  }> = ({ id, title, icon, expanded, onToggle, health, children }) => (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
-      >
-        <div className="flex items-center gap-4">
-          <div className="text-2xl">{icon}</div>
-          <div className="text-left">
-            <h3 className="text-lg font-medium text-white">{title}</h3>
-            <div className="flex items-center gap-2 mt-1">
-              <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
-              <span className="text-sm text-slate-400">{health.label}</span>
-            </div>
-          </div>
-        </div>
-        <motion.svg
-          animate={{ rotate: expanded ? 180 : 0 }}
-          className="w-5 h-5 text-slate-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </motion.svg>
-      </button>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <div className="px-6 pb-6 border-t border-slate-700 pt-4">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-
-  // Input with toggle visibility for secrets
-  const SecretInput: React.FC<{
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    readOnly?: boolean;
-    helpText?: string;
-  }> = ({ label, value, onChange, placeholder, readOnly, helpText }) => {
-    const [visible, setVisible] = useState(false);
-
-    return (
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-300">{label}</label>
-        <div className="relative">
-          <input
-            type={visible ? 'text' : 'password'}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            readOnly={readOnly}
-            className="w-full px-4 py-3 pr-12 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-            placeholder={placeholder}
-          />
-          <button
-            type="button"
-            onClick={() => setVisible(!visible)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-          >
-            {visible ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
-          </button>
-        </div>
-        {helpText && <p className="text-xs text-slate-400">{helpText}</p>}
-      </div>
-    );
-  };
-
-  // Webhook/Events Table Component
-  const EventsTable: React.FC<{
-    title: string;
-    events: WebhookEvent[];
-  }> = ({ title, events }) => (
-    <div className="space-y-3">
-      <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-      <div className="bg-slate-900/50 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-700">
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Type</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.slice(0, 10).map((event) => (
-              <tr key={event.id} className="border-b border-slate-700/50 last:border-0">
-                <td className="px-4 py-2 text-slate-300 font-mono text-xs">{event.type}</td>
-                <td className="px-4 py-2">
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
-                    event.status === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      event.status === 'success' ? 'bg-emerald-400' : 'bg-red-400'
-                    }`} />
-                    {event.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(event.timestamp)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // Email Log Table Component
-  const EmailsTable: React.FC<{
-    title: string;
-    emails: EmailLog[];
-  }> = ({ title, emails }) => (
-    <div className="space-y-3">
-      <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-      <div className="bg-slate-900/50 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-700">
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">To</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Subject</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {emails.slice(0, 10).map((email) => (
-              <tr key={email.id} className="border-b border-slate-700/50 last:border-0">
-                <td className="px-4 py-2 text-slate-300 text-xs">{email.to}</td>
-                <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[200px]">{email.subject}</td>
-                <td className="px-4 py-2">
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
-                    email.status === 'delivered'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : email.status === 'bounced'
-                      ? 'bg-yellow-500/10 text-yellow-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {email.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(email.timestamp)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // Sync Log Table Component
-  const SyncLogTable: React.FC<{
-    title: string;
-    logs: SyncLog[];
-  }> = ({ title, logs }) => (
-    <div className="space-y-3">
-      <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-      <div className="bg-slate-900/50 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-700">
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Action</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Items</th>
-              <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id} className="border-b border-slate-700/50 last:border-0">
-                <td className="px-4 py-2 text-slate-300 text-xs">{log.action}</td>
-                <td className="px-4 py-2">
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
-                    log.status === 'success'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {log.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{log.itemsProcessed}</td>
-                <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(log.timestamp)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -643,31 +757,31 @@ const IntegrationsPage: React.FC = () => {
             title="Stripe"
             icon={<span>💳</span>}
             health={health.stripe}
-            onClick={() => toggleSection('stripe')}
+            onClick={() => scrollToSection('stripe')}
           />
           <HealthCard
-            title="ShipStation"
+            title="ShipEngine"
             icon={<span>📦</span>}
             health={health.shipstation}
-            onClick={() => toggleSection('shipstation')}
+            onClick={() => scrollToSection('shipstation')}
           />
           <HealthCard
             title="Resend"
             icon={<span>📧</span>}
             health={health.resend}
-            onClick={() => toggleSection('resend')}
+            onClick={() => scrollToSection('resend')}
           />
           <HealthCard
             title="Trellis"
             icon={<span>🌱</span>}
             health={health.trellis}
-            onClick={() => toggleSection('trellis')}
+            onClick={() => scrollToSection('trellis')}
           />
           <HealthCard
             title="Gemini AI"
             icon={<span>🤖</span>}
             health={health.gemini}
-            onClick={() => toggleSection('gemini')}
+            onClick={() => scrollToSection('gemini')}
           />
         </div>
 
@@ -774,10 +888,10 @@ const IntegrationsPage: React.FC = () => {
             </div>
           </IntegrationSection>
 
-          {/* SHIPSTATION Section */}
+          {/* SHIPENGINE Section */}
           <IntegrationSection
             id="shipstation"
-            title="ShipStation"
+            title="ShipEngine"
             icon={<span>📦</span>}
             expanded={expandedSections.shipstation}
             onToggle={() => toggleSection('shipstation')}
@@ -787,8 +901,8 @@ const IntegrationsPage: React.FC = () => {
               {/* Enable Toggle */}
               <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                 <div>
-                  <h4 className="text-white font-medium">Enable ShipStation</h4>
-                  <p className="text-sm text-slate-400">Sync orders and manage shipping</p>
+                  <h4 className="text-white font-medium">Enable ShipEngine</h4>
+                  <p className="text-sm text-slate-400">Sync orders and manage shipping via ShipEngine API</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -801,24 +915,17 @@ const IntegrationsPage: React.FC = () => {
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <SecretInput
-                  label="API Key"
-                  value={formData.shipstation_api_key || ''}
-                  onChange={(v) => updateField('shipstation_api_key', v)}
-                  placeholder="Your ShipStation API key"
-                />
-                <SecretInput
-                  label="API Secret"
-                  value={formData.shipstation_api_secret || ''}
-                  onChange={(v) => updateField('shipstation_api_secret', v)}
-                  placeholder="Your ShipStation API secret"
-                />
-              </div>
+              <SecretInput
+                label="API Key"
+                value={formData.shipengine_api_key || ''}
+                onChange={(v) => updateField('shipengine_api_key', v)}
+                placeholder="TEST_... or your production API key"
+                helpText="Get your API key from ShipEngine Dashboard (shipengine.com)"
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">Store ID</label>
+                  <label className="block text-sm font-medium text-slate-300">Store ID (Optional)</label>
                   <input
                     type="text"
                     value={formData.shipstation_store_id || ''}
@@ -826,7 +933,7 @@ const IntegrationsPage: React.FC = () => {
                     className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     placeholder="123456"
                   />
-                  <p className="text-xs text-slate-400">Your ShipStation store ID</p>
+                  <p className="text-xs text-slate-400">Optional store identifier for order routing</p>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-300">Last Sync</label>
@@ -842,32 +949,51 @@ const IntegrationsPage: React.FC = () => {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={`${webhookBaseUrl}/shipstation`}
+                    value={`${webhookBaseUrl}/shipengine`}
                     readOnly
                     className="flex-1 px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-slate-400 font-mono text-sm"
                   />
                   <button
-                    onClick={() => navigator.clipboard.writeText(`${webhookBaseUrl}/shipstation`)}
+                    onClick={() => navigator.clipboard.writeText(`${webhookBaseUrl}/shipengine`)}
                     className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
                   >
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Configure this URL in ShipStation under Account Settings &gt; Webhooks</p>
+                <p className="text-xs text-slate-400">Configure this URL in ShipEngine Dashboard under Webhooks</p>
               </div>
 
-              {/* Status & Actions */}
+              {/* Test Connection & Sync */}
               <div className="flex items-center gap-4 p-4 bg-slate-700/30 rounded-lg">
                 <div className="flex-1">
                   <div className="text-sm text-slate-400">Pending Orders</div>
                   <div className="text-2xl font-bold text-white">3</div>
                 </div>
                 <button
-                  onClick={() => triggerSync('ShipStation')}
-                  disabled={syncing === 'ShipStation' || !formData.shipstation_api_key}
+                  onClick={() => testConnection('ShipEngine')}
+                  disabled={testingConnection === 'ShipEngine' || !formData.shipengine_api_key}
+                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {testingConnection === 'ShipEngine' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Test Connection
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => triggerSync('ShipEngine')}
+                  disabled={syncing === 'ShipEngine' || !formData.shipengine_api_key}
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {syncing === 'ShipStation' ? (
+                  {syncing === 'ShipEngine' ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Syncing...
@@ -947,7 +1073,7 @@ const IntegrationsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Test Email Button */}
+              {/* Test Connection Button */}
               <div className="flex gap-3">
                 <button
                   onClick={() => testConnection('Resend')}
@@ -957,17 +1083,51 @@ const IntegrationsPage: React.FC = () => {
                   {testingConnection === 'Resend' ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Sending...
+                      Testing...
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Send Test Email
+                      Test Connection
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Send Test Email */}
+              <div className="p-4 bg-slate-700/50 rounded-lg space-y-3">
+                <h4 className="text-white font-medium">Send Test Email</h4>
+                <div className="flex gap-3">
+                  <input
+                    type="email"
+                    value={testEmailAddress}
+                    onChange={(e) => setTestEmailAddress(e.target.value)}
+                    placeholder={formData.resend_from_email || 'Enter email address'}
+                    className="flex-1 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={sendTestEmail}
+                    disabled={testingConnection === 'ResendEmail' || !formData.resend_api_key || !formData.resend_from_email}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  >
+                    {testingConnection === 'ResendEmail' ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        Send
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400">Leave empty to send to your configured From Email address</p>
               </div>
 
               {/* Recent Emails Table */}
@@ -1158,6 +1318,57 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationSection>
         </div>
       </div>
+
+      {/* Fixed Toast Notification */}
+      <AnimatePresence>
+        {saveMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-6 right-6 px-6 py-4 rounded-lg shadow-lg z-50 flex flex-col gap-3 max-w-md ${
+              !saveMessage.includes('failed') && !saveMessage.includes('Failed') && !saveMessage.includes('error')
+                ? 'bg-emerald-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {!saveMessage.includes('failed') && !saveMessage.includes('Failed') && !saveMessage.includes('error') ? (
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              <span className="font-medium text-sm">{saveMessage}</span>
+            </div>
+            {/* Report Issue Button - only show for errors */}
+            {lastError && (saveMessage.includes('failed') || saveMessage.includes('Failed') || saveMessage.includes('error')) && (
+              <button
+                onClick={reportIssueToSupport}
+                disabled={reportingIssue}
+                className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 rounded text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {reportingIssue ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Sending Report...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Report Issue to Support
+                  </>
+                )}
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AdminPageWrapper>
   );
 };

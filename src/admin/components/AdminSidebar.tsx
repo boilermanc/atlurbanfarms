@@ -51,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'settings', label: 'Settings', icon: '⚙️' },
       { id: 'feature-flags', label: 'Feature Flags', icon: '🎚️' },
       { id: 'integrations', label: 'Integrations', icon: '🔌' },
+      { id: 'email-templates', label: 'Email Templates', icon: '✉️' },
     ],
   },
   {

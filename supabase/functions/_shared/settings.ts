@@ -10,8 +10,7 @@ export interface IntegrationSettings {
   resend_from_email?: string
   resend_from_name?: string
   shipstation_enabled?: boolean
-  shipstation_api_key?: string
-  shipstation_api_secret?: string
+  shipengine_api_key?: string
   shipstation_store_id?: string
   trellis_enabled?: boolean
   trellis_api_endpoint?: string

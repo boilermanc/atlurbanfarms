@@ -154,48 +154,45 @@ async function testResend(supabaseClient: any): Promise<TestResult> {
 async function testShipStation(supabaseClient: any): Promise<TestResult> {
   const settings = await getIntegrationSettings(supabaseClient, [
     'shipstation_enabled',
-    'shipstation_api_key',
-    'shipstation_api_secret'
+    'shipengine_api_key'
   ])
 
   if (!settings.shipstation_enabled) {
-    return { success: false, message: 'ShipStation is not enabled' }
+    return { success: false, message: 'ShipEngine is not enabled' }
   }
 
-  if (!settings.shipstation_api_key || !settings.shipstation_api_secret) {
-    return { success: false, message: 'ShipStation API credentials are not configured' }
+  if (!settings.shipengine_api_key) {
+    return { success: false, message: 'ShipEngine API key is not configured' }
   }
 
   try {
-    // Create Basic auth header
-    const auth = btoa(`${settings.shipstation_api_key}:${settings.shipstation_api_secret}`)
-
-    // Test by fetching stores
-    const response = await fetch('https://ssapi.shipstation.com/stores', {
+    // Test by fetching carriers from ShipEngine API
+    const response = await fetch('https://api.shipengine.com/v1/carriers', {
       method: 'GET',
       headers: {
-        'Authorization': `Basic ${auth}`,
+        'API-Key': settings.shipengine_api_key,
         'Content-Type': 'application/json'
       }
     })
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      const errorBody = await response.text()
+      throw new Error(`HTTP ${response.status}: ${errorBody}`)
     }
 
-    const stores = await response.json()
+    const data = await response.json()
 
     return {
       success: true,
-      message: 'Connected to ShipStation successfully',
+      message: 'Connected to ShipEngine successfully',
       details: {
-        storeCount: stores.length || 0
+        carrierCount: data.carriers?.length || 0
       }
     }
   } catch (error) {
     return {
       success: false,
-      message: `ShipStation connection failed: ${error.message}`
+      message: `ShipEngine connection failed: ${error.message}`
     }
   }
 }

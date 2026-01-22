@@ -335,7 +335,7 @@ export function useCustomersReport(startDate: string, endDate: string) {
       // Fetch orders within date range
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, customer_id, customer_email, total, created_at, status')
+        .select('id, customer_id, guest_email, total, created_at, status')
         .gte('created_at', startISO)
         .lte('created_at', endISO)
         .neq('status', 'cancelled');
@@ -379,12 +379,12 @@ export function useCustomersReport(startDate: string, endDate: string) {
         if (!customerId) return;
 
         const existing = customerOrdersMap.get(customerId) || {
-          email: order.customer_email || '',
+          email: order.guest_email || '',
           orders: 0,
           totalSpent: 0
         };
         customerOrdersMap.set(customerId, {
-          email: existing.email || order.customer_email || '',
+          email: existing.email || order.guest_email || '',
           orders: existing.orders + 1,
           totalSpent: existing.totalSpent + (order.total || 0),
         });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
@@ -147,6 +147,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [saveAddress, setSaveAddress] = useState(false);
   const [hasPrefilledForm, setHasPrefilledForm] = useState(false);
 
+  // Guard to prevent duplicate order submissions
+  const orderCompletedRef = useRef(false);
+
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     phone: '',
@@ -280,6 +283,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent duplicate submissions if order was already completed
+    if (orderCompletedRef.current) {
+      return;
+    }
+
     setSubmitAttempted(true);
     setOrderError(null);
 
@@ -378,6 +387,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   };
 
   const handleOrderSuccess = async (order: any) => {
+    // IMMEDIATELY clear cart from localStorage to prevent duplicates on back navigation
+    localStorage.removeItem('atl-urban-farms-cart');
+    localStorage.removeItem('cart');
+    orderCompletedRef.current = true;
+
     // Prepare order data for confirmation page
     const orderData: OrderData = {
       order_number: order.order_number,
@@ -919,11 +933,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   animate={{ opacity: 1, y: 0 }}
                   className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm"
                 >
-                  <div className="flex items-center gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <div className="flex items-start gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>{orderError}</span>
+                    <div className="flex flex-col gap-2">
+                      <span>{orderError}</span>
+                      {orderError.toLowerCase().includes('insufficient stock') && (
+                        <span className="text-red-600">
+                          Please update your cart quantities and try again.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}

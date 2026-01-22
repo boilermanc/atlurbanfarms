@@ -129,12 +129,13 @@ export function useOrders(filters: OrderFilters = {}) {
           order_items (
             id,
             product_id,
+            product_name,
+            product_price,
             quantity,
-            unit_price,
             line_total,
             products (
               name,
-              images:product_images(id, image_url, is_primary, sort_order)
+              images:product_images(id, url, is_primary, sort_order)
             )
           )
         `)
@@ -163,8 +164,8 @@ export function useOrders(filters: OrderFilters = {}) {
       // Apply search filter (order number or customer email)
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
-        countQuery = countQuery.or(`order_number.ilike.%${searchTerm}%,customer_email.ilike.%${searchTerm}%`);
-        dataQuery = dataQuery.or(`order_number.ilike.%${searchTerm}%,customer_email.ilike.%${searchTerm}%`);
+        countQuery = countQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
+        dataQuery = dataQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
       }
 
       // Execute both queries
@@ -172,6 +173,8 @@ export function useOrders(filters: OrderFilters = {}) {
         countQuery,
         dataQuery,
       ]);
+
+      console.log('Orders query result:', { count: countResult.count, dataCount: dataResult.data?.length, error: dataResult.error, data: dataResult.data });
 
       if (countResult.error) throw countResult.error;
       if (dataResult.error) throw dataResult.error;
@@ -183,15 +186,22 @@ export function useOrders(filters: OrderFilters = {}) {
         customer_id: order.customer_id,
         customer_name: order.customers
           ? `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || null
-          : order.shipping_address?.name || null,
-        customer_email: order.customer_email || order.customers?.email,
-        customer_phone: order.customers?.phone || null,
+          : order.shipping_address?.name || `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim() || null,
+        customer_email: order.customer_email || order.guest_email || order.customers?.email,
+        customer_phone: order.customers?.phone || order.shipping_phone || null,
         status: order.status,
         subtotal: order.subtotal,
         shipping_cost: order.shipping_cost,
         tax: order.tax,
         total: order.total,
-        shipping_address: order.shipping_address,
+        shipping_address: order.shipping_address || (order.shipping_address_line1 ? {
+          name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
+          street: order.shipping_address_line1,
+          street2: order.shipping_address_line2 || null,
+          city: order.shipping_city,
+          state: order.shipping_state,
+          zip: order.shipping_zip
+        } : null),
         shipping_method: order.shipping_method,
         tracking_number: order.tracking_number,
         estimated_delivery: order.estimated_delivery,
@@ -201,10 +211,10 @@ export function useOrders(filters: OrderFilters = {}) {
         items: (order.order_items || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
-          product_name: item.products?.name || 'Unknown Product',
-          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.image_url || null,
+          product_name: item.product_name || item.products?.name || 'Unknown Product',
+          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.url || null,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price: item.product_price,
           line_total: item.line_total,
         })),
       }));
@@ -266,12 +276,13 @@ export function useOrder(orderId: string | null) {
           order_items (
             id,
             product_id,
+            product_name,
+            product_price,
             quantity,
-            unit_price,
             line_total,
             products (
               name,
-              images:product_images(id, image_url, is_primary, sort_order)
+              images:product_images(id, url, is_primary, sort_order)
             )
           )
         `)
@@ -303,15 +314,22 @@ export function useOrder(orderId: string | null) {
         customer_id: orderData.customer_id,
         customer_name: orderData.customers
           ? `${orderData.customers.first_name || ''} ${orderData.customers.last_name || ''}`.trim() || null
-          : orderData.shipping_address?.name || null,
-        customer_email: orderData.customer_email || orderData.customers?.email,
-        customer_phone: orderData.customers?.phone || null,
+          : orderData.shipping_address?.name || `${orderData.shipping_first_name || ''} ${orderData.shipping_last_name || ''}`.trim() || null,
+        customer_email: orderData.customer_email || orderData.guest_email || orderData.customers?.email,
+        customer_phone: orderData.customers?.phone || orderData.shipping_phone || null,
         status: orderData.status,
         subtotal: orderData.subtotal,
         shipping_cost: orderData.shipping_cost,
         tax: orderData.tax,
         total: orderData.total,
-        shipping_address: orderData.shipping_address,
+        shipping_address: orderData.shipping_address || (orderData.shipping_address_line1 ? {
+          name: `${orderData.shipping_first_name || ''} ${orderData.shipping_last_name || ''}`.trim(),
+          street: orderData.shipping_address_line1,
+          street2: orderData.shipping_address_line2 || null,
+          city: orderData.shipping_city,
+          state: orderData.shipping_state,
+          zip: orderData.shipping_zip
+        } : null),
         shipping_method: orderData.shipping_method,
         tracking_number: orderData.tracking_number,
         estimated_delivery: orderData.estimated_delivery,
@@ -321,10 +339,10 @@ export function useOrder(orderId: string | null) {
         items: (orderData.order_items || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
-          product_name: item.products?.name || 'Unknown Product',
-          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.image_url || null,
+          product_name: item.product_name || item.products?.name || 'Unknown Product',
+          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.url || null,
           quantity: item.quantity,
-          unit_price: item.unit_price,
+          unit_price: item.product_price,
           line_total: item.line_total,
         })),
         status_history: (historyData || []).map((h: any) => ({

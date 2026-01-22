@@ -22,6 +22,7 @@ const AttributionPage = lazy(() => import('../pages/AttributionPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
 const FeatureFlagsPage = lazy(() => import('../pages/FeatureFlagsPage'));
 const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
+const EmailTemplatesPage = lazy(() => import('../pages/EmailTemplatesPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
 const ProductEditPage = lazy(() => import('../pages/ProductEditPage'));
 const CategoriesPage = lazy(() => import('../pages/CategoriesPage'));
@@ -63,6 +64,7 @@ const PAGE_TITLES: Record<string, string> = {
   settings: 'Settings',
   'feature-flags': 'Feature Flags',
   integrations: 'Integrations',
+  'email-templates': 'Email Templates',
   reports: 'Reports',
   'users-roles': 'Admin Users & Roles',
   'audit-log': 'Audit Log',
@@ -249,6 +251,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <FeatureFlagsPage />;
       case 'integrations':
         return <IntegrationsPage />;
+      case 'email-templates':
+        return <EmailTemplatesPage />;
       case 'reports':
         return <ReportsPage />;
       case 'users-roles':

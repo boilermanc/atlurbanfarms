@@ -29,6 +29,7 @@ export { default as AttributionPage } from './pages/AttributionPage';
 export { default as ShippingServicesPage } from './pages/ShippingServicesPage';
 export { default as SettingsPage } from './pages/SettingsPage';
 export { default as IntegrationsPage } from './pages/IntegrationsPage';
+export { default as EmailTemplatesPage } from './pages/EmailTemplatesPage';
 export { default as ProductsPage } from './pages/ProductsPage';
 export { default as ProductEditPage } from './pages/ProductEditPage';
 export { default as CategoriesPage } from './pages/CategoriesPage';

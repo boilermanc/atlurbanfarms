@@ -13,7 +13,12 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd URL-based routing for admin pages\n\n- Check URL path on app load to set initial view for /admin routes\n- Update browser URL with pushState when navigating to admin views\n- Handle browser back/forward with popstate listener\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"
