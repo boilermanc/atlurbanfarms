@@ -1,0 +1,828 @@
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
+import { corsHeaders, handleCors } from '../_shared/cors.ts'
+import { getIntegrationSettings } from '../_shared/settings.ts'
+
+interface Address {
+  name?: string
+  company_name?: string
+  phone?: string
+  address_line1: string
+  address_line2?: string
+  city_locality: string
+  state_province: string
+  postal_code: string
+  country_code?: string
+}
+
+interface PackageDetails {
+  weight: {
+    value: number
+    unit: 'pound' | 'ounce' | 'gram' | 'kilogram'
+  }
+  dimensions?: {
+    length: number
+    width: number
+    height: number
+    unit: 'inch' | 'centimeter'
+  }
+}
+
+interface RateRequest {
+  ship_to: Address
+  packages?: PackageDetails[]
+  order_items?: Array<{
+    quantity: number
+    weight_per_item?: number  // pounds, default 0.5
+  }>
+}
+
+interface ShippingRate {
+  rate_id: string
+  carrier_id: string
+  carrier_code: string
+  carrier_friendly_name: string
+  service_code: string
+  service_type: string
+  shipping_amount: number
+  currency: string
+  delivery_days: number | null
+  estimated_delivery_date: string | null
+  carrier_delivery_days: string | null
+  guaranteed_service: boolean
+}
+
+interface RatesResponse {
+  success: boolean
+  rates: ShippingRate[]
+  ship_from: Address
+  ship_to: Address
+  zone_info?: {
+    status: 'allowed' | 'blocked' | 'conditional'
+    message?: string
+    conditions?: any
+  }
+  package_breakdown?: {
+    total_packages: number
+    packages: Array<{
+      name: string
+      dimensions: PackageDetails['dimensions']
+      weight: PackageDetails['weight']
+      item_count: number
+    }>
+    summary: string
+  }
+}
+
+interface ShippingZone {
+  id: string
+  state_code: string
+  state_name: string
+  status: 'allowed' | 'blocked' | 'conditional'
+  conditions: {
+    required_service?: string
+    blocked_months?: number[]
+    min_order_value?: number
+    max_transit_days?: number
+  } | null
+  customer_message: string | null
+}
+
+interface ShippingZoneRule {
+  id: string
+  name: string
+  rule_type: 'seasonal_block' | 'service_requirement' | 'transit_limit' | 'surcharge'
+  priority: number
+  conditions: {
+    states?: string[]
+    months?: number[]
+    max_transit_days?: number
+    categories?: string[]
+    min_order_value?: number
+  }
+  actions: {
+    block?: boolean
+    block_message?: string
+    required_services?: string[]
+    surcharge_amount?: number
+    surcharge_percent?: number
+  }
+  effective_start: string | null
+  effective_end: string | null
+  is_active: boolean
+}
+
+interface ShippingPackageConfig {
+  id: string
+  name: string
+  length: number
+  width: number
+  height: number
+  empty_weight: number
+  min_quantity: number
+  max_quantity: number
+  is_default: boolean
+}
+
+/**
+ * Get shipping config settings from config_settings table
+ */
+async function getShippingSettings(supabaseClient: any, keys: string[]): Promise<Record<string, any>> {
+  const { data, error } = await supabaseClient
+    .from('config_settings')
+    .select('key, value, data_type')
+    .eq('category', 'shipping')
+    .in('key', keys)
+
+  if (error || !data) {
+    return {}
+  }
+
+  const settings: Record<string, any> = {}
+  for (const row of data) {
+    settings[row.key] = parseValue(row.value, row.data_type)
+  }
+  return settings
+}
+
+function parseValue(value: string, dataType: string): any {
+  switch (dataType) {
+    case 'number':
+      return parseFloat(value)
+    case 'boolean':
+      return value === 'true'
+    case 'json':
+      try {
+        return JSON.parse(value)
+      } catch {
+        return value
+      }
+    default:
+      return value
+  }
+}
+
+/**
+ * Get shipping zone for a state
+ */
+async function getShippingZone(supabaseClient: any, stateCode: string): Promise<ShippingZone | null> {
+  const { data, error } = await supabaseClient
+    .from('shipping_zones')
+    .select('*')
+    .eq('state_code', stateCode.toUpperCase())
+    .single()
+
+  if (error || !data) {
+    // Default to allowed if zone not found
+    return null
+  }
+
+  return data
+}
+
+/**
+ * Get active shipping rules that apply to a state
+ */
+async function getApplicableRules(supabaseClient: any, stateCode: string): Promise<ShippingZoneRule[]> {
+  const now = new Date()
+  const currentMonth = now.getMonth() + 1 // 1-12
+
+  const { data, error } = await supabaseClient
+    .from('shipping_zone_rules')
+    .select('*')
+    .eq('is_active', true)
+    .order('priority', { ascending: true })
+
+  if (error || !data) {
+    return []
+  }
+
+  // Filter rules that apply to this state and current date/month
+  return data.filter((rule: ShippingZoneRule) => {
+    // Check if rule applies to this state
+    if (rule.conditions.states && rule.conditions.states.length > 0) {
+      if (!rule.conditions.states.includes(stateCode.toUpperCase())) {
+        return false
+      }
+    }
+
+    // Check effective dates
+    if (rule.effective_start) {
+      if (new Date(rule.effective_start) > now) return false
+    }
+    if (rule.effective_end) {
+      if (new Date(rule.effective_end) < now) return false
+    }
+
+    // Check if current month is in blocked months
+    if (rule.conditions.months && rule.conditions.months.length > 0) {
+      if (!rule.conditions.months.includes(currentMonth)) {
+        return false
+      }
+    }
+
+    return true
+  })
+}
+
+/**
+ * Check shipping zone restrictions
+ */
+interface ZoneCheckResult {
+  allowed: boolean
+  status: 'allowed' | 'blocked' | 'conditional'
+  message?: string
+  conditions?: any
+  surcharge_amount?: number
+  surcharge_percent?: number
+  max_transit_days?: number
+  required_services?: string[]
+}
+
+async function checkShippingZone(
+  supabaseClient: any,
+  stateCode: string
+): Promise<ZoneCheckResult> {
+  const zone = await getShippingZone(supabaseClient, stateCode)
+  const rules = await getApplicableRules(supabaseClient, stateCode)
+
+  const currentMonth = new Date().getMonth() + 1
+
+  // Default result
+  let result: ZoneCheckResult = {
+    allowed: true,
+    status: 'allowed'
+  }
+
+  // Check zone status
+  if (zone) {
+    result.status = zone.status
+
+    if (zone.status === 'blocked') {
+      return {
+        allowed: false,
+        status: 'blocked',
+        message: zone.customer_message || `We cannot ship to ${zone.state_name} at this time.`
+      }
+    }
+
+    if (zone.status === 'conditional' && zone.conditions) {
+      result.conditions = zone.conditions
+      result.message = zone.customer_message || undefined
+
+      // Check blocked months
+      if (zone.conditions.blocked_months?.includes(currentMonth)) {
+        return {
+          allowed: false,
+          status: 'blocked',
+          message: zone.customer_message || `Shipping to ${zone.state_name} is temporarily suspended.`
+        }
+      }
+
+      // Pass along conditions for rate filtering
+      if (zone.conditions.max_transit_days) {
+        result.max_transit_days = zone.conditions.max_transit_days
+      }
+      if (zone.conditions.required_service) {
+        result.required_services = [zone.conditions.required_service]
+      }
+    }
+  }
+
+  // Apply rules (in priority order)
+  for (const rule of rules) {
+    if (rule.actions.block) {
+      return {
+        allowed: false,
+        status: 'blocked',
+        message: rule.actions.block_message || 'Shipping to this location is not available at this time.'
+      }
+    }
+
+    // Collect conditions from rules
+    if (rule.actions.required_services?.length) {
+      result.required_services = [
+        ...(result.required_services || []),
+        ...rule.actions.required_services
+      ]
+    }
+
+    if (rule.conditions.max_transit_days) {
+      result.max_transit_days = Math.min(
+        result.max_transit_days || 999,
+        rule.conditions.max_transit_days
+      )
+    }
+
+    if (rule.actions.surcharge_amount) {
+      result.surcharge_amount = (result.surcharge_amount || 0) + rule.actions.surcharge_amount
+    }
+
+    if (rule.actions.surcharge_percent) {
+      result.surcharge_percent = (result.surcharge_percent || 0) + rule.actions.surcharge_percent
+    }
+  }
+
+  return result
+}
+
+/**
+ * Get enabled carrier IDs from ShipEngine account
+ */
+async function getCarrierIds(apiKey: string): Promise<string[]> {
+  const response = await fetch('https://api.shipengine.com/v1/carriers', {
+    method: 'GET',
+    headers: {
+      'API-Key': apiKey,
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!response.ok) {
+    console.error('Failed to fetch carriers:', await response.text())
+    return []
+  }
+
+  const data = await response.json()
+  // Return IDs of all active carriers
+  return (data.carriers || [])
+    .filter((c: any) => !c.disabled)
+    .map((c: any) => c.carrier_id)
+}
+
+/**
+ * Get shipping package configurations from database
+ */
+async function getShippingPackageConfigs(supabaseClient: any): Promise<ShippingPackageConfig[]> {
+  const { data, error } = await supabaseClient
+    .from('shipping_packages')
+    .select('*')
+    .eq('is_active', true)
+    .order('min_quantity', { ascending: true })
+
+  if (error || !data) {
+    console.error('Error fetching shipping packages:', error)
+    return []
+  }
+  return data
+}
+
+/**
+ * Calculate packages needed for an order based on item quantities
+ */
+interface CalculatedPackageInfo {
+  packages: PackageDetails[]
+  breakdown: Array<{
+    name: string
+    dimensions: PackageDetails['dimensions']
+    weight: PackageDetails['weight']
+    item_count: number
+  }>
+  summary: string
+}
+
+function calculateOrderPackages(
+  totalQuantity: number,
+  weightPerItem: number,
+  packageConfigs: ShippingPackageConfig[]
+): CalculatedPackageInfo {
+  if (packageConfigs.length === 0 || totalQuantity <= 0) {
+    return {
+      packages: [],
+      breakdown: [],
+      summary: 'No package configuration available'
+    }
+  }
+
+  const sortedConfigs = [...packageConfigs].sort((a, b) => b.max_quantity - a.max_quantity)
+  const packages: PackageDetails[] = []
+  const breakdown: CalculatedPackageInfo['breakdown'] = []
+  let remaining = totalQuantity
+
+  const findPackage = (qty: number): ShippingPackageConfig => {
+    // First try to find exact fit
+    const exactFit = packageConfigs.find(p => qty >= p.min_quantity && qty <= p.max_quantity)
+    if (exactFit) return exactFit
+
+    // If quantity is larger than any package, use largest
+    const largest = sortedConfigs[0]
+    if (qty > largest.max_quantity) return largest
+
+    // Find smallest package that can fit
+    const fitting = [...sortedConfigs].reverse().find(p => qty <= p.max_quantity)
+    return fitting || packageConfigs.find(p => p.is_default) || largest
+  }
+
+  while (remaining > 0) {
+    const pkg = findPackage(remaining)
+    const itemsInPackage = Math.min(remaining, pkg.max_quantity)
+    const totalWeight = pkg.empty_weight + (itemsInPackage * weightPerItem)
+
+    packages.push({
+      weight: {
+        value: Math.round(totalWeight * 100) / 100,
+        unit: 'pound'
+      },
+      dimensions: {
+        length: pkg.length,
+        width: pkg.width,
+        height: pkg.height,
+        unit: 'inch'
+      }
+    })
+
+    breakdown.push({
+      name: pkg.name,
+      dimensions: {
+        length: pkg.length,
+        width: pkg.width,
+        height: pkg.height,
+        unit: 'inch'
+      },
+      weight: {
+        value: Math.round(totalWeight * 100) / 100,
+        unit: 'pound'
+      },
+      item_count: itemsInPackage
+    })
+
+    remaining -= itemsInPackage
+  }
+
+  // Generate summary
+  let summary: string
+  if (packages.length === 1) {
+    summary = `Ships in: 1 ${breakdown[0].name}`
+  } else {
+    const counts = breakdown.reduce((acc, p) => {
+      acc[p.name] = (acc[p.name] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    const parts = Object.entries(counts)
+      .map(([name, count]) => count > 1 ? `${count} ${name}` : name)
+
+    summary = `Ships in: ${packages.length} packages (${parts.join(' + ')})`
+  }
+
+  return { packages, breakdown, summary }
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  const corsResponse = handleCors(req)
+  if (corsResponse) return corsResponse
+
+  try {
+    // Create Supabase client with service role
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Get ShipEngine API key from integration settings
+    const integrationSettings = await getIntegrationSettings(supabaseClient, [
+      'shipstation_enabled',
+      'shipengine_api_key'
+    ])
+
+    if (!integrationSettings.shipstation_enabled) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'INTEGRATION_DISABLED',
+            message: 'ShipEngine integration is not enabled'
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    if (!integrationSettings.shipengine_api_key) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'MISSING_API_KEY',
+            message: 'ShipEngine API key is not configured'
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Get shipping config settings
+    const shippingSettings = await getShippingSettings(supabaseClient, [
+      'warehouse_address',
+      'default_package',
+      'shipping_markup_percent'
+    ])
+
+    const warehouseAddress = shippingSettings.warehouse_address
+    const defaultPackage = shippingSettings.default_package
+    const markupPercent = shippingSettings.shipping_markup_percent || 0
+
+    if (!warehouseAddress || !warehouseAddress.address_line1) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'MISSING_CONFIG',
+            message: 'Warehouse address is not configured. Please configure shipping settings in admin.'
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Parse request body
+    const { ship_to, packages, order_items }: RateRequest = await req.json()
+
+    if (!ship_to || !ship_to.address_line1 || !ship_to.city_locality ||
+        !ship_to.state_province || !ship_to.postal_code) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'ship_to address is required with address_line1, city_locality, state_province, and postal_code'
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Check shipping zone restrictions
+    const zoneCheck = await checkShippingZone(supabaseClient, ship_to.state_province)
+
+    if (!zoneCheck.allowed) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'ZONE_BLOCKED',
+            message: zoneCheck.message || 'Shipping to this location is not available.'
+          },
+          zone_info: {
+            status: zoneCheck.status,
+            message: zoneCheck.message
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Get enabled carrier IDs
+    const carrierIds = await getCarrierIds(integrationSettings.shipengine_api_key)
+
+    if (carrierIds.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'NO_CARRIERS',
+            message: 'No active carriers configured in ShipEngine account'
+          }
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // Calculate packages based on order items or use provided/default packages
+    let packageList: PackageDetails[]
+    let packageBreakdown: CalculatedPackageInfo | null = null
+
+    if (packages && packages.length > 0) {
+      // Use manually provided packages
+      packageList = packages
+    } else if (order_items && order_items.length > 0) {
+      // Calculate packages based on order items using shipping_packages config
+      const packageConfigs = await getShippingPackageConfigs(supabaseClient)
+      const totalQuantity = order_items.reduce((sum, item) => sum + item.quantity, 0)
+      const avgWeight = order_items.length > 0
+        ? order_items.reduce((sum, item) => sum + (item.weight_per_item || 0.5), 0) / order_items.length
+        : 0.5
+
+      if (packageConfigs.length > 0) {
+        packageBreakdown = calculateOrderPackages(totalQuantity, avgWeight, packageConfigs)
+        packageList = packageBreakdown.packages
+      } else {
+        packageList = [defaultPackage]
+      }
+    } else {
+      packageList = [defaultPackage]
+    }
+
+    // Ensure we have at least one package
+    if (packageList.length === 0) {
+      packageList = [defaultPackage]
+    }
+
+    // Build ShipEngine rate request
+    const rateRequest = {
+      rate_options: {
+        carrier_ids: carrierIds
+      },
+      shipment: {
+        ship_from: {
+          name: warehouseAddress.name || 'ATL Urban Farms',
+          company_name: warehouseAddress.company_name || 'ATL Urban Farms',
+          phone: warehouseAddress.phone || '',
+          address_line1: warehouseAddress.address_line1,
+          address_line2: warehouseAddress.address_line2 || '',
+          city_locality: warehouseAddress.city_locality,
+          state_province: warehouseAddress.state_province,
+          postal_code: warehouseAddress.postal_code,
+          country_code: warehouseAddress.country_code || 'US'
+        },
+        ship_to: {
+          name: ship_to.name || '',
+          company_name: ship_to.company_name || '',
+          phone: ship_to.phone || '',
+          address_line1: ship_to.address_line1,
+          address_line2: ship_to.address_line2 || '',
+          city_locality: ship_to.city_locality,
+          state_province: ship_to.state_province,
+          postal_code: ship_to.postal_code,
+          country_code: ship_to.country_code || 'US'
+        },
+        packages: packageList.map(pkg => ({
+          weight: pkg.weight,
+          dimensions: pkg.dimensions
+        }))
+      }
+    }
+
+    // Call ShipEngine rates API
+    const shipEngineResponse = await fetch('https://api.shipengine.com/v1/rates', {
+      method: 'POST',
+      headers: {
+        'API-Key': integrationSettings.shipengine_api_key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(rateRequest)
+    })
+
+    if (!shipEngineResponse.ok) {
+      const errorBody = await shipEngineResponse.text()
+      console.error('ShipEngine API error:', errorBody)
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: {
+            code: 'SHIPENGINE_ERROR',
+            message: `ShipEngine API error: ${shipEngineResponse.status}`,
+            details: errorBody
+          }
+        }),
+        {
+          status: shipEngineResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    const rateResponse = await shipEngineResponse.json()
+
+    // Check for errors in rate response
+    if (rateResponse.rate_response?.errors?.length > 0) {
+      const errors = rateResponse.rate_response.errors.map((e: any) => e.message).join(', ')
+      console.warn('Rate calculation warnings:', errors)
+    }
+
+    // Transform rates to our format, applying zone restrictions
+    let rates: ShippingRate[] = (rateResponse.rate_response?.rates || [])
+      .filter((rate: any) => rate.shipping_amount?.amount != null)
+      .filter((rate: any) => {
+        // Filter by max transit days if zone requires it
+        if (zoneCheck.max_transit_days && rate.delivery_days) {
+          if (rate.delivery_days > zoneCheck.max_transit_days) {
+            return false
+          }
+        }
+        return true
+      })
+      .map((rate: any) => {
+        // Apply markup if configured
+        let amount = rate.shipping_amount.amount
+        if (markupPercent > 0) {
+          amount = amount * (1 + markupPercent / 100)
+        }
+
+        // Apply zone surcharges
+        if (zoneCheck.surcharge_amount) {
+          amount = amount + zoneCheck.surcharge_amount
+        }
+        if (zoneCheck.surcharge_percent) {
+          amount = amount * (1 + zoneCheck.surcharge_percent / 100)
+        }
+
+        amount = Math.round(amount * 100) / 100 // Round to 2 decimal places
+
+        return {
+          rate_id: rate.rate_id,
+          carrier_id: rate.carrier_id,
+          carrier_code: rate.carrier_code,
+          carrier_friendly_name: rate.carrier_friendly_name,
+          service_code: rate.service_code,
+          service_type: rate.service_type,
+          shipping_amount: amount,
+          currency: rate.shipping_amount.currency || 'USD',
+          delivery_days: rate.delivery_days || null,
+          estimated_delivery_date: rate.estimated_delivery_date || null,
+          carrier_delivery_days: rate.carrier_delivery_days || null,
+          guaranteed_service: rate.guaranteed_service || false
+        }
+      })
+      // Sort by price (cheapest first)
+      .sort((a: ShippingRate, b: ShippingRate) => a.shipping_amount - b.shipping_amount)
+
+    // If zone requires specific services, filter or mark rates
+    if (zoneCheck.required_services?.length && rates.length > 0) {
+      const priorityServices = ['priority', 'express', 'expedited', '2_day', '1_day', 'overnight']
+      const requiredServiceTypes = zoneCheck.required_services.map(s => s.toLowerCase())
+
+      // Check if any required service is a priority/speed requirement
+      const needsFastService = requiredServiceTypes.some(s =>
+        priorityServices.some(p => s.includes(p) || p.includes(s))
+      )
+
+      if (needsFastService) {
+        // Filter to only show faster services (priority, express, etc.)
+        const fastRates = rates.filter(rate => {
+          const serviceType = rate.service_type.toLowerCase()
+          const serviceCode = rate.service_code.toLowerCase()
+          return priorityServices.some(p =>
+            serviceType.includes(p) || serviceCode.includes(p)
+          ) || rate.delivery_days && rate.delivery_days <= 3
+        })
+
+        // If we found fast rates, use those; otherwise keep all rates but warn
+        if (fastRates.length > 0) {
+          rates = fastRates
+        }
+      }
+    }
+
+    const response: RatesResponse = {
+      success: true,
+      rates,
+      ship_from: warehouseAddress,
+      ship_to,
+      zone_info: zoneCheck.status !== 'allowed' ? {
+        status: zoneCheck.status,
+        message: zoneCheck.message,
+        conditions: zoneCheck.conditions
+      } : undefined,
+      package_breakdown: packageBreakdown ? {
+        total_packages: packageBreakdown.packages.length,
+        packages: packageBreakdown.breakdown,
+        summary: packageBreakdown.summary
+      } : undefined
+    }
+
+    return new Response(
+      JSON.stringify(response),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    )
+
+  } catch (error) {
+    console.error('Get rates error:', error)
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error.message || 'Failed to get shipping rates'
+        }
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    )
+  }
+})
