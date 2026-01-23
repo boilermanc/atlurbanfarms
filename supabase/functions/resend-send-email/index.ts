@@ -202,6 +202,248 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
       </body>
       </html>
     `
+  }),
+
+  // New shipping email fallback templates
+  shipping_label_created: (data: any) => ({
+    subject: 'Your ATL Urban Farms order has shipped!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .tracking-box { background: #f0fdf4; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+          .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Your Order Has Shipped!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Great news! Your order <strong>#${data.order_number}</strong> has been shipped.</p>
+            <div class="tracking-box">
+              <p style="color: #166534; margin: 0 0 10px;">Tracking Number</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: #10b981; margin: 0 0 10px;">${data.tracking_number}</p>
+              <p style="color: #666; margin: 0 0 15px;">Carrier: ${data.carrier}</p>
+              <a href="${data.tracking_url}" class="button">Track Your Package</a>
+            </div>
+            <p style="color: #666; font-size: 0.875rem;">
+              Please unbox your plants as soon as they arrive. Happy growing!
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
+  shipping_in_transit: (data: any) => ({
+    subject: 'Your plants are on the way!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #3b82f6; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .tracking-box { background: #eff6ff; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+          .button { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Your Plants Are On The Way!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Your order <strong>#${data.order_number}</strong> is making its way to you!</p>
+            <div class="tracking-box">
+              <p style="color: #1e40af; margin: 0 0 10px;">Current Location</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: #1d4ed8; margin: 0 0 15px;">${data.current_location || 'In Transit'}</p>
+              <p style="color: #666; margin: 0 0 10px;">Tracking: ${data.tracking_number}</p>
+              <a href="${data.tracking_url}" class="button">Track Your Package</a>
+            </div>
+            <p>Estimated Delivery: <strong>${data.estimated_delivery || 'Check tracking for updates'}</strong></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
+  shipping_out_for_delivery: (data: any) => ({
+    subject: 'Your plants are out for delivery today!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #f59e0b; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .delivery-box { background: #fef3c7; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+          .button { display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Out for Delivery!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Exciting news! Your order <strong>#${data.order_number}</strong> is out for delivery today!</p>
+            <div class="delivery-box">
+              <p style="font-size: 2rem; margin: 0 0 10px;">🚚</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: #92400e; margin: 0 0 15px;">Arriving Today!</p>
+              <p style="color: #78350f; margin: 0;">Carrier: ${data.carrier}</p>
+              <a href="${data.tracking_url}" class="button">Track Your Delivery</a>
+            </div>
+            <p style="color: #666; font-size: 0.875rem;">
+              Please bring your plants inside as soon as they arrive!
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
+  shipping_delivered: (data: any) => ({
+    subject: 'Your plants have been delivered!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .delivered-box { background: #f0fdf4; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+          .tips { background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <p style="font-size: 2.5rem; margin: 0 0 10px;">🌱</p>
+            <h1>Delivered!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Your order <strong>#${data.order_number}</strong> has been delivered!</p>
+            <div class="delivered-box">
+              <p style="color: #166534; margin: 0 0 10px;">Delivered On</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: #10b981; margin: 0;">${data.delivery_date || 'Today'}</p>
+            </div>
+            <div class="tips">
+              <h3 style="color: #10b981; margin: 0 0 15px;">Getting Started with Your Plants</h3>
+              <ul style="margin: 0; padding-left: 20px; color: #666;">
+                <li>Unbox carefully - Remove packaging gently</li>
+                <li>Water if dry - Check soil moisture</li>
+                <li>Acclimate slowly - Place in indirect light for a few days</li>
+                <li>Be patient - Some stress after shipping is normal</li>
+              </ul>
+            </div>
+            <p>Happy growing!<br><strong>The ATL Urban Farms Team</strong></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
+  pickup_ready: (data: any) => ({
+    subject: 'Your order is ready for pickup!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #8b5cf6; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .pickup-box { background: #f5f3ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <p style="font-size: 2.5rem; margin: 0 0 10px;">📦</p>
+            <h1>Ready for Pickup!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Your order <strong>#${data.order_number}</strong> is packed and ready for pickup.</p>
+            <div class="pickup-box">
+              <h3 style="color: #7c3aed; margin: 0 0 15px;">Pickup Location</h3>
+              <p style="font-weight: bold; margin: 0 0 5px;">${data.pickup_location}</p>
+              <p style="color: #666; margin: 0 0 20px;">${data.pickup_address}</p>
+              <h4 style="color: #7c3aed; margin: 0 0 10px;">Pickup Date & Time</h4>
+              <p style="margin: 0;"><strong>${data.pickup_date}</strong> at <strong>${data.pickup_time}</strong></p>
+            </div>
+            <p style="color: #666; font-size: 0.875rem;">
+              ${data.pickup_instructions || 'Please bring a valid ID and your order confirmation email.'}
+            </p>
+            <p>See you soon!<br><strong>The ATL Urban Farms Team</strong></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
+  pickup_reminder: (data: any) => ({
+    subject: 'Reminder: Pick up your plants tomorrow!',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #f59e0b; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .pickup-box { background: #fef3c7; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <p style="font-size: 2.5rem; margin: 0 0 10px;">⏰</p>
+            <h1>Pickup Reminder</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.customer_name || 'there'},</p>
+            <p>Just a friendly reminder that your order <strong>#${data.order_number}</strong> is ready and waiting for you!</p>
+            <div class="pickup-box">
+              <h3 style="color: #92400e; margin: 0 0 15px;">Tomorrow's Pickup</h3>
+              <p style="font-weight: bold; margin: 0 0 5px;">${data.pickup_location}</p>
+              <p style="color: #78350f; margin: 0 0 20px;">${data.pickup_address}</p>
+              <p style="margin: 0;"><strong>${data.pickup_date}</strong> at <strong>${data.pickup_time}</strong></p>
+            </div>
+            <p style="color: #666; font-size: 0.875rem;">
+              Don't forget to bring this email and a valid photo ID!
+            </p>
+            <p>See you tomorrow!<br><strong>The ATL Urban Farms Team</strong></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
   })
 }
 

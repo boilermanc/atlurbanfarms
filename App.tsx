@@ -10,7 +10,9 @@ import CartDrawer from './components/CartDrawer';
 import Footer from './components/Footer';
 import CheckoutPage from './src/components/CheckoutPage';
 import OrderConfirmationPage from './src/components/OrderConfirmationPage';
+import TrackingPage from './src/components/TrackingPage';
 import ShopPage from './components/ShopPage';
+import PromotionalBanner from './components/PromotionalBanner';
 import FAQPage from './components/FAQPage';
 import AboutPage from './components/AboutPage';
 import GrowersPage from './components/GrowersPage';
@@ -52,13 +54,14 @@ interface OrderData {
   isGuest: boolean;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'growers' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/admin/login') return 'admin-login';
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
   if (pathname === '/welcome') return 'welcome';
+  if (pathname === '/tracking' || pathname.startsWith('/tracking/')) return 'tracking';
   return 'home';
 };
 
@@ -68,6 +71,7 @@ const getPathForView = (view: ViewType): string => {
     case 'admin-login': return '/admin/login';
     case 'admin': return '/admin';
     case 'welcome': return '/welcome';
+    case 'tracking': return '/tracking';
     default: return '/';
   }
 };
@@ -88,6 +92,20 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
+  const [trackingParams, setTrackingParams] = useState<{ trackingNumber?: string; carrierCode?: string }>(() => {
+    // Parse tracking params from URL on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const pathname = window.location.pathname;
+    let trackingNumber = urlParams.get('number') || undefined;
+    let carrierCode = urlParams.get('carrier') || undefined;
+
+    // Also support /tracking/:trackingNumber format
+    if (pathname.startsWith('/tracking/') && pathname.length > 10) {
+      trackingNumber = pathname.split('/')[2];
+    }
+
+    return { trackingNumber, carrierCode };
+  });
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -202,9 +220,19 @@ const App: React.FC = () => {
             onCreateAccount={() => handleNavigate('register')}
           />
         );
+      case 'tracking':
+        return (
+          <TrackingPage
+            initialTrackingNumber={trackingParams.trackingNumber}
+            initialCarrierCode={trackingParams.carrierCode}
+            onBack={() => handleNavigate('home')}
+            onNavigate={(newView: string) => handleNavigate(newView as any)}
+          />
+        );
       case 'shop':
         return (
           <>
+            <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
             <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} />
             <Footer onNavigate={handleNavigate} />
@@ -213,6 +241,7 @@ const App: React.FC = () => {
       case 'faq':
         return (
           <>
+            <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
             <FAQPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
@@ -221,6 +250,7 @@ const App: React.FC = () => {
       case 'about':
         return (
           <>
+            <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
             <AboutPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
@@ -229,6 +259,7 @@ const App: React.FC = () => {
       case 'growers':
         return (
           <>
+            <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
             <GrowersPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
@@ -283,6 +314,7 @@ const App: React.FC = () => {
       default:
         return (
           <div className="min-h-screen bg-[#fafafa] selection:bg-emerald-100 selection:text-emerald-900">
+            <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
             
             <main>

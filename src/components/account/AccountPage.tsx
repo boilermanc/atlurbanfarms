@@ -99,7 +99,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'orders':
-        return <OrderHistory userId={user.id} />;
+        return <OrderHistory userId={user.id} onNavigate={onNavigate} />;
       case 'addresses':
         return <AddressBook userId={user.id} />;
       case 'profile':

@@ -1,20 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
-import { useShippingServices, useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
+import { useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
+import { useAddressValidation, useShippingRates, formatDeliveryEstimate, ShippingRate, ShippingAddress, ZoneInfo } from '../hooks/useShipping';
+import { usePickupLocations, useAvailablePickupSlots, formatPickupTime, formatPickupDate, groupSlotsByDate, PickupLocation, PickupSlot } from '../hooks/usePickup';
 import { useSetting } from '../admin/hooks/useSettings';
 import { useStripePayment } from '../hooks/useStripePayment';
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
 import { supabase } from '../lib/supabase';
 
-interface ShippingService {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  is_active: boolean;
+type DeliveryMethod = 'shipping' | 'pickup';
+
+interface SelectedShippingRate {
+  rate_id: string;
+  carrier_id: string;
+  carrier_code: string;
+  service_code: string;
+  service_type: string;
+  shipping_amount: number;
+  delivery_days: number | null;
+  estimated_delivery_date: string | null;
 }
 
 interface OrderData {
@@ -35,6 +42,13 @@ interface OrderData {
     city: string;
     state: string;
     zip: string;
+  } | null;
+  pickupInfo?: {
+    locationName: string;
+    address: string;
+    date: string;
+    timeRange: string;
+    instructions?: string;
   };
   totals: {
     subtotal: number;
@@ -43,6 +57,7 @@ interface OrderData {
     total: number;
   };
   isGuest: boolean;
+  isPickup: boolean;
 }
 
 interface CheckoutPageProps {
@@ -127,16 +142,48 @@ const US_STATES = [
 const TAX_RATE = 0.08; // 8% tax rate
 
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete }) => {
-  const { shippingServices, loading: shippingLoading } = useShippingServices();
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
   const { profile } = useCustomerProfile(user?.id);
   const { addresses } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
+  const { value: shipEngineEnabled } = useSetting('integrations', 'shipstation_enabled');
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
 
-  const [selectedShipping, setSelectedShipping] = useState<string>('');
+  // ShipEngine address validation and rates
+  const {
+    validateAddress,
+    clearValidation,
+    validationResult,
+    loading: validatingAddress,
+    error: validationError
+  } = useAddressValidation();
+  const {
+    fetchRates,
+    clearRates,
+    rates: shippingRates,
+    loading: fetchingRates,
+    error: ratesError,
+    zoneInfo,
+    isZoneBlocked,
+    packageBreakdown
+  } = useShippingRates();
+
+  // Local Pickup
+  const { locations: pickupLocations, loading: pickupLocationsLoading } = usePickupLocations();
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('shipping');
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState<string | null>(null);
+  const [selectedPickupSlot, setSelectedPickupSlot] = useState<PickupSlot | null>(null);
+
+  const { slots: pickupSlots, loading: pickupSlotsLoading } = useAvailablePickupSlots(
+    deliveryMethod === 'pickup' ? selectedPickupLocationId : null
+  );
+
+  const selectedPickupLocation = pickupLocations.find(l => l.id === selectedPickupLocationId);
+  const hasPickupLocations = pickupLocations.length > 0;
+
+  const [selectedShippingRate, setSelectedShippingRate] = useState<SelectedShippingRate | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -146,6 +193,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [paymentStep, setPaymentStep] = useState<'form' | 'payment'>('form');
   const [saveAddress, setSaveAddress] = useState(false);
   const [hasPrefilledForm, setHasPrefilledForm] = useState(false);
+  const [addressValidated, setAddressValidated] = useState(false);
+  const [normalizedAddress, setNormalizedAddress] = useState<ShippingAddress | null>(null);
+  const [showAddressSuggestion, setShowAddressSuggestion] = useState(false);
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
@@ -163,12 +213,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     country: 'United States'
   });
 
-  // Set default shipping when services load
+  // Auto-select first rate when rates are loaded
   useEffect(() => {
-    if (shippingServices.length > 0 && !selectedShipping) {
-      setSelectedShipping(shippingServices[0].id);
+    if (shippingRates.length > 0 && !selectedShippingRate) {
+      const firstRate = shippingRates[0];
+      setSelectedShippingRate({
+        rate_id: firstRate.rate_id,
+        carrier_id: firstRate.carrier_id,
+        carrier_code: firstRate.carrier_code,
+        service_code: firstRate.service_code,
+        service_type: firstRate.service_type,
+        shipping_amount: firstRate.shipping_amount,
+        delivery_days: firstRate.delivery_days,
+        estimated_delivery_date: firstRate.estimated_delivery_date
+      });
     }
-  }, [shippingServices, selectedShipping]);
+  }, [shippingRates, selectedShippingRate]);
 
   // Pre-fill form with user data when logged in (only once)
   useEffect(() => {
@@ -203,15 +263,119 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   }, [user, profile, addresses, hasPrefilledForm]);
 
-  const selectedShippingService = shippingServices.find(s => s.id === selectedShipping);
-  const shippingCost = selectedShippingService?.price || 0;
+  // Shipping cost is 0 for pickup, otherwise use selected rate
+  const shippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const tax = subtotal * TAX_RATE;
   const total = subtotal + shippingCost + tax;
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // Build shipping address for validation/rates
+  const buildShippingAddress = useCallback((): ShippingAddress => ({
+    name: `${formData.firstName} ${formData.lastName}`.trim(),
+    phone: formData.phone,
+    address_line1: formData.address1,
+    address_line2: formData.address2 || undefined,
+    city_locality: formData.city,
+    state_province: formData.state,
+    postal_code: formData.zip,
+    country_code: 'US'
+  }), [formData]);
+
+  // Validate address and fetch rates
+  const handleValidateAddress = useCallback(async () => {
+    if (!formData.address1 || !formData.city || !formData.state || !formData.zip) {
+      return;
+    }
+
+    const address = buildShippingAddress();
+    const result = await validateAddress(address);
+
+    if (result) {
+      setAddressValidated(result.status === 'verified' || result.status === 'warning');
+
+      // Check if normalized address is different
+      if (result.matched_address && result.status === 'verified') {
+        const original = address;
+        const normalized = result.matched_address;
+
+        const isDifferent =
+          normalized.address_line1?.toLowerCase() !== original.address_line1?.toLowerCase() ||
+          normalized.city_locality?.toLowerCase() !== original.city_locality?.toLowerCase() ||
+          normalized.state_province?.toLowerCase() !== original.state_province?.toLowerCase() ||
+          normalized.postal_code !== original.postal_code;
+
+        if (isDifferent) {
+          setNormalizedAddress(normalized);
+          setShowAddressSuggestion(true);
+        } else {
+          setNormalizedAddress(normalized);
+          setShowAddressSuggestion(false);
+        }
+      }
+
+      // Fetch shipping rates if address is valid
+      if (result.status === 'verified' || result.status === 'warning') {
+        const rateAddress = result.matched_address || address;
+        // Convert cart items to order_items format for package calculation
+        const orderItems = items.map(item => ({
+          quantity: item.quantity,
+          weight_per_item: 0.5 // Default weight per seedling in pounds
+        }));
+        await fetchRates(rateAddress, orderItems);
+      }
+    }
+  }, [formData, buildShippingAddress, validateAddress, fetchRates, items]);
+
+  // Accept suggested address
+  const handleAcceptSuggestedAddress = useCallback(() => {
+    if (normalizedAddress) {
+      setFormData(prev => ({
+        ...prev,
+        address1: normalizedAddress.address_line1 || prev.address1,
+        address2: normalizedAddress.address_line2 || '',
+        city: normalizedAddress.city_locality || prev.city,
+        state: normalizedAddress.state_province || prev.state,
+        zip: normalizedAddress.postal_code || prev.zip
+      }));
+      setShowAddressSuggestion(false);
+    }
+  }, [normalizedAddress]);
+
+  // Clear validation when address changes
+  const handleAddressChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    // Clear validation state when address fields change
+    if (['address1', 'address2', 'city', 'state', 'zip'].includes(name)) {
+      setAddressValidated(false);
+      clearValidation();
+      clearRates();
+      setSelectedShippingRate(null);
+      setShowAddressSuggestion(false);
+    }
+
+    // Clear error when user starts typing
+    if (formErrors[name]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  }, [formErrors, clearValidation, clearRates]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name } = e.target;
+
+    // Use address-specific handler for address fields
+    if (['address1', 'address2', 'city', 'state', 'zip'].includes(name)) {
+      handleAddressChange(e);
+      return;
+    }
+
+    const { value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
 
     // Clear error when user starts typing
@@ -224,7 +388,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   };
 
-  const handleSelectSavedAddress = (address: any) => {
+  const handleSelectSavedAddress = async (address: any) => {
     setSelectedAddressId(address.id);
     setFormData(prev => ({
       ...prev,
@@ -237,6 +401,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       state: address.state || '',
       zip: address.zip || '',
     }));
+
+    // Clear validation state for new address
+    setAddressValidated(false);
+    clearValidation();
+    clearRates();
+    setSelectedShippingRate(null);
+    setShowAddressSuggestion(false);
+
     // Clear any address-related errors
     setFormErrors(prev => {
       const newErrors = { ...prev };
@@ -248,13 +420,44 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       delete newErrors.zip;
       return newErrors;
     });
+
+    // Auto-validate the selected saved address if ShipEngine is enabled
+    if (shipEngineEnabled && address.street && address.city && address.state && address.zip) {
+      const shippingAddress: ShippingAddress = {
+        name: `${address.first_name || ''} ${address.last_name || ''}`.trim(),
+        phone: address.phone,
+        address_line1: address.street,
+        address_line2: address.unit || undefined,
+        city_locality: address.city,
+        state_province: address.state,
+        postal_code: address.zip,
+        country_code: 'US'
+      };
+
+      const result = await validateAddress(shippingAddress);
+      if (result && (result.status === 'verified' || result.status === 'warning')) {
+        setAddressValidated(true);
+        const rateAddress = result.matched_address || shippingAddress;
+        // Convert cart items to order_items format for package calculation
+        const orderItems = items.map(item => ({
+          quantity: item.quantity,
+          weight_per_item: 0.5 // Default weight per seedling in pounds
+        }));
+        await fetchRates(rateAddress, orderItems);
+      }
+    }
   };
 
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
-    const requiredFields: (keyof CheckoutFormData)[] = [
-      'email', 'phone', 'firstName', 'lastName', 'address1', 'city', 'state', 'zip'
-    ];
+
+    // Base required fields for all orders
+    const baseFields: (keyof CheckoutFormData)[] = ['email', 'phone', 'firstName', 'lastName'];
+
+    // For shipping orders, also require address fields
+    const requiredFields: (keyof CheckoutFormData)[] = deliveryMethod === 'shipping'
+      ? [...baseFields, 'address1', 'city', 'state', 'zip']
+      : baseFields;
 
     requiredFields.forEach(field => {
       if (!formData[field].trim()) {
@@ -272,8 +475,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       errors.phone = 'Please enter a valid phone number';
     }
 
-    // ZIP validation
-    if (formData.zip && !/^\d{5}(-\d{4})?$/.test(formData.zip)) {
+    // ZIP validation (only if shipping)
+    if (deliveryMethod === 'shipping' && formData.zip && !/^\d{5}(-\d{4})?$/.test(formData.zip)) {
       errors.zip = 'Please enter a valid ZIP code';
     }
 
@@ -296,6 +499,55 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       return;
     }
 
+    // For pickup orders, validate pickup selection
+    if (deliveryMethod === 'pickup') {
+      if (!selectedPickupLocationId || !selectedPickupSlot) {
+        setOrderError('Please select a pickup location and time slot.');
+        return;
+      }
+    } else {
+      // For shipping orders, validate shipping requirements
+      // Check if address needs validation (ShipEngine enabled but not validated)
+      if (shipEngineEnabled && !addressValidated) {
+        setOrderError('Please validate your shipping address before proceeding.');
+        return;
+      }
+
+      // Check if zone is blocked
+      if (isZoneBlocked) {
+        setOrderError('We cannot ship to this location. Please use a different shipping address.');
+        return;
+      }
+
+      // Check if shipping method is selected (when rates are available)
+      if (shipEngineEnabled && shippingRates.length > 0 && !selectedShippingRate) {
+        setOrderError('Please select a shipping method.');
+        return;
+      }
+    }
+
+    // Build shipping details for order (only for shipping orders)
+    const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
+      shippingRateId: selectedShippingRate.rate_id,
+      shippingCarrierId: selectedShippingRate.carrier_id,
+      shippingServiceCode: selectedShippingRate.service_code,
+      shippingMethodName: selectedShippingRate.service_type,
+      estimatedDeliveryDate: selectedShippingRate.estimated_delivery_date,
+      addressValidated: addressValidated,
+      addressOriginal: buildShippingAddress(),
+      addressNormalized: normalizedAddress
+    } : {};
+
+    // Build pickup details for order (only for pickup orders)
+    const pickupDetails = (deliveryMethod === 'pickup' && selectedPickupSlot && selectedPickupLocation) ? {
+      isPickup: true,
+      pickupLocationId: selectedPickupLocationId,
+      pickupDate: selectedPickupSlot.slot_date,
+      pickupTimeStart: selectedPickupSlot.start_time,
+      pickupTimeEnd: selectedPickupSlot.end_time,
+      pickupScheduleId: selectedPickupSlot.schedule_id
+    } : { isPickup: false };
+
     // If Stripe is enabled, create payment intent and show payment form
     if (stripeEnabled) {
       // Create order first with pending payment status
@@ -307,7 +559,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           firstName: formData.firstName,
           lastName: formData.lastName
         },
-        shippingInfo: {
+        shippingInfo: deliveryMethod === 'shipping' ? {
           firstName: formData.firstName,
           lastName: formData.lastName,
           address1: formData.address1,
@@ -316,12 +568,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           state: formData.state,
           zip: formData.zip,
           country: formData.country
-        },
-        shippingMethod: selectedShippingService?.name || 'Standard',
+        } : null,
+        shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
         shippingCost: shippingCost,
         customerId: user?.id || null,
         paymentStatus: 'pending',
-        saveAddress: saveAddress
+        saveAddress: deliveryMethod === 'shipping' && saveAddress,
+        ...shippingDetails,
+        ...pickupDetails
       });
 
       if (!result.success || !result.order) {
@@ -354,6 +608,28 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   };
 
   const completeOrder = async () => {
+    // Build shipping details for order (only for shipping orders)
+    const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
+      shippingRateId: selectedShippingRate.rate_id,
+      shippingCarrierId: selectedShippingRate.carrier_id,
+      shippingServiceCode: selectedShippingRate.service_code,
+      shippingMethodName: selectedShippingRate.service_type,
+      estimatedDeliveryDate: selectedShippingRate.estimated_delivery_date,
+      addressValidated: addressValidated,
+      addressOriginal: buildShippingAddress(),
+      addressNormalized: normalizedAddress
+    } : {};
+
+    // Build pickup details for order (only for pickup orders)
+    const pickupDetails = (deliveryMethod === 'pickup' && selectedPickupSlot && selectedPickupLocation) ? {
+      isPickup: true,
+      pickupLocationId: selectedPickupLocationId,
+      pickupDate: selectedPickupSlot.slot_date,
+      pickupTimeStart: selectedPickupSlot.start_time,
+      pickupTimeEnd: selectedPickupSlot.end_time,
+      pickupScheduleId: selectedPickupSlot.schedule_id
+    } : { isPickup: false };
+
     // Create the order in Supabase
     const result = await createOrder({
       cartItems: items,
@@ -363,7 +639,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         firstName: formData.firstName,
         lastName: formData.lastName
       },
-      shippingInfo: {
+      shippingInfo: deliveryMethod === 'shipping' ? {
         firstName: formData.firstName,
         lastName: formData.lastName,
         address1: formData.address1,
@@ -372,11 +648,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         state: formData.state,
         zip: formData.zip,
         country: formData.country
-      },
-      shippingMethod: selectedShippingService?.name || 'Standard',
+      } : null,
+      shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
       shippingCost: shippingCost,
       customerId: user?.id || null,
-      saveAddress: saveAddress
+      saveAddress: deliveryMethod === 'shipping' && saveAddress,
+      ...shippingDetails,
+      ...pickupDetails
     });
 
     if (result.success && result.order) {
@@ -398,7 +676,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       items: order.items,
       customerFirstName: formData.firstName,
       customerEmail: formData.email,
-      shippingAddress: {
+      shippingAddress: deliveryMethod === 'shipping' ? {
         name: `${formData.firstName} ${formData.lastName}`,
         address: formData.address2
           ? `${formData.address1}, ${formData.address2}`
@@ -406,14 +684,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         city: formData.city,
         state: formData.state,
         zip: formData.zip
-      },
+      } : null,
+      pickupInfo: (deliveryMethod === 'pickup' && selectedPickupLocation && selectedPickupSlot) ? {
+        locationName: selectedPickupLocation.name,
+        address: `${selectedPickupLocation.address_line1}, ${selectedPickupLocation.city}, ${selectedPickupLocation.state} ${selectedPickupLocation.postal_code}`,
+        date: formatPickupDate(selectedPickupSlot.slot_date),
+        timeRange: `${formatPickupTime(selectedPickupSlot.start_time)} - ${formatPickupTime(selectedPickupSlot.end_time)}`,
+        instructions: selectedPickupLocation.instructions
+      } : undefined,
       totals: {
         subtotal,
         shipping: shippingCost,
         tax,
         total
       },
-      isGuest: !user
+      isGuest: !user,
+      isPickup: deliveryMethod === 'pickup'
     };
 
     // Send order confirmation email
@@ -426,7 +712,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         shipping: shippingCost,
         tax,
         total,
-        shippingAddress: orderData.shippingAddress
+        shippingAddress: orderData.shippingAddress,
+        pickupInfo: orderData.pickupInfo
       });
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
@@ -562,7 +849,246 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
               <hr className="my-10 border-gray-100" />
 
-              {/* Shipping Address */}
+              {/* Delivery Method Selector */}
+              {hasPickupLocations && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                    <h3 className="text-xl font-heading font-extrabold text-gray-900">Delivery Method</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeliveryMethod('shipping');
+                        setSelectedPickupLocationId(null);
+                        setSelectedPickupSlot(null);
+                      }}
+                      className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                        deliveryMethod === 'shipping'
+                          ? 'border-emerald-600 bg-emerald-50/30'
+                          : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                          deliveryMethod === 'shipping'
+                            ? 'border-emerald-600'
+                            : 'border-gray-300'
+                        }`}>
+                          {deliveryMethod === 'shipping' && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-600"></div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                            <span className="font-bold text-gray-900">Ship to Address</span>
+                          </div>
+                          <p className="text-sm text-gray-500">We'll ship your order to your address</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeliveryMethod('pickup');
+                        setSelectedShippingRate(null);
+                        clearRates();
+                        clearValidation();
+                        setAddressValidated(false);
+                      }}
+                      className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                        deliveryMethod === 'pickup'
+                          ? 'border-emerald-600 bg-emerald-50/30'
+                          : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                          deliveryMethod === 'pickup'
+                            ? 'border-emerald-600'
+                            : 'border-gray-300'
+                        }`}>
+                          {deliveryMethod === 'pickup' && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-600"></div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="font-bold text-gray-900">Local Pickup</span>
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">FREE</span>
+                          </div>
+                          <p className="text-sm text-gray-500">Pick up from one of our locations</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <hr className="my-10 border-gray-100" />
+                </motion.section>
+              )}
+
+              {/* Local Pickup Selection (when pickup is selected) */}
+              {deliveryMethod === 'pickup' && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">{hasPickupLocations ? '3' : '2'}</span>
+                    <h3 className="text-xl font-heading font-extrabold text-gray-900">Pickup Location & Time</h3>
+                  </div>
+
+                  {/* Location Selection */}
+                  <div className="space-y-4">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 block">
+                      Select Location
+                    </label>
+                    {pickupLocationsLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-600 border-t-transparent"></div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {pickupLocations.map((location) => (
+                          <button
+                            key={location.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPickupLocationId(location.id);
+                              setSelectedPickupSlot(null);
+                            }}
+                            className={`w-full p-4 rounded-2xl border-2 text-left transition-all ${
+                              selectedPickupLocationId === location.id
+                                ? 'border-emerald-600 bg-emerald-50/30'
+                                : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                                selectedPickupLocationId === location.id
+                                  ? 'border-emerald-600'
+                                  : 'border-gray-300'
+                              }`}>
+                                {selectedPickupLocationId === location.id && (
+                                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-600"></div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-gray-900">{location.name}</p>
+                                <p className="text-sm text-gray-500 mt-1">
+                                  {location.address_line1}
+                                  {location.address_line2 && `, ${location.address_line2}`}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {location.city}, {location.state} {location.postal_code}
+                                </p>
+                                {location.phone && (
+                                  <p className="text-sm text-gray-400 mt-1">{location.phone}</p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Time Slot Selection */}
+                  {selectedPickupLocationId && (
+                    <div className="space-y-4 mt-6">
+                      <label className="text-xs font-black uppercase tracking-widest text-gray-400 block">
+                        Select Pickup Time
+                      </label>
+                      {pickupSlotsLoading ? (
+                        <div className="flex justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-600 border-t-transparent"></div>
+                        </div>
+                      ) : pickupSlots.length === 0 ? (
+                        <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200 text-center">
+                          <svg className="w-10 h-10 text-amber-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-amber-800 font-medium">No pickup times available</p>
+                          <p className="text-amber-600 text-sm mt-1">Please check back later or try a different location</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {Array.from(groupSlotsByDate(pickupSlots)).map(([date, slots]) => (
+                            <div key={date}>
+                              <p className="text-sm font-bold text-gray-700 mb-2">{formatPickupDate(date)}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {slots.map((slot) => (
+                                  <button
+                                    key={`${slot.schedule_id}-${slot.slot_date}`}
+                                    type="button"
+                                    onClick={() => setSelectedPickupSlot(slot)}
+                                    disabled={slot.slots_available <= 0}
+                                    className={`p-3 rounded-xl border-2 text-center transition-all ${
+                                      selectedPickupSlot?.schedule_id === slot.schedule_id &&
+                                      selectedPickupSlot?.slot_date === slot.slot_date
+                                        ? 'border-emerald-600 bg-emerald-50/30'
+                                        : slot.slots_available <= 0
+                                          ? 'border-gray-100 bg-gray-100 opacity-50 cursor-not-allowed'
+                                          : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                                    }`}
+                                  >
+                                    <p className="font-bold text-gray-900 text-sm">
+                                      {formatPickupTime(slot.start_time)} - {formatPickupTime(slot.end_time)}
+                                    </p>
+                                    {slot.max_orders && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {slot.slots_available > 0
+                                          ? `${slot.slots_available} spots left`
+                                          : 'Full'}
+                                      </p>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pickup Instructions */}
+                  {selectedPickupLocation?.instructions && selectedPickupSlot && (
+                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 mt-4">
+                      <div className="flex items-start gap-3">
+                        <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <p className="font-bold text-blue-900 text-sm">Pickup Instructions</p>
+                          <p className="text-blue-700 text-sm mt-1">{selectedPickupLocation.instructions}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <hr className="my-10 border-gray-100" />
+                </motion.section>
+              )}
+
+              {/* Shipping Address (only for shipping delivery method) */}
+              {deliveryMethod === 'shipping' && (
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -570,7 +1096,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 className="space-y-6"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">{hasPickupLocations ? '3' : '2'}</span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Shipping Address</h3>
                 </div>
 
@@ -771,6 +1297,143 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <p className="text-xs text-gray-400">Currently shipping within the United States only</p>
                 </div>
 
+                {/* Address Validation Section - Only show when ShipEngine is enabled */}
+                {shipEngineEnabled && (
+                  <div className="space-y-4 pt-4">
+                    {/* Validate Address Button */}
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={handleValidateAddress}
+                        disabled={validatingAddress || !formData.address1 || !formData.city || !formData.state || !formData.zip}
+                        className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
+                          addressValidated
+                            ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-200'
+                            : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        {validatingAddress ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Validating...
+                          </>
+                        ) : addressValidated ? (
+                          <>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Address Verified
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            Validate Address
+                          </>
+                        )}
+                      </button>
+
+                      {/* Validation Status Indicator */}
+                      {validationResult && !validatingAddress && (
+                        <div className={`flex items-center gap-2 text-sm font-medium ${
+                          validationResult.status === 'verified' ? 'text-emerald-600' :
+                          validationResult.status === 'warning' ? 'text-amber-600' :
+                          'text-red-600'
+                        }`}>
+                          {validationResult.status === 'verified' && (
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {validationResult.status === 'warning' && (
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {(validationResult.status === 'error' || validationResult.status === 'unverified') && (
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          <span>
+                            {validationResult.status === 'verified' && 'Verified'}
+                            {validationResult.status === 'warning' && 'Verified with warnings'}
+                            {validationResult.status === 'unverified' && 'Could not verify'}
+                            {validationResult.status === 'error' && 'Invalid address'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Validation Error */}
+                    {validationError && (
+                      <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                        {validationError}
+                      </div>
+                    )}
+
+                    {/* Validation Messages */}
+                    {validationResult?.messages && validationResult.messages.length > 0 && (
+                      <div className={`p-4 rounded-xl text-sm ${
+                        validationResult.status === 'verified' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
+                        validationResult.status === 'warning' ? 'bg-amber-50 border border-amber-200 text-amber-700' :
+                        'bg-red-50 border border-red-200 text-red-700'
+                      }`}>
+                        <ul className="list-disc list-inside space-y-1">
+                          {validationResult.messages.map((msg, i) => (
+                            <li key={i}>{msg}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Address Suggestion */}
+                    {showAddressSuggestion && normalizedAddress && (
+                      <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                        <p className="text-sm font-bold text-blue-800 mb-2">Suggested Address Correction</p>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">You Entered</p>
+                            <p className="text-gray-700">
+                              {formData.address1}<br />
+                              {formData.address2 && <>{formData.address2}<br /></>}
+                              {formData.city}, {formData.state} {formData.zip}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-blue-600 uppercase mb-1">Suggested</p>
+                            <p className="text-blue-800 font-medium">
+                              {normalizedAddress.address_line1}<br />
+                              {normalizedAddress.address_line2 && <>{normalizedAddress.address_line2}<br /></>}
+                              {normalizedAddress.city_locality}, {normalizedAddress.state_province} {normalizedAddress.postal_code}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-3 mt-4">
+                          <button
+                            type="button"
+                            onClick={handleAcceptSuggestedAddress}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Use Suggested Address
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddressSuggestion(false)}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
+                          >
+                            Keep Original
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Save Address Checkbox - only show for logged in users */}
                 {user && (
                   <div className="flex items-center gap-3 pt-4">
@@ -798,10 +1461,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </div>
                 )}
               </motion.section>
+              )}
 
               <hr className="my-10 border-gray-100" />
 
-              {/* Shipping Method */}
+              {/* Shipping Method - only show for shipping delivery method */}
+              {deliveryMethod === 'shipping' && (
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -809,50 +1474,208 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 className="space-y-6"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">{hasPickupLocations ? '4' : '3'}</span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Shipping Method</h3>
                 </div>
 
-                {shippingLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[1, 2].map(i => (
-                      <div key={i} className="p-6 rounded-[2rem] border-2 border-gray-100 bg-gray-50 animate-pulse">
-                        <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-                        <div className="h-4 bg-gray-200 rounded w-full"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {shippingServices.map((service: ShippingService) => (
-                      <button
-                        key={service.id}
-                        type="button"
-                        onClick={() => setSelectedShipping(service.id)}
-                        className={`p-6 rounded-[2rem] border-2 text-left transition-all ${
-                          selectedShipping === service.id
-                            ? 'border-emerald-600 bg-emerald-50/30'
-                            : 'border-gray-100 bg-gray-50 hover:border-gray-200'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                              selectedShipping === service.id
-                                ? 'border-emerald-600'
-                                : 'border-gray-300'
-                            }`}>
-                              {selectedShipping === service.id && (
-                                <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
-                              )}
-                            </div>
-                            <span className="font-bold text-gray-900">{service.name}</span>
-                          </div>
-                          <span className="text-emerald-600 font-black">${service.price.toFixed(2)}</span>
+                {/* ShipEngine enabled - show dynamic rates */}
+                {shipEngineEnabled ? (
+                  <>
+                    {/* Show message if address not validated yet */}
+                    {!addressValidated && (
+                      <div className="p-6 rounded-[2rem] border-2 border-gray-200 bg-gray-50">
+                        <div className="flex items-center gap-4 text-gray-500">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <p className="text-sm font-medium">
+                            Please validate your shipping address above to see available shipping options.
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-500 ml-8">{service.description}</p>
-                      </button>
-                    ))}
+                      </div>
+                    )}
+
+                    {/* Loading rates */}
+                    {fetchingRates && (
+                      <div className="grid grid-cols-1 gap-4">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="p-6 rounded-[2rem] border-2 border-gray-100 bg-gray-50 animate-pulse">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-3">
+                                <div className="w-5 h-5 bg-gray-200 rounded-full"></div>
+                                <div className="h-5 bg-gray-200 rounded w-32"></div>
+                              </div>
+                              <div className="h-5 bg-gray-200 rounded w-16"></div>
+                            </div>
+                            <div className="h-4 bg-gray-200 rounded w-48 ml-8"></div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Zone Blocked Error */}
+                    {isZoneBlocked && zoneInfo && (
+                      <div className="p-5 rounded-2xl bg-red-50 border-2 border-red-200">
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-red-800 mb-1">Unable to Ship to This Location</h4>
+                            <p className="text-sm text-red-700">{zoneInfo.message}</p>
+                            <p className="text-xs text-red-600 mt-2">
+                              Please use a different shipping address or contact us for assistance.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Zone Conditional Warning */}
+                    {!isZoneBlocked && zoneInfo && zoneInfo.status === 'conditional' && zoneInfo.message && (
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-medium text-amber-800">{zoneInfo.message}</p>
+                            {zoneInfo.conditions?.max_transit_days && (
+                              <p className="text-xs text-amber-600 mt-1">
+                                Only shipping options with {zoneInfo.conditions.max_transit_days} day{zoneInfo.conditions.max_transit_days > 1 ? 's' : ''} or faster delivery are available.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rates error (non-zone related) */}
+                    {ratesError && addressValidated && !isZoneBlocked && (
+                      <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          <div>
+                            <p className="font-bold">Unable to fetch shipping rates</p>
+                            <p>{ratesError}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show rates */}
+                    {addressValidated && !fetchingRates && shippingRates.length > 0 && (
+                      <div className="grid grid-cols-1 gap-3">
+                        {shippingRates.map((rate) => (
+                          <button
+                            key={rate.rate_id}
+                            type="button"
+                            onClick={() => setSelectedShippingRate({
+                              rate_id: rate.rate_id,
+                              carrier_id: rate.carrier_id,
+                              carrier_code: rate.carrier_code,
+                              service_code: rate.service_code,
+                              service_type: rate.service_type,
+                              shipping_amount: rate.shipping_amount,
+                              delivery_days: rate.delivery_days,
+                              estimated_delivery_date: rate.estimated_delivery_date
+                            })}
+                            className={`p-5 rounded-2xl border-2 text-left transition-all ${
+                              selectedShippingRate?.rate_id === rate.rate_id
+                                ? 'border-emerald-600 bg-emerald-50/30'
+                                : 'border-gray-100 bg-gray-50 hover:border-gray-200'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-start gap-3">
+                                <div className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                  selectedShippingRate?.rate_id === rate.rate_id
+                                    ? 'border-emerald-600'
+                                    : 'border-gray-300'
+                                }`}>
+                                  {selectedShippingRate?.rate_id === rate.rate_id && (
+                                    <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-gray-900">{rate.carrier_friendly_name}</span>
+                                    <span className="text-gray-400">•</span>
+                                    <span className="text-gray-700">{rate.service_type}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-500">
+                                    {formatDeliveryEstimate(rate)}
+                                    {rate.guaranteed_service && (
+                                      <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
+                                        Guaranteed
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-emerald-600 font-black text-lg">
+                                ${rate.shipping_amount.toFixed(2)}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+
+                        {/* Package breakdown info */}
+                        {packageBreakdown && (
+                          <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                            <div className="flex items-center gap-2 text-sm text-slate-700">
+                              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                              </svg>
+                              <span className="font-medium">{packageBreakdown.summary}</span>
+                            </div>
+                            {packageBreakdown.total_packages > 1 && (
+                              <div className="mt-2 text-xs text-slate-500">
+                                {packageBreakdown.packages.map((pkg, idx) => (
+                                  <span key={idx}>
+                                    {idx > 0 && ', '}
+                                    {pkg.name} ({pkg.item_count} items)
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* No rates available (not due to zone block) */}
+                    {addressValidated && !fetchingRates && shippingRates.length === 0 && !ratesError && !isZoneBlocked && (
+                      <div className="p-6 rounded-[2rem] border-2 border-amber-200 bg-amber-50/50">
+                        <div className="flex items-center gap-4 text-amber-700">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <p className="text-sm font-medium">
+                            No shipping options available for this address. Please verify your address or contact support.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Fallback - static message when ShipEngine is not enabled */
+                  <div className="p-6 rounded-[2rem] border-2 border-gray-200 bg-gray-50">
+                    <div className="flex items-center gap-4 text-gray-600">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                      </svg>
+                      <div>
+                        <p className="font-bold text-gray-900">Standard Shipping</p>
+                        <p className="text-sm">Shipping rates will be calculated at checkout completion.</p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -860,6 +1683,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   {SHIPPING_NOTICE}
                 </p>
               </motion.section>
+              )}
 
               <hr className="my-10 border-gray-100" />
 
@@ -871,7 +1695,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 className="space-y-6"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                    {deliveryMethod === 'pickup' ? (hasPickupLocations ? '4' : '3') : (hasPickupLocations ? '5' : '4')}
+                  </span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Payment</h3>
                 </div>
 
@@ -1034,7 +1860,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <div className="flex justify-between text-gray-500 text-sm">
                     <span>Shipping</span>
                     <span className="font-bold">
-                      {shippingCost > 0 ? `$${shippingCost.toFixed(2)}` : 'Select method'}
+                      {fetchingRates ? (
+                        <span className="text-gray-400">Calculating...</span>
+                      ) : shippingCost > 0 ? (
+                        `$${shippingCost.toFixed(2)}`
+                      ) : shipEngineEnabled && !addressValidated ? (
+                        <span className="text-gray-400">Validate address</span>
+                      ) : (
+                        <span className="text-gray-400">Select method</span>
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-500 text-sm">

@@ -1,9 +1,6 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-
 interface TestResult {
   success: boolean
   message: string
@@ -23,40 +20,23 @@ export function useTestIntegration() {
     setError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('🟢 Session:', session ? 'exists' : 'null')
-
-      if (!session) {
-        const errorMsg = 'Not authenticated - please log in again'
-        setError(errorMsg)
-        return { success: false, message: errorMsg, details: { reason: 'No active session' } }
-      }
-
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/test-integration`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({ integration })
+      const { data, error: invokeError } = await supabase.functions.invoke('test-integration', {
+        body: { integration }
       })
 
-      console.log('🟢 testConnection - Response status:', response.status, response.statusText)
-      const result = await response.json()
-      console.log('🟢 testConnection - Response body:', result)
+      console.log('🟢 testConnection - Response:', data, 'Error:', invokeError)
 
-      if (!response.ok) {
-        const errorMsg = result.message || result.error || `HTTP ${response.status}: ${response.statusText}`
+      if (invokeError) {
+        const errorMsg = invokeError.message || 'Test failed'
         setError(errorMsg)
-        return { success: false, message: errorMsg, details: { status: response.status, ...result } }
+        return { success: false, message: errorMsg, details: { error: invokeError } }
       }
 
-      if (!result.success) {
-        setError(result.message)
+      if (!data.success) {
+        setError(data.message)
       }
 
-      return result
+      return data
     } catch (err: any) {
       console.error('🔴 testConnection - Exception:', err)
       const errorMessage = err.message || 'Test failed'
@@ -89,37 +69,34 @@ export function useEmailService() {
     setError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('🟢 sendEmail - Session:', session ? 'exists' : 'null')
-
-      if (!session) {
-        const errorMsg = 'Not authenticated - please log in again'
-        setError(errorMsg)
-        return { success: false, error: errorMsg, details: 'No active session found' }
-      }
-
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/resend-send-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify(params)
+      const { data, error: invokeError } = await supabase.functions.invoke('resend-send-email', {
+        body: params
       })
 
-      console.log('🟢 sendEmail - Response status:', response.status, response.statusText)
-      const result = await response.json()
-      console.log('🟢 sendEmail - Response body:', result)
+      console.log('🟢 sendEmail - Response:', data, 'Error:', invokeError)
 
-      if (!response.ok || result.error) {
-        const errorMsg = result.error || result.message || `HTTP ${response.status}: ${response.statusText}`
-        const details = result.statusCode ? `Status: ${result.statusCode}` : undefined
+      if (invokeError) {
+        let errorMsg = invokeError.message || 'Failed to send email'
+        let details = invokeError.context?.message
+
+        // Handle authentication errors specifically
+        if (errorMsg.toLowerCase().includes('jwt') || errorMsg.toLowerCase().includes('unauthorized')) {
+          errorMsg = 'Session expired or invalid'
+          details = 'Please refresh the page and try again'
+        }
+
         setError(errorMsg)
         return { success: false, error: errorMsg, details }
       }
 
-      return { success: true, id: result.id }
+      if (data.error) {
+        const errorMsg = data.error || data.message
+        const details = data.statusCode ? `Status: ${data.statusCode}` : undefined
+        setError(errorMsg)
+        return { success: false, error: errorMsg, details }
+      }
+
+      return { success: true, id: data.id }
     } catch (err: any) {
       console.error('🔴 sendEmail - Exception:', err)
       const errorMessage = err.message || 'Failed to send email'
@@ -191,22 +168,21 @@ export function useSageChat() {
     setError(null)
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/sage-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ history, userInput })
+      const { data, error: invokeError } = await supabase.functions.invoke('sage-chat', {
+        body: { history, userInput }
       })
 
-      const result = await response.json()
-
-      if (result.error && !result.response) {
-        setError(result.error)
-        throw new Error(result.error)
+      if (invokeError) {
+        setError(invokeError.message)
+        throw new Error(invokeError.message)
       }
 
-      return result.response
+      if (data.error && !data.response) {
+        setError(data.error)
+        throw new Error(data.error)
+      }
+
+      return data.response
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to get response'
       setError(errorMessage)

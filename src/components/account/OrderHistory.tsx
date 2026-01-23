@@ -4,6 +4,7 @@ import { useOrders } from '../../hooks/useSupabase';
 
 interface OrderHistoryProps {
   userId: string;
+  onNavigate?: (view: string) => void;
 }
 
 interface OrderItem {
@@ -18,6 +19,16 @@ interface OrderItem {
   };
 }
 
+interface Shipment {
+  id: string;
+  tracking_number: string | null;
+  carrier_code: string | null;
+  status: string;
+  tracking_status: string | null;
+  estimated_delivery_date: string | null;
+  actual_delivery_date: string | null;
+}
+
 interface Order {
   id: string;
   order_number: string;
@@ -29,11 +40,34 @@ interface Order {
   total: number;
   delivery_address: any;
   order_items: OrderItem[];
+  shipments?: Shipment[];
 }
 
-const OrderHistory: React.FC<OrderHistoryProps> = ({ userId }) => {
+const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   const { orders, loading, error } = useOrders(userId);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  const handleTrackPackage = (trackingNumber: string, carrierCode: string) => {
+    // Navigate to tracking page with params
+    const trackingUrl = `/tracking?number=${encodeURIComponent(trackingNumber)}&carrier=${encodeURIComponent(carrierCode)}`;
+    window.history.pushState({}, '', trackingUrl);
+    if (onNavigate) {
+      onNavigate('tracking');
+    } else {
+      window.location.href = trackingUrl;
+    }
+  };
+
+  const getCarrierName = (carrierCode: string): string => {
+    const carriers: Record<string, string> = {
+      'stamps_com': 'USPS',
+      'usps': 'USPS',
+      'ups': 'UPS',
+      'fedex': 'FedEx',
+      'dhl_express': 'DHL'
+    };
+    return carriers[carrierCode?.toLowerCase()] || carrierCode?.replace(/_/g, ' ')?.toUpperCase() || 'Unknown';
+  };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -277,6 +311,69 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId }) => {
                             <p>
                               {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip}
                             </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tracking Information */}
+                      {order.shipments && order.shipments.length > 0 && order.shipments.some(s => s.tracking_number) && (
+                        <div className="border-t border-gray-100 pt-4">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Shipping & Tracking
+                          </h4>
+                          <div className="space-y-3">
+                            {order.shipments.filter(s => s.tracking_number).map((shipment) => (
+                              <div key={shipment.id} className="bg-gray-50 rounded-xl p-4">
+                                <div className="flex items-center justify-between gap-4 mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {getCarrierName(shipment.carrier_code || '')}
+                                    </span>
+                                    {shipment.tracking_status && (
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                        shipment.tracking_status === 'DE' ? 'bg-emerald-100 text-emerald-700' :
+                                        shipment.tracking_status === 'IT' ? 'bg-blue-100 text-blue-700' :
+                                        'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        {shipment.tracking_status === 'DE' ? 'Delivered' :
+                                         shipment.tracking_status === 'IT' ? 'In Transit' :
+                                         shipment.tracking_status}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => handleTrackPackage(shipment.tracking_number!, shipment.carrier_code!)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition-colors"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                    </svg>
+                                    Track Package
+                                  </button>
+                                </div>
+                                <p className="text-xs text-gray-500 font-mono">
+                                  {shipment.tracking_number}
+                                </p>
+                                {shipment.estimated_delivery_date && shipment.tracking_status !== 'DE' && (
+                                  <p className="text-xs text-emerald-600 mt-1">
+                                    Est. delivery: {new Date(shipment.estimated_delivery_date).toLocaleDateString('en-US', {
+                                      weekday: 'short',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}
+                                  </p>
+                                )}
+                                {shipment.actual_delivery_date && (
+                                  <p className="text-xs text-emerald-600 mt-1">
+                                    Delivered: {new Date(shipment.actual_delivery_date).toLocaleDateString('en-US', {
+                                      weekday: 'short',
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}

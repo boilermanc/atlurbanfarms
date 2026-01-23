@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts } from '../src/hooks/useSupabase';
+import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -45,6 +46,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
 
   // Map Supabase data to local Product type
   const products = rawProducts.map(mapProduct);
+
+  // Fetch promotions for all products
+  const productIds = useMemo(() => rawProducts.map(p => p.id), [rawProducts]);
+  const { promotions: productPromotions } = useProductsPromotions(productIds);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -119,24 +124,33 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
               </div>
             ) : (
               // Actual Product Cards
-              products.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  variants={itemVariants}
-                  layout
-                >
-                  <ProductCard
-                    id={product.id}
-                    image={product.image}
-                    name={product.name}
-                    price={product.price}
-                    category={product.category}
-                    inStock={product.stock > 0}
-                    onAddToCart={(qty) => onAddToCart(product, qty)}
-                    onClick={() => setSelectedProduct(rawProducts[index])}
-                  />
-                </motion.div>
-              ))
+              products.map((product, index) => {
+                const promo = productPromotions.get(product.id);
+                const salePrice = promo
+                  ? calculateSalePrice(product.price, promo.discount_type, promo.discount_value)
+                  : null;
+
+                return (
+                  <motion.div
+                    key={product.id}
+                    variants={itemVariants}
+                    layout
+                  >
+                    <ProductCard
+                      id={product.id}
+                      image={product.image}
+                      name={product.name}
+                      price={product.price}
+                      category={product.category}
+                      inStock={product.stock > 0}
+                      onAddToCart={(qty) => onAddToCart(product, qty)}
+                      onClick={() => setSelectedProduct(rawProducts[index])}
+                      salePrice={salePrice}
+                      saleBadge={promo?.badge_text}
+                    />
+                  </motion.div>
+                );
+              })
             )}
           </AnimatePresence>
         </motion.div>

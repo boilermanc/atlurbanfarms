@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useProducts } from '../src/hooks/useSupabase';
+import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -28,6 +29,10 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
   // Get first 3 products as featured (raw for modal, mapped for display)
   const featuredRawProducts = rawProducts.slice(0, 3);
   const featuredProducts = featuredRawProducts.map(mapProduct);
+
+  // Fetch promotions for featured products
+  const productIds = useMemo(() => featuredRawProducts.map(p => p.id), [featuredRawProducts]);
+  const { promotions: productPromotions } = useProductsPromotions(productIds);
 
   if (loading) {
     return (
@@ -94,26 +99,35 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {featuredProducts.map((product, idx) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.1 }}
-            >
-              <ProductCard
-                id={product.id}
-                image={product.image}
-                name={product.name}
-                price={product.price}
-                category={product.category}
-                inStock={product.stock > 0}
-                onAddToCart={(qty) => onAddToCart(product, qty)}
-                onClick={() => setSelectedProduct(featuredRawProducts[idx])}
-              />
-            </motion.div>
-          ))}
+          {featuredProducts.map((product, idx) => {
+            const promo = productPromotions.get(product.id);
+            const salePrice = promo
+              ? calculateSalePrice(product.price, promo.discount_type, promo.discount_value)
+              : null;
+
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+              >
+                <ProductCard
+                  id={product.id}
+                  image={product.image}
+                  name={product.name}
+                  price={product.price}
+                  category={product.category}
+                  inStock={product.stock > 0}
+                  onAddToCart={(qty) => onAddToCart(product, qty)}
+                  onClick={() => setSelectedProduct(featuredRawProducts[idx])}
+                  salePrice={salePrice}
+                  saleBadge={promo?.badge_text}
+                />
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 

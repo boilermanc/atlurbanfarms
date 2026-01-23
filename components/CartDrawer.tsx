@@ -2,6 +2,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../types';
+import { useAutoApplyPromotion } from '../src/hooks/usePromotions';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -14,8 +15,14 @@ interface CartDrawerProps {
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemove, onUpdateQuantity, onCheckout }) => {
   const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const shipping = subtotal > 50 ? 0 : 12.50;
-  const total = subtotal + shipping;
+
+  // Check for automatic promotions
+  const { discount: autoDiscount } = useAutoApplyPromotion(items);
+
+  const discountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
+  const isFreeShipping = autoDiscount?.free_shipping || false;
+  const shipping = isFreeShipping || subtotal > 50 ? 0 : 12.50;
+  const total = subtotal - discountAmount + shipping;
 
   return (
     <AnimatePresence>
@@ -103,11 +110,19 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                     <span>Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
+                  {discountAmount > 0 && autoDiscount && (
+                    <div className="flex justify-between text-sm text-emerald-600 font-medium">
+                      <span>{autoDiscount.description}</span>
+                      <span>-${discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Shipping</span>
-                    <span>{shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}</span>
+                    <span className={isFreeShipping ? 'text-emerald-600 font-medium' : ''}>
+                      {shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}
+                    </span>
                   </div>
-                  {shipping > 0 && (
+                  {shipping > 0 && !isFreeShipping && subtotal < 50 && (
                     <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
                       Add ${(50 - subtotal).toFixed(2)} more for free shipping
                     </p>

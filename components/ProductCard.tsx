@@ -11,6 +11,8 @@ interface ProductCardProps {
   inStock: boolean;
   onAddToCart: (quantity: number) => void;
   onClick?: () => void;
+  salePrice?: number | null;
+  saleBadge?: string | null;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
@@ -21,8 +23,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
   category,
   inStock,
   onAddToCart,
-  onClick
+  onClick,
+  salePrice,
+  saleBadge,
 }) => {
+  const isOnSale = salePrice !== null && salePrice !== undefined && salePrice < price;
+  const displayPrice = isOnSale ? salePrice : price;
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
@@ -124,6 +130,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <span className="px-3 py-1.5 bg-white/90 backdrop-blur-md text-gray-900 text-[10px] font-black uppercase tracking-wider rounded-xl shadow-sm border border-white/50">
             {category}
           </span>
+          {isOnSale && inStock && (
+            <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
+              {saleBadge || 'SALE'}
+            </span>
+          )}
           {!inStock && (
             <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
               Out of Stock
@@ -138,9 +149,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <h3 className="font-heading font-extrabold text-xl text-gray-900 leading-tight group-hover:text-emerald-600 transition-colors">
             {name}
           </h3>
-          <span className="text-xl font-black text-emerald-600">
-            ${price.toFixed(2)}
-          </span>
+          <div className="flex flex-col items-end">
+            <span className="text-xl font-black text-emerald-600">
+              ${displayPrice.toFixed(2)}
+            </span>
+            {isOnSale && (
+              <span className="text-sm text-gray-400 line-through">
+                ${price.toFixed(2)}
+              </span>
+            )}
+          </div>
         </div>
         
         <p className="text-gray-400 text-sm mb-6 line-clamp-2 leading-relaxed font-medium">

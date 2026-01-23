@@ -16,6 +16,8 @@ interface OrderTotals {
   shipping: number;
   tax: number;
   total: number;
+  discount?: number;
+  discountDescription?: string;
 }
 
 interface ShippingAddress {
@@ -26,14 +28,24 @@ interface ShippingAddress {
   zip: string;
 }
 
+interface PickupInfo {
+  locationName: string;
+  address: string;
+  date: string;
+  timeRange: string;
+  instructions?: string;
+}
+
 interface OrderConfirmationPageProps {
   items: OrderItem[];
   customerFirstName: string;
   customerEmail: string;
-  shippingAddress: ShippingAddress;
+  shippingAddress: ShippingAddress | null;
+  pickupInfo?: PickupInfo;
   totals: OrderTotals;
   orderNumber?: string;
   isGuest?: boolean;
+  isPickup?: boolean;
   onContinueShopping: () => void;
   onCreateAccount?: () => void;
 }
@@ -43,9 +55,11 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   customerFirstName,
   customerEmail,
   shippingAddress,
+  pickupInfo,
   totals,
   orderNumber: providedOrderNumber,
   isGuest = true,
+  isPickup = false,
   onContinueShopping,
   onCreateAccount
 }) => {
@@ -251,38 +265,86 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
 
           {/* Info Cards Row */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Shipping Status Card */}
-            <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50">
-              <div className="space-y-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
-                  Shipping Update
-                </p>
-                <h3 className="text-xl font-heading font-extrabold text-gray-900">
-                  We'll email you at
-                </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  <span className="font-bold text-gray-900 break-all">{customerEmail}</span>
-                  <br />when your order ships.
-                </p>
-              </div>
-
-              <div className="mt-6 flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="1" y="3" width="15" height="13" rx="2" ry="2"/>
-                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                    <circle cx="5.5" cy="18.5" r="2.5"/>
-                    <circle cx="18.5" cy="18.5" r="2.5"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Estimated Arrival
+            {/* Status Card - Different for Pickup vs Shipping */}
+            {isPickup && pickupInfo ? (
+              <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50">
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
+                    Pickup Scheduled
                   </p>
-                  <p className="text-sm font-bold text-gray-900">{estimatedArrival}</p>
+                  <h3 className="text-xl font-heading font-extrabold text-gray-900">
+                    Ready for pickup!
+                  </h3>
+                  <p className="text-gray-500 text-sm leading-relaxed">
+                    We'll send a confirmation to
+                    <br /><span className="font-bold text-gray-900 break-all">{customerEmail}</span>
+                  </p>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center gap-4 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                        Pickup Location
+                      </p>
+                      <p className="text-sm font-bold text-gray-900">{pickupInfo.locationName}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        Pickup Time
+                      </p>
+                      <p className="text-sm font-bold text-gray-900">{pickupInfo.date}</p>
+                      <p className="text-sm text-gray-600">{pickupInfo.timeRange}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50">
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
+                    Shipping Update
+                  </p>
+                  <h3 className="text-xl font-heading font-extrabold text-gray-900">
+                    We'll email you at
+                  </h3>
+                  <p className="text-gray-500 text-sm leading-relaxed">
+                    <span className="font-bold text-gray-900 break-all">{customerEmail}</span>
+                    <br />when your order ships.
+                  </p>
+                </div>
+
+                <div className="mt-6 flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="3" width="15" height="13" rx="2" ry="2"/>
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                      <circle cx="5.5" cy="18.5" r="2.5"/>
+                      <circle cx="18.5" cy="18.5" r="2.5"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      Estimated Arrival
+                    </p>
+                    <p className="text-sm font-bold text-gray-900">{estimatedArrival}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Attribution Survey Card */}
             <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50 relative overflow-hidden">
@@ -466,6 +528,25 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                       <span>Subtotal</span>
                       <span>${totals.subtotal.toFixed(2)}</span>
                     </div>
+                    {totals.discount && totals.discount > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="flex justify-between items-center bg-emerald-50 -mx-2 px-4 py-2 rounded-xl border border-emerald-100"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-xs font-bold text-emerald-700 uppercase tracking-widest">
+                            {totals.discountDescription || 'Discount'}
+                          </span>
+                        </div>
+                        <span className="text-sm font-black text-emerald-700">
+                          -${totals.discount.toFixed(2)}
+                        </span>
+                      </motion.div>
+                    )}
                     <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                       <span>Shipping</span>
                       <span>${totals.shipping.toFixed(2)}</span>
@@ -481,18 +562,53 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                       ${totals.total.toFixed(2)}
                     </span>
                   </div>
+                  {totals.discount && totals.discount > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="mt-4 pt-4 border-t border-gray-200 text-center"
+                    >
+                      <p className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-1">
+                        You Saved
+                      </p>
+                      <p className="text-2xl font-black text-emerald-600">
+                        ${totals.discount.toFixed(2)}
+                      </p>
+                    </motion.div>
+                  )}
                 </div>
 
-                {/* Shipping Address */}
+                {/* Shipping Address or Pickup Location */}
                 <div className="p-6">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3">
-                    Shipping Address
-                  </h4>
-                  <p className="text-sm font-bold text-gray-700 leading-relaxed">
-                    {shippingAddress.name}<br />
-                    {shippingAddress.address}<br />
-                    {shippingAddress.city}, {shippingAddress.state} {shippingAddress.zip}
-                  </p>
+                  {isPickup && pickupInfo ? (
+                    <>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3">
+                        Pickup Location
+                      </h4>
+                      <p className="text-sm font-bold text-gray-700 leading-relaxed">
+                        {pickupInfo.locationName}<br />
+                        {pickupInfo.address}
+                      </p>
+                      {pickupInfo.instructions && (
+                        <p className="text-xs text-gray-500 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                          <span className="font-bold text-gray-600">Instructions: </span>
+                          {pickupInfo.instructions}
+                        </p>
+                      )}
+                    </>
+                  ) : shippingAddress ? (
+                    <>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3">
+                        Shipping Address
+                      </h4>
+                      <p className="text-sm font-bold text-gray-700 leading-relaxed">
+                        {shippingAddress.name}<br />
+                        {shippingAddress.address}<br />
+                        {shippingAddress.city}, {shippingAddress.state} {shippingAddress.zip}
+                      </p>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>

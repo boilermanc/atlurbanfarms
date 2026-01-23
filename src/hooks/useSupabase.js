@@ -123,6 +123,15 @@ export function useOrders(customerId) {
             order_items:order_items(
               *,
               product:products(name, slug, primary_image_url)
+            ),
+            shipments:shipments(
+              id,
+              tracking_number,
+              carrier_code,
+              status,
+              tracking_status,
+              estimated_delivery_date,
+              actual_delivery_date
             )
           `)
           .eq('customer_id', customerId)
@@ -584,7 +593,28 @@ export function useCreateOrder() {
     shippingMethod,
     shippingCost,
     customerId = null,
-    saveAddress = false
+    saveAddress = false,
+    // ShipEngine shipping details
+    shippingRateId = null,
+    shippingCarrierId = null,
+    shippingServiceCode = null,
+    shippingMethodName = null,
+    estimatedDeliveryDate = null,
+    addressValidated = false,
+    addressOriginal = null,
+    addressNormalized = null,
+    // Local Pickup details
+    isPickup = false,
+    pickupLocationId = null,
+    pickupDate = null,
+    pickupTimeStart = null,
+    pickupTimeEnd = null,
+    pickupScheduleId = null,
+    // Promotion details
+    promotionId = null,
+    promotionCode = null,
+    discountAmount = 0,
+    discountDescription = null
   }) => {
     setLoading(true)
     setError(null)
@@ -597,27 +627,47 @@ export function useCreateOrder() {
       )
       const taxRate = 0.08 // 8% tax
       const tax = subtotal * taxRate
-      const total = subtotal + shippingCost + tax
+      const total = subtotal + shippingCost + tax - discountAmount
 
       // Prepare order data for RPC
       const orderData = {
         customer_id: customerId,
         guest_email: customerId ? null : customerInfo.email,
         guest_phone: customerId ? null : customerInfo.phone,
-        shipping_first_name: shippingInfo.firstName,
-        shipping_last_name: shippingInfo.lastName,
-        shipping_address_line1: shippingInfo.address1,
-        shipping_address_line2: shippingInfo.address2 || null,
-        shipping_city: shippingInfo.city,
-        shipping_state: shippingInfo.state,
-        shipping_zip: shippingInfo.zip,
-        shipping_country: shippingInfo.country || 'US',
+        shipping_first_name: shippingInfo?.firstName || customerInfo.firstName,
+        shipping_last_name: shippingInfo?.lastName || customerInfo.lastName,
+        shipping_address_line1: shippingInfo?.address1 || null,
+        shipping_address_line2: shippingInfo?.address2 || null,
+        shipping_city: shippingInfo?.city || null,
+        shipping_state: shippingInfo?.state || null,
+        shipping_zip: shippingInfo?.zip || null,
+        shipping_country: shippingInfo?.country || 'US',
         shipping_phone: customerInfo.phone,
-        shipping_method: shippingMethod,
+        shipping_method: shippingMethodName || shippingMethod,
         shipping_cost: shippingCost,
         subtotal,
         tax,
-        total
+        total,
+        // ShipEngine shipping details
+        shipping_rate_id: shippingRateId,
+        shipping_carrier_id: shippingCarrierId,
+        shipping_service_code: shippingServiceCode,
+        shipping_method_name: shippingMethodName,
+        estimated_delivery_date: estimatedDeliveryDate,
+        shipping_address_validated: addressValidated,
+        shipping_address_original: addressOriginal,
+        shipping_address_normalized: addressNormalized,
+        // Local Pickup details
+        is_pickup: isPickup,
+        pickup_location_id: pickupLocationId,
+        pickup_date: pickupDate,
+        pickup_time_start: pickupTimeStart,
+        pickup_time_end: pickupTimeEnd,
+        // Promotion details
+        promotion_id: promotionId,
+        promotion_code: promotionCode,
+        discount_amount: discountAmount,
+        discount_description: discountDescription
       }
 
       // Prepare order items for RPC
@@ -647,6 +697,55 @@ export function useCreateOrder() {
       }
 
       // Order created successfully - now handle non-critical updates
+
+      // Record promotion usage if a promotion was applied
+      if (promotionId && discountAmount > 0) {
+        const { error: usageError } = await supabase
+          .from('promotion_usage')
+          .insert({
+            promotion_id: promotionId,
+            order_id: result.order_id,
+            customer_id: customerId,
+            customer_email: customerInfo.email,
+            discount_amount: discountAmount
+          })
+
+        if (usageError) {
+          console.error('Error recording promotion usage:', usageError)
+          // Don't fail the order if usage tracking fails - the order itself succeeded
+        }
+
+        // Update promotion stats
+        const { error: statsError } = await supabase.rpc('increment_promotion_usage', {
+          p_promotion_id: promotionId,
+          p_discount_amount: discountAmount
+        })
+
+        if (statsError) {
+          console.error('Error updating promotion stats:', statsError)
+          // Don't fail the order if stats update fails
+        }
+      }
+
+      // Create pickup reservation if this is a pickup order
+      if (isPickup && pickupLocationId && pickupDate && pickupTimeStart && pickupTimeEnd) {
+        const { error: reservationError } = await supabase
+          .from('pickup_reservations')
+          .insert({
+            order_id: result.order_id,
+            location_id: pickupLocationId,
+            schedule_id: pickupScheduleId,
+            pickup_date: pickupDate,
+            pickup_time_start: pickupTimeStart,
+            pickup_time_end: pickupTimeEnd,
+            status: 'scheduled'
+          })
+
+        if (reservationError) {
+          console.error('Error creating pickup reservation:', reservationError)
+          // Don't fail the order if reservation creation fails - the order itself succeeded
+        }
+      }
 
       // Update customer record if logged in
       if (customerId) {
