@@ -6,6 +6,7 @@ export interface EmailTemplate {
   template_key: string
   name: string
   description: string | null
+  category: string | null
   subject_line: string
   html_content: string
   plain_text_content: string | null
@@ -358,7 +359,12 @@ export const SAMPLE_PREVIEW_DATA: Record<string, string> = {
   tracking_number: '1Z999AA10123456784',
   carrier: 'UPS',
   tracking_url: 'https://www.ups.com/track?tracknum=1Z999AA10123456784',
-  estimated_delivery: 'January 25, 2025',
+  estimated_delivery: 'Friday, January 24th',
+  current_location: 'Atlanta, GA Distribution Center',
+  delivery_date: 'January 24, 2026 at 2:30 PM',
+  order_number: 'ORD-2026-001234',
+  pickup_date: 'Saturday, January 25th',
+  pickup_time: '10:00 AM - 2:00 PM',
   login_url: 'https://atlurbanfarms.com/login',
   reset_url: 'https://atlurbanfarms.com/reset-password?token=abc123',
   expiry_time: '24 hours',

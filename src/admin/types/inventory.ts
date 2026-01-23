@@ -15,15 +15,17 @@ export type ReasonCode =
   | 'other';
 
 export interface ProductInventorySummary {
-  product_id: string;
-  product_name: string;
-  category: string;
-  total_available: number;
-  total_allocated: number;
-  total_sold: number;
-  batch_count: number;
+  id: string;
+  name: string;
+  slug: string;
+  quantity_available: number;
   low_stock_threshold: number;
-  is_low_stock: boolean;
+  is_active: boolean;
+  stock_status: 'in_stock' | 'low_stock' | 'out_of_stock';
+  // Aliases for backward compatibility in components
+  product_id?: string;
+  product_name?: string;
+  total_available?: number;
 }
 
 export interface InventoryBatch {

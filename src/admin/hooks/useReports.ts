@@ -225,7 +225,7 @@ export function useProductsReport(startDate: string, endDate: string) {
           products (
             id,
             name,
-            category
+            category:product_categories(id, name)
           ),
           orders!inner (
             id,
@@ -258,23 +258,23 @@ export function useProductsReport(startDate: string, endDate: string) {
         .sort((a, b) => b.unitsSold - a.unitsSold)
         .slice(0, 10);
 
-      // Fetch low stock products
+      // Fetch low stock products from the inventory view
       const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select('id, name, stock_quantity, low_stock_threshold')
-        .eq('active', true);
+        .from('inventory_by_product')
+        .select('id, name, quantity_available, low_stock_threshold')
+        .eq('is_active', true);
 
       if (productsError) throw productsError;
 
       const lowStock: LowStockProduct[] = (productsData || [])
         .filter((p: any) => {
           const threshold = p.low_stock_threshold || 10;
-          return (p.stock_quantity || 0) <= threshold;
+          return (p.quantity_available || 0) <= threshold;
         })
         .map((p: any) => ({
           id: p.id,
           name: p.name,
-          currentStock: p.stock_quantity || 0,
+          currentStock: p.quantity_available || 0,
           threshold: p.low_stock_threshold || 10,
         }))
         .sort((a, b) => a.currentStock - b.currentStock)
@@ -284,7 +284,7 @@ export function useProductsReport(startDate: string, endDate: string) {
       const categoryMap = new Map<string, { count: number; revenue: number }>();
 
       (orderItemsData || []).forEach((item: any) => {
-        const category = item.products?.category || 'Uncategorized';
+        const category = item.products?.category?.name || 'Uncategorized';
         const existing = categoryMap.get(category) || { count: 0, revenue: 0 };
         categoryMap.set(category, {
           count: existing.count + item.quantity,
@@ -417,32 +417,9 @@ export function useCustomersReport(startDate: string, endDate: string) {
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 10);
 
-      // Fetch attribution data
-      const { data: attributionData, error: attributionError } = await supabase
-        .from('customer_attribution')
-        .select('source, customer_id')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO);
-
-      if (attributionError) {
-        console.warn('Could not fetch attribution data:', attributionError);
-      }
-
-      const attributionMap = new Map<string, number>();
-      (attributionData || []).forEach((attr: any) => {
-        const source = attr.source || 'Unknown';
-        attributionMap.set(source, (attributionMap.get(source) || 0) + 1);
-      });
-
-      const totalAttribution = Array.from(attributionMap.values()).reduce((a, b) => a + b, 0);
-
-      const attribution: AttributionSource[] = Array.from(attributionMap.entries())
-        .map(([source, count]) => ({
-          source,
-          count,
-          percentage: totalAttribution > 0 ? (count / totalAttribution) * 100 : 0,
-        }))
-        .sort((a, b) => b.count - a.count);
+      // Attribution data - table not yet implemented
+      // TODO: Create customer_attribution table if attribution tracking is needed
+      const attribution: AttributionSource[] = [];
 
       setData({
         customerStats: { newCustomers, returningCustomers },
@@ -483,7 +460,7 @@ export function useShippingReport(startDate: string, endDate: string) {
       // Fetch orders within date range
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, order_number, status, shipping_method, tracking_number, created_at, updated_at, estimated_delivery')
+        .select('id, order_number, status, shipping_method, tracking_number, created_at, updated_at')
         .gte('created_at', startISO)
         .lte('created_at', endISO);
 
@@ -510,8 +487,8 @@ export function useShippingReport(startDate: string, endDate: string) {
           const carrier = order.shipping_method;
           const existing = carrierMap.get(carrier) || { shipments: 0, transitDays: [] };
 
-          // Calculate transit time if we have delivery data
-          if (order.status === 'delivered' && order.estimated_delivery) {
+          // Calculate transit time for delivered orders
+          if (order.status === 'delivered') {
             const created = new Date(order.created_at);
             const delivered = new Date(order.updated_at);
             const transitDays = Math.ceil((delivered.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));

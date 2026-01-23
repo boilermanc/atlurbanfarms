@@ -16,6 +16,7 @@ export { default as ServiceEditModal } from './components/ServiceEditModal';
 // Admin Pages
 export { default as InventoryPage } from './pages/InventoryPage';
 export { default as BatchEditPage } from './pages/BatchEditPage';
+export { default as ShippingPage } from './pages/ShippingPage';
 export { default as ShippingZonesPage } from './pages/ShippingZonesPage';
 export { default as ShippingCalendarPage } from './pages/ShippingCalendarPage';
 export { default as CustomersPage } from './pages/CustomersPage';
@@ -69,7 +70,7 @@ export type {
   ShippingZoneRule,
   RuleConditions,
   RuleActions
-} from './pages/ShippingZonesPage';
+} from './components/shipping/ShippingZonesTab';
 export type {
   Order,
   OrderItem,

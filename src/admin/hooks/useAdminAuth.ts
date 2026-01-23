@@ -68,6 +68,7 @@ export function useAdminAuth(): UseAdminAuthReturn {
         }
 
         // Query admin_user_roles joined with admin_roles for current user
+        // Only include active roles
         const { data: userRoles, error: rolesError } = await supabase
           .from('admin_user_roles')
           .select(`
@@ -78,6 +79,7 @@ export function useAdminAuth(): UseAdminAuthReturn {
             )
           `)
           .eq('customer_id', user.id)
+          .eq('is_active', true)
           .single();
 
         if (rolesError) {

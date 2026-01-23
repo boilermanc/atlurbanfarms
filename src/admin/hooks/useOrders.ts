@@ -9,6 +9,7 @@ export interface OrderFilters {
   search?: string;
   page?: number;
   perPage?: number;
+  deliveryMethod?: 'all' | 'shipping' | 'pickup';
 }
 
 export interface OrderItem {
@@ -29,6 +30,28 @@ export interface OrderStatusHistory {
   changed_by: string | null;
   changed_by_name: string | null;
   created_at: string;
+}
+
+export interface PickupLocation {
+  id: string;
+  name: string;
+  address_line1: string;
+  address_line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  phone?: string;
+  instructions?: string;
+}
+
+export interface PickupReservation {
+  id: string;
+  location: PickupLocation;
+  pickup_date: string;
+  pickup_time_start: string;
+  pickup_time_end: string;
+  status: 'scheduled' | 'picked_up' | 'missed' | 'cancelled';
+  notes?: string;
 }
 
 export interface Order {
@@ -59,6 +82,13 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   status_history?: OrderStatusHistory[];
+  // Pickup fields
+  is_pickup: boolean;
+  pickup_location_id: string | null;
+  pickup_date: string | null;
+  pickup_time_start: string | null;
+  pickup_time_end: string | null;
+  pickup_reservation?: PickupReservation;
 }
 
 export interface OrdersResponse {
@@ -114,7 +144,7 @@ export function useOrders(filters: OrderFilters = {}) {
         .from('orders')
         .select('*', { count: 'exact', head: true });
 
-      // Build data query with customer info
+      // Build data query with customer info and pickup data
       let dataQuery = supabase
         .from('orders')
         .select(`
@@ -137,6 +167,24 @@ export function useOrders(filters: OrderFilters = {}) {
               name,
               images:product_images(id, url, is_primary, sort_order)
             )
+          ),
+          pickup_reservations (
+            id,
+            pickup_date,
+            pickup_time_start,
+            pickup_time_end,
+            status,
+            notes,
+            pickup_locations (
+              id,
+              name,
+              address_line1,
+              city,
+              state,
+              postal_code,
+              phone,
+              instructions
+            )
           )
         `)
         .order('created_at', { ascending: false })
@@ -146,6 +194,13 @@ export function useOrders(filters: OrderFilters = {}) {
       if (filters.status && filters.status !== 'all') {
         countQuery = countQuery.eq('status', filters.status);
         dataQuery = dataQuery.eq('status', filters.status);
+      }
+
+      // Apply delivery method filter
+      if (filters.deliveryMethod && filters.deliveryMethod !== 'all') {
+        const isPickup = filters.deliveryMethod === 'pickup';
+        countQuery = countQuery.eq('is_pickup', isPickup);
+        dataQuery = dataQuery.eq('is_pickup', isPickup);
       }
 
       // Apply date range filters
@@ -217,6 +272,21 @@ export function useOrders(filters: OrderFilters = {}) {
           unit_price: item.product_price,
           line_total: item.line_total,
         })),
+        // Pickup fields
+        is_pickup: order.is_pickup || false,
+        pickup_location_id: order.pickup_location_id,
+        pickup_date: order.pickup_date,
+        pickup_time_start: order.pickup_time_start,
+        pickup_time_end: order.pickup_time_end,
+        pickup_reservation: order.pickup_reservations?.[0] ? {
+          id: order.pickup_reservations[0].id,
+          location: order.pickup_reservations[0].pickup_locations,
+          pickup_date: order.pickup_reservations[0].pickup_date,
+          pickup_time_start: order.pickup_reservations[0].pickup_time_start,
+          pickup_time_end: order.pickup_reservations[0].pickup_time_end,
+          status: order.pickup_reservations[0].status,
+          notes: order.pickup_reservations[0].notes,
+        } : undefined,
       }));
 
       setOrders(formattedOrders);
@@ -227,7 +297,7 @@ export function useOrders(filters: OrderFilters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [filters.status, filters.dateFrom, filters.dateTo, filters.search, page, perPage, offset]);
+  }, [filters.status, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage, offset]);
 
   useEffect(() => {
     fetchOrders();
