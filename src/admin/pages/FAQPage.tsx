@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import FAQEditModal from '../components/FAQEditModal';
 import { supabase } from '../../lib/supabase';
+import { Plus, GripVertical, Edit2, Trash2, HelpCircle } from 'lucide-react';
 
 interface FAQ {
   id: string;
@@ -169,7 +170,7 @@ const FAQPage: React.FC = () => {
     return (
       <AdminPageWrapper>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminPageWrapper>
     );
@@ -177,37 +178,35 @@ const FAQPage: React.FC = () => {
 
   return (
     <AdminPageWrapper>
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Manage FAQs</h1>
-            <p className="text-slate-400 mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Manage FAQs</h1>
+            <p className="text-slate-500 text-sm mt-1">
               Drag and drop to reorder. Click to edit.
             </p>
           </div>
           <button
             onClick={handleAdd}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            <Plus size={20} />
             Add FAQ
           </button>
         </div>
 
         {/* Filters */}
         {categories.length > 0 && (
-          <div className="bg-slate-800 rounded-xl p-4 mb-6">
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/60">
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-slate-300">Filter by Category:</span>
+              <span className="text-sm font-medium text-slate-600">Filter by Category:</span>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setFilterCategory('')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
                     !filterCategory
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   All
@@ -216,10 +215,10 @@ const FAQPage: React.FC = () => {
                   <button
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${
                       filterCategory === cat
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {cat}
@@ -231,12 +230,14 @@ const FAQPage: React.FC = () => {
         )}
 
         {/* FAQ List */}
-        <div className="bg-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {filteredFaqs.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="text-slate-500 text-5xl mb-4">?</div>
-              <h3 className="text-lg font-medium text-white mb-2">No FAQs Found</h3>
-              <p className="text-slate-400 mb-6">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <HelpCircle size={32} className="text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-800 mb-2">No FAQs Found</h3>
+              <p className="text-slate-500 mb-6">
                 {filterCategory
                   ? `No FAQs in the "${filterCategory}" category.`
                   : 'Get started by adding your first FAQ.'}
@@ -244,7 +245,7 @@ const FAQPage: React.FC = () => {
               {!filterCategory && (
                 <button
                   onClick={handleAdd}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
                 >
                   Add Your First FAQ
                 </button>
@@ -254,16 +255,16 @@ const FAQPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-700 bg-slate-800/50">
-                    <th className="w-10 py-4 px-4"></th>
-                    <th className="text-left py-4 px-4 text-sm font-medium text-slate-400">Question</th>
-                    <th className="text-left py-4 px-4 text-sm font-medium text-slate-400 w-32">Category</th>
-                    <th className="text-center py-4 px-4 text-sm font-medium text-slate-400 w-24">Order</th>
-                    <th className="text-center py-4 px-4 text-sm font-medium text-slate-400 w-24">Status</th>
-                    <th className="text-right py-4 px-4 text-sm font-medium text-slate-400 w-32">Actions</th>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="w-10 py-3 px-4"></th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Question</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-32">Category</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-24">Order</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-24">Status</th>
+                    <th className="text-right py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-32">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {filteredFaqs.map((faq) => (
                     <tr
                       key={faq.id}
@@ -271,44 +272,37 @@ const FAQPage: React.FC = () => {
                       onDragStart={(e) => handleDragStart(e, faq)}
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, faq)}
-                      className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors cursor-move ${
+                      className={`hover:bg-slate-50 transition-colors cursor-move ${
                         draggedItem?.id === faq.id ? 'opacity-50' : ''
                       }`}
                     >
                       <td className="py-4 px-4">
-                        <div className="text-slate-500 cursor-grab active:cursor-grabbing">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="9" cy="5" r="1"/>
-                            <circle cx="9" cy="12" r="1"/>
-                            <circle cx="9" cy="19" r="1"/>
-                            <circle cx="15" cy="5" r="1"/>
-                            <circle cx="15" cy="12" r="1"/>
-                            <circle cx="15" cy="19" r="1"/>
-                          </svg>
+                        <div className="text-slate-400 cursor-grab active:cursor-grabbing">
+                          <GripVertical size={20} />
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <p className="text-white font-medium">{truncateText(faq.question, 80)}</p>
-                        <p className="text-slate-400 text-sm mt-1">{truncateText(faq.answer, 100)}</p>
+                        <p className="text-slate-800 font-medium">{truncateText(faq.question, 80)}</p>
+                        <p className="text-slate-500 text-sm mt-1">{truncateText(faq.answer, 100)}</p>
                       </td>
                       <td className="py-4 px-4">
                         {faq.category ? (
-                          <span className="px-2 py-1 bg-slate-700 text-slate-300 text-xs rounded-lg">
+                          <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg">
                             {faq.category}
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-sm">-</span>
+                          <span className="text-slate-400 text-sm">-</span>
                         )}
                       </td>
                       <td className="py-4 px-4 text-center">
-                        <span className="text-slate-400">{faq.sort_order}</span>
+                        <span className="text-slate-500">{faq.sort_order}</span>
                       </td>
                       <td className="py-4 px-4 text-center">
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded-lg ${
+                          className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border ${
                             faq.is_active
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-slate-600/50 text-slate-400'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
                           }`}
                         >
                           {faq.is_active ? 'Active' : 'Inactive'}
@@ -318,22 +312,17 @@ const FAQPage: React.FC = () => {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => handleEdit(faq)}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                             title="Edit"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
+                            <Edit2 size={18} />
                           </button>
                           <button
                             onClick={() => handleDelete(faq.id)}
-                            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                             title="Delete"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                            </svg>
+                            <Trash2 size={18} />
                           </button>
                         </div>
                       </td>
@@ -346,7 +335,7 @@ const FAQPage: React.FC = () => {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 flex items-center gap-6 text-sm text-slate-400">
+        <div className="flex items-center gap-6 text-sm text-slate-500">
           <span>{faqs.length} total FAQs</span>
           <span>{faqs.filter(f => f.is_active).length} active</span>
           <span>{faqs.filter(f => !f.is_active).length} inactive</span>

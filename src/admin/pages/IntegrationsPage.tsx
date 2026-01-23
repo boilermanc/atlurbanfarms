@@ -4,6 +4,26 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings } from '../hooks/useSettings';
 import { useTestIntegration, useEmailService } from '../../hooks/useIntegrations';
 import { supabase } from '../../lib/supabase';
+import {
+  CreditCard,
+  Package,
+  Mail,
+  Leaf,
+  Bot,
+  Truck,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  Check,
+  RefreshCw,
+  Save,
+  AlertCircle,
+  CheckCircle,
+  X,
+  ExternalLink,
+  Send,
+  Copy,
+} from 'lucide-react';
 
 type IntegrationStatus = 'connected' | 'disconnected' | 'error';
 type HealthStatus = 'healthy' | 'warning' | 'error';
@@ -44,7 +64,7 @@ const getStatusColor = (status: HealthStatus): string => {
     case 'healthy':
       return 'bg-emerald-500';
     case 'warning':
-      return 'bg-yellow-500';
+      return 'bg-amber-500';
     case 'error':
       return 'bg-red-500';
   }
@@ -53,11 +73,11 @@ const getStatusColor = (status: HealthStatus): string => {
 const getStatusBgColor = (status: HealthStatus): string => {
   switch (status) {
     case 'healthy':
-      return 'bg-emerald-500/10 border-emerald-500/20';
+      return 'bg-emerald-50 border-emerald-200';
     case 'warning':
-      return 'bg-yellow-500/10 border-yellow-500/20';
+      return 'bg-amber-50 border-amber-200';
     case 'error':
-      return 'bg-red-500/10 border-red-500/20';
+      return 'bg-red-50 border-red-200';
   }
 };
 
@@ -78,34 +98,25 @@ const SecretInput = memo<{
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-slate-300">{label}</label>
+      <label className="block text-sm font-medium text-slate-600">{label}</label>
       <div className="relative">
         <input
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           readOnly={readOnly}
-          className="w-full px-4 py-3 pr-12 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+          className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:opacity-50 transition-all"
           placeholder={placeholder}
         />
         <button
           type="button"
           onClick={() => setVisible(!visible)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
         >
-          {visible ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          )}
+          {visible ? <EyeOff size={20} /> : <Eye size={20} />}
         </button>
       </div>
-      {helpText && <p className="text-xs text-slate-400">{helpText}</p>}
+      {helpText && <p className="text-xs text-slate-500">{helpText}</p>}
     </div>
   );
 });
@@ -124,12 +135,12 @@ const HealthCard = memo<{
   >
     <div className="flex items-start justify-between mb-3">
       <div className="flex items-center gap-3">
-        <div className="text-2xl">{icon}</div>
+        <div className="text-slate-600">{icon}</div>
         <div>
-          <h3 className="text-white font-medium">{title}</h3>
+          <h3 className="text-slate-800 font-medium">{title}</h3>
           <div className="flex items-center gap-2 mt-1">
             <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
-            <span className="text-sm text-slate-400">{health.label}</span>
+            <span className="text-sm text-slate-500">{health.label}</span>
           </div>
         </div>
       </div>
@@ -138,7 +149,7 @@ const HealthCard = memo<{
       {health.metrics.map((metric, idx) => (
         <div key={idx} className="text-xs">
           <span className="text-slate-500">{metric.label}:</span>
-          <span className="text-slate-300 ml-1">{metric.value}</span>
+          <span className="text-slate-700 ml-1">{metric.value}</span>
         </div>
       ))}
     </div>
@@ -156,30 +167,29 @@ const IntegrationSection = memo<{
   health: IntegrationHealth;
   children: React.ReactNode;
 }>(({ id, title, icon, expanded, onToggle, health, children }) => (
-  <div id={`section-${id}`} className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+  <div id={`section-${id}`} className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
     <button
       onClick={onToggle}
-      className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors"
+      className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
     >
       <div className="flex items-center gap-4">
-        <div className="text-2xl">{icon}</div>
+        <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+          {icon}
+        </div>
         <div className="text-left">
-          <h3 className="text-lg font-medium text-white">{title}</h3>
+          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
           <div className="flex items-center gap-2 mt-1">
             <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
-            <span className="text-sm text-slate-400">{health.label}</span>
+            <span className="text-sm text-slate-500">{health.label}</span>
           </div>
         </div>
       </div>
-      <motion.svg
+      <motion.div
         animate={{ rotate: expanded ? 180 : 0 }}
-        className="w-5 h-5 text-slate-400"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
+        className="text-slate-400"
       >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-      </motion.svg>
+        <ChevronDown size={20} />
+      </motion.div>
     </button>
     <AnimatePresence>
       {expanded && (
@@ -189,7 +199,7 @@ const IntegrationSection = memo<{
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="px-6 pb-6 border-t border-slate-700 pt-4">
+          <div className="px-6 pb-6 border-t border-slate-100 pt-4">
             {children}
           </div>
         </motion.div>
@@ -205,33 +215,33 @@ const EventsTable = memo<{
   events: WebhookEvent[];
 }>(({ title, events }) => (
   <div className="space-y-3">
-    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+    <h4 className="text-sm font-medium text-slate-700">{title}</h4>
+    <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-700">
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Type</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Type</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Time</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white divide-y divide-slate-100">
           {events.slice(0, 10).map((event) => (
-            <tr key={event.id} className="border-b border-slate-700/50 last:border-0">
-              <td className="px-4 py-2 text-slate-300 font-mono text-xs">{event.type}</td>
+            <tr key={event.id}>
+              <td className="px-4 py-2 text-slate-700 font-mono text-xs">{event.type}</td>
               <td className="px-4 py-2">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
                   event.status === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-red-500/10 text-red-400'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                    : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${
-                    event.status === 'success' ? 'bg-emerald-400' : 'bg-red-400'
+                    event.status === 'success' ? 'bg-emerald-500' : 'bg-red-500'
                   }`} />
                   {event.status}
                 </span>
               </td>
-              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(event.timestamp)}</td>
+              <td className="px-4 py-2 text-slate-500 text-xs">{formatTimestamp(event.timestamp)}</td>
             </tr>
           ))}
         </tbody>
@@ -247,34 +257,34 @@ const EmailsTable = memo<{
   emails: EmailLog[];
 }>(({ title, emails }) => (
   <div className="space-y-3">
-    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+    <h4 className="text-sm font-medium text-slate-700">{title}</h4>
+    <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-700">
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">To</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Subject</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">To</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Subject</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Time</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white divide-y divide-slate-100">
           {emails.slice(0, 10).map((email) => (
-            <tr key={email.id} className="border-b border-slate-700/50 last:border-0">
-              <td className="px-4 py-2 text-slate-300 text-xs">{email.to}</td>
-              <td className="px-4 py-2 text-slate-300 text-xs truncate max-w-[200px]">{email.subject}</td>
+            <tr key={email.id}>
+              <td className="px-4 py-2 text-slate-700 text-xs">{email.to}</td>
+              <td className="px-4 py-2 text-slate-700 text-xs truncate max-w-[200px]">{email.subject}</td>
               <td className="px-4 py-2">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
                   email.status === 'delivered'
-                    ? 'bg-emerald-500/10 text-emerald-400'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                     : email.status === 'bounced'
-                    ? 'bg-yellow-500/10 text-yellow-400'
-                    : 'bg-red-500/10 text-red-400'
+                    ? 'bg-amber-100 text-amber-700 border-amber-200'
+                    : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
                   {email.status}
                 </span>
               </td>
-              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(email.timestamp)}</td>
+              <td className="px-4 py-2 text-slate-500 text-xs">{formatTimestamp(email.timestamp)}</td>
             </tr>
           ))}
         </tbody>
@@ -290,32 +300,32 @@ const SyncLogTable = memo<{
   logs: SyncLog[];
 }>(({ title, logs }) => (
   <div className="space-y-3">
-    <h4 className="text-sm font-medium text-slate-300">{title}</h4>
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden">
+    <h4 className="text-sm font-medium text-slate-700">{title}</h4>
+    <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-700">
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Action</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Status</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Items</th>
-            <th className="px-4 py-2 text-left text-slate-400 font-medium">Time</th>
+          <tr className="border-b border-slate-200 bg-slate-50">
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Action</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Items</th>
+            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Time</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="bg-white divide-y divide-slate-100">
           {logs.map((log) => (
-            <tr key={log.id} className="border-b border-slate-700/50 last:border-0">
-              <td className="px-4 py-2 text-slate-300 text-xs">{log.action}</td>
+            <tr key={log.id}>
+              <td className="px-4 py-2 text-slate-700 text-xs">{log.action}</td>
               <td className="px-4 py-2">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
                   log.status === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-400'
-                    : 'bg-red-500/10 text-red-400'
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                    : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
                   {log.status}
                 </span>
               </td>
-              <td className="px-4 py-2 text-slate-400 text-xs">{log.itemsProcessed}</td>
-              <td className="px-4 py-2 text-slate-400 text-xs">{formatTimestamp(log.timestamp)}</td>
+              <td className="px-4 py-2 text-slate-500 text-xs">{log.itemsProcessed}</td>
+              <td className="px-4 py-2 text-slate-500 text-xs">{formatTimestamp(log.timestamp)}</td>
             </tr>
           ))}
         </tbody>
@@ -388,6 +398,7 @@ const IntegrationsPage: React.FC = () => {
     resend: false,
     trellis: false,
     gemini: false,
+    ups: false,
   });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
@@ -396,6 +407,18 @@ const IntegrationsPage: React.FC = () => {
   const [testEmailAddress, setTestEmailAddress] = useState<string>('');
   const [lastError, setLastError] = useState<{ integration: string; error: string; details?: string; timestamp: Date } | null>(null);
   const [reportingIssue, setReportingIssue] = useState(false);
+
+  // UPS-specific state (stored in carrier_configurations, not config_settings)
+  const [upsConfig, setUpsConfig] = useState({
+    enabled: false,
+    is_sandbox: true,
+    client_id: '',
+    client_secret: '',
+    account_number: '',
+  });
+  const [upsLoading, setUpsLoading] = useState(true);
+  const [upsSaving, setUpsSaving] = useState(false);
+  const [upsTestResult, setUpsTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Initialize form data with defaults and loaded settings
   useEffect(() => {
@@ -408,6 +431,125 @@ const IntegrationsPage: React.FC = () => {
 
     setFormData(newFormData);
   }, [settings]);
+
+  // Load UPS config from carrier_configurations table
+  useEffect(() => {
+    async function loadUpsConfig() {
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('carrier_configurations')
+          .select('*')
+          .eq('carrier_code', 'ups_direct')
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('Error loading UPS config:', fetchError);
+        }
+
+        if (data) {
+          setUpsConfig({
+            enabled: data.is_enabled ?? false,
+            is_sandbox: data.is_sandbox ?? true,
+            client_id: data.api_credentials?.client_id || '',
+            client_secret: data.api_credentials?.client_secret || '',
+            account_number: data.api_credentials?.account_number || '',
+          });
+        }
+      } catch (err) {
+        console.error('Error loading UPS config:', err);
+      } finally {
+        setUpsLoading(false);
+      }
+    }
+
+    loadUpsConfig();
+  }, []);
+
+  const updateUpsField = useCallback((key: keyof typeof upsConfig, value: any) => {
+    setUpsConfig(prev => ({ ...prev, [key]: value }));
+    setSaveMessage(null);
+    setUpsTestResult(null);
+  }, []);
+
+  const saveUpsConfig = useCallback(async () => {
+    setUpsSaving(true);
+    try {
+      const { error: upsertError } = await supabase
+        .from('carrier_configurations')
+        .upsert({
+          carrier_code: 'ups_direct',
+          carrier_name: 'UPS Direct',
+          is_enabled: upsConfig.enabled,
+          is_sandbox: upsConfig.is_sandbox,
+          api_credentials: {
+            client_id: upsConfig.client_id,
+            client_secret: upsConfig.client_secret,
+            account_number: upsConfig.account_number,
+          },
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'carrier_code',
+        });
+
+      if (upsertError) throw upsertError;
+
+      setSaveMessage('UPS configuration saved!');
+      setTimeout(() => setSaveMessage(null), 3000);
+      return true;
+    } catch (err: any) {
+      console.error('Error saving UPS config:', err);
+      setSaveMessage(`Failed to save UPS config: ${err.message}`);
+      return false;
+    } finally {
+      setUpsSaving(false);
+    }
+  }, [upsConfig]);
+
+  const testUpsConnection = useCallback(async () => {
+    setTestingConnection('UPS');
+    setUpsTestResult(null);
+
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('ups-test-connection', {
+        body: {
+          client_id: upsConfig.client_id,
+          client_secret: upsConfig.client_secret,
+          account_number: upsConfig.account_number,
+          is_sandbox: upsConfig.is_sandbox,
+        },
+      });
+
+      if (invokeError) {
+        setUpsTestResult({ success: false, message: invokeError.message || 'Connection test failed' });
+        setSaveMessage(`UPS connection failed: ${invokeError.message}`);
+        return;
+      }
+
+      if (data.success) {
+        setUpsTestResult({ success: true, message: 'Connection successful!' });
+        setSaveMessage('UPS connection successful!');
+
+        // Update last_successful_call in carrier_configurations
+        await supabase
+          .from('carrier_configurations')
+          .update({ last_successful_call: new Date().toISOString() })
+          .eq('carrier_code', 'ups_direct');
+      } else {
+        setUpsTestResult({ success: false, message: data.error || 'Connection failed' });
+        setSaveMessage(`UPS connection failed: ${data.error}`);
+      }
+
+      setTimeout(() => {
+        setSaveMessage(null);
+        setUpsTestResult(null);
+      }, 5000);
+    } catch (err: any) {
+      setUpsTestResult({ success: false, message: err.message || 'Connection test failed' });
+      setSaveMessage(`UPS test error: ${err.message}`);
+    } finally {
+      setTestingConnection(null);
+    }
+  }, [upsConfig]);
 
   const updateField = useCallback((key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -578,6 +720,19 @@ const IntegrationsPage: React.FC = () => {
 
     setReportingIssue(true);
     try {
+      // Check and refresh session if needed
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        // Try to refresh the session
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshData.session) {
+          setSaveMessage('Session expired. Please log in again to report issues.');
+          return;
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
 
       const result = await sendEmail({
@@ -686,6 +841,23 @@ const IntegrationsPage: React.FC = () => {
           { label: 'Usage', value: 'Sage AI Assistant' },
         ],
       },
+      ups: {
+        status: getHealthStatus(
+          getConnectionStatus(
+            upsConfig.enabled,
+            !!(upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
+          )
+        ),
+        label: upsConfig.enabled
+          ? (upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
+            ? 'Connected'
+            : 'Missing Credentials'
+          : 'Disabled',
+        metrics: [
+          { label: 'Environment', value: upsConfig.is_sandbox ? 'Sandbox' : 'Production' },
+          { label: 'Account', value: upsConfig.account_number ? `...${upsConfig.account_number.slice(-4)}` : 'Not set' },
+        ],
+      },
     };
   };
 
@@ -708,7 +880,10 @@ const IntegrationsPage: React.FC = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Integrations</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Integrations</h1>
+            <p className="text-slate-500 text-sm mt-1">Connect and manage third-party services</p>
+          </div>
           <div className="flex items-center gap-3">
             <AnimatePresence>
               {saveMessage && (
@@ -716,7 +891,7 @@ const IntegrationsPage: React.FC = () => {
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
-                  className="text-emerald-400 font-medium text-sm"
+                  className="text-emerald-600 font-medium text-sm"
                 >
                   {saveMessage}
                 </motion.span>
@@ -725,18 +900,16 @@ const IntegrationsPage: React.FC = () => {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {saving ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                  <Save size={18} />
                   Save All
                 </>
               )}
@@ -746,42 +919,48 @@ const IntegrationsPage: React.FC = () => {
 
         {/* Error Alert */}
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-            <p className="text-sm text-red-400 font-medium">{error}</p>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
+            <p className="text-sm text-red-700 font-medium">{error}</p>
           </div>
         )}
 
         {/* Health Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <HealthCard
             title="Stripe"
-            icon={<span>💳</span>}
+            icon={<CreditCard size={24} />}
             health={health.stripe}
             onClick={() => scrollToSection('stripe')}
           />
           <HealthCard
             title="ShipEngine"
-            icon={<span>📦</span>}
+            icon={<Package size={24} />}
             health={health.shipstation}
             onClick={() => scrollToSection('shipstation')}
           />
           <HealthCard
             title="Resend"
-            icon={<span>📧</span>}
+            icon={<Mail size={24} />}
             health={health.resend}
             onClick={() => scrollToSection('resend')}
           />
           <HealthCard
             title="Trellis"
-            icon={<span>🌱</span>}
+            icon={<Leaf size={24} />}
             health={health.trellis}
             onClick={() => scrollToSection('trellis')}
           />
           <HealthCard
             title="Gemini AI"
-            icon={<span>🤖</span>}
+            icon={<Bot size={24} />}
             health={health.gemini}
             onClick={() => scrollToSection('gemini')}
+          />
+          <HealthCard
+            title="UPS Direct"
+            icon={<Truck size={24} />}
+            health={health.ups}
+            onClick={() => scrollToSection('ups')}
           />
         </div>
 
@@ -791,27 +970,30 @@ const IntegrationsPage: React.FC = () => {
           <IntegrationSection
             id="stripe"
             title="Stripe"
-            icon={<span>💳</span>}
+            icon={<CreditCard size={24} />}
             expanded={expandedSections.stripe}
             onToggle={() => toggleSection('stripe')}
             health={health.stripe}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-white font-medium">Enable Stripe</h4>
-                  <p className="text-sm text-slate-400">Process payments via Stripe</p>
+                  <h4 className="text-slate-800 font-medium">Enable Stripe</h4>
+                  <p className="text-sm text-slate-500">Process payments via Stripe</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.stripe_enabled ?? false}
-                    onChange={(e) => updateField('stripe_enabled', e.target.checked)}
-                    className="sr-only peer"
+                <button
+                  onClick={() => updateField('stripe_enabled', !formData.stripe_enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.stripe_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.stripe_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
                   />
-                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -841,23 +1023,24 @@ const IntegrationsPage: React.FC = () => {
 
               {/* Webhook URL */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-300">Webhook URL</label>
+                <label className="block text-sm font-medium text-slate-600">Webhook URL</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={formData.stripe_webhook_url || ''}
                     onChange={(e) => updateField('stripe_webhook_url', e.target.value)}
-                    className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white font-mono text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 font-mono text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="https://your-project.supabase.co/functions/v1/stripe-webhook"
                   />
                   <button
                     onClick={() => navigator.clipboard.writeText(formData.stripe_webhook_url || '')}
-                    className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2"
                   >
+                    <Copy size={16} />
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Configure this URL in your Stripe Dashboard under Webhooks. Use your Supabase Edge Function URL.</p>
+                <p className="text-xs text-slate-500">Configure this URL in your Stripe Dashboard under Webhooks. Use your Supabase Edge Function URL.</p>
               </div>
 
               {/* Test Connection Button */}
@@ -865,18 +1048,16 @@ const IntegrationsPage: React.FC = () => {
                 <button
                   onClick={() => testConnection('Stripe')}
                   disabled={testingConnection === 'Stripe' || !formData.stripe_secret_key}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Stripe' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle size={16} />
                       Test Connection
                     </>
                   )}
@@ -892,27 +1073,30 @@ const IntegrationsPage: React.FC = () => {
           <IntegrationSection
             id="shipstation"
             title="ShipEngine"
-            icon={<span>📦</span>}
+            icon={<Package size={24} />}
             expanded={expandedSections.shipstation}
             onToggle={() => toggleSection('shipstation')}
             health={health.shipstation}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-white font-medium">Enable ShipEngine</h4>
-                  <p className="text-sm text-slate-400">Sync orders and manage shipping via ShipEngine API</p>
+                  <h4 className="text-slate-800 font-medium">Enable ShipEngine</h4>
+                  <p className="text-sm text-slate-500">Sync orders and manage shipping via ShipEngine API</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.shipstation_enabled ?? false}
-                    onChange={(e) => updateField('shipstation_enabled', e.target.checked)}
-                    className="sr-only peer"
+                <button
+                  onClick={() => updateField('shipstation_enabled', !formData.shipstation_enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.shipstation_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.shipstation_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
                   />
-                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </button>
               </div>
 
               <SecretInput
@@ -925,19 +1109,19 @@ const IntegrationsPage: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">Store ID (Optional)</label>
+                  <label className="block text-sm font-medium text-slate-600">Store ID (Optional)</label>
                   <input
                     type="text"
                     value={formData.shipstation_store_id || ''}
                     onChange={(e) => updateField('shipstation_store_id', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="123456"
                   />
-                  <p className="text-xs text-slate-400">Optional store identifier for order routing</p>
+                  <p className="text-xs text-slate-500">Optional store identifier for order routing</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">Last Sync</label>
-                  <div className="px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-slate-400">
+                  <label className="block text-sm font-medium text-slate-600">Last Sync</label>
+                  <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600">
                     {MOCK_SYNC_LOGS[0] ? formatTimestamp(MOCK_SYNC_LOGS[0].timestamp) : 'Never'}
                   </div>
                 </div>
@@ -945,45 +1129,44 @@ const IntegrationsPage: React.FC = () => {
 
               {/* Webhook URL */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-300">Webhook URL</label>
+                <label className="block text-sm font-medium text-slate-600">Webhook URL</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={`${webhookBaseUrl}/shipengine`}
                     readOnly
-                    className="flex-1 px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-lg text-slate-400 font-mono text-sm"
+                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 font-mono text-sm"
                   />
                   <button
                     onClick={() => navigator.clipboard.writeText(`${webhookBaseUrl}/shipengine`)}
-                    className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-2"
                   >
+                    <Copy size={16} />
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Configure this URL in ShipEngine Dashboard under Webhooks</p>
+                <p className="text-xs text-slate-500">Configure this URL in ShipEngine Dashboard under Webhooks</p>
               </div>
 
               {/* Test Connection & Sync */}
-              <div className="flex items-center gap-4 p-4 bg-slate-700/30 rounded-lg">
+              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="flex-1">
-                  <div className="text-sm text-slate-400">Pending Orders</div>
-                  <div className="text-2xl font-bold text-white">3</div>
+                  <div className="text-sm text-slate-500">Pending Orders</div>
+                  <div className="text-2xl font-bold text-slate-800">3</div>
                 </div>
                 <button
                   onClick={() => testConnection('ShipEngine')}
                   disabled={testingConnection === 'ShipEngine' || !formData.shipengine_api_key}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'ShipEngine' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle size={16} />
                       Test Connection
                     </>
                   )}
@@ -991,18 +1174,16 @@ const IntegrationsPage: React.FC = () => {
                 <button
                   onClick={() => triggerSync('ShipEngine')}
                   disabled={syncing === 'ShipEngine' || !formData.shipengine_api_key}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {syncing === 'ShipEngine' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Syncing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
+                      <RefreshCw size={16} />
                       Sync Now
                     </>
                   )}
@@ -1018,27 +1199,30 @@ const IntegrationsPage: React.FC = () => {
           <IntegrationSection
             id="resend"
             title="Resend"
-            icon={<span>📧</span>}
+            icon={<Mail size={24} />}
             expanded={expandedSections.resend}
             onToggle={() => toggleSection('resend')}
             health={health.resend}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-white font-medium">Enable Resend</h4>
-                  <p className="text-sm text-slate-400">Send transactional emails via Resend</p>
+                  <h4 className="text-slate-800 font-medium">Enable Resend</h4>
+                  <p className="text-sm text-slate-500">Send transactional emails via Resend</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.resend_enabled ?? false}
-                    onChange={(e) => updateField('resend_enabled', e.target.checked)}
-                    className="sr-only peer"
+                <button
+                  onClick={() => updateField('resend_enabled', !formData.resend_enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.resend_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.resend_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
                   />
-                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </button>
               </div>
 
               <SecretInput
@@ -1051,23 +1235,23 @@ const IntegrationsPage: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">From Email</label>
+                  <label className="block text-sm font-medium text-slate-600">From Email</label>
                   <input
                     type="email"
                     value={formData.resend_from_email || ''}
                     onChange={(e) => updateField('resend_from_email', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="orders@yourdomain.com"
                   />
-                  <p className="text-xs text-slate-400">Must be a verified domain in Resend</p>
+                  <p className="text-xs text-slate-500">Must be a verified domain in Resend</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">From Name</label>
+                  <label className="block text-sm font-medium text-slate-600">From Name</label>
                   <input
                     type="text"
                     value={formData.resend_from_name || ''}
                     onChange={(e) => updateField('resend_from_name', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="ATL Urban Farms"
                   />
                 </div>
@@ -1078,18 +1262,16 @@ const IntegrationsPage: React.FC = () => {
                 <button
                   onClick={() => testConnection('Resend')}
                   disabled={testingConnection === 'Resend' || !formData.resend_api_key}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Resend' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle size={16} />
                       Test Connection
                     </>
                   )}
@@ -1097,37 +1279,35 @@ const IntegrationsPage: React.FC = () => {
               </div>
 
               {/* Send Test Email */}
-              <div className="p-4 bg-slate-700/50 rounded-lg space-y-3">
-                <h4 className="text-white font-medium">Send Test Email</h4>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h4 className="text-slate-800 font-medium">Send Test Email</h4>
                 <div className="flex gap-3">
                   <input
                     type="email"
                     value={testEmailAddress}
                     onChange={(e) => setTestEmailAddress(e.target.value)}
                     placeholder={formData.resend_from_email || 'Enter email address'}
-                    className="flex-1 px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                   <button
                     onClick={sendTestEmail}
                     disabled={testingConnection === 'ResendEmail' || !formData.resend_api_key || !formData.resend_from_email}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   >
                     {testingConnection === 'ResendEmail' ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Sending...
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+                        <Send size={16} />
                         Send
                       </>
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-slate-400">Leave empty to send to your configured From Email address</p>
+                <p className="text-xs text-slate-500">Leave empty to send to your configured From Email address</p>
               </div>
 
               {/* Recent Emails Table */}
@@ -1139,37 +1319,40 @@ const IntegrationsPage: React.FC = () => {
           <IntegrationSection
             id="trellis"
             title="Trellis"
-            icon={<span>🌱</span>}
+            icon={<Leaf size={24} />}
             expanded={expandedSections.trellis}
             onToggle={() => toggleSection('trellis')}
             health={health.trellis}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-white font-medium">Enable Trellis</h4>
-                  <p className="text-sm text-slate-400">Sync subscribers with Trellis marketing platform</p>
+                  <h4 className="text-slate-800 font-medium">Enable Trellis</h4>
+                  <p className="text-sm text-slate-500">Sync subscribers with Trellis marketing platform</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.trellis_enabled ?? false}
-                    onChange={(e) => updateField('trellis_enabled', e.target.checked)}
-                    className="sr-only peer"
+                <button
+                  onClick={() => updateField('trellis_enabled', !formData.trellis_enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.trellis_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.trellis_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
                   />
-                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">API Endpoint</label>
+                  <label className="block text-sm font-medium text-slate-600">API Endpoint</label>
                   <input
                     type="url"
                     value={formData.trellis_api_endpoint || ''}
                     onChange={(e) => updateField('trellis_api_endpoint', e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="https://api.trellis.co/v1"
                   />
                 </div>
@@ -1183,30 +1366,28 @@ const IntegrationsPage: React.FC = () => {
 
               {/* Status & Sync */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-slate-700/30 rounded-lg">
-                  <div className="text-sm text-slate-400">Subscribers Synced</div>
-                  <div className="text-2xl font-bold text-white">1,234</div>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="text-sm text-slate-500">Subscribers Synced</div>
+                  <div className="text-2xl font-bold text-slate-800">1,234</div>
                 </div>
-                <div className="p-4 bg-slate-700/30 rounded-lg">
-                  <div className="text-sm text-slate-400">Last Sync</div>
-                  <div className="text-lg font-medium text-white">2 hours ago</div>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="text-sm text-slate-500">Last Sync</div>
+                  <div className="text-lg font-medium text-slate-800">2 hours ago</div>
                 </div>
-                <div className="p-4 bg-slate-700/30 rounded-lg flex items-center justify-center">
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center">
                   <button
                     onClick={() => triggerSync('Trellis')}
                     disabled={syncing === 'Trellis' || !formData.trellis_api_key}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {syncing === 'Trellis' ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Syncing...
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                        <RefreshCw size={16} />
                         Sync Now
                       </>
                     )}
@@ -1219,18 +1400,16 @@ const IntegrationsPage: React.FC = () => {
                 <button
                   onClick={() => testConnection('Trellis')}
                   disabled={testingConnection === 'Trellis' || !formData.trellis_api_key}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Trellis' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle size={16} />
                       Test Connection
                     </>
                   )}
@@ -1243,27 +1422,30 @@ const IntegrationsPage: React.FC = () => {
           <IntegrationSection
             id="gemini"
             title="Gemini AI (Sage)"
-            icon={<span>🤖</span>}
+            icon={<Bot size={24} />}
             expanded={expandedSections.gemini}
             onToggle={() => toggleSection('gemini')}
             health={health.gemini}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-white font-medium">Enable Sage AI</h4>
-                  <p className="text-sm text-slate-400">Power the Sage gardening assistant with Google Gemini</p>
+                  <h4 className="text-slate-800 font-medium">Enable Sage AI</h4>
+                  <p className="text-sm text-slate-500">Power the Sage gardening assistant with Google Gemini</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.gemini_enabled ?? false}
-                    onChange={(e) => updateField('gemini_enabled', e.target.checked)}
-                    className="sr-only peer"
+                <button
+                  onClick={() => updateField('gemini_enabled', !formData.gemini_enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.gemini_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      formData.gemini_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
                   />
-                  <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                </label>
+                </button>
               </div>
 
               <SecretInput
@@ -1275,19 +1457,19 @@ const IntegrationsPage: React.FC = () => {
               />
 
               {/* Info Box */}
-              <div className="p-4 bg-slate-900/50 rounded-lg">
-                <h4 className="text-sm font-medium text-slate-300 mb-2">About Sage AI</h4>
-                <p className="text-xs text-slate-400 mb-3">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-medium text-slate-700 mb-2">About Sage AI</h4>
+                <p className="text-xs text-slate-500 mb-3">
                   Sage is your AI-powered gardening assistant. It helps customers choose the right plants based on their sunlight, space, and experience level.
                 </p>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
                     <span className="text-slate-500">Model:</span>
-                    <span className="text-slate-300 ml-2">Gemini 1.5 Flash</span>
+                    <span className="text-slate-700 ml-2">Gemini 1.5 Flash</span>
                   </div>
                   <div>
                     <span className="text-slate-500">Usage:</span>
-                    <span className="text-slate-300 ml-2">Customer Chat Widget</span>
+                    <span className="text-slate-700 ml-2">Customer Chat Widget</span>
                   </div>
                 </div>
               </div>
@@ -1297,22 +1479,199 @@ const IntegrationsPage: React.FC = () => {
                 <button
                   onClick={() => testConnection('Gemini')}
                   disabled={testingConnection === 'Gemini' || !formData.gemini_api_key}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Gemini' ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
+                      <CheckCircle size={16} />
                       Test Connection
                     </>
                   )}
                 </button>
+              </div>
+            </div>
+          </IntegrationSection>
+
+          {/* UPS DIRECT Section */}
+          <IntegrationSection
+            id="ups"
+            title="UPS Direct"
+            icon={<Truck size={24} />}
+            expanded={expandedSections.ups}
+            onToggle={() => toggleSection('ups')}
+            health={health.ups}
+          >
+            <div className="space-y-6">
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="text-slate-800 font-medium">Enable UPS Direct</h4>
+                  <p className="text-sm text-slate-500">Get real-time shipping rates directly from UPS</p>
+                </div>
+                <button
+                  onClick={() => updateUpsField('enabled', !upsConfig.enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    upsConfig.enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      upsConfig.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Environment Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="text-slate-800 font-medium">Environment</h4>
+                  <p className="text-sm text-slate-500">
+                    {upsConfig.is_sandbox ? 'Using sandbox/test API' : 'Using production API'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm ${upsConfig.is_sandbox ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+                    Sandbox
+                  </span>
+                  <button
+                    onClick={() => updateUpsField('is_sandbox', !upsConfig.is_sandbox)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      !upsConfig.is_sandbox ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        !upsConfig.is_sandbox ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-sm ${!upsConfig.is_sandbox ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
+                    Production
+                  </span>
+                </div>
+              </div>
+
+              {/* Credentials */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">Client ID</label>
+                <input
+                  type="text"
+                  value={upsConfig.client_id}
+                  onChange={(e) => updateUpsField('client_id', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  placeholder="Your UPS Client ID"
+                />
+                <p className="text-xs text-slate-500">OAuth Client ID from UPS Developer Portal</p>
+              </div>
+
+              <SecretInput
+                label="Client Secret"
+                value={upsConfig.client_secret}
+                onChange={(v) => updateUpsField('client_secret', v)}
+                placeholder="Your UPS Client Secret"
+                helpText="OAuth Client Secret from UPS Developer Portal"
+              />
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">Account Number</label>
+                <input
+                  type="text"
+                  value={upsConfig.account_number}
+                  onChange={(e) => updateUpsField('account_number', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  placeholder="Your 6-digit UPS Account Number"
+                />
+                <p className="text-xs text-slate-500">Your UPS shipper account number</p>
+              </div>
+
+              {/* Test Result */}
+              <AnimatePresence>
+                {upsTestResult && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={`p-4 rounded-xl border ${
+                      upsTestResult.success
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {upsTestResult.success ? (
+                        <CheckCircle size={20} className="text-emerald-600" />
+                      ) : (
+                        <AlertCircle size={20} className="text-red-600" />
+                      )}
+                      <span className={upsTestResult.success ? 'text-emerald-700' : 'text-red-700'}>
+                        {upsTestResult.message}
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Test Connection & Save Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={testUpsConnection}
+                  disabled={testingConnection === 'UPS' || !upsConfig.client_id || !upsConfig.client_secret || !upsConfig.account_number}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {testingConnection === 'UPS' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Test Connection
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={saveUpsConfig}
+                  disabled={upsSaving}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {upsSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      Save UPS Config
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Info Box */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-medium text-slate-700 mb-2">About UPS Direct Integration</h4>
+                <p className="text-xs text-slate-500 mb-3">
+                  Connect directly to UPS APIs for real-time shipping rates. This integration requires a UPS Developer account and OAuth credentials.
+                </p>
+                <div className="flex gap-4">
+                  <a
+                    href="https://developer.ups.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                  >
+                    UPS Developer Portal
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
               </div>
             </div>
           </IntegrationSection>
@@ -1326,21 +1685,28 @@ const IntegrationsPage: React.FC = () => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-6 right-6 px-6 py-4 rounded-lg shadow-lg z-50 flex flex-col gap-3 max-w-md ${
+            className={`fixed bottom-6 right-6 px-6 py-4 rounded-2xl shadow-lg z-50 flex flex-col gap-3 max-w-md relative ${
               !saveMessage.includes('failed') && !saveMessage.includes('Failed') && !saveMessage.includes('error')
-                ? 'bg-emerald-600 text-white'
-                : 'bg-red-600 text-white'
+                ? 'bg-emerald-500 text-white'
+                : 'bg-red-500 text-white'
             }`}
           >
-            <div className="flex items-center gap-3">
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setSaveMessage(null);
+                setLastError(null);
+              }}
+              className="absolute top-2 right-2 p-1 hover:bg-white/20 rounded transition-colors"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-center gap-3 pr-6">
               {!saveMessage.includes('failed') && !saveMessage.includes('Failed') && !saveMessage.includes('error') ? (
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check size={20} />
               ) : (
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <AlertCircle size={20} />
               )}
               <span className="font-medium text-sm">{saveMessage}</span>
             </div>
@@ -1349,7 +1715,7 @@ const IntegrationsPage: React.FC = () => {
               <button
                 onClick={reportIssueToSupport}
                 disabled={reportingIssue}
-                className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 rounded text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {reportingIssue ? (
                   <>
@@ -1358,9 +1724,7 @@ const IntegrationsPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
+                    <Mail size={16} />
                     Report Issue to Support
                   </>
                 )}

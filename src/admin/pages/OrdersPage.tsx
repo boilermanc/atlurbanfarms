@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
+import { Printer, X, RefreshCw, Search } from 'lucide-react';
 
 interface OrdersPageProps {
   onViewOrder: (orderId: string) => void;
@@ -365,14 +366,23 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
     }).format(amount);
   };
 
-  // Get status badge
+  // Get status badge - light theme version
   const getStatusBadge = (status: string) => {
-    const config = ORDER_STATUS_CONFIG[status as OrderStatus] || {
-      label: status,
-      color: 'bg-slate-500',
+    const statusStyles: Record<string, string> = {
+      pending: 'bg-slate-100 text-slate-600 border-slate-200',
+      paid: 'bg-blue-100 text-blue-700 border-blue-200',
+      processing: 'bg-purple-100 text-purple-700 border-purple-200',
+      allocated: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      picking: 'bg-amber-100 text-amber-700 border-amber-200',
+      packed: 'bg-orange-100 text-orange-700 border-orange-200',
+      shipped: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      delivered: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      cancelled: 'bg-red-100 text-red-700 border-red-200',
     };
+    const config = ORDER_STATUS_CONFIG[status as OrderStatus] || { label: status };
+    const style = statusStyles[status] || 'bg-slate-100 text-slate-600 border-slate-200';
     return (
-      <span className={`${config.color} text-white text-xs px-2 py-1 rounded-full font-medium`}>
+      <span className={`${style} text-xs px-3 py-1 rounded-full font-semibold border`}>
         {config.label}
       </span>
     );
@@ -407,15 +417,15 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
     }
 
     return (
-      <div className="flex items-center justify-between mt-4 px-4">
-        <div className="text-sm text-slate-400">
+      <div className="flex items-center justify-between mt-4 px-6 py-4 border-t border-slate-100">
+        <div className="text-sm text-slate-500">
           Showing {((currentPage - 1) * 20) + 1} - {Math.min(currentPage * 20, totalCount)} of {totalCount} orders
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="px-3 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Prev
           </button>
@@ -424,12 +434,12 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
               key={index}
               onClick={() => typeof page === 'number' && setCurrentPage(page)}
               disabled={typeof page !== 'number'}
-              className={`px-3 py-1 rounded ${
+              className={`px-3 py-1.5 rounded-lg transition-colors ${
                 page === currentPage
                   ? 'bg-emerald-500 text-white'
                   : typeof page === 'number'
-                  ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  : 'bg-transparent text-slate-500 cursor-default'
+                  ? 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  : 'bg-transparent text-slate-400 cursor-default'
               }`}
             >
               {page}
@@ -438,7 +448,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
           <button
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="px-3 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Next
           </button>
@@ -453,11 +463,11 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Orders</h1>
-            <p className="text-slate-400 mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Orders</h1>
+            <p className="text-slate-500 mt-1">
               {totalCount} {totalCount === 1 ? 'order' : 'orders'} total
               {selectedOrders.size > 0 && (
-                <span className="ml-2 text-emerald-400">
+                <span className="ml-2 text-emerald-600 font-medium">
                   ({selectedOrders.size} selected)
                 </span>
               )}
@@ -469,21 +479,17 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
               <>
                 <button
                   onClick={handlePrintSelected}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
+                  <Printer size={18} />
                   Print Selected ({selectedOrders.size})
                 </button>
                 <button
                   onClick={clearSelection}
-                  className="px-3 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+                  className="p-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors"
                   title="Clear selection"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={18} />
                 </button>
               </>
             )}
@@ -491,38 +497,31 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
             <button
               onClick={handlePrintAllPaid}
               disabled={printLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 font-medium"
             >
               {printLoading ? (
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <RefreshCw size={18} className="animate-spin" />
               ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
+                <Printer size={18} />
               )}
               Print All Paid
             </button>
             <button
               onClick={refetch}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <RefreshCw size={18} />
               Refresh
             </button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-slate-800 rounded-lg p-4">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
           <div className="flex flex-wrap items-end gap-4">
             {/* Status Filter */}
             <div className="flex-1 min-w-[150px]">
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 Status
               </label>
               <select
@@ -531,7 +530,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                   setStatusFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               >
                 <option value="all">All Statuses</option>
                 {ORDER_STATUSES.map((status) => (
@@ -544,7 +543,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
 
             {/* Date From */}
             <div className="flex-1 min-w-[150px]">
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 From Date
               </label>
               <input
@@ -554,13 +553,13 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                   setDateFrom(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
             </div>
 
             {/* Date To */}
             <div className="flex-1 min-w-[150px]">
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 To Date
               </label>
               <input
@@ -570,26 +569,29 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                   setDateTo(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
             </div>
 
             {/* Search */}
             <div className="flex-[2] min-w-[250px]">
-              <label className="block text-sm font-medium text-slate-300 mb-1">
+              <label className="block text-sm font-medium text-slate-600 mb-1">
                 Search
               </label>
               <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Order # or customer email..."
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Order # or customer email..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  />
+                </div>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+                  className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium"
                 >
                   Search
                 </button>
@@ -600,7 +602,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors whitespace-nowrap"
+                className="px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors whitespace-nowrap font-medium"
               >
                 Clear Filters
               </button>
@@ -614,61 +616,53 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-700"
+                className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-200"
               >
-                <span className="text-sm text-slate-400">Active filters:</span>
+                <span className="text-sm text-slate-500">Active filters:</span>
                 {statusFilter !== 'all' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     Status: {ORDER_STATUS_CONFIG[statusFilter as OrderStatus]?.label || statusFilter}
                     <button
                       onClick={() => setStatusFilter('all')}
-                      className="hover:text-emerald-300"
+                      className="hover:text-emerald-900"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <X size={14} />
                     </button>
                   </span>
                 )}
                 {dateFrom && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     From: {dateFrom}
                     <button
                       onClick={() => setDateFrom('')}
-                      className="hover:text-emerald-300"
+                      className="hover:text-emerald-900"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <X size={14} />
                     </button>
                   </span>
                 )}
                 {dateTo && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     To: {dateTo}
                     <button
                       onClick={() => setDateTo('')}
-                      className="hover:text-emerald-300"
+                      className="hover:text-emerald-900"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <X size={14} />
                     </button>
                   </span>
                 )}
                 {searchTerm && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     Search: "{searchTerm}"
                     <button
                       onClick={() => {
                         setSearchTerm('');
                         setSearchInput('');
                       }}
-                      className="hover:text-emerald-300"
+                      className="hover:text-emerald-900"
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <X size={14} />
                     </button>
                   </span>
                 )}
@@ -679,25 +673,25 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 text-red-400">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">
             {error}
           </div>
         )}
 
         {/* Orders Table */}
-        <div className="bg-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent"></div>
             </div>
           ) : orders.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
+            <div className="text-center py-12 text-slate-500">
               {hasActiveFilters ? (
                 <>
                   <p>No orders match your filters.</p>
                   <button
                     onClick={clearFilters}
-                    className="mt-2 text-emerald-400 hover:text-emerald-300"
+                    className="mt-2 text-emerald-600 hover:text-emerald-700 font-medium"
                   >
                     Clear all filters
                   </button>
@@ -709,9 +703,9 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-700/50">
+                <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-center text-xs font-medium text-slate-400 uppercase tracking-wider px-2 py-3 w-12">
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-12">
                       <button
                         onClick={toggleSelectAll}
                         className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
@@ -719,7 +713,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                             ? 'bg-emerald-500 border-emerald-500'
                             : selectedOrders.size > 0
                             ? 'bg-emerald-500/50 border-emerald-500'
-                            : 'border-slate-500 hover:border-slate-400'
+                            : 'border-slate-300 hover:border-slate-400'
                         }`}
                       >
                         {selectedOrders.size === orders.length && orders.length > 0 && (
@@ -734,50 +728,50 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                         )}
                       </button>
                     </th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Order #
                     </th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Date
                     </th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Customer
                     </th>
-                    <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Email
                     </th>
-                    <th className="text-center text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Items
                     </th>
-                    <th className="text-right text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Total
                     </th>
-                    <th className="text-center text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Status
                     </th>
-                    <th className="text-right text-xs font-medium text-slate-400 uppercase tracking-wider px-4 py-3">
+                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700">
+                <tbody className="divide-y divide-slate-100">
                   {orders.map((order) => (
                     <motion.tr
                       key={order.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className={`hover:bg-slate-700/50 cursor-pointer transition-colors ${
-                        selectedOrders.has(order.id) ? 'bg-emerald-500/10' : ''
+                      className={`hover:bg-slate-50 cursor-pointer transition-colors ${
+                        selectedOrders.has(order.id) ? 'bg-emerald-50' : ''
                       }`}
                       onClick={() => handleRowClick(order.id)}
                     >
-                      <td className="px-2 py-3 text-center">
+                      <td className="px-2 py-4 text-center">
                         <button
                           onClick={(e) => toggleOrderSelection(order.id, e)}
                           className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                             selectedOrders.has(order.id)
                               ? 'bg-emerald-500 border-emerald-500'
-                              : 'border-slate-500 hover:border-slate-400'
+                              : 'border-slate-300 hover:border-slate-400'
                           }`}
                         >
                           {selectedOrders.has(order.id) && (
@@ -787,38 +781,38 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-white font-medium">
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-slate-800 font-medium">
                           {order.order_number}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-6 py-4 text-slate-600">
                         {formatDate(order.created_at)}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-6 py-4 text-slate-800">
                         {order.customer_name || (
-                          <span className="text-slate-500 italic">Guest</span>
+                          <span className="text-slate-400 italic">Guest</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-400 text-sm">
+                      <td className="px-6 py-4 text-slate-500 text-sm">
                         {order.customer_email}
                       </td>
-                      <td className="px-4 py-3 text-center text-slate-300">
+                      <td className="px-6 py-4 text-center text-slate-600">
                         {order.items?.length || 0}
                       </td>
-                      <td className="px-4 py-3 text-right text-white font-medium">
+                      <td className="px-6 py-4 text-right text-slate-800 font-semibold">
                         {formatCurrency(order.total)}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-6 py-4 text-center">
                         {getStatusBadge(order.status)}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRowClick(order.id);
                           }}
-                          className="text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+                          className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
                         >
                           View
                         </button>

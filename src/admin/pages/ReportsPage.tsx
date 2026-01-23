@@ -8,47 +8,16 @@ import {
   useCustomersReport,
   useShippingReport,
 } from '../hooks/useReports';
+import { DollarSign, Package, Users, Truck, Download } from 'lucide-react';
 
 type ReportType = 'sales' | 'products' | 'customers' | 'shipping';
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
 
-const REPORT_TYPES: { id: ReportType; label: string; icon: JSX.Element }[] = [
-  {
-    id: 'sales',
-    label: 'Sales',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'products',
-    label: 'Products',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
-  },
-  {
-    id: 'customers',
-    label: 'Customers',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'shipping',
-    label: 'Shipping',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-      </svg>
-    ),
-  },
+const REPORT_TYPES: { id: ReportType; label: string; icon: React.ReactNode }[] = [
+  { id: 'sales', label: 'Sales', icon: <DollarSign size={20} /> },
+  { id: 'products', label: 'Products', icon: <Package size={20} /> },
+  { id: 'customers', label: 'Customers', icon: <Users size={20} /> },
+  { id: 'shipping', label: 'Shipping', icon: <Truck size={20} /> },
 ];
 
 const DATE_PRESETS: { id: DatePreset; label: string }[] = [
@@ -181,7 +150,7 @@ const ReportsPage: React.FC = () => {
 
   // Error component
   const ErrorMessage: React.FC<{ message: string }> = ({ message }) => (
-    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
       {message}
     </div>
   );
@@ -192,10 +161,10 @@ const ReportsPage: React.FC = () => {
     value: string;
     subtitle?: string;
   }> = ({ title, value, subtitle }) => (
-    <div className="bg-slate-700/50 rounded-lg p-4">
-      <div className="text-sm text-slate-400 mb-1">{title}</div>
-      <div className="text-2xl font-bold text-white">{value}</div>
-      {subtitle && <div className="text-xs text-slate-500 mt-1">{subtitle}</div>}
+    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+      <div className="text-sm text-slate-500 mb-1">{title}</div>
+      <div className="text-2xl font-bold text-slate-800">{value}</div>
+      {subtitle && <div className="text-xs text-slate-400 mt-1">{subtitle}</div>}
     </div>
   );
 
@@ -205,8 +174,8 @@ const ReportsPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Reports</h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Reports</h1>
+            <p className="text-slate-500 text-sm mt-1">
               Analytics and insights for your business
             </p>
           </div>
@@ -218,10 +187,10 @@ const ReportsPage: React.FC = () => {
             <button
               key={report.id}
               onClick={() => setActiveReport(report.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
                 activeReport === report.id
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
               }`}
             >
               {report.icon}
@@ -231,11 +200,11 @@ const ReportsPage: React.FC = () => {
         </div>
 
         {/* Date Range Picker */}
-        <div className="bg-slate-800 rounded-lg p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-4">
           <div className="flex flex-wrap items-end gap-4">
             {/* Preset Buttons */}
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Date Range
               </label>
               <div className="flex flex-wrap gap-2">
@@ -243,10 +212,10 @@ const ReportsPage: React.FC = () => {
                   <button
                     key={preset.id}
                     onClick={() => setDatePreset(preset.id)}
-                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                       datePreset === preset.id
                         ? 'bg-emerald-500 text-white'
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {preset.label}
@@ -259,32 +228,32 @@ const ReportsPage: React.FC = () => {
             {datePreset === 'custom' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
                     Start Date
                   </label>
                   <input
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-sm font-medium text-slate-600 mb-1">
                     End Date
                   </label>
                   <input
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                 </div>
               </>
             )}
 
             {/* Date Range Display */}
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-slate-500">
               {formatDate(dateRange.startDate)} - {formatDate(dateRange.endDate)}
             </div>
           </div>
@@ -324,9 +293,9 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Revenue Chart */}
-                  <div className="bg-slate-800 rounded-lg p-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-white">Revenue by Day</h3>
+                      <h3 className="text-lg font-semibold text-slate-800">Revenue by Day</h3>
                     </div>
                     <ReportChart
                       type="line"
@@ -340,34 +309,32 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Daily Sales Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Daily Summary</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Daily Summary</h3>
                       <button
                         onClick={exportSalesCSV}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <Download size={16} />
                         Export CSV
                       </button>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Date</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Orders</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Revenue</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Date</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Orders</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Revenue</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {salesReport.data.dailySales.slice().reverse().map((day) => (
-                            <tr key={day.date} className="hover:bg-slate-700/50">
-                              <td className="px-6 py-3 text-slate-300">{formatDate(day.date)}</td>
-                              <td className="px-6 py-3 text-right text-white">{day.orders}</td>
-                              <td className="px-6 py-3 text-right text-emerald-400 font-medium">
+                            <tr key={day.date} className="hover:bg-slate-50">
+                              <td className="px-6 py-3 text-slate-600">{formatDate(day.date)}</td>
+                              <td className="px-6 py-3 text-right text-slate-800">{day.orders}</td>
+                              <td className="px-6 py-3 text-right text-emerald-600 font-medium">
                                 {formatCurrency(day.revenue)}
                               </td>
                             </tr>
@@ -397,46 +364,44 @@ const ReportsPage: React.FC = () => {
               ) : productsReport.data && (
                 <>
                   {/* Best Sellers Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Best Sellers</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Best Sellers</h3>
                       <button
                         onClick={exportProductsCSV}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <Download size={16} />
                         Export CSV
                       </button>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Product</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Units Sold</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Revenue</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Product</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Units Sold</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Revenue</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {productsReport.data.bestSellers.length === 0 ? (
                             <tr>
-                              <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                              <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                                 No sales data available for this period
                               </td>
                             </tr>
                           ) : (
                             productsReport.data.bestSellers.map((product, i) => (
-                              <tr key={product.id} className="hover:bg-slate-700/50">
+                              <tr key={product.id} className="hover:bg-slate-50">
                                 <td className="px-6 py-3">
                                   <div className="flex items-center gap-3">
-                                    <span className="text-slate-500 text-sm">#{i + 1}</span>
-                                    <span className="text-white font-medium">{product.name}</span>
+                                    <span className="text-slate-400 text-sm">#{i + 1}</span>
+                                    <span className="text-slate-800 font-medium">{product.name}</span>
                                   </div>
                                 </td>
-                                <td className="px-6 py-3 text-right text-white">{product.unitsSold}</td>
-                                <td className="px-6 py-3 text-right text-emerald-400 font-medium">
+                                <td className="px-6 py-3 text-right text-slate-800">{product.unitsSold}</td>
+                                <td className="px-6 py-3 text-right text-emerald-600 font-medium">
                                   {formatCurrency(product.revenue)}
                                 </td>
                               </tr>
@@ -448,36 +413,36 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Low Stock Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Low Stock Alert</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Low Stock Alert</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Product</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Current Stock</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Threshold</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Product</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Current Stock</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Threshold</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {productsReport.data.lowStock.length === 0 ? (
                             <tr>
-                              <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                              <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                                 All products are well stocked
                               </td>
                             </tr>
                           ) : (
                             productsReport.data.lowStock.map((product) => (
-                              <tr key={product.id} className="hover:bg-slate-700/50">
-                                <td className="px-6 py-3 text-white font-medium">{product.name}</td>
+                              <tr key={product.id} className="hover:bg-slate-50">
+                                <td className="px-6 py-3 text-slate-800 font-medium">{product.name}</td>
                                 <td className="px-6 py-3 text-right">
-                                  <span className={`font-medium ${product.currentStock === 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                                  <span className={`font-medium ${product.currentStock === 0 ? 'text-red-600' : 'text-amber-600'}`}>
                                     {product.currentStock}
                                   </span>
                                 </td>
-                                <td className="px-6 py-3 text-right text-slate-400">{product.threshold}</td>
+                                <td className="px-6 py-3 text-right text-slate-500">{product.threshold}</td>
                               </tr>
                             ))
                           )}
@@ -487,10 +452,10 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Category Breakdown Chart */}
-                  <div className="bg-slate-800 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Category Breakdown</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Category Breakdown</h3>
                     {productsReport.data.categoryBreakdown.length === 0 ? (
-                      <div className="text-center text-slate-400 py-8">
+                      <div className="text-center text-slate-500 py-8">
                         No category data available for this period
                       </div>
                     ) : (
@@ -526,8 +491,8 @@ const ReportsPage: React.FC = () => {
               ) : customersReport.data && (
                 <>
                   {/* New vs Returning Chart */}
-                  <div className="bg-slate-800 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">New vs Returning Customers</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">New vs Returning Customers</h3>
                     <ReportChart
                       type="pie"
                       data={[
@@ -539,43 +504,41 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Top Customers Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Top Customers</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Top Customers</h3>
                       <button
                         onClick={exportCustomersCSV}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <Download size={16} />
                         Export CSV
                       </button>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Email</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Orders</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Total Spent</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Name</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Orders</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Total Spent</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {customersReport.data.topCustomers.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                              <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
                                 No customer data available for this period
                               </td>
                             </tr>
                           ) : (
                             customersReport.data.topCustomers.map((customer) => (
-                              <tr key={customer.id} className="hover:bg-slate-700/50">
-                                <td className="px-6 py-3 text-white font-medium">{customer.name}</td>
-                                <td className="px-6 py-3 text-slate-300">{customer.email}</td>
-                                <td className="px-6 py-3 text-right text-white">{customer.orders}</td>
-                                <td className="px-6 py-3 text-right text-emerald-400 font-medium">
+                              <tr key={customer.id} className="hover:bg-slate-50">
+                                <td className="px-6 py-3 text-slate-800 font-medium">{customer.name}</td>
+                                <td className="px-6 py-3 text-slate-600">{customer.email}</td>
+                                <td className="px-6 py-3 text-right text-slate-800">{customer.orders}</td>
+                                <td className="px-6 py-3 text-right text-emerald-600 font-medium">
                                   {formatCurrency(customer.totalSpent)}
                                 </td>
                               </tr>
@@ -587,10 +550,10 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Attribution Breakdown */}
-                  <div className="bg-slate-800 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4">Attribution Breakdown</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+                    <h3 className="text-lg font-semibold text-slate-800 mb-4">Attribution Breakdown</h3>
                     {customersReport.data.attribution.length === 0 ? (
-                      <div className="text-center text-slate-400 py-8">
+                      <div className="text-center text-slate-500 py-8">
                         No attribution data available for this period
                       </div>
                     ) : (
@@ -640,21 +603,19 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Orders by Status Chart */}
-                  <div className="bg-slate-800 rounded-lg p-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-white">Orders by Status</h3>
+                      <h3 className="text-lg font-semibold text-slate-800">Orders by Status</h3>
                       <button
                         onClick={exportShippingCSV}
-                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        <Download size={16} />
                         Export CSV
                       </button>
                     </div>
                     {shippingReport.data.statusBreakdown.length === 0 ? (
-                      <div className="text-center text-slate-400 py-8">
+                      <div className="text-center text-slate-500 py-8">
                         No shipping data available for this period
                       </div>
                     ) : (
@@ -670,32 +631,32 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Shipments by Carrier Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Shipments by Carrier</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Shipments by Carrier</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Carrier</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Shipments</th>
-                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-400 uppercase">Avg Transit (Days)</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Carrier</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Shipments</th>
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Avg Transit (Days)</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {shippingReport.data.carrierStats.length === 0 ? (
                             <tr>
-                              <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                              <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                                 No carrier data available for this period
                               </td>
                             </tr>
                           ) : (
                             shippingReport.data.carrierStats.map((carrier) => (
-                              <tr key={carrier.carrier} className="hover:bg-slate-700/50">
-                                <td className="px-6 py-3 text-white font-medium">{carrier.carrier}</td>
-                                <td className="px-6 py-3 text-right text-white">{carrier.shipments}</td>
-                                <td className="px-6 py-3 text-right text-slate-300">
+                              <tr key={carrier.carrier} className="hover:bg-slate-50">
+                                <td className="px-6 py-3 text-slate-800 font-medium">{carrier.carrier}</td>
+                                <td className="px-6 py-3 text-right text-slate-800">{carrier.shipments}</td>
+                                <td className="px-6 py-3 text-right text-slate-600">
                                   {carrier.avgTransitDays > 0 ? carrier.avgTransitDays.toFixed(1) : '-'}
                                 </td>
                               </tr>
@@ -707,42 +668,42 @@ const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Delivery Exceptions Table */}
-                  <div className="bg-slate-800 rounded-lg overflow-hidden">
-                    <div className="p-4 border-b border-slate-700">
-                      <h3 className="text-lg font-semibold text-white">Delivery Exceptions</h3>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                    <div className="p-4 border-b border-slate-200">
+                      <h3 className="text-lg font-semibold text-slate-800">Delivery Exceptions</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-slate-700 bg-slate-700/30">
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Order #</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Issue</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Date</th>
+                          <tr className="border-b border-slate-200 bg-slate-50">
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Order #</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Issue</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Date</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-700">
+                        <tbody className="divide-y divide-slate-100">
                           {shippingReport.data.deliveryExceptions.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                              <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
                                 No delivery exceptions
                               </td>
                             </tr>
                           ) : (
                             shippingReport.data.deliveryExceptions.map((exception) => (
-                              <tr key={exception.orderId} className="hover:bg-slate-700/50">
-                                <td className="px-6 py-3 font-mono text-white">{exception.orderNumber}</td>
+                              <tr key={exception.orderId} className="hover:bg-slate-50">
+                                <td className="px-6 py-3 font-mono text-slate-800">{exception.orderNumber}</td>
                                 <td className="px-6 py-3">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
                                     exception.status === 'cancelled'
-                                      ? 'bg-red-500/20 text-red-400'
-                                      : 'bg-amber-500/20 text-amber-400'
+                                      ? 'bg-red-100 text-red-700 border-red-200'
+                                      : 'bg-amber-100 text-amber-700 border-amber-200'
                                   }`}>
                                     {exception.status}
                                   </span>
                                 </td>
-                                <td className="px-6 py-3 text-slate-300">{exception.issue}</td>
-                                <td className="px-6 py-3 text-slate-400 text-sm">{formatDate(exception.date)}</td>
+                                <td className="px-6 py-3 text-slate-600">{exception.issue}</td>
+                                <td className="px-6 py-3 text-slate-500 text-sm">{formatDate(exception.date)}</td>
                               </tr>
                             ))
                           )}

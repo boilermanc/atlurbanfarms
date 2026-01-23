@@ -132,7 +132,7 @@ const LineChart: React.FC<{
             y1={chartHeight * (1 - ratio)}
             x2={chartWidth}
             y2={chartHeight * (1 - ratio)}
-            stroke="#334155"
+            stroke="#e2e8f0"
             strokeWidth="0.2"
             strokeDasharray="1,1"
           />
@@ -168,7 +168,7 @@ const LineChart: React.FC<{
 
       {/* X-axis labels */}
       {showLabels && (
-        <div className="flex justify-between mt-2 text-xs text-slate-400 overflow-hidden">
+        <div className="flex justify-between mt-2 text-xs text-slate-500 overflow-hidden">
           {data.length <= 10 ? (
             data.map((d, i) => (
               <span key={i} className="truncate text-center" style={{ maxWidth: `${100 / data.length}%` }}>
@@ -210,7 +210,7 @@ const BarChart: React.FC<{
               className="flex-1 flex flex-col items-center justify-end group relative"
             >
               {showValues && (
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-700 px-2 py-1 rounded text-xs text-white whitespace-nowrap z-10">
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 px-2 py-1 rounded text-xs text-white whitespace-nowrap z-10">
                   {formatValue(d.value)}
                 </div>
               )}
@@ -234,7 +234,7 @@ const BarChart: React.FC<{
           {data.map((d, i) => (
             <div
               key={i}
-              className="flex-1 text-xs text-slate-400 text-center truncate"
+              className="flex-1 text-xs text-slate-500 text-center truncate"
               title={d.label}
             >
               {d.label}
@@ -295,15 +295,15 @@ const PieChart: React.FC<{
             key={i}
             d={slice.pathD}
             fill={slice.color}
-            stroke="#1e293b"
-            strokeWidth="1"
+            stroke="#ffffff"
+            strokeWidth="2"
             className="hover:opacity-80 transition-opacity cursor-pointer"
           >
             <title>{`${slice.label}: ${formatValue(slice.value)} (${slice.percentage.toFixed(1)}%)`}</title>
           </path>
         ))}
         {/* Center hole for donut effect */}
-        <circle cx={center} cy={center} r={radius * 0.5} fill="#1e293b" />
+        <circle cx={center} cy={center} r={radius * 0.5} fill="#ffffff" />
       </svg>
 
       {/* Legend */}
@@ -314,8 +314,8 @@ const PieChart: React.FC<{
               className="w-3 h-3 rounded-sm flex-shrink-0"
               style={{ backgroundColor: slice.color }}
             />
-            <span className="text-slate-300 truncate flex-1">{slice.label}</span>
-            <span className="text-slate-400 whitespace-nowrap">
+            <span className="text-slate-700 truncate flex-1">{slice.label}</span>
+            <span className="text-slate-500 whitespace-nowrap">
               {slice.percentage.toFixed(1)}%
             </span>
           </div>

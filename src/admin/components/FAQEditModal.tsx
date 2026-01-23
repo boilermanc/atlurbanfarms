@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
 
 interface FAQ {
   id?: string;
@@ -104,7 +105,7 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -112,44 +113,42 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
           >
-            <div className="sticky top-0 bg-slate-800 px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">
+            <div className="sticky top-0 bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-800">
                 {faq ? 'Edit FAQ' : 'Add New FAQ'}
               </h2>
               <button
                 onClick={onClose}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
+                <X size={24} />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Question <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  Question <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.question}
                   onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
-                  className={`w-full px-4 py-3 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    errors.question ? 'border-red-500' : 'border-slate-600'
+                  className={`w-full px-4 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                    errors.question ? 'border-red-400' : 'border-slate-200'
                   }`}
                   placeholder="Enter the question..."
                 />
                 {errors.question && (
-                  <p className="mt-1 text-sm text-red-400">{errors.question}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.question}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Answer <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  Answer <span className="text-red-500">*</span>
                 </label>
                 <p className="text-xs text-slate-400 mb-2">
                   Supports basic Markdown: **bold**, *italic*, [links](url), and line breaks
@@ -158,24 +157,24 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
                   value={formData.answer}
                   onChange={(e) => setFormData(prev => ({ ...prev, answer: e.target.value }))}
                   rows={8}
-                  className={`w-full px-4 py-3 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none ${
-                    errors.answer ? 'border-red-500' : 'border-slate-600'
+                  className={`w-full px-4 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none ${
+                    errors.answer ? 'border-red-400' : 'border-slate-200'
                   }`}
                   placeholder="Enter the answer..."
                 />
                 {errors.answer && (
-                  <p className="mt-1 text-sm text-red-400">{errors.answer}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.answer}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 mb-2">
                   Category
                 </label>
                 <select
                   value={formData.category || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value || null }))}
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 >
                   <option value="">No Category</option>
                   {allCategories.map(cat => (
@@ -190,25 +189,25 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
                   id="is_active"
                   checked={formData.is_active}
                   onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-                  className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-800"
+                  className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500"
                 />
-                <label htmlFor="is_active" className="text-sm font-medium text-slate-300">
+                <label htmlFor="is_active" className="text-sm font-medium text-slate-600">
                   Active (visible to customers)
                 </label>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? 'Saving...' : faq ? 'Update FAQ' : 'Add FAQ'}
                 </button>

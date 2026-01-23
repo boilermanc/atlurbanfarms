@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import {
-  InventoryBatch,
   BatchFormData,
-  BatchStatus,
   BATCH_STATUS_CONFIG,
 } from '../types/inventory';
 
@@ -39,7 +38,6 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
     notes: '',
   });
 
-  // Generate batch number
   const generateBatchNumber = () => {
     const now = new Date();
     const year = now.getFullYear().toString().slice(-2);
@@ -49,7 +47,6 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
     return `B${year}${month}${day}-${random}`;
   };
 
-  // Fetch products for dropdown
   const fetchProducts = async () => {
     try {
       const { data, error } = await supabase
@@ -65,7 +62,6 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
     }
   };
 
-  // Fetch existing batch if editing
   const fetchBatch = async () => {
     if (!batchId) return;
 
@@ -107,7 +103,6 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
     if (isEditing) {
       fetchBatch();
     } else {
-      // Generate batch number for new batch
       setFormData((prev) => ({
         ...prev,
         batch_number: generateBatchNumber(),
@@ -136,7 +131,6 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (!formData.product_id) {
       setError('Please select a product');
       return;
@@ -157,7 +151,7 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
         quantity_seeded: formData.quantity_seeded,
         quantity_expected: formData.quantity_expected,
         quantity_actual: formData.quantity_actual,
-        quantity_available: formData.quantity_actual, // Initialize available to actual
+        quantity_available: formData.quantity_actual,
         quantity_allocated: 0,
         planned_date: formData.planned_date || null,
         seeded_date: formData.seeded_date || null,
@@ -205,62 +199,48 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
   return (
     <AdminPageWrapper>
       <div className="max-w-2xl">
-        {/* Header */}
         <div className="mb-6">
           <button
             onClick={handleCancel}
-            className="text-slate-400 hover:text-white transition-colors flex items-center gap-2 mb-4"
+            className="text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-2 mb-4"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
+            <ArrowLeft size={16} />
             Back to Inventory
           </button>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-slate-800 font-admin-display">
             {isEditing ? 'Edit Batch' : 'Add New Batch'}
           </h1>
         </div>
 
-        {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700">
             {error}
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-slate-800 rounded-xl p-6 space-y-6">
-            {/* Product */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Product <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Product <span className="text-red-500">*</span>
               </label>
               <select
                 name="product_id"
                 value={formData.product_id}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 required
               >
                 <option value="">Select a product</option>
                 {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
+                  <option key={product.id} value={product.id}>{product.name}</option>
                 ))}
               </select>
             </div>
 
-            {/* Batch Number */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Batch Number <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Batch Number <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -268,162 +248,138 @@ const BatchEditPage: React.FC<BatchEditPageProps> = ({ batchId, onNavigateBack }
                   name="batch_number"
                   value={formData.batch_number}
                   onChange={handleInputChange}
-                  className="flex-1 px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                  className="flex-1 px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={handleGenerateBatchNumber}
-                  className="px-4 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors flex items-center gap-2"
                 >
+                  <RefreshCw size={16} />
                   Generate
                 </button>
               </div>
             </div>
 
-            {/* Status */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Status
-              </label>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Status</label>
               <select
                 name="status"
                 value={formData.status}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               >
                 {Object.entries(BATCH_STATUS_CONFIG).map(([status, config]) => (
-                  <option key={status} value={status}>
-                    {config.label}
-                  </option>
+                  <option key={status} value={status}>{config.label}</option>
                 ))}
               </select>
             </div>
 
-            {/* Quantities */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Qty Seeded
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Qty Seeded</label>
                 <input
                   type="number"
                   name="quantity_seeded"
                   value={formData.quantity_seeded}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Qty Expected
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Qty Expected</label>
                 <input
                   type="number"
                   name="quantity_expected"
                   value={formData.quantity_expected}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Qty Actual
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Qty Actual</label>
                 <input
                   type="number"
                   name="quantity_actual"
                   value={formData.quantity_actual}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
             </div>
 
-            {/* Dates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Planned Date
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Planned Date</label>
                 <input
                   type="date"
                   name="planned_date"
                   value={formData.planned_date}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Seeded Date
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Seeded Date</label>
                 <input
                   type="date"
                   name="seeded_date"
                   value={formData.seeded_date}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Ready Date
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Ready Date</label>
                 <input
                   type="date"
                   name="ready_date"
                   value={formData.ready_date}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Expiry Date
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Expiry Date</label>
                 <input
                   type="date"
                   name="expiry_date"
                   value={formData.expiry_date}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
               </div>
             </div>
 
-            {/* Notes */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Notes
-              </label>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Notes</label>
               <textarea
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
                 rows={3}
-                className="w-full px-4 py-2.5 bg-slate-900 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                className="w-full px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none transition-all"
                 placeholder="Optional notes about this batch..."
               />
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex justify-end gap-3">
             <button
               type="button"
               onClick={handleCancel}
-              className="px-6 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors font-medium"
+              className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors font-medium"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {saving && (
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

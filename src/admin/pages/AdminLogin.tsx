@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Leaf, LogIn, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 interface AdminLoginProps {
   onNavigate: (view: string) => void;
@@ -52,39 +53,39 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 flex items-center justify-center px-4 py-12 font-admin-body">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-600/30">
-              A
-            </div>
-            <span className="font-heading font-extrabold text-2xl text-white">
-              ATL Urban Farms
+            <span className="p-3 bg-emerald-100 rounded-xl">
+              <Leaf className="text-emerald-600" size={28} />
+            </span>
+            <span className="font-bold text-2xl text-slate-800 font-admin-display">
+              ATL <span className="text-emerald-600">Urban Farms</span>
             </span>
           </div>
-          <h1 className="text-3xl font-heading font-extrabold text-white mb-2">
+          <h1 className="text-3xl font-bold text-slate-800 mb-2 font-admin-display">
             Admin Portal
           </h1>
-          <p className="text-slate-400">
+          <p className="text-slate-500">
             Sign in to access the admin dashboard
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-slate-800 rounded-2xl p-8 shadow-2xl border border-slate-700">
+        <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200/60">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error Message */}
             {error && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                <p className="text-sm text-red-400 font-medium">{error}</p>
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-sm text-red-700 font-medium">{error}</p>
               </div>
             )}
 
             {/* Email */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              <label className="text-sm font-medium text-slate-600">
                 Email Address
               </label>
               <input
@@ -94,13 +95,13 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                 placeholder="admin@atlurbanfarms.com"
                 required
                 autoComplete="email"
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               />
             </div>
 
             {/* Password */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              <label className="text-sm font-medium text-slate-600">
                 Password
               </label>
               <div className="relative">
@@ -111,24 +112,14 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
             </div>
@@ -139,8 +130,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
               disabled={isLoading}
               className={`w-full py-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 ${
                 isLoading
-                  ? 'bg-slate-600 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30 hover:shadow-emerald-500/40'
+                  ? 'bg-slate-400 cursor-not-allowed'
+                  : 'bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-600/40'
               }`}
             >
               {isLoading ? (
@@ -150,21 +141,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                 </>
               ) : (
                 <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                    <polyline points="10 17 15 12 10 7" />
-                    <line x1="15" x2="3" y1="12" y2="12" />
-                  </svg>
+                  <LogIn size={20} />
                   Sign In
                 </>
               )}
@@ -176,22 +153,9 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
         <div className="text-center mt-8">
           <button
             onClick={() => onNavigate('home')}
-            className="text-sm text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-2 mx-auto"
+            className="text-sm text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-2 mx-auto font-medium"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              viewBox="0 0 24 24"
-            >
-              <line x1="19" x2="5" y1="12" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
+            <ArrowLeft size={16} />
             Back to main site
           </button>
         </div>

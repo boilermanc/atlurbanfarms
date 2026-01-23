@@ -7,21 +7,35 @@ import {
   useUpdateEmailTemplate,
   useTemplateVersions,
   useBrandSettings,
-  useUpdateBrandSettings,
   replaceVariables,
   SAMPLE_PREVIEW_DATA,
   EmailTemplate,
   VariableSchema
 } from '../hooks/useEmailTemplates'
 import { useEmailService } from '../../hooks/useIntegrations'
+import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus } from 'lucide-react'
 
 // Template icons mapping
-const TEMPLATE_ICONS: Record<string, string> = {
-  order_confirmation: '📧',
-  shipping_notification: '📦',
-  welcome: '👋',
-  password_reset: '🔑',
-  order_ready_pickup: '📍',
+const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
+  order_confirmation: <Mail size={20} />,
+  shipping_notification: <Package size={20} />,
+  shipping_label_created: <Tag size={20} />,
+  shipping_in_transit: <Truck size={20} />,
+  shipping_out_for_delivery: <Truck size={20} />,
+  shipping_delivered: <CheckCircle size={20} />,
+  pickup_ready: <MapPin size={20} />,
+  pickup_reminder: <Clock size={20} />,
+  welcome: <UserPlus size={20} />,
+  password_reset: <Key size={20} />,
+  order_ready_pickup: <MapPin size={20} />,
+}
+
+// Category labels and order
+const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; order: number }> = {
+  shipping: { label: 'Shipping', icon: <Package size={16} />, order: 1 },
+  orders: { label: 'Orders', icon: <Mail size={16} />, order: 2 },
+  account: { label: 'Account', icon: <UserPlus size={16} />, order: 3 },
+  general: { label: 'General', icon: <Mail size={16} />, order: 4 },
 }
 
 // Template card component
@@ -36,22 +50,24 @@ const TemplateCard: React.FC<{
     whileTap={{ scale: 0.98 }}
     className={`w-full p-4 rounded-xl text-left transition-all ${
       selected
-        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-        : 'bg-slate-800 hover:bg-slate-700 text-white'
+        ? 'bg-emerald-500 text-white ring-2 ring-emerald-300'
+        : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm text-slate-800'
     }`}
   >
     <div className="flex items-start gap-3">
-      <span className="text-2xl">{TEMPLATE_ICONS[template.template_key] || '📄'}</span>
+      <span className={`${selected ? 'text-white' : 'text-slate-500'}`}>
+        {TEMPLATE_ICONS[template.template_key] || <Mail size={20} />}
+      </span>
       <div className="flex-1 min-w-0">
         <h3 className="font-semibold truncate">{template.name}</h3>
-        <p className={`text-sm truncate ${selected ? 'text-emerald-100' : 'text-slate-400'}`}>
+        <p className={`text-sm truncate ${selected ? 'text-emerald-100' : 'text-slate-500'}`}>
           {template.description || 'No description'}
         </p>
         <div className="flex items-center gap-2 mt-2">
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
             template.is_active
-              ? selected ? 'bg-emerald-500 text-white' : 'bg-emerald-500/20 text-emerald-400'
-              : selected ? 'bg-slate-500 text-white' : 'bg-slate-600 text-slate-400'
+              ? selected ? 'bg-emerald-400/30 text-white' : 'bg-emerald-100 text-emerald-700'
+              : selected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
           }`}>
             {template.is_active ? 'Active' : 'Inactive'}
           </span>
@@ -68,7 +84,7 @@ const VariableChip: React.FC<{
 }> = ({ variable, onClick }) => (
   <button
     onClick={onClick}
-    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-mono text-emerald-400 transition-colors"
+    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-mono text-emerald-600 transition-colors"
     title={`Example: ${variable.example}`}
   >
     {`{{${variable.key}}}`}
@@ -232,7 +248,7 @@ const EmailTemplatesPage: React.FC = () => {
     return (
       <AdminPageWrapper>
         <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminPageWrapper>
     )
@@ -244,8 +260,8 @@ const EmailTemplatesPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Email Templates</h1>
-            <p className="text-slate-400 text-sm mt-1">Customize the emails sent to your customers</p>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Email Templates</h1>
+            <p className="text-slate-500 text-sm mt-1">Customize the emails sent to your customers</p>
           </div>
           <div className="flex items-center gap-3">
             <AnimatePresence>
@@ -256,8 +272,8 @@ const EmailTemplatesPage: React.FC = () => {
                   exit={{ opacity: 0, x: 10 }}
                   className={`text-sm font-medium ${
                     saveMessage.includes('Error') || saveMessage.includes('Failed')
-                      ? 'text-red-400'
-                      : 'text-emerald-400'
+                      ? 'text-red-600'
+                      : 'text-emerald-600'
                   }`}
                 >
                   {saveMessage}
@@ -268,18 +284,16 @@ const EmailTemplatesPage: React.FC = () => {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Save size={18} />
                     Save Changes
                   </>
                 )}
@@ -291,30 +305,48 @@ const EmailTemplatesPage: React.FC = () => {
         {/* Main content */}
         <div className="flex gap-6 flex-1 min-h-0">
           {/* Template list sidebar */}
-          <div className="w-64 flex-shrink-0 space-y-3 overflow-y-auto">
-            {templates.map(template => (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                selected={selectedTemplateKey === template.template_key}
-                onClick={() => setSelectedTemplateKey(template.template_key)}
-              />
-            ))}
+          <div className="w-64 flex-shrink-0 overflow-y-auto">
+            {/* Group templates by category */}
+            {Object.entries(CATEGORY_CONFIG)
+              .sort(([, a], [, b]) => a.order - b.order)
+              .map(([categoryKey, categoryConfig]) => {
+                const categoryTemplates = templates.filter(t => (t.category || 'general') === categoryKey)
+                if (categoryTemplates.length === 0) return null
+
+                return (
+                  <div key={categoryKey} className="mb-4">
+                    <div className="flex items-center gap-2 px-2 py-2 text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                      {categoryConfig.icon}
+                      <span>{categoryConfig.label}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {categoryTemplates.map(template => (
+                        <TemplateCard
+                          key={template.id}
+                          template={template}
+                          selected={selectedTemplateKey === template.template_key}
+                          onClick={() => setSelectedTemplateKey(template.template_key)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
           </div>
 
           {/* Editor area */}
           {selectedTemplate ? (
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-800 rounded-xl overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0 bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
               {/* Editor toolbar */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
                 <div className="flex items-center gap-4">
-                  <h2 className="font-semibold text-white">{selectedTemplate.name}</h2>
+                  <h2 className="font-semibold text-slate-800">{selectedTemplate.name}</h2>
                   <button
                     onClick={handleToggleActive}
                     className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                       selectedTemplate.is_active
-                        ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                        : 'bg-slate-600 text-slate-400 hover:bg-slate-500'
+                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {selectedTemplate.is_active ? 'Active' : 'Inactive'}
@@ -322,11 +354,11 @@ const EmailTemplatesPage: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Editor mode toggle */}
-                  <div className="flex bg-slate-700 rounded-lg p-1">
+                  <div className="flex bg-slate-100 rounded-lg p-1">
                     <button
                       onClick={() => setEditorMode('html')}
                       className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                        editorMode === 'html' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'
+                        editorMode === 'html' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
                       HTML
@@ -334,55 +366,52 @@ const EmailTemplatesPage: React.FC = () => {
                     <button
                       onClick={() => setEditorMode('preview')}
                       className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                        editorMode === 'preview' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'
+                        editorMode === 'preview' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}
                     >
                       Preview
                     </button>
                   </div>
                   {editorMode === 'preview' && (
-                    <div className="flex bg-slate-700 rounded-lg p-1">
+                    <div className="flex bg-slate-100 rounded-lg p-1">
                       <button
                         onClick={() => setPreviewMode('desktop')}
-                        className={`px-2 py-1 rounded transition-colors ${
-                          previewMode === 'desktop' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'
+                        className={`p-1 rounded transition-colors ${
+                          previewMode === 'desktop' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                         }`}
                         title="Desktop view"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+                        <Monitor size={20} />
                       </button>
                       <button
                         onClick={() => setPreviewMode('mobile')}
-                        className={`px-2 py-1 rounded transition-colors ${
-                          previewMode === 'mobile' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-white'
+                        className={`p-1 rounded transition-colors ${
+                          previewMode === 'mobile' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                         }`}
                         title="Mobile view"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
+                        <Smartphone size={20} />
                       </button>
                     </div>
                   )}
                   <button
                     onClick={() => setShowVersions(!showVersions)}
-                    className="px-3 py-1.5 text-slate-400 hover:text-white text-sm transition-colors"
+                    className="flex items-center gap-1 px-3 py-1.5 text-slate-500 hover:text-slate-700 text-sm transition-colors"
                   >
+                    <History size={16} />
                     History ({versions.length})
                   </button>
                 </div>
               </div>
 
               {/* Subject line */}
-              <div className="px-4 py-3 border-b border-slate-700">
-                <label className="block text-sm text-slate-400 mb-1">Subject Line</label>
+              <div className="px-4 py-3 border-b border-slate-200">
+                <label className="block text-sm text-slate-500 mb-1">Subject Line</label>
                 <input
                   type="text"
                   value={editedSubject}
                   onChange={(e) => setEditedSubject(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   placeholder="Email subject line..."
                 />
               </div>
@@ -397,16 +426,16 @@ const EmailTemplatesPage: React.FC = () => {
                         data-editor="html"
                         value={editedHtml}
                         onChange={(e) => setEditedHtml(e.target.value)}
-                        className="flex-1 w-full p-4 bg-slate-900 text-slate-300 font-mono text-sm resize-none focus:outline-none"
+                        className="flex-1 w-full p-4 bg-slate-50 text-slate-700 font-mono text-sm resize-none focus:outline-none"
                         placeholder="Enter HTML content..."
                         spellCheck={false}
                       />
                     </div>
 
                     {/* Variables sidebar */}
-                    <div className="w-64 border-l border-slate-700 overflow-y-auto p-4">
-                      <h3 className="text-sm font-semibold text-white mb-3">Variables</h3>
-                      <p className="text-xs text-slate-400 mb-4">Click to insert at cursor</p>
+                    <div className="w-64 border-l border-slate-200 overflow-y-auto p-4 bg-slate-50">
+                      <h3 className="text-sm font-semibold text-slate-800 mb-3">Variables</h3>
+                      <p className="text-xs text-slate-500 mb-4">Click to insert at cursor</p>
                       <div className="space-y-2">
                         {selectedTemplate.variables_schema?.map((v) => (
                           <VariableChip
@@ -417,13 +446,13 @@ const EmailTemplatesPage: React.FC = () => {
                         ))}
                       </div>
 
-                      <h4 className="text-sm font-semibold text-white mt-6 mb-3">Global Variables</h4>
+                      <h4 className="text-sm font-semibold text-slate-800 mt-6 mb-3">Global Variables</h4>
                       <div className="space-y-2">
                         {['business_name', 'business_email', 'business_address', 'current_year', 'footer_text'].map(key => (
                           <button
                             key={key}
                             onClick={() => insertVariable(key)}
-                            className="block w-full px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-mono text-blue-400 transition-colors text-left"
+                            className="block w-full px-3 py-1.5 bg-white hover:bg-slate-100 rounded-lg text-sm font-mono text-blue-600 transition-colors text-left border border-slate-200"
                           >
                             {`{{${key}}}`}
                           </button>
@@ -433,7 +462,7 @@ const EmailTemplatesPage: React.FC = () => {
                   </div>
                 ) : (
                   /* Preview mode */
-                  <div className="h-full overflow-y-auto p-6 bg-slate-700">
+                  <div className="h-full overflow-y-auto p-6 bg-slate-100">
                     <DeviceFrame mode={previewMode}>
                       <iframe
                         srcDoc={getPreviewHtml()}
@@ -447,31 +476,29 @@ const EmailTemplatesPage: React.FC = () => {
               </div>
 
               {/* Test email bar */}
-              <div className="px-4 py-3 border-t border-slate-700 bg-slate-800/50">
+              <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-400">Send test to:</span>
+                  <span className="text-sm text-slate-500">Send test to:</span>
                   <input
                     type="email"
                     value={testEmailAddress}
                     onChange={(e) => setTestEmailAddress(e.target.value)}
                     placeholder="your@email.com"
-                    className="flex-1 max-w-xs px-3 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="flex-1 max-w-xs px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                   <button
                     onClick={handleSendTest}
                     disabled={!testEmailAddress || sendingTest}
-                    className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sendingTest ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Sending...
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
+                        <Send size={16} />
                         Send Test
                       </>
                     )}
@@ -480,8 +507,8 @@ const EmailTemplatesPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-slate-800 rounded-xl">
-              <p className="text-slate-400">Select a template to edit</p>
+            <div className="flex-1 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-200/60">
+              <p className="text-slate-500">Select a template to edit</p>
             </div>
           )}
         </div>
@@ -501,36 +528,34 @@ const EmailTemplatesPage: React.FC = () => {
                 animate={{ scale: 1 }}
                 exit={{ scale: 0.95 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-slate-800 rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col shadow-xl"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-white">Version History</h2>
+                  <h2 className="text-xl font-bold text-slate-800">Version History</h2>
                   <button
                     onClick={() => setShowVersions(false)}
-                    className="p-2 text-slate-400 hover:text-white transition-colors"
+                    className="p-2 text-slate-400 hover:text-slate-700 transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={20} />
                   </button>
                 </div>
                 <div className="overflow-y-auto flex-1">
                   {versions.length === 0 ? (
-                    <p className="text-slate-400 text-center py-8">No previous versions</p>
+                    <p className="text-slate-500 text-center py-8">No previous versions</p>
                   ) : (
                     <div className="space-y-3">
                       {versions.map((version) => (
                         <div
                           key={version.id}
-                          className="p-4 bg-slate-700 rounded-lg"
+                          className="p-4 bg-slate-50 rounded-xl border border-slate-200"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-medium text-white">Version {version.version_number}</span>
-                            <span className="text-sm text-slate-400">
+                            <span className="font-medium text-slate-800">Version {version.version_number}</span>
+                            <span className="text-sm text-slate-500">
                               {new Date(version.created_at).toLocaleDateString()}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-400 mt-1 truncate">
+                          <p className="text-sm text-slate-500 mt-1 truncate">
                             Subject: {version.subject_line}
                           </p>
                           <button
@@ -541,7 +566,7 @@ const EmailTemplatesPage: React.FC = () => {
                               setSaveMessage('Version restored - click Save to apply')
                               setTimeout(() => setSaveMessage(null), 5000)
                             }}
-                            className="mt-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                            className="mt-2 text-sm text-emerald-600 hover:text-emerald-700 transition-colors font-medium"
                           >
                             Restore this version
                           </button>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { LogOut, Menu } from 'lucide-react';
 
 interface AdminHeaderProps {
   title: string;
@@ -8,34 +9,20 @@ interface AdminHeaderProps {
 
 const AdminHeader: React.FC<AdminHeaderProps> = ({ title, onMenuClick, onLogout }) => {
   return (
-    <header className="h-16 bg-slate-800 border-b border-slate-700 flex items-center px-4 flex-shrink-0">
+    <header className="h-16 bg-white/70 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-6 flex-shrink-0 sticky top-0 z-10 font-admin-body">
       {/* Left side - hamburger and title */}
       <div className="flex items-center gap-4">
         {/* Hamburger menu button */}
         <button
           onClick={onMenuClick}
-          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+          className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
           aria-label="Toggle sidebar"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
+          <Menu size={22} />
         </button>
 
         {/* Page title */}
-        <h1 className="text-white font-semibold text-lg">{title}</h1>
+        <h1 className="text-slate-800 font-semibold text-lg font-admin-display">{title}</h1>
       </div>
 
       {/* Right side - logout button */}
@@ -43,23 +30,9 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ title, onMenuClick, onLogout 
         {onLogout && (
           <button
             onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" x2="9" y1="12" y2="12" />
-            </svg>
+            <LogOut size={18} />
             <span className="text-sm font-medium">Logout</span>
           </button>
         )}

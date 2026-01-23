@@ -11,6 +11,19 @@ import {
   OrderStatus,
 } from '../hooks/useOrders';
 import { useAdminAuth } from '../hooks/useAdminAuth';
+import { useShipmentManagement } from '../hooks/useShipmentManagement';
+import { useTrackingEvents, formatTrackingDate as formatTrackingEventDate } from '../../hooks/useTracking';
+import { supabase } from '../../lib/supabase';
+
+// Helper to format pickup time
+const formatPickupTime = (timeStr: string): string => {
+  if (!timeStr) return '';
+  const [hours, minutes] = timeStr.split(':');
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const displayHour = h % 12 || 12;
+  return `${displayHour}:${minutes} ${ampm}`;
+};
 
 interface OrderDetailPageProps {
   orderId: string;
@@ -27,6 +40,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
   const { updateStatus, loading: updatingStatus } = useUpdateOrderStatus();
   const { addNote, loading: addingNote } = useAddOrderNote();
   const { cancelOrder, loading: cancellingOrder } = useCancelOrder();
+  const {
+    shipment,
+    loading: shipmentLoading,
+    error: shipmentError,
+    createLabel,
+    voidLabel,
+    canCreateLabel,
+    canVoidLabel
+  } = useShipmentManagement(orderId);
+
+  // Tracking events (from shipment)
+  const {
+    events: trackingEvents,
+    loading: trackingEventsLoading,
+    refetch: refetchTrackingEvents
+  } = useTrackingEvents(shipment?.id || null);
 
   // Local state
   const [newStatus, setNewStatus] = useState<string>('');
@@ -34,6 +63,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
   const [newNote, setNewNote] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [creatingLabel, setCreatingLabel] = useState(false);
+  const [voidingLabel, setVoidingLabel] = useState(false);
+  const [labelError, setLabelError] = useState<string | null>(null);
+  const [markingPickedUp, setMarkingPickedUp] = useState(false);
 
   // Format date
   const formatDate = (dateString: string, includeTime = false) => {
@@ -127,6 +160,96 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
   // Print order
   const handlePrint = () => {
     window.print();
+  };
+
+  // Handle create label
+  const handleCreateLabel = async () => {
+    setCreatingLabel(true);
+    setLabelError(null);
+
+    const result = await createLabel();
+
+    if (!result.success) {
+      setLabelError(result.error?.message || 'Failed to create label');
+    }
+
+    setCreatingLabel(false);
+  };
+
+  // Handle void label
+  const handleVoidLabel = async () => {
+    if (!shipment?.label_id) return;
+
+    setVoidingLabel(true);
+    setLabelError(null);
+
+    const result = await voidLabel(shipment.label_id);
+
+    if (!result.success) {
+      setLabelError(result.error?.message || 'Failed to void label');
+    }
+
+    setVoidingLabel(false);
+  };
+
+  // Handle download label
+  const handleDownloadLabel = () => {
+    if (shipment?.label_url) {
+      window.open(shipment.label_url, '_blank');
+    }
+  };
+
+  // Handle mark pickup as picked up
+  const handleMarkPickedUp = async () => {
+    if (!order?.pickup_reservation?.id) return;
+
+    setMarkingPickedUp(true);
+
+    try {
+      // Update the pickup reservation status
+      const { error: reservationError } = await supabase
+        .from('pickup_reservations')
+        .update({ status: 'picked_up' })
+        .eq('id', order.pickup_reservation.id);
+
+      if (reservationError) throw reservationError;
+
+      // Also update the order status to delivered
+      await updateStatus(order.id, 'delivered', 'Marked as picked up', adminUser?.id);
+
+      refetch();
+    } catch (err: any) {
+      console.error('Error marking as picked up:', err);
+    } finally {
+      setMarkingPickedUp(false);
+    }
+  };
+
+  // Get label status badge
+  const getLabelStatusBadge = () => {
+    if (!shipment) return null;
+
+    if (shipment.voided) {
+      return (
+        <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full font-medium">
+          Voided
+        </span>
+      );
+    }
+
+    if (shipment.label_id) {
+      return (
+        <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-0.5 rounded-full font-medium">
+          Label Created
+        </span>
+      );
+    }
+
+    return (
+      <span className="bg-slate-500/20 text-slate-400 text-xs px-2 py-0.5 rounded-full font-medium">
+        Pending
+      </span>
+    );
   };
 
   // Export order (placeholder)
@@ -405,7 +528,69 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
               </div>
             </div>
 
-            {/* Shipping Address Card */}
+            {/* Pickup Location Card (for pickup orders) */}
+            {order.is_pickup && order.pickup_reservation && (
+              <div className="bg-slate-800 rounded-lg print:bg-white print:border print:border-slate-200">
+                <div className="px-6 py-4 border-b border-slate-700 print:border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-white print:text-slate-900">Pickup Location</h2>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      order.pickup_reservation.status === 'picked_up' ? 'bg-emerald-500/20 text-emerald-400' :
+                      order.pickup_reservation.status === 'missed' ? 'bg-red-500/20 text-red-400' :
+                      order.pickup_reservation.status === 'cancelled' ? 'bg-slate-500/20 text-slate-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>
+                      {order.pickup_reservation.status === 'picked_up' ? 'Picked Up' :
+                       order.pickup_reservation.status === 'missed' ? 'Missed' :
+                       order.pickup_reservation.status === 'cancelled' ? 'Cancelled' :
+                       'Scheduled'}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <p className="font-medium text-white print:text-slate-900">{order.pickup_reservation.location.name}</p>
+                    <address className="text-slate-300 print:text-slate-600 not-italic leading-relaxed mt-1">
+                      <p>{order.pickup_reservation.location.address_line1}</p>
+                      {order.pickup_reservation.location.address_line2 && (
+                        <p>{order.pickup_reservation.location.address_line2}</p>
+                      )}
+                      <p>
+                        {order.pickup_reservation.location.city}, {order.pickup_reservation.location.state} {order.pickup_reservation.location.postal_code}
+                      </p>
+                    </address>
+                    {order.pickup_reservation.location.phone && (
+                      <p className="text-slate-400 text-sm mt-2">{order.pickup_reservation.location.phone}</p>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-700 pt-4">
+                    <p className="text-slate-500 text-sm">Pickup Date & Time</p>
+                    <p className="text-white font-medium">
+                      {new Date(order.pickup_reservation.pickup_date + 'T00:00:00').toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </p>
+                    <p className="text-slate-300">
+                      {formatPickupTime(order.pickup_reservation.pickup_time_start)} - {formatPickupTime(order.pickup_reservation.pickup_time_end)}
+                    </p>
+                  </div>
+
+                  {order.pickup_reservation.location.instructions && (
+                    <div className="border-t border-slate-700 pt-4">
+                      <p className="text-slate-500 text-sm">Pickup Instructions</p>
+                      <p className="text-slate-300 text-sm mt-1">{order.pickup_reservation.location.instructions}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Shipping Address Card (for non-pickup orders) */}
+            {!order.is_pickup && (
             <div className="bg-slate-800 rounded-lg print:bg-white print:border print:border-slate-200">
               <div className="px-6 py-4 border-b border-slate-700 print:border-slate-200">
                 <h2 className="text-lg font-semibold text-white print:text-slate-900">Shipping Address</h2>
@@ -425,47 +610,212 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
                 )}
               </div>
             </div>
+            )}
 
-            {/* Shipping Info Card */}
+            {/* Delivery Info Card */}
             <div className="bg-slate-800 rounded-lg print:bg-white print:border print:border-slate-200">
               <div className="px-6 py-4 border-b border-slate-700 print:border-slate-200">
-                <h2 className="text-lg font-semibold text-white print:text-slate-900">Shipping Info</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white print:text-slate-900">
+                    {order.is_pickup ? 'Pickup Info' : 'Shipping Info'}
+                  </h2>
+                  {!order.is_pickup && getLabelStatusBadge()}
+                  {order.is_pickup && (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400">
+                      Local Pickup
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="p-6 space-y-3">
                 <div>
-                  <p className="text-slate-500 text-sm">Method</p>
+                  <p className="text-slate-500 text-sm">Delivery Method</p>
                   <p className="text-slate-300 print:text-slate-600">
-                    {order.shipping_method || 'Standard Shipping'}
+                    {order.is_pickup ? 'Local Pickup' : (order.shipping_method_name || order.shipping_method || 'Standard Shipping')}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-500 text-sm">Cost</p>
+                  <p className="text-slate-500 text-sm">{order.is_pickup ? 'Pickup Fee' : 'Shipping Cost'}</p>
                   <p className="text-slate-300 print:text-slate-600">
-                    {formatCurrency(order.shipping_cost)}
+                    {order.is_pickup ? 'FREE' : formatCurrency(order.shipping_cost)}
                   </p>
                 </div>
-                {order.tracking_number && (
+                {(shipment?.tracking_number || order.tracking_number) && (
                   <div>
                     <p className="text-slate-500 text-sm">Tracking Number</p>
                     <a
-                      href={getTrackingUrl(order.tracking_number)}
+                      href={getTrackingUrl(shipment?.tracking_number || order.tracking_number)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-emerald-400 hover:text-emerald-300 font-mono text-sm"
                     >
-                      {order.tracking_number}
+                      {shipment?.tracking_number || order.tracking_number}
                       <svg className="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </a>
                   </div>
                 )}
-                {order.estimated_delivery && (
+                {shipment?.tracking_status && (
+                  <div>
+                    <p className="text-slate-500 text-sm">Tracking Status</p>
+                    <p className="text-slate-300 print:text-slate-600">
+                      {shipment.tracking_status_description || shipment.tracking_status}
+                    </p>
+                  </div>
+                )}
+                {(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery) && (
                   <div>
                     <p className="text-slate-500 text-sm">Estimated Delivery</p>
                     <p className="text-slate-300 print:text-slate-600">
-                      {formatDate(order.estimated_delivery)}
+                      {formatDate(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery)}
                     </p>
+                  </div>
+                )}
+                {shipment?.shipment_cost && (
+                  <div>
+                    <p className="text-slate-500 text-sm">Label Cost</p>
+                    <p className="text-slate-300 print:text-slate-600">
+                      {formatCurrency(shipment.shipment_cost)}
+                    </p>
+                  </div>
+                )}
+                {shipment?.carrier_code && (
+                  <div>
+                    <p className="text-slate-500 text-sm">Carrier</p>
+                    <p className="text-slate-300 print:text-slate-600 capitalize">
+                      {shipment.carrier_code.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Label Error */}
+                {labelError && (
+                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm print:hidden">
+                    {labelError}
+                  </div>
+                )}
+
+                {/* Label Actions */}
+                <div className="pt-3 space-y-2 print:hidden">
+                  {canCreateLabel && order.status !== 'cancelled' && (
+                    <button
+                      onClick={handleCreateLabel}
+                      disabled={creatingLabel || shipmentLoading}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {creatingLabel ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Creating Label...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                          Create Shipping Label
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {shipment?.label_url && !shipment.voided && (
+                    <button
+                      onClick={handleDownloadLabel}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download Label
+                    </button>
+                  )}
+
+                  {canVoidLabel && (
+                    <button
+                      onClick={handleVoidLabel}
+                      disabled={voidingLabel || shipmentLoading}
+                      className="w-full flex items-center justify-center gap-2 py-2 bg-red-600/20 text-red-400 border border-red-600/50 rounded-lg hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {voidingLabel ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Voiding Label...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                          </svg>
+                          Void Label
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Tracking Timeline */}
+                {shipment?.tracking_number && (
+                  <div className="pt-4 border-t border-slate-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-medium text-slate-400">Tracking History</h3>
+                      <button
+                        onClick={() => refetchTrackingEvents()}
+                        disabled={trackingEventsLoading}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                      >
+                        {trackingEventsLoading ? 'Loading...' : 'Refresh'}
+                      </button>
+                    </div>
+
+                    {trackingEvents.length > 0 ? (
+                      <div className="relative max-h-64 overflow-y-auto pr-2">
+                        {/* Timeline line */}
+                        <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-slate-700"></div>
+
+                        <div className="space-y-3">
+                          {trackingEvents.map((event, index) => (
+                            <div key={index} className="relative pl-6">
+                              {/* Timeline dot */}
+                              <div className={`absolute left-0 w-4 h-4 rounded-full flex items-center justify-center ${
+                                index === 0 ? 'bg-emerald-500' : 'bg-slate-600'
+                              }`}>
+                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+                              </div>
+
+                              <div className="bg-slate-900/50 rounded-lg p-3">
+                                <p className={`text-sm font-medium ${index === 0 ? 'text-white' : 'text-slate-300'}`}>
+                                  {event.description}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-500">
+                                  <span>{formatTrackingEventDate(event.occurred_at)}</span>
+                                  {(event.city_locality || event.state_province) && (
+                                    <>
+                                      <span className="text-slate-700">•</span>
+                                      <span>
+                                        {[event.city_locality, event.state_province].filter(Boolean).join(', ')}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-slate-500 text-sm">
+                        <p>No tracking events yet.</p>
+                        <p className="text-xs mt-1">Events will appear here as the carrier updates tracking.</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -541,6 +891,34 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack }) =>
                     {updatingStatus ? 'Updating...' : 'Update Status'}
                   </button>
                 </div>
+
+                {/* Mark as Picked Up (for pickup orders) */}
+                {order.is_pickup && order.pickup_reservation?.status === 'scheduled' && order.status !== 'cancelled' && (
+                  <div className="border-t border-slate-700 pt-4">
+                    <button
+                      onClick={handleMarkPickedUp}
+                      disabled={markingPickedUp}
+                      className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    >
+                      {markingPickedUp ? (
+                        <>
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Mark as Picked Up
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 {/* Divider */}
                 <div className="border-t border-slate-700 pt-4">

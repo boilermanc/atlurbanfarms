@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { Plus, GripVertical, FolderOpen, Edit2, Trash2, Upload, X } from 'lucide-react';
 
 interface Category {
   id: string;
@@ -57,7 +58,6 @@ const CategoriesPage: React.FC = () => {
 
       if (catError) throw catError;
 
-      // Get product counts for each category
       const { data: countData, error: countError } = await supabase
         .from('products')
         .select('category_id');
@@ -271,32 +271,32 @@ const CategoriesPage: React.FC = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Categories</h1>
-            <p className="text-slate-400 text-sm mt-1">Drag to reorder. Click to edit.</p>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Categories</h1>
+            <p className="text-slate-500 text-sm mt-1">Drag to reorder. Click to edit.</p>
           </div>
-          <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors">
+            <Plus size={20} />
             Add Category
           </button>
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">{error}</div>}
+        {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">{error}</div>}
 
-        <div className="bg-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : categories.length === 0 ? (
             <div className="text-center py-16">
-              <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FolderOpen size={32} className="text-slate-400" />
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">No categories yet</h3>
-              <p className="text-slate-400">Get started by adding your first category</p>
+              <h3 className="text-lg font-medium text-slate-800 mb-2">No categories yet</h3>
+              <p className="text-slate-500">Get started by adding your first category</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-700">
+            <div className="divide-y divide-slate-100">
               {categories.map((category) => (
                 <div
                   key={category.id}
@@ -304,59 +304,53 @@ const CategoriesPage: React.FC = () => {
                   onDragStart={(e) => handleDragStart(e, category)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, category)}
-                  className={`p-4 hover:bg-slate-700/30 transition-colors ${draggedItem?.id === category.id ? 'opacity-50' : ''}`}
+                  className={`p-4 hover:bg-slate-50 transition-colors ${draggedItem?.id === category.id ? 'opacity-50' : ''}`}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Drag Handle */}
-                    <div className="text-slate-500 cursor-grab active:cursor-grabbing">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                    <div className="text-slate-400 cursor-grab active:cursor-grabbing">
+                      <GripVertical size={20} />
                     </div>
 
-                    {/* Image */}
-                    <div className="w-12 h-12 bg-slate-700 rounded-lg overflow-hidden flex-shrink-0">
+                    <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
                       {category.image_url ? (
                         <img src={category.image_url} alt={category.name} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-500">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                        <div className="w-full h-full flex items-center justify-center text-slate-400">
+                          <FolderOpen size={20} />
                         </div>
                       )}
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-white font-medium">{category.name}</p>
-                        <span className="text-slate-500 text-sm">/{category.slug}</span>
+                        <p className="text-slate-800 font-medium">{category.name}</p>
+                        <span className="text-slate-400 text-sm">/{category.slug}</span>
                       </div>
-                      <p className="text-slate-400 text-sm">{category.product_count || 0} products</p>
+                      <p className="text-slate-500 text-sm">{category.product_count || 0} products</p>
                     </div>
 
-                    {/* Status */}
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${category.is_active ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-600/50 text-slate-400'}`}>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${category.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                       {category.is_active ? 'Active' : 'Inactive'}
                     </span>
 
-                    {/* Toggle */}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleToggleActive(category); }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${category.is_active ? 'bg-emerald-600' : 'bg-slate-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${category.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${category.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${category.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
 
-                    {/* Actions */}
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openModal(category)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+                      <button onClick={() => openModal(category)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
+                        <Edit2 size={18} />
                       </button>
                       <button
                         onClick={() => setDeleteModalCategory(category)}
                         disabled={(category.product_count || 0) > 0}
-                        className={`p-2 rounded-lg transition-colors ${(category.product_count || 0) > 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-red-400 hover:bg-red-500/10'}`}
+                        className={`p-2 rounded-xl transition-colors ${(category.product_count || 0) > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600 hover:bg-red-50'}`}
                         title={(category.product_count || 0) > 0 ? 'Cannot delete category with products' : 'Delete'}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </div>
@@ -367,43 +361,43 @@ const CategoriesPage: React.FC = () => {
         </div>
 
         {categories.length > 0 && (
-          <p className="text-sm text-slate-400">{categories.length} categories total</p>
+          <p className="text-sm text-slate-500">{categories.length} categories total</p>
         )}
       </div>
 
       {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-white mb-4">{editingCategory ? 'Edit Category' : 'Add Category'}</h3>
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">{editingCategory ? 'Edit Category' : 'Add Category'}</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Name *</label>
-                <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Name *</label>
+                <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Slug</label>
-                <input type="text" name="slug" value={formData.slug} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Slug</label>
+                <input type="text" name="slug" value={formData.slug} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
-                <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Description</label>
+                <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Image</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Image</label>
                 <div className="flex items-center gap-4">
                   {formData.image_url ? (
-                    <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden">
                       <img src={formData.image_url} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))} className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-lg">
+                        <X size={12} />
                       </button>
                     </div>
                   ) : (
                     <div className="flex-1">
                       <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="category-image" disabled={uploading} />
-                      <label htmlFor="category-image" className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-600 rounded-lg text-slate-300 hover:text-white hover:border-slate-500 cursor-pointer transition-colors">
-                        {uploading ? <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>}
+                      <label htmlFor="category-image" className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:text-slate-800 hover:border-slate-300 cursor-pointer transition-colors">
+                        {uploading ? <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <Upload size={18} />}
                         Upload Image
                       </label>
                     </div>
@@ -411,13 +405,13 @@ const CategoriesPage: React.FC = () => {
                 </div>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleChange} className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500/50" />
-                <span className="text-slate-300">Active</span>
+                <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
+                <span className="text-slate-700">Active</span>
               </label>
-              {error && <div className="text-red-400 text-sm">{error}</div>}
+              {error && <div className="text-red-600 text-sm">{error}</div>}
               <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={closeModal} disabled={saving} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2">
+                <button type="button" onClick={closeModal} disabled={saving} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
                   {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                   {editingCategory ? 'Save Changes' : 'Create Category'}
                 </button>
@@ -430,12 +424,12 @@ const CategoriesPage: React.FC = () => {
       {/* Delete Modal */}
       {deleteModalCategory && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-white mb-2">Delete Category</h3>
-            <p className="text-slate-400 mb-6">Are you sure you want to delete <strong className="text-white">{deleteModalCategory.name}</strong>?</p>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Category</h3>
+            <p className="text-slate-600 mb-6">Are you sure you want to delete <strong className="text-slate-800">{deleteModalCategory.name}</strong>?</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteModalCategory(null)} disabled={deleting} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2">
+              <button onClick={() => setDeleteModalCategory(null)} disabled={deleting} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
                 {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}Delete
               </button>
             </div>

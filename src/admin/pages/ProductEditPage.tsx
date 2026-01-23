@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { ArrowLeft, Upload, Trash2, Star } from 'lucide-react';
 
 interface Category {
   id: string;
@@ -302,88 +303,88 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
       <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
         <div className="flex items-center justify-between">
           <div>
-            <button type="button" onClick={() => onNavigate('products')} className="text-slate-400 hover:text-white mb-2 flex items-center gap-1 text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>
+            <button type="button" onClick={() => onNavigate('products')} className="text-slate-500 hover:text-slate-700 mb-2 flex items-center gap-1 text-sm transition-colors">
+              <ArrowLeft size={16} />
               Back to Products
             </button>
-            <h1 className="text-2xl font-bold text-white">{isEditMode ? 'Edit Product' : 'Add Product'}</h1>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">{isEditMode ? 'Edit Product' : 'Add Product'}</h1>
           </div>
           <div className="flex items-center gap-3">
             {isEditMode && (
-              <button type="button" onClick={() => setDeleteModalOpen(true)} className="px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors">Delete</button>
+              <button type="button" onClick={() => setDeleteModalOpen(true)} className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors">Delete</button>
             )}
-            <button type="button" onClick={() => onNavigate('products')} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2">
+            <button type="button" onClick={() => onNavigate('products')} className="px-4 py-2 text-slate-600 hover:text-slate-800">Cancel</button>
+            <button type="submit" disabled={saving} className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
               {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {isEditMode ? 'Save Changes' : 'Create Product'}
             </button>
           </div>
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">{error}</div>}
+        {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">{error}</div>}
 
         {/* Basic Info */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Basic Info</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Basic Info</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Name *</label>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Name *</label>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Slug</label>
-              <input type="text" name="slug" value={formData.slug} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Slug</label>
+              <input type="text" name="slug" value={formData.slug} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-1">Short Description</label>
-              <input type="text" name="short_description" value={formData.short_description} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Short Description</label>
+              <input type="text" name="short_description" value={formData.short_description} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-1">Full Description</label>
-              <textarea name="description" value={formData.description} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Full Description</label>
+              <textarea name="description" value={formData.description} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Category</label>
-              <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
+              <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
                 <option value="">Select category</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Price *</label>
-                <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Price *</label>
+                <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Compare at Price</label>
-                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Compare at Price</label>
+                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Growing Info */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Growing Info</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Growing Info</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-1">Growing Instructions</label>
-              <textarea name="growing_instructions" value={formData.growing_instructions} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Growing Instructions</label>
+              <textarea name="growing_instructions" value={formData.growing_instructions} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Days to Maturity</label>
-              <input type="number" name="days_to_maturity" value={formData.days_to_maturity} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+              <label className="block text-sm font-medium text-slate-600 mb-1">Days to Maturity</label>
+              <input type="number" name="days_to_maturity" value={formData.days_to_maturity} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Sun Requirements</label>
-              <select name="sun_requirements" value={formData.sun_requirements} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              <label className="block text-sm font-medium text-slate-600 mb-1">Sun Requirements</label>
+              <select name="sun_requirements" value={formData.sun_requirements} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
                 <option value="">Select</option>
                 {SUN_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Water Requirements</label>
-              <select name="water_requirements" value={formData.water_requirements} onChange={handleChange} className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              <label className="block text-sm font-medium text-slate-600 mb-1">Water Requirements</label>
+              <select name="water_requirements" value={formData.water_requirements} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all">
                 <option value="">Select</option>
                 {WATER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
@@ -392,22 +393,22 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         </div>
 
         {/* Inventory */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Inventory</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Inventory</h2>
           <div className="space-y-4">
             <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" name="track_inventory" checked={formData.track_inventory} onChange={handleChange} className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500/50" />
-              <span className="text-slate-300">Track inventory</span>
+              <input type="checkbox" name="track_inventory" checked={formData.track_inventory} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
+              <span className="text-slate-700">Track inventory</span>
             </label>
             {formData.track_inventory && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Quantity Available</label>
-                  <input type="number" name="quantity_available" value={formData.quantity_available} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Quantity Available</label>
+                  <input type="number" name="quantity_available" value={formData.quantity_available} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Low Stock Threshold</label>
-                  <input type="number" name="low_stock_threshold" value={formData.low_stock_threshold} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Low Stock Threshold</label>
+                  <input type="number" name="low_stock_threshold" value={formData.low_stock_threshold} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
                 </div>
               </div>
             )}
@@ -415,37 +416,39 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         </div>
 
         {/* Images */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Images</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Images</h2>
           <div className="space-y-4">
-            <div className="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center hover:border-emerald-500/50 transition-colors">
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:border-emerald-500/50 transition-colors">
               <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" id="image-upload" disabled={uploading} />
               <label htmlFor="image-upload" className="cursor-pointer">
-                <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   {uploading ? (
                     <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <Upload size={24} className="text-slate-400" />
                   )}
                 </div>
-                <p className="text-slate-300 font-medium">Click to upload or drag and drop</p>
-                <p className="text-slate-500 text-sm mt-1">PNG, JPG up to 10MB</p>
+                <p className="text-slate-700 font-medium">Click to upload or drag and drop</p>
+                <p className="text-slate-400 text-sm mt-1">PNG, JPG up to 10MB</p>
               </label>
             </div>
             {images.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {images.map((img) => (
-                  <div key={img.id} className={`relative group rounded-lg overflow-hidden border-2 ${img.is_primary ? 'border-emerald-500' : 'border-transparent'}`}>
+                  <div key={img.id} className={`relative group rounded-xl overflow-hidden border-2 ${img.is_primary ? 'border-emerald-500' : 'border-transparent'}`}>
                     <img src={img.url} alt="" className="w-full aspect-square object-cover" />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       {!img.is_primary && (
-                        <button type="button" onClick={() => handleSetPrimary(img.id)} className="p-2 bg-emerald-600 text-white rounded-lg text-xs">Primary</button>
+                        <button type="button" onClick={() => handleSetPrimary(img.id)} className="p-2 bg-emerald-500 text-white rounded-lg text-xs flex items-center gap-1">
+                          <Star size={14} />
+                        </button>
                       )}
-                      <button type="button" onClick={() => handleDeleteImage(img.id)} className="p-2 bg-red-600 text-white rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                      <button type="button" onClick={() => handleDeleteImage(img.id)} className="p-2 bg-red-500 text-white rounded-lg">
+                        <Trash2 size={16} />
                       </button>
                     </div>
-                    {img.is_primary && <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-600 text-white text-xs rounded">Primary</span>}
+                    {img.is_primary && <span className="absolute top-2 left-2 px-2 py-0.5 bg-emerald-500 text-white text-xs rounded font-medium">Primary</span>}
                   </div>
                 ))}
               </div>
@@ -454,21 +457,21 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         </div>
 
         {/* Status */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Status</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Status</h2>
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleChange} className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500/50" />
+              <input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
               <div>
-                <span className="text-white font-medium">Active</span>
-                <p className="text-slate-400 text-sm">Product is visible in the store</p>
+                <span className="text-slate-800 font-medium">Active</span>
+                <p className="text-slate-500 text-sm">Product is visible in the store</p>
               </div>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" name="is_featured" checked={formData.is_featured} onChange={handleChange} className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500/50" />
+              <input type="checkbox" name="is_featured" checked={formData.is_featured} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
               <div>
-                <span className="text-white font-medium">Featured</span>
-                <p className="text-slate-400 text-sm">Show in featured sections</p>
+                <span className="text-slate-800 font-medium">Featured</span>
+                <p className="text-slate-500 text-sm">Show in featured sections</p>
               </div>
             </label>
           </div>
@@ -478,12 +481,12 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
       {/* Delete Modal */}
       {deleteModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-white mb-2">Delete Product</h3>
-            <p className="text-slate-400 mb-6">Are you sure you want to delete this product? This action cannot be undone.</p>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Product</h3>
+            <p className="text-slate-600 mb-6">Are you sure you want to delete this product? This action cannot be undone.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteModalOpen(false)} disabled={deleting} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2">
+              <button onClick={() => setDeleteModalOpen(false)} disabled={deleting} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2">
                 {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}Delete
               </button>
             </div>

@@ -4,6 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import LowStockAlert from '../components/LowStockAlert';
 import InventoryAdjustmentModal from '../components/InventoryAdjustmentModal';
 import { supabase } from '../../lib/supabase';
+import { Plus, Package, Edit2, PlusCircle } from 'lucide-react';
 import {
   ProductInventorySummary,
   InventoryBatch,
@@ -24,45 +25,52 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Data states
   const [productInventory, setProductInventory] = useState<ProductInventorySummary[]>([]);
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
   const [adjustments, setAdjustments] = useState<InventoryAdjustment[]>([]);
 
-  // Filter states
   const [statusFilter, setStatusFilter] = useState<BatchStatus | 'all'>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
-  // Modal state
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [selectedBatchForAdjustment, setSelectedBatchForAdjustment] = useState<InventoryBatch | null>(null);
 
-  // Fetch inventory by product
   const fetchProductInventory = async () => {
     try {
       const { data, error } = await supabase
         .from('inventory_by_product')
         .select('*')
-        .order('product_name');
+        .order('name');
 
       if (error) throw error;
-      setProductInventory(data || []);
+
+      // Map data to include backward-compatible field names used by the component
+      const mappedData = (data || []).map(item => ({
+        ...item,
+        product_id: item.id,
+        product_name: item.name,
+        total_available: item.quantity_available,
+        // These fields may not exist in the view - provide defaults
+        total_allocated: 0,
+        total_sold: 0,
+        batch_count: 0,
+        category: '',
+        is_low_stock: item.stock_status === 'low_stock',
+      }));
+
+      setProductInventory(mappedData);
     } catch (err) {
       console.error('Error fetching product inventory:', err);
       setError('Failed to load product inventory');
     }
   };
 
-  // Fetch all batches
   const fetchBatches = async () => {
     try {
       let query = supabase
         .from('inventory_batches')
-        .select(`
-          *,
-          products (name)
-        `)
+        .select(`*, products (name)`)
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -93,18 +101,11 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
     }
   };
 
-  // Fetch adjustments
   const fetchAdjustments = async () => {
     try {
       const { data, error } = await supabase
         .from('inventory_adjustments')
-        .select(`
-          *,
-          inventory_batches (
-            batch_number,
-            products (name)
-          )
-        `)
+        .select(`*, inventory_batches (batch_number, products (name))`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -122,7 +123,6 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
     }
   };
 
-  // Get unique products for filter dropdown
   const uniqueProducts = Array.from(
     new Set(batches.map((b) => JSON.stringify({ id: b.product_id, name: b.product_name })))
   ).map((str) => JSON.parse(str));
@@ -189,24 +189,25 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Inventory</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Inventory</h1>
+            <p className="text-slate-500 text-sm mt-1">Track stock levels and batch inventory</p>
+          </div>
           {activeTab === 'by-batch' && (
             <button
               onClick={handleAddBatch}
-              className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
             >
-              + Add Batch
+              <Plus size={20} />
+              Add Batch
             </button>
           )}
         </div>
 
-        {/* Low Stock Alert */}
         <LowStockAlert products={productInventory.filter((p) => p.is_low_stock)} />
 
-        {/* Tabs */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-slate-200">
           <nav className="flex gap-6">
             {tabs.map((tab) => (
               <button
@@ -219,15 +220,15 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                 }}
                 className={`relative pb-3 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'text-emerald-400'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-emerald-600'
+                    : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
                 {activeTab === tab.id && (
                   <motion.div
                     layoutId="activeTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
                     initial={false}
                   />
                 )}
@@ -236,17 +237,16 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
           </nav>
         </div>
 
-        {/* Selected Product Filter Badge */}
         {selectedProductId && activeTab === 'by-batch' && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">Showing batches for:</span>
-            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium flex items-center gap-2">
+            <span className="text-sm text-slate-500">Showing batches for:</span>
+            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium flex items-center gap-2">
               {batches.find((b) => b.product_id === selectedProductId)?.product_name ||
                 productInventory.find((p) => p.product_id === selectedProductId)?.product_name ||
                 'Selected Product'}
               <button
                 onClick={clearProductFilter}
-                className="hover:text-white transition-colors"
+                className="hover:text-emerald-900 transition-colors"
               >
                 ×
               </button>
@@ -254,21 +254,18 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
           </div>
         )}
 
-        {/* Error State */}
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700">
             {error}
           </div>
         )}
 
-        {/* Loading State */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <AnimatePresence mode="wait">
-            {/* By Product Tab */}
             {activeTab === 'by-product' && (
               <motion.div
                 key="by-product"
@@ -277,35 +274,26 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="bg-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                   <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Available
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Allocated
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Sold
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Batches
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Status
-                        </th>
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Available</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Allocated</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Sold</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Batches</th>
+                        <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {productInventory.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                            No inventory data available
+                          <td colSpan={6} className="px-6 py-12 text-center">
+                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Package size={32} className="text-slate-400" />
+                            </div>
+                            <p className="text-slate-500">No inventory data available</p>
                           </td>
                         </tr>
                       ) : (
@@ -313,40 +301,32 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                           <tr
                             key={product.product_id}
                             onClick={() => handleProductRowClick(product.product_id)}
-                            className="hover:bg-slate-700/50 cursor-pointer transition-colors"
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
                           >
                             <td className="px-6 py-4">
                               <div>
-                                <p className="text-white font-medium">{product.product_name}</p>
-                                <p className="text-sm text-slate-400">{product.category}</p>
+                                <p className="text-slate-800 font-medium">{product.product_name}</p>
+                                <p className="text-sm text-slate-500">{product.category}</p>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-right text-white">
-                              {product.total_available}
-                            </td>
-                            <td className="px-6 py-4 text-right text-slate-300">
-                              {product.total_allocated}
-                            </td>
-                            <td className="px-6 py-4 text-right text-slate-300">
-                              {product.total_sold}
-                            </td>
-                            <td className="px-6 py-4 text-right text-slate-300">
-                              {product.batch_count}
-                            </td>
+                            <td className="px-6 py-4 text-right text-slate-800 font-semibold">{product.total_available}</td>
+                            <td className="px-6 py-4 text-right text-slate-600">{product.total_allocated}</td>
+                            <td className="px-6 py-4 text-right text-slate-600">{product.total_sold}</td>
+                            <td className="px-6 py-4 text-right text-slate-600">{product.batch_count}</td>
                             <td className="px-6 py-4 text-center">
                               {product.total_available === 0 ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-medium">
-                                  <span className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold border border-red-200">
+                                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
                                   Out of Stock
                                 </span>
                               ) : product.is_low_stock ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
-                                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold border border-amber-200">
+                                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
                                   Low Stock
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-xs font-medium">
-                                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-200">
+                                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
                                   In Stock
                                 </span>
                               )}
@@ -360,7 +340,6 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
               </motion.div>
             )}
 
-            {/* By Batch Tab */}
             {activeTab === 'by-batch' && (
               <motion.div
                 key="by-batch"
@@ -370,88 +349,59 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                {/* Filters */}
                 {!selectedProductId && (
                   <div className="flex gap-4">
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value as BatchStatus | 'all')}
-                      className="px-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     >
                       <option value="all">All Statuses</option>
                       {Object.entries(BATCH_STATUS_CONFIG).map(([status, config]) => (
-                        <option key={status} value={status}>
-                          {config.label}
-                        </option>
+                        <option key={status} value={status}>{config.label}</option>
                       ))}
                     </select>
 
                     <select
                       value={productFilter}
                       onChange={(e) => setProductFilter(e.target.value)}
-                      className="px-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     >
                       <option value="all">All Products</option>
                       {uniqueProducts.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name}
-                        </option>
+                        <option key={product.id} value={product.id}>{product.name}</option>
                       ))}
                     </select>
                   </div>
                 )}
 
-                <div className="bg-slate-800 rounded-xl overflow-hidden overflow-x-auto">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden overflow-x-auto">
                   <table className="w-full min-w-[900px]">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Batch #
-                        </th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Seeded
-                        </th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Ready
-                        </th>
-                        <th className="px-4 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Seeded
-                        </th>
-                        <th className="px-4 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Expected
-                        </th>
-                        <th className="px-4 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Actual
-                        </th>
-                        <th className="px-4 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Available
-                        </th>
-                        <th className="px-4 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Allocated
-                        </th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Actions
-                        </th>
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch #</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Seeded</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Ready</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Seeded</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Expected</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actual</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Available</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Allocated</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {batches.length === 0 ? (
                         <tr>
                           <td colSpan={11} className="px-6 py-12 text-center">
                             <div className="flex flex-col items-center gap-4">
-                              <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center">
-                                <svg className="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                </svg>
+                              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+                                <Package size={32} className="text-slate-400" />
                               </div>
                               <div>
-                                <p className="text-slate-300 font-medium">
+                                <p className="text-slate-700 font-medium">
                                   {selectedProductId ? 'No batches for this product yet' : 'No batches found'}
                                 </p>
                                 <p className="text-slate-500 text-sm mt-1">
@@ -462,7 +412,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                               </div>
                               <button
                                 onClick={handleAddBatch}
-                                className="mt-2 px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                                className="mt-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
                               >
                                 + Add First Batch
                               </button>
@@ -471,85 +421,36 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                         </tr>
                       ) : (
                         batches.map((batch) => (
-                          <tr
-                            key={batch.id}
-                            className="hover:bg-slate-700/50 transition-colors"
-                          >
-                            <td className="px-4 py-4 text-white font-mono text-sm">
-                              {batch.batch_number}
-                            </td>
-                            <td className="px-4 py-4 text-white">
-                              {batch.product_name}
-                            </td>
+                          <tr key={batch.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-4 text-slate-800 font-mono text-sm">{batch.batch_number}</td>
+                            <td className="px-4 py-4 text-slate-800">{batch.product_name}</td>
                             <td className="px-4 py-4 text-center">
-                              <span
-                                className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white ${
-                                  BATCH_STATUS_CONFIG[batch.status]?.color || 'bg-slate-500'
-                                }`}
-                              >
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold text-white ${BATCH_STATUS_CONFIG[batch.status]?.color || 'bg-slate-500'}`}>
                                 {BATCH_STATUS_CONFIG[batch.status]?.label || batch.status}
                               </span>
                             </td>
-                            <td className="px-4 py-4 text-center text-slate-300 text-sm">
-                              {formatDate(batch.seeded_date)}
-                            </td>
-                            <td className="px-4 py-4 text-center text-slate-300 text-sm">
-                              {formatDate(batch.ready_date)}
-                            </td>
-                            <td className="px-4 py-4 text-right text-slate-300">
-                              {batch.quantity_seeded}
-                            </td>
-                            <td className="px-4 py-4 text-right text-slate-300">
-                              {batch.quantity_expected}
-                            </td>
-                            <td className="px-4 py-4 text-right text-slate-300">
-                              {batch.quantity_actual}
-                            </td>
-                            <td className="px-4 py-4 text-right text-white font-medium">
-                              {batch.quantity_available}
-                            </td>
-                            <td className="px-4 py-4 text-right text-slate-300">
-                              {batch.quantity_allocated}
-                            </td>
+                            <td className="px-4 py-4 text-center text-slate-600 text-sm">{formatDate(batch.seeded_date)}</td>
+                            <td className="px-4 py-4 text-center text-slate-600 text-sm">{formatDate(batch.ready_date)}</td>
+                            <td className="px-4 py-4 text-right text-slate-600">{batch.quantity_seeded}</td>
+                            <td className="px-4 py-4 text-right text-slate-600">{batch.quantity_expected}</td>
+                            <td className="px-4 py-4 text-right text-slate-600">{batch.quantity_actual}</td>
+                            <td className="px-4 py-4 text-right text-slate-800 font-semibold">{batch.quantity_available}</td>
+                            <td className="px-4 py-4 text-right text-slate-600">{batch.quantity_allocated}</td>
                             <td className="px-4 py-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => handleEditBatch(batch.id)}
-                                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-600 rounded transition-colors"
+                                  className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
                                   title="Edit batch"
                                 >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                    />
-                                  </svg>
+                                  <Edit2 size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleAdjustClick(batch)}
-                                  className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-600 rounded transition-colors"
+                                  className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors"
                                   title="Adjust inventory"
                                 >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                                    />
-                                  </svg>
+                                  <PlusCircle size={16} />
                                 </button>
                               </div>
                             </td>
@@ -562,7 +463,6 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
               </motion.div>
             )}
 
-            {/* Adjustments Tab */}
             {activeTab === 'adjustments' && (
               <motion.div
                 key="adjustments"
@@ -571,80 +471,49 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="bg-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                   <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Batch
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Quantity
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Reason
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Adjusted By
-                        </th>
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                        <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Quantity</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Reason</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Adjusted By</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {adjustments.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                             No adjustments recorded
                           </td>
                         </tr>
                       ) : (
                         adjustments.map((adj) => (
-                          <tr key={adj.id} className="hover:bg-slate-700/50 transition-colors">
-                            <td className="px-6 py-4 text-slate-300 text-sm">
+                          <tr key={adj.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 text-slate-600 text-sm">
                               {new Date(adj.created_at).toLocaleString()}
                             </td>
-                            <td className="px-6 py-4 text-white font-mono text-sm">
-                              {adj.batch_number}
-                            </td>
-                            <td className="px-6 py-4 text-white">
-                              {adj.product_name}
-                            </td>
+                            <td className="px-6 py-4 text-slate-800 font-mono text-sm">{adj.batch_number}</td>
+                            <td className="px-6 py-4 text-slate-800">{adj.product_name}</td>
                             <td className="px-6 py-4 text-center">
-                              <span
-                                className={`font-medium ${
-                                  ADJUSTMENT_TYPE_CONFIG[adj.adjustment_type]?.color || 'text-slate-400'
-                                }`}
-                              >
+                              <span className={`font-medium ${ADJUSTMENT_TYPE_CONFIG[adj.adjustment_type]?.color || 'text-slate-500'}`}>
                                 {ADJUSTMENT_TYPE_CONFIG[adj.adjustment_type]?.label || adj.adjustment_type}
                               </span>
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <span
-                                className={`font-medium ${
-                                  adj.quantity > 0 ? 'text-emerald-400' : 'text-red-400'
-                                }`}
-                              >
-                                {adj.quantity > 0 ? '+' : ''}
-                                {adj.quantity}
+                              <span className={`font-semibold ${adj.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {adj.quantity > 0 ? '+' : ''}{adj.quantity}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-slate-300 text-sm">
+                            <td className="px-6 py-4 text-slate-600 text-sm">
                               {adj.reason_code?.replace(/_/g, ' ')}
-                              {adj.notes && (
-                                <p className="text-xs text-slate-500 mt-1">{adj.notes}</p>
-                              )}
+                              {adj.notes && <p className="text-xs text-slate-400 mt-1">{adj.notes}</p>}
                             </td>
-                            <td className="px-6 py-4 text-slate-300 text-sm">
-                              {adj.adjusted_by_name || adj.adjusted_by}
-                            </td>
+                            <td className="px-6 py-4 text-slate-600 text-sm">{adj.adjusted_by_name || adj.adjusted_by}</td>
                           </tr>
                         ))
                       )}
@@ -657,7 +526,6 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
         )}
       </div>
 
-      {/* Adjustment Modal */}
       {showAdjustmentModal && selectedBatchForAdjustment && (
         <InventoryAdjustmentModal
           batch={selectedBatchForAdjustment}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, GripVertical, Edit2, Trash2, X, BarChart3 } from 'lucide-react';
 
 interface AttributionOption {
   id: string;
@@ -102,7 +103,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, onSave, option }
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -110,60 +111,58 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, onSave, option }
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4"
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4"
           >
-            <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-slate-800">
                 {option ? 'Edit Option' : 'Add Attribution Option'}
               </h2>
               <button
                 onClick={onClose}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-slate-600 transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
+                <X size={24} />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Label <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  Label <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.label}
                   onChange={(e) => handleLabelChange(e.target.value)}
-                  className={`w-full px-4 py-2 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    errors.label ? 'border-red-500' : 'border-slate-600'
+                  className={`w-full px-4 py-2 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                    errors.label ? 'border-red-400' : 'border-slate-200'
                   }`}
                   placeholder="e.g., Social Media"
                 />
                 {errors.label && (
-                  <p className="mt-1 text-sm text-red-400">{errors.label}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.label}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Value (slug) <span className="text-red-400">*</span>
+                <label className="block text-sm font-medium text-slate-600 mb-2">
+                  Value (slug) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.value}
                   onChange={(e) => setFormData(prev => ({ ...prev, value: e.target.value }))}
-                  className={`w-full px-4 py-2 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    errors.value ? 'border-red-500' : 'border-slate-600'
-                  }`}
+                  className={`w-full px-4 py-2 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                    errors.value ? 'border-red-400' : 'border-slate-200'
+                  } ${option ? 'bg-slate-50 text-slate-400' : ''}`}
                   placeholder="e.g., social_media"
                   disabled={!!option}
                 />
                 {errors.value && (
-                  <p className="mt-1 text-sm text-red-400">{errors.value}</p>
+                  <p className="mt-1 text-sm text-red-500">{errors.value}</p>
                 )}
                 {option && (
-                  <p className="mt-1 text-xs text-slate-500">Value cannot be changed after creation</p>
+                  <p className="mt-1 text-xs text-slate-400">Value cannot be changed after creation</p>
                 )}
               </div>
 
@@ -173,9 +172,9 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, onSave, option }
                   id="is_active"
                   checked={formData.is_active}
                   onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-                  className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500"
+                  className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500"
                 />
-                <label htmlFor="is_active" className="text-sm font-medium text-slate-300">
+                <label htmlFor="is_active" className="text-sm font-medium text-slate-600">
                   Active (visible to customers)
                 </label>
               </div>
@@ -184,14 +183,14 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, onSave, option }
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-slate-300 hover:text-white transition-colors"
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  className="px-6 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : option ? 'Update' : 'Add Option'}
                 </button>
@@ -354,7 +353,7 @@ const AttributionPage: React.FC = () => {
     return (
       <AdminPageWrapper>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminPageWrapper>
     );
@@ -365,39 +364,39 @@ const AttributionPage: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">Attribution Options</h1>
-            <p className="text-slate-400 mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Attribution Options</h1>
+            <p className="text-slate-500 text-sm mt-1">
               Manage "How did you hear about us?" options. Drag to reorder.
             </p>
           </div>
           <button
             onClick={handleAdd}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            <Plus size={20} />
             Add Option
           </button>
         </div>
 
-        <div className="bg-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {options.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="text-slate-500 text-5xl mb-4">📊</div>
-              <h3 className="text-lg font-medium text-white mb-2">No Attribution Options</h3>
-              <p className="text-slate-400 mb-6">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BarChart3 size={32} className="text-slate-400" />
+              </div>
+              <h3 className="text-lg font-medium text-slate-800 mb-2">No Attribution Options</h3>
+              <p className="text-slate-500 mb-6">
                 Add options for customers to tell you how they found you.
               </p>
               <button
                 onClick={handleAdd}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
               >
                 Add First Option
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-slate-700">
+            <div className="divide-y divide-slate-100">
               {options.map((option) => (
                 <div
                   key={option.id}
@@ -405,33 +404,26 @@ const AttributionPage: React.FC = () => {
                   onDragStart={(e) => handleDragStart(e, option)}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, option)}
-                  className={`flex items-center gap-4 p-4 hover:bg-slate-700/30 transition-colors cursor-move ${
+                  className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors cursor-move ${
                     draggedItem?.id === option.id ? 'opacity-50' : ''
                   }`}
                 >
-                  <div className="text-slate-500 cursor-grab active:cursor-grabbing">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="9" cy="5" r="1"/>
-                      <circle cx="9" cy="12" r="1"/>
-                      <circle cx="9" cy="19" r="1"/>
-                      <circle cx="15" cy="5" r="1"/>
-                      <circle cx="15" cy="12" r="1"/>
-                      <circle cx="15" cy="19" r="1"/>
-                    </svg>
+                  <div className="text-slate-400 cursor-grab active:cursor-grabbing">
+                    <GripVertical size={20} />
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium">{option.label}</p>
-                    <p className="text-slate-500 text-sm">{option.value}</p>
+                    <p className="text-slate-800 font-medium">{option.label}</p>
+                    <p className="text-slate-400 text-sm font-mono">{option.value}</p>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleToggleActive(option)}
-                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors border ${
                         option.is_active
-                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                          : 'bg-slate-600/50 text-slate-400 hover:bg-slate-600'
+                          ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
                       }`}
                     >
                       {option.is_active ? 'Active' : 'Inactive'}
@@ -439,23 +431,18 @@ const AttributionPage: React.FC = () => {
 
                     <button
                       onClick={() => handleEdit(option)}
-                      className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                       title="Edit"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
+                      <Edit2 size={18} />
                     </button>
 
                     <button
                       onClick={() => handleDelete(option.id)}
-                      className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Delete"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
@@ -465,16 +452,16 @@ const AttributionPage: React.FC = () => {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 flex items-center gap-6 text-sm text-slate-400">
+        <div className="mt-6 flex items-center gap-6 text-sm text-slate-500">
           <span>{options.length} total options</span>
           <span>{options.filter(o => o.is_active).length} active</span>
           <span>{options.filter(o => !o.is_active).length} inactive</span>
         </div>
 
         {/* Info Box */}
-        <div className="mt-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-          <h4 className="text-sm font-medium text-white mb-2">Usage</h4>
-          <p className="text-sm text-slate-400">
+        <div className="mt-6 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+          <h4 className="text-sm font-medium text-slate-800 mb-2">Usage</h4>
+          <p className="text-sm text-slate-500">
             These options appear in the checkout flow when customers are asked "How did you hear about us?"
             This helps track marketing effectiveness and customer acquisition channels.
           </p>

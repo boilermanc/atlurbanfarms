@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Check, X, AlertTriangle, Ban, Loader2 } from 'lucide-react';
 
 interface EmergencyToggleProps {
   name: string;
@@ -66,8 +67,8 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
       <div
         className={`p-5 rounded-xl border-2 transition-all ${
           enabled
-            ? 'bg-emerald-500/10 border-emerald-500/30'
-            : 'bg-red-500/10 border-red-500/30'
+            ? 'bg-emerald-50 border-emerald-200'
+            : 'bg-red-50 border-red-200'
         }`}
       >
         <div className="flex items-center justify-between gap-4">
@@ -79,13 +80,13 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
                   enabled ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'
                 }`}
               />
-              <h3 className="text-lg font-semibold text-white truncate">{name}</h3>
+              <h3 className="text-lg font-semibold text-slate-800 truncate">{name}</h3>
             </div>
             {description && (
-              <p className="text-sm text-slate-400 mt-1 ml-6">{description}</p>
+              <p className="text-sm text-slate-500 mt-1 ml-6">{description}</p>
             )}
             {lastUpdated && (
-              <p className="text-xs text-slate-500 mt-2 ml-6">
+              <p className="text-xs text-slate-400 mt-2 ml-6">
                 Last updated: {formatDate(lastUpdated)}
               </p>
             )}
@@ -107,15 +108,11 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             >
               {loading ? (
-                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                <Loader2 size={16} className="text-slate-400 animate-spin" />
               ) : enabled ? (
-                <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check size={20} className="text-emerald-500" />
               ) : (
-                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X size={20} className="text-red-500" />
               )}
             </motion.div>
           </button>
@@ -126,8 +123,8 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
           <span
             className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
               enabled
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-red-500/20 text-red-400'
+                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                : 'bg-red-100 text-red-700 border border-red-200'
             }`}
           >
             {enabled ? 'ACTIVE' : 'DISABLED'}
@@ -142,7 +139,7 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={handleCancel}
           >
             <motion.div
@@ -150,39 +147,37 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full border border-slate-700 overflow-hidden"
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-slate-200/60 overflow-hidden"
             >
               {/* Header */}
-              <div className="bg-red-500/10 border-b border-red-500/20 p-6">
+              <div className="bg-red-50 border-b border-red-200 p-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
-                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <AlertTriangle size={24} className="text-red-500" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">Disable {name}?</h3>
-                    <p className="text-sm text-red-400 mt-1">This affects live operations</p>
+                    <h3 className="text-xl font-bold text-slate-800">Disable {name}?</h3>
+                    <p className="text-sm text-red-600 mt-1">This affects live operations</p>
                   </div>
                 </div>
               </div>
 
               {/* Content */}
               <div className="p-6 space-y-4">
-                <p className="text-slate-300">
+                <p className="text-slate-600">
                   Disabling this control will immediately affect the live site. Please provide a reason for this change.
                 </p>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">
-                    Reason for disabling <span className="text-red-400">*</span>
+                  <label className="block text-sm font-medium text-slate-600">
+                    Reason for disabling <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="e.g., Maintenance window, Payment processor issue, etc."
                     rows={3}
-                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 resize-none"
                     autoFocus
                   />
                   <p className="text-xs text-slate-500">
@@ -192,29 +187,27 @@ const EmergencyToggle: React.FC<EmergencyToggleProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="bg-slate-800/50 border-t border-slate-700 p-4 flex gap-3 justify-end">
+              <div className="bg-slate-50 border-t border-slate-200 p-4 flex gap-3 justify-end">
                 <button
                   onClick={handleCancel}
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors font-medium"
+                  className="px-5 py-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmDisable}
                   disabled={!reason.trim() || isSubmitting}
-                  className="px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-5 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                       Disabling...
                     </>
                   ) : (
                     <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                      </svg>
+                      <Ban size={16} />
                       Disable {name}
                     </>
                   )}

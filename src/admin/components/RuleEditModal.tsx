@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShippingZoneRule, RuleConditions, RuleActions } from '../pages/ShippingZonesPage';
+import { X, Check, Filter, Zap, ChevronDown } from 'lucide-react';
 
 interface RuleEditModalProps {
   rule: ShippingZoneRule | null;
@@ -156,29 +157,27 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-slate-700">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-slate-800">
               {isNew ? 'Add Shipping Rule' : 'Edit Shipping Rule'}
             </h2>
-            <p className="text-slate-400 text-sm mt-0.5">
+            <p className="text-slate-500 text-sm mt-0.5">
               Configure conditions and actions for this rule
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={20} />
           </button>
         </div>
 
@@ -188,27 +187,27 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
           <div className="grid grid-cols-2 gap-4">
             {/* Rule Name */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Rule Name <span className="text-red-400">*</span>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                Rule Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="e.g., Summer Heat Block - West Coast"
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
             </div>
 
             {/* Rule Type */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Rule Type
               </label>
               <select
                 value={formData.rule_type}
                 onChange={(e) => setFormData(prev => ({ ...prev, rule_type: e.target.value as ShippingZoneRule['rule_type'] }))}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               >
                 {RULE_TYPES.map(type => (
                   <option key={type.value} value={type.value}>
@@ -223,7 +222,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
 
             {/* Priority */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Priority
               </label>
               <input
@@ -232,7 +231,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                 max="1000"
                 value={formData.priority}
                 onChange={(e) => setFormData(prev => ({ ...prev, priority: parseInt(e.target.value) || 100 }))}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
               <p className="text-xs text-slate-500 mt-1.5">
                 Lower numbers = higher priority (evaluated first)
@@ -241,50 +240,46 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
           </div>
 
           {/* Conditions Section */}
-          <div className="space-y-4 p-5 bg-slate-700/30 rounded-xl border border-slate-600">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
+          <div className="space-y-4 p-5 bg-slate-50 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-2">
+              <Filter size={16} />
               Conditions (When to Apply)
             </h3>
 
             {/* States Multi-Select */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Apply to States
               </label>
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowStateSelector(!showStateSelector)}
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-left text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 flex items-center justify-between"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-left text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 flex items-center justify-between"
                 >
-                  <span className={conditions.states?.length ? 'text-white' : 'text-slate-500'}>
+                  <span className={conditions.states?.length ? 'text-slate-800' : 'text-slate-400'}>
                     {conditions.states?.length
                       ? `${conditions.states.length} state${conditions.states.length > 1 ? 's' : ''} selected`
                       : 'All states (no filter)'}
                   </span>
-                  <svg className={`w-5 h-5 text-slate-400 transition-transform ${showStateSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <ChevronDown size={20} className={`text-slate-400 transition-transform ${showStateSelector ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showStateSelector && (
-                  <div className="absolute z-10 mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                    <div className="p-2 border-b border-slate-600 sticky top-0 bg-slate-700">
+                  <div className="absolute z-10 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2 border-b border-slate-200 sticky top-0 bg-white">
                       <div className="flex items-center justify-between">
                         <button
                           type="button"
                           onClick={() => handleConditionChange('states', US_STATES.map(s => s.code))}
-                          className="text-xs text-emerald-400 hover:text-emerald-300"
+                          className="text-xs text-emerald-600 hover:text-emerald-700"
                         >
                           Select All
                         </button>
                         <button
                           type="button"
                           onClick={() => handleConditionChange('states', undefined)}
-                          className="text-xs text-slate-400 hover:text-slate-300"
+                          className="text-xs text-slate-500 hover:text-slate-600"
                         >
                           Clear All
                         </button>
@@ -298,8 +293,8 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                           onClick={() => handleStateToggle(state.code)}
                           className={`px-2 py-1.5 rounded text-xs font-medium text-left transition-all ${
                             conditions.states?.includes(state.code)
-                              ? 'bg-emerald-500/30 text-emerald-400'
-                              : 'text-slate-400 hover:bg-slate-600'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'text-slate-500 hover:bg-slate-100'
                           }`}
                         >
                           {state.code} - {state.name}
@@ -314,17 +309,15 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                   {conditions.states.map(code => (
                     <span
                       key={code}
-                      className="px-2 py-1 bg-slate-600 text-slate-300 rounded text-xs flex items-center gap-1"
+                      className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs flex items-center gap-1 border border-slate-200"
                     >
                       {code}
                       <button
                         type="button"
                         onClick={() => handleStateToggle(code)}
-                        className="text-slate-400 hover:text-white"
+                        className="text-slate-400 hover:text-slate-600"
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X size={12} />
                       </button>
                     </span>
                   ))}
@@ -335,7 +328,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
             {/* Months Multi-Select (for seasonal rules) */}
             {(formData.rule_type === 'seasonal_block' || formData.rule_type === 'surcharge') && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 mb-2">
                   During Months
                 </label>
                 <div className="grid grid-cols-6 gap-2">
@@ -344,10 +337,10 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                       key={month.value}
                       type="button"
                       onClick={() => handleMonthToggle(month.value)}
-                      className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                      className={`px-2 py-2 rounded-lg text-xs font-medium transition-all border ${
                         conditions.months?.includes(month.value)
-                          ? 'bg-emerald-500/30 text-emerald-400 border border-emerald-500/50'
-                          : 'bg-slate-600/50 text-slate-400 border border-slate-600 hover:border-slate-500'
+                          ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                       }`}
                     >
                       {month.label.substring(0, 3)}
@@ -360,7 +353,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
             {/* Max Transit Days (for transit limit rules) */}
             {formData.rule_type === 'transit_limit' && (
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 mb-2">
                   When Transit Exceeds (Days)
                 </label>
                 <input
@@ -370,18 +363,16 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                   value={conditions.max_transit_days || ''}
                   onChange={(e) => handleConditionChange('max_transit_days', e.target.value ? parseInt(e.target.value) : undefined)}
                   placeholder="e.g., 3"
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
             )}
           </div>
 
           {/* Actions Section */}
-          <div className="space-y-4 p-5 bg-slate-700/30 rounded-xl border border-slate-600">
-            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+          <div className="space-y-4 p-5 bg-slate-50 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-2">
+              <Zap size={16} />
               Actions (What to Do)
             </h3>
 
@@ -392,10 +383,10 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                 id="block-action"
                 checked={actions.block || false}
                 onChange={(e) => handleActionChange('block', e.target.checked)}
-                className="w-5 h-5 mt-0.5 rounded border-slate-600 bg-slate-700 text-red-500 focus:ring-red-500 focus:ring-offset-0"
+                className="w-5 h-5 mt-0.5 rounded border-slate-300 text-red-500 focus:ring-red-500"
               />
               <label htmlFor="block-action" className="flex-1">
-                <span className="text-white font-medium">Block Shipping</span>
+                <span className="text-slate-800 font-medium">Block Shipping</span>
                 <p className="text-xs text-slate-500 mt-0.5">Prevent orders from being shipped when conditions are met</p>
               </label>
             </div>
@@ -403,7 +394,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
             {/* Block Message (shown when block is enabled) */}
             {actions.block && (
               <div className="ml-8">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 mb-2">
                   Block Message
                 </label>
                 <textarea
@@ -411,14 +402,14 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                   onChange={(e) => handleActionChange('block_message', e.target.value || undefined)}
                   placeholder="Message shown to customer when blocked..."
                   rows={2}
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-none"
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
                 />
               </div>
             )}
 
             {/* Required Services */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Required Shipping Services
               </label>
               <div className="flex flex-wrap gap-2">
@@ -427,10 +418,10 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                     key={service.value}
                     type="button"
                     onClick={() => handleServiceToggle(service.value)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                       actions.required_services?.includes(service.value)
-                        ? 'bg-blue-500/30 text-blue-400 border border-blue-500/50'
-                        : 'bg-slate-600/50 text-slate-400 border border-slate-600 hover:border-slate-500'
+                        ? 'bg-blue-100 text-blue-700 border-blue-200'
+                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                     }`}
                   >
                     {service.label}
@@ -446,7 +437,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
             {formData.rule_type === 'surcharge' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
                     Surcharge Amount ($)
                   </label>
                   <div className="relative">
@@ -458,12 +449,12 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                       value={actions.surcharge_amount || ''}
                       onChange={(e) => handleActionChange('surcharge_amount', e.target.value ? parseFloat(e.target.value) : undefined)}
                       placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                      className="w-full pl-8 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
                     Surcharge Percent (%)
                   </label>
                   <div className="relative">
@@ -475,7 +466,7 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
                       value={actions.surcharge_percent || ''}
                       onChange={(e) => handleActionChange('surcharge_percent', e.target.value ? parseFloat(e.target.value) : undefined)}
                       placeholder="0"
-                      className="w-full px-4 pr-8 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                      className="w-full px-4 pr-8 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">%</span>
                   </div>
@@ -487,42 +478,42 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
           {/* Effective Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Effective Start Date
               </label>
               <input
                 type="date"
                 value={formData.effective_start?.split('T')[0] || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_start: e.target.value ? `${e.target.value}T00:00:00Z` : null }))}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
               <p className="text-xs text-slate-500 mt-1.5">Leave empty for no start limit</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label className="block text-sm font-medium text-slate-600 mb-2">
                 Effective End Date
               </label>
               <input
                 type="date"
                 value={formData.effective_end?.split('T')[0] || ''}
                 onChange={(e) => setFormData(prev => ({ ...prev, effective_end: e.target.value ? `${e.target.value}T23:59:59Z` : null }))}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
               <p className="text-xs text-slate-500 mt-1.5">Leave empty for no end limit</p>
             </div>
           </div>
 
           {/* Active Toggle */}
-          <div className="flex items-center gap-3 p-4 bg-slate-700/30 rounded-xl border border-slate-600">
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
             <input
               type="checkbox"
               id="is-active"
               checked={formData.is_active}
               onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-              className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+              className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500"
             />
             <label htmlFor="is-active" className="flex-1">
-              <span className="text-white font-medium">Rule is Active</span>
+              <span className="text-slate-800 font-medium">Rule is Active</span>
               <p className="text-xs text-slate-500 mt-0.5">
                 Inactive rules are saved but not applied during checkout
               </p>
@@ -531,31 +522,26 @@ const RuleEditModal: React.FC<RuleEditModalProps> = ({ rule, onSave, onClose }) 
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-end gap-3 bg-slate-800/80">
+        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3 bg-white">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg font-medium transition-colors"
+            className="px-5 py-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl font-medium transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Saving...
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check size={18} />
                 {isNew ? 'Create Rule' : 'Save Changes'}
               </>
             )}

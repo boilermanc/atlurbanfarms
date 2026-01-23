@@ -4,30 +4,12 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import InviteAdminModal from '../components/InviteAdminModal';
 import EditAdminUserModal from '../components/EditAdminUserModal';
 import RolePermissionsModal from '../components/RolePermissionsModal';
+import { UserPlus, Plus, Users, Edit2, Shield, ChevronRight, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { useAdminUsers, AdminUser, AdminRole } from '../hooks/useAdminUsers';
 
 type TabType = 'users' | 'roles';
 
-export interface AdminUser {
-  id: string;
-  user_id: string;
-  email: string;
-  full_name: string;
-  role_id: string;
-  role_name: string;
-  is_active: boolean;
-  assigned_at: string;
-  last_login?: string;
-}
-
-export interface AdminRole {
-  id: string;
-  name: string;
-  description: string;
-  permissions: string[];
-  is_system_role: boolean;
-  user_count: number;
-  created_at: string;
-}
+export type { AdminUser, AdminRole };
 
 export const ALL_PERMISSIONS = [
   { key: 'orders.view', label: 'View Orders', category: 'Orders' },
@@ -50,96 +32,22 @@ export const ALL_PERMISSIONS = [
   { key: 'reports.view', label: 'View Reports', category: 'Reports' },
 ];
 
-const MOCK_ADMIN_USERS: AdminUser[] = [
-  {
-    id: '1',
-    user_id: 'user-1',
-    email: 'admin@atlurbanfarms.com',
-    full_name: 'John Admin',
-    role_id: 'role-1',
-    role_name: 'Super Admin',
-    is_active: true,
-    assigned_at: '2024-01-15T10:00:00Z',
-    last_login: '2025-01-15T08:30:00Z',
-  },
-  {
-    id: '2',
-    user_id: 'user-2',
-    email: 'manager@atlurbanfarms.com',
-    full_name: 'Sarah Manager',
-    role_id: 'role-2',
-    role_name: 'Store Manager',
-    is_active: true,
-    assigned_at: '2024-03-20T14:00:00Z',
-    last_login: '2025-01-14T16:45:00Z',
-  },
-  {
-    id: '3',
-    user_id: 'user-3',
-    email: 'fulfillment@atlurbanfarms.com',
-    full_name: 'Mike Fulfillment',
-    role_id: 'role-3',
-    role_name: 'Fulfillment Staff',
-    is_active: true,
-    assigned_at: '2024-06-10T09:00:00Z',
-    last_login: '2025-01-15T07:00:00Z',
-  },
-  {
-    id: '4',
-    user_id: 'user-4',
-    email: 'old.staff@atlurbanfarms.com',
-    full_name: 'Former Employee',
-    role_id: 'role-3',
-    role_name: 'Fulfillment Staff',
-    is_active: false,
-    assigned_at: '2024-02-01T10:00:00Z',
-    last_login: '2024-12-01T12:00:00Z',
-  },
-];
-
-const MOCK_ADMIN_ROLES: AdminRole[] = [
-  {
-    id: 'role-1',
-    name: 'Super Admin',
-    description: 'Full access to all system features and settings',
-    permissions: ['orders.*', 'products.*', 'inventory.*', 'customers.*', 'shipping.*', 'settings.view', 'settings.edit', 'reports.view'],
-    is_system_role: true,
-    user_count: 1,
-    created_at: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'role-2',
-    name: 'Store Manager',
-    description: 'Manage products, orders, and daily operations',
-    permissions: ['orders.*', 'products.*', 'inventory.*', 'customers.view', 'shipping.view', 'reports.view'],
-    is_system_role: false,
-    user_count: 1,
-    created_at: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'role-3',
-    name: 'Fulfillment Staff',
-    description: 'Process and fulfill customer orders',
-    permissions: ['orders.view', 'orders.fulfill', 'inventory.view', 'shipping.view'],
-    is_system_role: false,
-    user_count: 2,
-    created_at: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'role-4',
-    name: 'Customer Service',
-    description: 'View orders and customer information',
-    permissions: ['orders.view', 'customers.view'],
-    is_system_role: false,
-    user_count: 0,
-    created_at: '2024-03-15T00:00:00Z',
-  },
-];
-
 const AdminUsersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('users');
-  const [users, setUsers] = useState<AdminUser[]>(MOCK_ADMIN_USERS);
-  const [roles, setRoles] = useState<AdminRole[]>(MOCK_ADMIN_ROLES);
+  const {
+    users,
+    roles,
+    loading,
+    error,
+    refetch,
+    inviteAdmin,
+    updateAdminRole,
+    toggleAdminStatus,
+    removeAdmin,
+    createRole,
+    updateRole,
+    deleteRole,
+  } = useAdminUsers();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -154,104 +62,141 @@ const AdminUsersPage: React.FC = () => {
     });
   };
 
-  const handleInviteAdmin = useCallback((email: string, roleId: string) => {
-    const role = roles.find(r => r.id === roleId);
-    const newUser: AdminUser = {
-      id: `user-${Date.now()}`,
-      user_id: `pending-${Date.now()}`,
-      email,
-      full_name: 'Pending Invitation',
-      role_id: roleId,
-      role_name: role?.name || 'Unknown',
-      is_active: false,
-      assigned_at: new Date().toISOString(),
-    };
-    setUsers(prev => [...prev, newUser]);
-    setShowInviteModal(false);
-  }, [roles]);
-
-  const handleUpdateUser = useCallback((updatedUser: AdminUser) => {
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    setEditingUser(null);
-  }, []);
-
-  const handleRemoveUser = useCallback((userId: string) => {
-    setUsers(prev => prev.filter(u => u.id !== userId));
-    setEditingUser(null);
-  }, []);
-
-  const handleUpdateRole = useCallback((updatedRole: AdminRole) => {
-    setRoles(prev => prev.map(r => r.id === updatedRole.id ? updatedRole : r));
-    setEditingRole(null);
-  }, []);
-
-  const handleAddRole = useCallback((newRole: Omit<AdminRole, 'id' | 'user_count' | 'created_at'>) => {
-    const role: AdminRole = {
-      ...newRole,
-      id: `role-${Date.now()}`,
-      user_count: 0,
-      created_at: new Date().toISOString(),
-    };
-    setRoles(prev => [...prev, role]);
-    setShowAddRoleModal(false);
-  }, []);
-
-  const handleDeleteRole = useCallback((roleId: string) => {
-    const role = roles.find(r => r.id === roleId);
-    if (role?.is_system_role) return;
-    if (role && role.user_count > 0) {
-      alert('Cannot delete a role that has users assigned. Please reassign users first.');
-      return;
+  const handleInviteAdmin = useCallback(async (email: string, roleId: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await inviteAdmin(email, roleId);
+    if (result.success) {
+      setShowInviteModal(false);
     }
-    setRoles(prev => prev.filter(r => r.id !== roleId));
-    setEditingRole(null);
-  }, [roles]);
+    return result;
+  }, [inviteAdmin]);
+
+  const handleUpdateUser = useCallback(async (updatedUser: AdminUser): Promise<{ success: boolean; error?: string }> => {
+    // Update role if changed
+    const originalUser = users.find(u => u.id === updatedUser.id);
+    if (originalUser && originalUser.role_id !== updatedUser.role_id) {
+      const result = await updateAdminRole(updatedUser.id, updatedUser.role_id);
+      if (!result.success) return result;
+    }
+
+    // Update active status if changed
+    if (originalUser && originalUser.is_active !== updatedUser.is_active) {
+      const result = await toggleAdminStatus(updatedUser.id, updatedUser.is_active);
+      if (!result.success) return result;
+    }
+
+    setEditingUser(null);
+    return { success: true };
+  }, [users, updateAdminRole, toggleAdminStatus]);
+
+  const handleRemoveUser = useCallback(async (userId: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await removeAdmin(userId);
+    if (result.success) {
+      setEditingUser(null);
+    }
+    return result;
+  }, [removeAdmin]);
+
+  const handleUpdateRole = useCallback(async (updatedRole: AdminRole): Promise<{ success: boolean; error?: string }> => {
+    const result = await updateRole(updatedRole.id, updatedRole);
+    if (result.success) {
+      setEditingRole(null);
+    }
+    return result;
+  }, [updateRole]);
+
+  const handleAddRole = useCallback(async (newRole: Omit<AdminRole, 'id' | 'user_count' | 'created_at'>): Promise<{ success: boolean; error?: string }> => {
+    const result = await createRole(newRole);
+    if (result.success) {
+      setShowAddRoleModal(false);
+    }
+    return result;
+  }, [createRole]);
+
+  const handleDeleteRole = useCallback(async (roleId: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await deleteRole(roleId);
+    if (result.success) {
+      setEditingRole(null);
+    }
+    return result;
+  }, [deleteRole]);
+
+  if (loading) {
+    return (
+      <AdminPageWrapper>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+        </div>
+      </AdminPageWrapper>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminPageWrapper>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-800">Error Loading Admin Users</h3>
+              <p className="text-red-600 mt-1">{error}</p>
+              <button
+                onClick={() => refetch()}
+                className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <RefreshCw size={16} />
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </AdminPageWrapper>
+    );
+  }
 
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Admin Users</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Admin Users</h1>
+            <p className="text-slate-500 text-sm mt-1">Manage admin users and their roles</p>
+          </div>
           {activeTab === 'users' ? (
             <button
               onClick={() => setShowInviteModal(true)}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
+              <UserPlus size={20} />
               Invite Admin
             </button>
           ) : (
             <button
               onClick={() => setShowAddRoleModal(true)}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus size={20} />
               Add Role
             </button>
           )}
         </div>
 
-        <div className="flex gap-1 p-1 bg-slate-800 rounded-lg w-fit">
+        <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeTab === 'users'
-                ? 'bg-emerald-600 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
             }`}
           >
             Users
           </button>
           <button
             onClick={() => setActiveTab('roles')}
-            className={`px-4 py-2 rounded-md font-medium text-sm transition-colors ${
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
               activeTab === 'roles'
-                ? 'bg-emerald-600 text-white'
-                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
             }`}
           >
             Roles
@@ -267,52 +212,52 @@ const AdminUsersPage: React.FC = () => {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-slate-700/50">
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Name</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Email</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Role</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Status</th>
-                      <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">Assigned</th>
-                      <th className="px-6 py-4 text-right text-sm font-semibold text-slate-300">Actions</th>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Role</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned</th>
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700">
+                  <tbody className="divide-y divide-slate-100">
                     {users.map(user => (
                       <tr
                         key={user.id}
-                        className="hover:bg-slate-700/30 transition-colors cursor-pointer"
+                        className="hover:bg-slate-50 transition-colors cursor-pointer"
                         onClick={() => setEditingUser(user)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center text-white font-medium">
-                              {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+                              {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="text-white font-medium">{user.full_name}</span>
+                            <span className="text-slate-800 font-medium">{user.full_name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-300">{user.email}</td>
+                        <td className="px-6 py-4 text-slate-600">{user.email}</td>
                         <td className="px-6 py-4">
-                          <span className="px-3 py-1 bg-slate-700 text-slate-300 rounded-full text-sm">
+                          <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-sm">
                             {user.role_name}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                             user.is_active
-                              ? 'bg-emerald-500/10 text-emerald-400'
-                              : 'bg-slate-600/50 text-slate-400'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${
-                              user.is_active ? 'bg-emerald-400' : 'bg-slate-500'
+                              user.is_active ? 'bg-emerald-500' : 'bg-slate-400'
                             }`} />
                             {user.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-slate-400 text-sm">
+                        <td className="px-6 py-4 text-slate-500 text-sm">
                           {formatDate(user.assigned_at)}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -321,11 +266,9 @@ const AdminUsersPage: React.FC = () => {
                               e.stopPropagation();
                               setEditingUser(user);
                             }}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                           >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            <Edit2 size={18} />
                           </button>
                         </td>
                       </tr>
@@ -333,11 +276,18 @@ const AdminUsersPage: React.FC = () => {
                   </tbody>
                 </table>
                 {users.length === 0 && (
-                  <div className="p-12 text-center text-slate-400">
-                    <svg className="w-12 h-12 mx-auto mb-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <p>No admin users found</p>
+                  <div className="p-12 text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Users size={32} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-500 mb-4">No admin users found</p>
+                    <button
+                      onClick={() => setShowInviteModal(true)}
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors inline-flex items-center gap-2"
+                    >
+                      <UserPlus size={18} />
+                      Invite Your First Admin
+                    </button>
                   </div>
                 )}
               </div>
@@ -355,33 +305,29 @@ const AdminUsersPage: React.FC = () => {
                   <div
                     key={role.id}
                     onClick={() => setEditingRole(role)}
-                    className="bg-slate-800 rounded-xl border border-slate-700 p-6 hover:border-slate-600 transition-colors cursor-pointer"
+                    className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 hover:border-slate-300 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-white">{role.name}</h3>
+                          <h3 className="text-lg font-semibold text-slate-800">{role.name}</h3>
                           {role.is_system_role && (
-                            <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded text-xs font-medium">
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-xs font-medium">
                               System Role
                             </span>
                           )}
                         </div>
-                        <p className="text-slate-400 text-sm mb-4">{role.description}</p>
+                        <p className="text-slate-500 text-sm mb-4">{role.description}</p>
                         <div className="flex items-center gap-6">
                           <div className="flex items-center gap-2 text-sm">
-                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span className="text-slate-400">
+                            <Users size={16} className="text-slate-400" />
+                            <span className="text-slate-500">
                               {role.user_count} {role.user_count === 1 ? 'user' : 'users'}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
-                            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            <span className="text-slate-400">
+                            <Shield size={16} className="text-slate-400" />
+                            <span className="text-slate-500">
                               {role.permissions.length} permissions
                             </span>
                           </div>
@@ -392,30 +338,43 @@ const AdminUsersPage: React.FC = () => {
                           e.stopPropagation();
                           setEditingRole(role);
                         }}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                        className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        <ChevronRight size={20} />
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-700">
+                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200">
                       {role.permissions.slice(0, 5).map(permission => (
                         <span
                           key={permission}
-                          className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs font-mono"
+                          className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-mono"
                         >
                           {permission}
                         </span>
                       ))}
                       {role.permissions.length > 5 && (
-                        <span className="px-2 py-1 bg-slate-700 text-slate-400 rounded text-xs">
+                        <span className="px-2 py-1 bg-slate-100 text-slate-400 rounded text-xs">
                           +{role.permissions.length - 5} more
                         </span>
                       )}
                     </div>
                   </div>
                 ))}
+                {roles.length === 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-12 text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Shield size={32} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-500 mb-4">No roles defined yet</p>
+                    <button
+                      onClick={() => setShowAddRoleModal(true)}
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors inline-flex items-center gap-2"
+                    >
+                      <Plus size={18} />
+                      Create Your First Role
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

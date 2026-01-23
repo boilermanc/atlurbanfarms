@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { ArrowLeft, Eye, Save, FileText } from 'lucide-react';
 
 interface ContentPage {
   id: string;
@@ -124,27 +125,27 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
   const renderMarkdown = (text: string) => {
     let html = text
       // Headers
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-white mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-white mt-6 mb-3">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-white mt-6 mb-4">$1</h1>')
+      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-slate-800 mt-4 mb-2">$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-slate-800 mt-6 mb-3">$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-slate-800 mt-6 mb-4">$1</h1>')
       // Bold and Italic
       .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       // Links
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-emerald-400 hover:underline" target="_blank">$1</a>')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-emerald-600 hover:underline" target="_blank">$1</a>')
       // Line breaks
-      .replace(/\n\n/g, '</p><p class="text-slate-300 mb-4">')
+      .replace(/\n\n/g, '</p><p class="text-slate-600 mb-4">')
       .replace(/\n/g, '<br/>');
 
-    return `<p class="text-slate-300 mb-4">${html}</p>`;
+    return `<p class="text-slate-600 mb-4">${html}</p>`;
   };
 
   if (loading) {
     return (
       <AdminPageWrapper>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminPageWrapper>
     );
@@ -154,15 +155,17 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
     return (
       <AdminPageWrapper>
         <div className="max-w-4xl mx-auto">
-          <div className="bg-slate-800 rounded-xl p-12 text-center">
-            <div className="text-slate-500 text-5xl mb-4">404</div>
-            <h3 className="text-lg font-medium text-white mb-2">Page Not Found</h3>
-            <p className="text-slate-400 mb-6">
+          <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-slate-200/60">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FileText size={32} className="text-slate-400" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-800 mb-2">Page Not Found</h3>
+            <p className="text-slate-500 mb-6">
               The content page you're looking for doesn't exist.
             </p>
             <button
               onClick={handleBack}
-              className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
             >
               Back to Content Pages
             </button>
@@ -174,21 +177,19 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
 
   return (
     <AdminPageWrapper>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={handleBack}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m15 18-6-6 6-6"/>
-              </svg>
+              <ArrowLeft size={24} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-white">Edit {page.title}</h1>
-              <p className="text-slate-400 text-sm mt-1">
+              <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Edit {page.title}</h1>
+              <p className="text-slate-500 text-sm mt-1">
                 Last updated {formatDate(page.updated_at)}
               </p>
             </div>
@@ -197,57 +198,61 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowPreview(!showPreview)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
                 showPreview
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
+              <Eye size={18} />
               {showPreview ? 'Edit' : 'Preview'}
             </button>
             <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex items-center gap-2 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                <>
+                  <Save size={18} />
+                  Save Changes
+                </>
               )}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6">
+        <div className="space-y-6">
           {/* Title */}
-          <div className="bg-slate-800 rounded-xl p-6">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <label className="block text-sm font-medium text-slate-700 mb-2">
               Page Title
             </label>
             <input
               type="text"
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
               placeholder="Enter page title..."
             />
           </div>
 
           {/* Content */}
-          <div className="bg-slate-800 rounded-xl p-6">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-300">
+              <label className="block text-sm font-medium text-slate-700">
                 Content
               </label>
-              <span className="text-xs text-slate-500">Supports Markdown</span>
+              <span className="text-xs text-slate-400">Supports Markdown</span>
             </div>
 
             {showPreview ? (
-              <div className="bg-slate-900 rounded-lg p-6 min-h-[400px] prose prose-invert max-w-none">
+              <div className="bg-slate-50 rounded-xl p-6 min-h-[400px] prose max-w-none">
                 <div
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(formData.content) }}
                 />
@@ -257,80 +262,80 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
                 value={formData.content}
                 onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                 rows={20}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm resize-none"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-sm resize-none"
                 placeholder="Enter page content using Markdown..."
               />
             )}
           </div>
 
           {/* Settings */}
-          <div className="bg-slate-800 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Settings</h3>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Settings</h3>
 
             <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-white">
+                <label className="block text-sm font-medium text-slate-800">
                   Published
                 </label>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   When enabled, this page is visible to customers
                 </p>
               </div>
               <button
                 onClick={() => setFormData(prev => ({ ...prev, is_active: !prev.is_active }))}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  formData.is_active ? 'bg-emerald-600' : 'bg-slate-600'
+                  formData.is_active ? 'bg-emerald-500' : 'bg-slate-300'
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
                     formData.is_active ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-slate-700">
+            <div className="mt-6 pt-6 border-t border-slate-200">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-slate-400">Slug:</span>
-                  <span className="text-white ml-2">/{page.slug}</span>
+                  <span className="text-slate-500">Slug:</span>
+                  <span className="text-slate-800 ml-2 font-medium">/{page.slug}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400">Created:</span>
-                  <span className="text-white ml-2">{formatDate(page.created_at)}</span>
+                  <span className="text-slate-500">Created:</span>
+                  <span className="text-slate-800 ml-2">{formatDate(page.created_at)}</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Markdown Help */}
-          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-            <h4 className="text-sm font-medium text-white mb-3">Markdown Reference</h4>
+          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200/60">
+            <h4 className="text-sm font-semibold text-slate-800 mb-3">Markdown Reference</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <code className="text-emerald-400"># Heading 1</code>
-                <p className="text-slate-400 mt-1">Large heading</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded"># Heading 1</code>
+                <p className="text-slate-500 mt-1">Large heading</p>
               </div>
               <div>
-                <code className="text-emerald-400">## Heading 2</code>
-                <p className="text-slate-400 mt-1">Medium heading</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded">## Heading 2</code>
+                <p className="text-slate-500 mt-1">Medium heading</p>
               </div>
               <div>
-                <code className="text-emerald-400">**bold**</code>
-                <p className="text-slate-400 mt-1">Bold text</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded">**bold**</code>
+                <p className="text-slate-500 mt-1">Bold text</p>
               </div>
               <div>
-                <code className="text-emerald-400">*italic*</code>
-                <p className="text-slate-400 mt-1">Italic text</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded">*italic*</code>
+                <p className="text-slate-500 mt-1">Italic text</p>
               </div>
               <div>
-                <code className="text-emerald-400">[text](url)</code>
-                <p className="text-slate-400 mt-1">Link</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded">[text](url)</code>
+                <p className="text-slate-500 mt-1">Link</p>
               </div>
               <div>
-                <code className="text-emerald-400">Blank line</code>
-                <p className="text-slate-400 mt-1">New paragraph</p>
+                <code className="text-emerald-600 bg-white px-2 py-1 rounded">Blank line</code>
+                <p className="text-slate-500 mt-1">New paragraph</p>
               </div>
             </div>
           </div>
@@ -338,7 +343,7 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
 
         {/* Unsaved changes indicator */}
         {hasChanges && (
-          <div className="fixed bottom-6 right-6 bg-amber-500/90 text-amber-900 px-4 py-2 rounded-lg font-medium shadow-lg">
+          <div className="fixed bottom-6 right-6 bg-amber-100 text-amber-800 px-4 py-2 rounded-xl font-medium shadow-lg border border-amber-200">
             You have unsaved changes
           </div>
         )}

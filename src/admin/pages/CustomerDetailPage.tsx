@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { ArrowLeft, User } from 'lucide-react';
 import {
   Customer,
   CustomerProfile,
@@ -28,7 +29,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Data states
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [preferences, setPreferences] = useState<CustomerPreferences | null>(null);
@@ -36,7 +36,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [attribution, setAttribution] = useState<CustomerAttribution | null>(null);
 
-  // Stats
   const [totalSpent, setTotalSpent] = useState(0);
   const [averageOrderValue, setAverageOrderValue] = useState(0);
 
@@ -49,7 +48,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     setError(null);
 
     try {
-      // Fetch customer
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .select('*')
@@ -59,7 +57,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       if (customerError) throw customerError;
       setCustomer(customerData);
 
-      // Fetch profile
       const { data: profileData } = await supabase
         .from('customer_profiles')
         .select('*')
@@ -68,7 +65,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
       setProfile(profileData);
 
-      // Fetch preferences
       const { data: preferencesData } = await supabase
         .from('customer_preferences')
         .select('*')
@@ -77,7 +73,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
       setPreferences(preferencesData);
 
-      // Fetch addresses
       const { data: addressesData } = await supabase
         .from('customer_addresses')
         .select('*')
@@ -86,14 +81,12 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
       setAddresses(addressesData || []);
 
-      // Fetch orders
       const { data: ordersData } = await supabase
         .from('orders')
         .select('id, order_number, status, total, created_at')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false });
 
-      // Get item counts for each order
       const ordersWithCounts: CustomerOrder[] = await Promise.all(
         (ordersData || []).map(async (order) => {
           const { count } = await supabase
@@ -110,12 +103,10 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
       setOrders(ordersWithCounts);
 
-      // Calculate stats
       const total = ordersWithCounts.reduce((sum, order) => sum + (order.total || 0), 0);
       setTotalSpent(total);
       setAverageOrderValue(ordersWithCounts.length > 0 ? total / ordersWithCounts.length : 0);
 
-      // Fetch attribution
       const { data: attributionData } = await supabase
         .from('customer_attribution')
         .select('*')
@@ -172,21 +163,21 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       .join(', ');
   };
 
-  const getOrderStatusColor = (status: string) => {
+  const getOrderStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
       case 'delivered':
-        return 'bg-emerald-500';
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'processing':
       case 'shipped':
-        return 'bg-blue-500';
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'pending':
-        return 'bg-yellow-500';
+        return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'cancelled':
       case 'refunded':
-        return 'bg-red-500';
+        return 'bg-red-100 text-red-700 border-red-200';
       default:
-        return 'bg-slate-500';
+        return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
 
@@ -206,14 +197,12 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         <div className="space-y-6">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft size={20} />
             Back to Customers
           </button>
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700">
             {error || 'Customer not found'}
           </div>
         </div>
@@ -224,125 +213,117 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        {/* Back Button */}
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+          className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ArrowLeft size={20} />
           Back to Customers
         </button>
 
-        {/* Customer Header */}
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-2xl font-bold">
             {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">{getCustomerName()}</h1>
-            <p className="text-slate-400">{customer.email}</p>
-            <p className="text-slate-500 text-sm">Customer since {formatDate(customer.created_at)}</p>
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">{getCustomerName()}</h1>
+            <p className="text-slate-500">{customer.email}</p>
+            <p className="text-slate-400 text-sm">Customer since {formatDate(customer.created_at)}</p>
           </div>
         </div>
 
-        {/* Three Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* COLUMN 1 */}
           <div className="space-y-6">
-            {/* Contact Info */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Contact Info</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Contact Info</h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Email</p>
-                  <p className="text-white">{customer.email}</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
+                  <p className="text-slate-800">{customer.email}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Phone</p>
-                  <p className="text-white">{customer.phone || '-'}</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
+                  <p className="text-slate-800">{customer.phone || '-'}</p>
                 </div>
               </div>
             </div>
 
-            {/* Growing Profile */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Growing Profile</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Growing Profile</h2>
               {profile ? (
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Environment</p>
-                    <p className="text-white">{getEnvironmentLabel(profile.environment)}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</p>
+                    <p className="text-slate-800">{getEnvironmentLabel(profile.environment)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Experience</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Experience</p>
                     {profile.experience_level ? (
                       <span
-                        className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white ${
+                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold text-white ${
                           EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.color || 'bg-slate-500'
                         }`}
                       >
                         {EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.label || profile.experience_level}
                       </span>
                     ) : (
-                      <p className="text-slate-400">-</p>
+                      <p className="text-slate-500">-</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Growing Systems</p>
-                    <p className="text-white">{getSystemLabels(profile.growing_systems)}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Growing Systems</p>
+                    <p className="text-slate-800">{getSystemLabels(profile.growing_systems)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Interests</p>
-                    <p className="text-white">{getInterestLabels(profile.interests)}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Interests</p>
+                    <p className="text-slate-800">{getInterestLabels(profile.interests)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Hardiness Zone</p>
-                    <p className="text-white">{profile.hardiness_zone || '-'}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Hardiness Zone</p>
+                    <p className="text-slate-800">{profile.hardiness_zone || '-'}</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-400">No profile data</p>
+                <p className="text-slate-500">No profile data</p>
               )}
             </div>
 
-            {/* Preferences */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Preferences</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Preferences</h2>
               {preferences ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300">Email Notifications</span>
+                    <span className="text-slate-600">Email Notifications</span>
                     <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
                         preferences.email_notifications
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-slate-700 text-slate-400'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {preferences.email_notifications ? 'Enabled' : 'Disabled'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300">SMS Notifications</span>
+                    <span className="text-slate-600">SMS Notifications</span>
                     <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
                         preferences.sms_notifications
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-slate-700 text-slate-400'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {preferences.sms_notifications ? 'Enabled' : 'Disabled'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-300">Newsletter</span>
+                    <span className="text-slate-600">Newsletter</span>
                     <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
                         preferences.newsletter_subscribed
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-slate-700 text-slate-400'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
                       }`}
                     >
                       {preferences.newsletter_subscribed ? 'Subscribed' : 'Not Subscribed'}
@@ -350,179 +331,162 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-400">No preferences set</p>
+                <p className="text-slate-500">No preferences set</p>
               )}
             </div>
           </div>
 
           {/* COLUMN 2 */}
           <div className="space-y-6">
-            {/* Addresses */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Addresses</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Addresses</h2>
               {addresses.length > 0 ? (
                 <div className="space-y-4">
                   {addresses.map((address) => (
                     <div
                       key={address.id}
-                      className="p-4 bg-slate-700/50 rounded-lg"
+                      className="p-4 bg-slate-50 rounded-xl border border-slate-100"
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs uppercase tracking-wider text-slate-400">
+                        <span className="text-xs uppercase tracking-wider text-slate-500">
                           {address.type}
                         </span>
                         {address.is_default && (
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium">
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">
                             Default
                           </span>
                         )}
                       </div>
-                      <p className="text-white">
+                      <p className="text-slate-800 font-medium">
                         {address.first_name} {address.last_name}
                       </p>
-                      <p className="text-slate-300 text-sm">{address.address_line1}</p>
+                      <p className="text-slate-600 text-sm">{address.address_line1}</p>
                       {address.address_line2 && (
-                        <p className="text-slate-300 text-sm">{address.address_line2}</p>
+                        <p className="text-slate-600 text-sm">{address.address_line2}</p>
                       )}
-                      <p className="text-slate-300 text-sm">
+                      <p className="text-slate-600 text-sm">
                         {address.city}, {address.state} {address.postal_code}
                       </p>
-                      <p className="text-slate-400 text-sm">{address.country}</p>
+                      <p className="text-slate-500 text-sm">{address.country}</p>
                       {address.phone && (
-                        <p className="text-slate-400 text-sm mt-1">{address.phone}</p>
+                        <p className="text-slate-500 text-sm mt-1">{address.phone}</p>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400">No saved addresses</p>
+                <p className="text-slate-500">No saved addresses</p>
               )}
             </div>
           </div>
 
           {/* COLUMN 3 */}
           <div className="space-y-6">
-            {/* Stats */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Stats</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Stats</h2>
               <div className="space-y-4">
-                <div className="p-4 bg-slate-700/50 rounded-lg">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Orders</p>
-                  <p className="text-2xl font-bold text-white">{orders.length}</p>
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Orders</p>
+                  <p className="text-2xl font-bold text-slate-800">{orders.length}</p>
                 </div>
-                <div className="p-4 bg-slate-700/50 rounded-lg">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Spent</p>
-                  <p className="text-2xl font-bold text-emerald-400">{formatCurrency(totalSpent)}</p>
+                <div className="p-4 bg-emerald-50 rounded-xl">
+                  <p className="text-xs text-emerald-600 uppercase tracking-wider mb-1">Total Spent</p>
+                  <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalSpent)}</p>
                 </div>
-                <div className="p-4 bg-slate-700/50 rounded-lg">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Average Order Value</p>
-                  <p className="text-2xl font-bold text-white">{formatCurrency(averageOrderValue)}</p>
+                <div className="p-4 bg-slate-50 rounded-xl">
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Average Order Value</p>
+                  <p className="text-2xl font-bold text-slate-800">{formatCurrency(averageOrderValue)}</p>
                 </div>
               </div>
             </div>
 
-            {/* Attribution */}
-            <div className="bg-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Attribution</h2>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Attribution</h2>
               {attribution ? (
                 <div className="space-y-3">
                   {attribution.source && (
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Source</p>
-                      <p className="text-white">{attribution.source}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Source</p>
+                      <p className="text-slate-800">{attribution.source}</p>
                     </div>
                   )}
                   {attribution.medium && (
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Medium</p>
-                      <p className="text-white">{attribution.medium}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Medium</p>
+                      <p className="text-slate-800">{attribution.medium}</p>
                     </div>
                   )}
                   {attribution.campaign && (
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Campaign</p>
-                      <p className="text-white">{attribution.campaign}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Campaign</p>
+                      <p className="text-slate-800">{attribution.campaign}</p>
                     </div>
                   )}
                   {attribution.referrer && (
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Referrer</p>
-                      <p className="text-white text-sm break-all">{attribution.referrer}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Referrer</p>
+                      <p className="text-slate-800 text-sm break-all">{attribution.referrer}</p>
                     </div>
                   )}
                   {attribution.landing_page && (
                     <div>
-                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Landing Page</p>
-                      <p className="text-white text-sm break-all">{attribution.landing_page}</p>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Landing Page</p>
+                      <p className="text-slate-800 text-sm break-all">{attribution.landing_page}</p>
                     </div>
                   )}
                   {!attribution.source && !attribution.medium && !attribution.campaign && !attribution.referrer && !attribution.landing_page && (
-                    <p className="text-slate-400">No attribution data</p>
+                    <p className="text-slate-500">No attribution data</p>
                   )}
                 </div>
               ) : (
-                <p className="text-slate-400">How they found you: Unknown</p>
+                <p className="text-slate-500">How they found you: Unknown</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Order History - Full Width */}
-        <div className="bg-slate-800 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Order History</h2>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Order History</h2>
           {orders.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Order
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Items
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Total
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Actions
-                    </th>
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Order</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Items</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-700">
+                <tbody className="divide-y divide-slate-100">
                   {orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-700/50 transition-colors">
-                      <td className="px-4 py-3 text-white font-mono text-sm">
+                    <tr key={order.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-slate-800 font-mono text-sm">
                         {order.order_number}
                       </td>
-                      <td className="px-4 py-3 text-slate-300 text-sm">
+                      <td className="px-4 py-3 text-slate-600 text-sm">
                         {formatDate(order.created_at)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span
-                          className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white capitalize ${getOrderStatusColor(
-                            order.status
-                          )}`}
+                          className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold capitalize border ${getOrderStatusBadge(order.status)}`}
                         >
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-300">
+                      <td className="px-4 py-3 text-right text-slate-600">
                         {order.item_count}
                       </td>
-                      <td className="px-4 py-3 text-right text-emerald-400 font-medium">
+                      <td className="px-4 py-3 text-right text-emerald-600 font-semibold">
                         {formatCurrency(order.total)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => onViewOrder?.(order.id)}
-                          className="text-emerald-400 hover:text-emerald-300 transition-colors text-sm"
+                          className="text-emerald-600 hover:text-emerald-700 transition-colors text-sm font-medium"
                         >
                           View
                         </button>
@@ -533,7 +497,12 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
               </table>
             </div>
           ) : (
-            <p className="text-slate-400">No orders yet</p>
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User size={32} className="text-slate-400" />
+              </div>
+              <p className="text-slate-500">No orders yet</p>
+            </div>
           )}
         </div>
       </div>

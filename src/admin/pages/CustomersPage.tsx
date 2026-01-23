@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { Search, Download, Users, Mail } from 'lucide-react';
 import {
   CustomerWithStats,
   NewsletterSubscriber,
@@ -20,20 +21,16 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Customers state
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerCount, setCustomerCount] = useState(0);
 
-  // Newsletter state
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
   const [subscriberCount, setSubscriberCount] = useState(0);
 
-  // Fetch customers with stats
   const fetchCustomers = async () => {
     try {
-      // First get all customers
       let query = supabase
         .from('customers')
         .select('*')
@@ -47,7 +44,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       if (customersError) throw customersError;
 
-      // Get order stats for each customer
       const customersWithStats: CustomerWithStats[] = await Promise.all(
         (customersData || []).map(async (customer) => {
           const { data: orderStats } = await supabase
@@ -72,7 +68,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     }
   };
 
-  // Fetch newsletter subscribers
   const fetchSubscribers = async () => {
     try {
       let query = supabase
@@ -90,7 +85,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       setSubscribers(data || []);
 
-      // Get total count
       const { count } = await supabase
         .from('newsletter_subscribers')
         .select('*', { count: 'exact', head: true });
@@ -176,11 +170,10 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Customers</h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Customers</h1>
+            <p className="text-slate-500 text-sm mt-1">
               {activeTab === 'customers'
                 ? `${customerCount} total customers`
                 : `${subscriberCount} newsletter subscribers`}
@@ -188,8 +181,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-slate-700">
+        <div className="border-b border-slate-200">
           <nav className="flex gap-6">
             {tabs.map((tab) => (
               <button
@@ -197,15 +189,15 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative pb-3 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'text-emerald-400'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-emerald-600'
+                    : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 {tab.label}
                 {activeTab === tab.id && (
                   <motion.div
                     layoutId="customerActiveTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-400"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
                     initial={false}
                   />
                 )}
@@ -214,21 +206,18 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
           </nav>
         </div>
 
-        {/* Error State */}
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700">
             {error}
           </div>
         )}
 
-        {/* Loading State */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <AnimatePresence mode="wait">
-            {/* All Customers Tab */}
             {activeTab === 'customers' && (
               <motion.div
                 key="customers"
@@ -238,62 +227,41 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                {/* Search */}
                 <div className="flex items-center gap-4">
                   <div className="relative flex-1 max-w-md">
-                    <svg
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                       type="text"
                       value={customerSearch}
                       onChange={(e) => setCustomerSearch(e.target.value)}
                       placeholder="Search by name or email..."
-                      className="w-full pl-10 pr-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-slate-500"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 transition-all"
                     />
                   </div>
                 </div>
 
-                {/* Customers Table */}
-                <div className="bg-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                   <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Phone
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Orders
-                        </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Total Spent
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Joined
-                        </th>
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Spent</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Joined</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {customers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                            {customerSearch ? 'No customers found matching your search' : 'No customers yet'}
+                          <td colSpan={6} className="px-6 py-12 text-center">
+                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Users size={32} className="text-slate-400" />
+                            </div>
+                            <p className="text-slate-500">
+                              {customerSearch ? 'No customers found matching your search' : 'No customers yet'}
+                            </p>
                           </td>
                         </tr>
                       ) : (
@@ -301,23 +269,23 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                           <tr
                             key={customer.id}
                             onClick={() => handleCustomerClick(customer.id)}
-                            className="hover:bg-slate-700/50 cursor-pointer transition-colors"
+                            className="hover:bg-slate-50 cursor-pointer transition-colors"
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-sm font-medium">
                                   {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
                                 </div>
-                                <span className="text-white font-medium">{getCustomerName(customer)}</span>
+                                <span className="text-slate-800 font-medium">{getCustomerName(customer)}</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 text-slate-300">{customer.email}</td>
-                            <td className="px-6 py-4 text-slate-300">{customer.phone || '-'}</td>
-                            <td className="px-6 py-4 text-right text-white">{customer.order_count}</td>
-                            <td className="px-6 py-4 text-right text-emerald-400 font-medium">
+                            <td className="px-6 py-4 text-slate-600">{customer.email}</td>
+                            <td className="px-6 py-4 text-slate-600">{customer.phone || '-'}</td>
+                            <td className="px-6 py-4 text-right text-slate-800 font-semibold">{customer.order_count}</td>
+                            <td className="px-6 py-4 text-right text-emerald-600 font-semibold">
                               {formatCurrency(customer.total_spent)}
                             </td>
-                            <td className="px-6 py-4 text-slate-300 text-sm">
+                            <td className="px-6 py-4 text-slate-500 text-sm">
                               {formatDate(customer.created_at)}
                             </td>
                           </tr>
@@ -329,7 +297,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
               </motion.div>
             )}
 
-            {/* Newsletter Subscribers Tab */}
             {activeTab === 'newsletter' && (
               <motion.div
                 key="newsletter"
@@ -339,89 +306,66 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                {/* Filters */}
                 <div className="flex items-center justify-between">
                   <select
                     value={subscriberFilter}
                     onChange={(e) => setSubscriberFilter(e.target.value as SubscriberStatus | 'all')}
-                    className="px-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   >
                     <option value="all">All Statuses</option>
                     {Object.entries(SUBSCRIBER_STATUS_CONFIG).map(([status, config]) => (
-                      <option key={status} value={status}>
-                        {config.label}
-                      </option>
+                      <option key={status} value={status}>{config.label}</option>
                     ))}
                   </select>
 
                   <button
                     onClick={handleExportCSV}
-                    className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
+                    className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
+                    <Download size={18} />
                     Export CSV
                   </button>
                 </div>
 
-                {/* Subscribers Table */}
-                <div className="bg-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                   <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Source
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          Subscribed
-                        </th>
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Subscribed</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {subscribers.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                            No subscribers found
+                          <td colSpan={5} className="px-6 py-12 text-center">
+                            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Mail size={32} className="text-slate-400" />
+                            </div>
+                            <p className="text-slate-500">No subscribers found</p>
                           </td>
                         </tr>
                       ) : (
                         subscribers.map((subscriber) => (
-                          <tr key={subscriber.id} className="hover:bg-slate-700/50 transition-colors">
-                            <td className="px-6 py-4 text-white">{subscriber.email}</td>
-                            <td className="px-6 py-4 text-slate-300">
+                          <tr key={subscriber.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-6 py-4 text-slate-800">{subscriber.email}</td>
+                            <td className="px-6 py-4 text-slate-600">
                               {[subscriber.first_name, subscriber.last_name].filter(Boolean).join(' ') || '-'}
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span
-                                className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white ${
+                                className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold text-white ${
                                   SUBSCRIBER_STATUS_CONFIG[subscriber.status]?.color || 'bg-slate-500'
                                 }`}
                               >
                                 {SUBSCRIBER_STATUS_CONFIG[subscriber.status]?.label || subscriber.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-slate-300">{subscriber.source || '-'}</td>
-                            <td className="px-6 py-4 text-slate-300 text-sm">
+                            <td className="px-6 py-4 text-slate-600">{subscriber.source || '-'}</td>
+                            <td className="px-6 py-4 text-slate-500 text-sm">
                               {formatDate(subscriber.subscribed_at)}
                             </td>
                           </tr>
