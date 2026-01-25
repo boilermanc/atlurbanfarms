@@ -402,7 +402,7 @@ export function useCategories() {
           .from('product_categories')
           .select('*')
           .eq('is_active', true)
-          .order('name')
+          .order('sort_order')
 
         if (supabaseError) throw supabaseError
 
@@ -811,7 +811,7 @@ export function useCreateOrder() {
           id: result.order_id,
           order_number: result.order_number,
           ...orderData,
-          status: 'pending',
+          status: 'pending_payment',
           items: cartItems.map(item => ({
             id: item.id || item.product?.id,
             name: item.name || item.product?.name,

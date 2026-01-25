@@ -9,7 +9,7 @@ interface AdminHeaderProps {
 
 const AdminHeader: React.FC<AdminHeaderProps> = ({ title, onMenuClick, onLogout }) => {
   return (
-    <header className="h-16 bg-white/70 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-6 flex-shrink-0 sticky top-0 z-10 font-admin-body">
+    <header className="h-16 bg-white/70 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-6 flex-shrink-0 sticky top-0 z-10 font-admin-body print-hidden">
       {/* Left side - hamburger and title */}
       <div className="flex items-center gap-4">
         {/* Hamburger menu button */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { Plus, GripVertical, FolderOpen, Edit2, Trash2, Upload, X } from 'lucide-react';
@@ -27,6 +28,7 @@ const generateSlug = (name: string): string => {
 };
 
 const CategoriesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -326,12 +328,16 @@ const CategoriesPage: React.FC = () => {
                         <p className="text-slate-800 font-medium">{category.name}</p>
                         <span className="text-slate-400 text-sm">/{category.slug}</span>
                       </div>
-                      <p className="text-slate-500 text-sm">{category.product_count || 0} products</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/products?category=${category.id}`);
+                        }}
+                        className="text-slate-500 text-sm hover:text-emerald-600 hover:underline transition-colors text-left"
+                      >
+                        {category.product_count || 0} products
+                      </button>
                     </div>
-
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${category.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                      {category.is_active ? 'Active' : 'Inactive'}
-                    </span>
 
                     <button
                       onClick={(e) => { e.stopPropagation(); handleToggleActive(category); }}

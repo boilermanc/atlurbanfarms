@@ -55,7 +55,7 @@ serve(async (req) => {
         const orderId = paymentIntent.metadata?.orderId
 
         if (orderId) {
-          // Update order status in database
+          // Update payment status
           const { error } = await supabaseClient
             .from('orders')
             .update({
@@ -68,6 +68,12 @@ serve(async (req) => {
           if (error) {
             console.error('Failed to update order:', error)
           } else {
+            await supabaseClient
+              .from('orders')
+              .update({ status: 'processing' })
+              .eq('id', orderId)
+              .in('status', ['pending_payment', 'failed'])
+
             console.log(`Order ${orderId} marked as paid`)
           }
         }
@@ -91,6 +97,12 @@ serve(async (req) => {
           if (error) {
             console.error('Failed to update order:', error)
           } else {
+            await supabaseClient
+              .from('orders')
+              .update({ status: 'failed' })
+              .eq('id', orderId)
+              .in('status', ['pending_payment', 'processing'])
+
             console.log(`Order ${orderId} payment failed`)
           }
         }

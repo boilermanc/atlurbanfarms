@@ -1,18 +1,48 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { SparkleIcon } from '../constants';
+import { submitNewsletterPreference } from '@/src/services/newsletter';
 
 interface FooterProps {
   onNavigate?: (view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => void;
 }
 
 const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState<string | null>(null);
   const handleNav = (e: React.MouseEvent, view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => {
     e.preventDefault();
     if (onNavigate) {
       onNavigate(view, category);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setStatus('error');
+      setMessage('Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      setStatus('loading');
+      await submitNewsletterPreference({
+        email: trimmedEmail,
+        source: 'footer',
+      });
+      setStatus('success');
+      setMessage('Thanks for joining! Check your inbox for a confirmation.');
+      setEmail('');
+    } catch (err: any) {
+      setStatus('error');
+      setMessage(err.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -77,16 +107,49 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <h3 className="text-3xl font-heading font-extrabold mb-4">Join the Garden</h3>
               <p className="text-gray-400 mb-8 max-w-sm">Get growing tips, nursery updates, and early access to rare seasonal seedlings.</p>
               
-              <form onSubmit={(e) => e.preventDefault()} className="flex flex-col sm:flex-row gap-4">
+              <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4">
                 <input 
                   type="email" 
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (status !== 'idle') {
+                      setStatus('idle');
+                      setMessage(null);
+                    }
+                  }}
                   placeholder="Enter your email" 
                   className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  aria-label="Email address"
+                  required
                 />
-                <button className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-50 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-emerald-900/20 whitespace-nowrap">
-                  Subscribe
+                <button
+                  type="submit"
+                  disabled={status === 'loading'}
+                  className={`px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-900/20 whitespace-nowrap flex items-center justify-center gap-2 ${
+                    status === 'loading'
+                      ? 'bg-white/20 text-white/70 cursor-not-allowed'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-50 hover:text-emerald-600 hover:scale-[1.02] active:scale-95'
+                  }`}
+                >
+                  {status === 'loading' ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                      Sending...
+                    </>
+                  ) : (
+                    'Subscribe'
+                  )}
                 </button>
               </form>
+              {message && (
+                <p
+                  className={`mt-4 text-sm ${status === 'success' ? 'text-emerald-300' : 'text-rose-200'}`}
+                  role="status"
+                >
+                  {message}
+                </p>
+              )}
             </div>
           </div>
         </div>

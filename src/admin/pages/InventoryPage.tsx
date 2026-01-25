@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import LowStockAlert from '../components/LowStockAlert';
 import InventoryAdjustmentModal from '../components/InventoryAdjustmentModal';
+import BulkInventoryPage from './BulkInventoryPage';
 import { supabase } from '../../lib/supabase';
-import { Plus, Package, Edit2, PlusCircle } from 'lucide-react';
+import { Plus, Package, Edit2, PlusCircle, Printer } from 'lucide-react';
+import InventoryPrintReport, { InventoryReportRow } from '../components/InventoryPrintReport';
+
+const UNFULFILLED_ORDER_STATUSES = ['pending_payment', 'processing', 'on_hold'];
 import {
   ProductInventorySummary,
   InventoryBatch,
@@ -14,14 +18,14 @@ import {
   ADJUSTMENT_TYPE_CONFIG,
 } from '../types/inventory';
 
-type TabType = 'by-product' | 'by-batch' | 'adjustments';
+type TabType = 'bulk-update' | 'by-product' | 'by-batch' | 'adjustments';
 
 interface InventoryPageProps {
   onNavigateToBatchEdit?: (batchId?: string) => void;
 }
 
 const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('by-product');
+  const [activeTab, setActiveTab] = useState<TabType>('bulk-update');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +39,12 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
 
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [selectedBatchForAdjustment, setSelectedBatchForAdjustment] = useState<InventoryBatch | null>(null);
+
+  const [showPrintReport, setShowPrintReport] = useState(false);
+  const [printReportLoading, setPrintReportLoading] = useState(false);
+  const [printReportError, setPrintReportError] = useState<string | null>(null);
+  const [printReportRows, setPrintReportRows] = useState<InventoryReportRow[]>([]);
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
 
   const fetchProductInventory = async () => {
     try {
@@ -176,6 +186,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
   };
 
   const tabs: { id: TabType; label: string }[] = [
+    { id: 'bulk-update', label: 'Bulk Update' },
     { id: 'by-product', label: 'By Product' },
     { id: 'by-batch', label: 'By Batch' },
     { id: 'adjustments', label: 'Adjustments' },
@@ -186,23 +197,120 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
     return new Date(dateStr).toLocaleDateString();
   };
 
+  const fetchInventoryPrintReport = useCallback(async () => {
+    try {
+      setPrintReportLoading(true);
+      setPrintReportError(null);
+
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          price,
+          compare_at_price,
+          quantity_available,
+          category:product_categories(name)
+        `)
+        .eq('is_active', true)
+        .order('name');
+
+      if (productsError) throw productsError;
+
+      const mappedProducts = (productsData || []).map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        price: Number(product.price) || 0,
+        compare_at_price:
+          product.compare_at_price !== null && product.compare_at_price !== undefined
+            ? Number(product.compare_at_price)
+            : null,
+        quantity_available: Number(product.quantity_available) || 0,
+        category: product.category?.name || 'Uncategorized',
+      }));
+
+      const productIds = mappedProducts.map((product) => product.id);
+      const pendingMap = new Map<string, number>();
+
+      if (productIds.length > 0) {
+        const { data: pendingData, error: pendingError } = await supabase
+          .from('order_items')
+          .select('product_id, quantity, orders!inner(status)')
+          .in('product_id', productIds)
+          .in('orders.status', UNFULFILLED_ORDER_STATUSES);
+
+        if (pendingError) throw pendingError;
+
+        (pendingData || []).forEach((item: any) => {
+          const qty = Number(item.quantity) || 0;
+          const current = pendingMap.get(item.product_id) || 0;
+          pendingMap.set(item.product_id, current + qty);
+        });
+      }
+
+      const rows: InventoryReportRow[] = mappedProducts
+        .map((product) => ({
+          id: product.id,
+          category: product.category,
+          name: product.name,
+          price: product.price,
+          salePrice: product.compare_at_price,
+          pendingOrders: pendingMap.get(product.id) || 0,
+          currentInventory: product.quantity_available,
+        }))
+        .sort((a, b) => {
+          const categoryCompare = a.category.localeCompare(b.category);
+          if (categoryCompare !== 0) return categoryCompare;
+          return a.name.localeCompare(b.name);
+        });
+
+      setPrintReportRows(rows);
+      setReportGeneratedAt(new Date());
+    } catch (err: any) {
+      console.error('Error building inventory print report:', err);
+      setPrintReportError(err.message || 'Failed to load inventory report');
+    } finally {
+      setPrintReportLoading(false);
+    }
+  }, []);
+
+  const handleOpenPrintReport = () => {
+    setShowPrintReport(true);
+    fetchInventoryPrintReport();
+  };
+
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  };
+
   return (
     <AdminPageWrapper>
-      <div className="space-y-6">
+      <div className="space-y-6 no-print">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Inventory</h1>
             <p className="text-slate-500 text-sm mt-1">Track stock levels and batch inventory</p>
           </div>
-          {activeTab === 'by-batch' && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleAddBatch}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+              onClick={handleOpenPrintReport}
+              className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-700 bg-white rounded-xl font-medium hover:bg-slate-50 transition-colors"
             >
-              <Plus size={20} />
-              Add Batch
+              <Printer size={18} />
+              Print Report
             </button>
-          )}
+            {activeTab === 'by-batch' && (
+              <button
+                onClick={handleAddBatch}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+              >
+                <Plus size={20} />
+                Add Batch
+              </button>
+            )}
+          </div>
         </div>
 
         <LowStockAlert products={productInventory.filter((p) => p.is_low_stock)} />
@@ -266,6 +374,18 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
           </div>
         ) : (
           <AnimatePresence mode="wait">
+            {activeTab === 'bulk-update' && (
+              <motion.div
+                key="bulk-update"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <BulkInventoryPage />
+              </motion.div>
+            )}
+
             {activeTab === 'by-product' && (
               <motion.div
                 key="by-product"
@@ -536,6 +656,16 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onNavigateToBatchEdit }) 
           onSave={handleAdjustmentSaved}
         />
       )}
+      <InventoryPrintReport
+        isOpen={showPrintReport}
+        loading={printReportLoading}
+        error={printReportError}
+        rows={printReportRows}
+        generatedAt={reportGeneratedAt}
+        onClose={() => setShowPrintReport(false)}
+        onRefresh={fetchInventoryPrintReport}
+        onPrint={handlePrint}
+      />
     </AdminPageWrapper>
   );
 };

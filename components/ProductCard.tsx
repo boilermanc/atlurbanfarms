@@ -27,8 +27,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   salePrice,
   saleBadge,
 }) => {
-  const isOnSale = salePrice !== null && salePrice !== undefined && salePrice < price;
-  const displayPrice = isOnSale ? salePrice : price;
+  const derivedSalePrice = typeof salePrice === 'number' && salePrice < price ? salePrice : null;
+  const isOnSale = derivedSalePrice !== null;
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
@@ -130,9 +130,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <span className="px-3 py-1.5 bg-white/90 backdrop-blur-md text-gray-900 text-[10px] font-black uppercase tracking-wider rounded-xl shadow-sm border border-white/50">
             {category}
           </span>
-          {isOnSale && inStock && (
+          {isOnSale && (
             <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
-              {saleBadge || 'SALE'}
+              {saleBadge || 'On Sale'}
             </span>
           )}
           {!inStock && (
@@ -149,12 +149,18 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <h3 className="font-heading font-extrabold text-xl text-gray-900 leading-tight group-hover:text-emerald-600 transition-colors">
             {name}
           </h3>
-          <div className="flex flex-col items-end">
-            <span className="text-xl font-black text-emerald-600">
-              ${displayPrice.toFixed(2)}
-            </span>
-            {isOnSale && (
-              <span className="text-sm text-gray-400 line-through">
+          <div className="flex flex-col items-end text-right leading-tight">
+            {isOnSale ? (
+              <>
+                <span className="text-sm font-semibold text-gray-400 line-through tracking-tight">
+                  ${price.toFixed(2)}
+                </span>
+                <span className="text-2xl font-black text-red-500">
+                  ${derivedSalePrice?.toFixed(2)}
+                </span>
+              </>
+            ) : (
+              <span className="text-2xl font-black text-emerald-600">
                 ${price.toFixed(2)}
               </span>
             )}

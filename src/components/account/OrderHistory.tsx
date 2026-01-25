@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOrders } from '../../hooks/useSupabase';
+import { getOrderStatusLabel } from '../../constants/orderStatus';
 
 interface OrderHistoryProps {
   userId: string;
@@ -72,20 +73,19 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-      case 'delivered':
         return 'bg-emerald-50 text-emerald-600';
       case 'processing':
-      case 'preparing':
         return 'bg-blue-50 text-blue-600';
-      case 'shipped':
-      case 'out_for_delivery':
+      case 'on_hold':
         return 'bg-purple-50 text-purple-600';
       case 'cancelled':
       case 'refunded':
         return 'bg-red-50 text-red-600';
-      case 'pending':
+      case 'failed':
+        return 'bg-slate-100 text-slate-600';
+      case 'pending_payment':
       default:
-        return 'bg-yellow-50 text-yellow-600';
+        return 'bg-amber-50 text-amber-700';
     }
   };
 
@@ -190,7 +190,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                         Order #{order.order_number}
                       </span>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                        {order.status.replace(/_/g, ' ')}
+                        {getOrderStatusLabel(order.status)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>

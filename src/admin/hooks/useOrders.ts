@@ -1,5 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import {
+  ORDER_STATUS_CONFIG,
+  ORDER_STATUSES,
+  type OrderStatus,
+} from '../../constants/orderStatus';
+
+export { ORDER_STATUSES, ORDER_STATUS_CONFIG } from '../../constants/orderStatus';
+export type { OrderStatus } from '../../constants/orderStatus';
+
+export interface ViewOrderOptions {
+  fromCustomerId?: string;
+  fromCustomerName?: string;
+}
+
+export type ViewOrderHandler = (orderId: string, options?: ViewOrderOptions) => void;
 
 // Types
 export interface OrderFilters {
@@ -22,10 +37,30 @@ export interface OrderItem {
   line_total: number;
 }
 
+export interface OrderRefundItem {
+  order_item_id: string;
+  quantity: number;
+  amount: number;
+  description?: string;
+}
+
+export interface OrderRefund {
+  id: string;
+  amount: number;
+  reason: string | null;
+  status: string;
+  stripe_refund_id: string | null;
+  items: OrderRefundItem[] | null;
+  created_at: string;
+  created_by: string | null;
+  created_by_name?: string | null;
+}
+
 export interface OrderStatusHistory {
   id: string;
   order_id: string;
-  status: string;
+  status: OrderStatus;
+  from_status: OrderStatus | null;
   note: string | null;
   changed_by: string | null;
   changed_by_name: string | null;
@@ -61,11 +96,14 @@ export interface Order {
   customer_name: string | null;
   customer_email: string;
   customer_phone: string | null;
-  status: string;
+  status: OrderStatus;
+  payment_status?: string | null;
+  stripe_payment_intent_id?: string | null;
   subtotal: number;
   shipping_cost: number;
   tax: number;
   total: number;
+  refunded_total?: number;
   shipping_address: {
     name: string;
     street: string;
@@ -82,6 +120,7 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   status_history?: OrderStatusHistory[];
+  refunds?: OrderRefund[];
   // Pickup fields
   is_pickup: boolean;
   pickup_location_id: string | null;
@@ -97,31 +136,6 @@ export interface OrdersResponse {
   totalPages: number;
   currentPage: number;
 }
-
-// Order statuses
-export const ORDER_STATUSES = [
-  'pending',
-  'paid',
-  'allocated',
-  'picking',
-  'packed',
-  'shipped',
-  'delivered',
-  'cancelled',
-] as const;
-
-export type OrderStatus = typeof ORDER_STATUSES[number];
-
-export const ORDER_STATUS_CONFIG: Record<OrderStatus, { label: string; color: string }> = {
-  pending: { label: 'Pending', color: 'bg-slate-500' },
-  paid: { label: 'Paid', color: 'bg-blue-500' },
-  allocated: { label: 'Allocated', color: 'bg-purple-500' },
-  picking: { label: 'Picking', color: 'bg-amber-500' },
-  packed: { label: 'Packed', color: 'bg-orange-500' },
-  shipped: { label: 'Shipped', color: 'bg-cyan-500' },
-  delivered: { label: 'Delivered', color: 'bg-emerald-500' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-500' },
-};
 
 // Hook: Fetch orders with filters and pagination
 export function useOrders(filters: OrderFilters = {}) {
@@ -166,6 +180,19 @@ export function useOrders(filters: OrderFilters = {}) {
             products (
               name,
               images:product_images(id, url, is_primary, sort_order)
+            )
+          ),
+          order_refunds (
+            id,
+            amount,
+            reason,
+            items,
+            status,
+            stripe_refund_id,
+            created_at,
+            created_by,
+            customers:created_by (
+              email
             )
           ),
           pickup_reservations (
@@ -244,11 +271,14 @@ export function useOrders(filters: OrderFilters = {}) {
           : order.shipping_address?.name || `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim() || null,
         customer_email: order.customer_email || order.guest_email || order.customers?.email,
         customer_phone: order.customers?.phone || order.shipping_phone || null,
-        status: order.status,
+        status: order.status as OrderStatus,
+        payment_status: order.payment_status,
+        stripe_payment_intent_id: order.stripe_payment_intent_id,
         subtotal: order.subtotal,
         shipping_cost: order.shipping_cost,
         tax: order.tax,
         total: order.total,
+        refunded_total: order.refunded_total || 0,
         shipping_address: order.shipping_address || (order.shipping_address_line1 ? {
           name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
           street: order.shipping_address_line1,
@@ -272,6 +302,17 @@ export function useOrders(filters: OrderFilters = {}) {
           unit_price: item.product_price,
           line_total: item.line_total,
         })),
+        refunds: (order.order_refunds || []).map((refund: any) => ({
+          id: refund.id,
+          amount: refund.amount,
+          reason: refund.reason,
+          status: refund.status,
+          stripe_refund_id: refund.stripe_refund_id,
+          items: refund.items || null,
+          created_at: refund.created_at,
+          created_by: refund.created_by,
+          created_by_name: refund.customers?.email || null,
+        })),
         // Pickup fields
         is_pickup: order.is_pickup || false,
         pickup_location_id: order.pickup_location_id,
@@ -287,7 +328,7 @@ export function useOrders(filters: OrderFilters = {}) {
           status: order.pickup_reservations[0].status,
           notes: order.pickup_reservations[0].notes,
         } : undefined,
-      }));
+        }));
 
       setOrders(formattedOrders);
       setTotalCount(countResult.count || 0);
@@ -354,6 +395,19 @@ export function useOrder(orderId: string | null) {
               name,
               images:product_images(id, url, is_primary, sort_order)
             )
+          ),
+          order_refunds (
+            id,
+            amount,
+            reason,
+            items,
+            status,
+            stripe_refund_id,
+            created_at,
+            created_by,
+            customers:created_by (
+              email
+            )
           )
         `)
         .eq('id', orderId)
@@ -366,7 +420,7 @@ export function useOrder(orderId: string | null) {
         .from('order_status_history')
         .select(`
           *,
-          admin_users:changed_by (
+          customers:changed_by (
             email
           )
         `)
@@ -387,11 +441,14 @@ export function useOrder(orderId: string | null) {
           : orderData.shipping_address?.name || `${orderData.shipping_first_name || ''} ${orderData.shipping_last_name || ''}`.trim() || null,
         customer_email: orderData.customer_email || orderData.guest_email || orderData.customers?.email,
         customer_phone: orderData.customers?.phone || orderData.shipping_phone || null,
-        status: orderData.status,
+        status: orderData.status as OrderStatus,
+        payment_status: orderData.payment_status,
+        stripe_payment_intent_id: orderData.stripe_payment_intent_id,
         subtotal: orderData.subtotal,
         shipping_cost: orderData.shipping_cost,
         tax: orderData.tax,
         total: orderData.total,
+        refunded_total: orderData.refunded_total || 0,
         shipping_address: orderData.shipping_address || (orderData.shipping_address_line1 ? {
           name: `${orderData.shipping_first_name || ''} ${orderData.shipping_last_name || ''}`.trim(),
           street: orderData.shipping_address_line1,
@@ -418,11 +475,23 @@ export function useOrder(orderId: string | null) {
         status_history: (historyData || []).map((h: any) => ({
           id: h.id,
           order_id: h.order_id,
-          status: h.status,
+          status: h.status as OrderStatus,
+          from_status: h.from_status as OrderStatus | null,
           note: h.note,
           changed_by: h.changed_by,
-          changed_by_name: h.admin_users?.email || 'System',
+          changed_by_name: h.customers?.email || 'System',
           created_at: h.created_at,
+        })),
+        refunds: (orderData.order_refunds || []).map((refund: any) => ({
+          id: refund.id,
+          amount: refund.amount,
+          reason: refund.reason,
+          status: refund.status,
+          stripe_refund_id: refund.stripe_refund_id,
+          items: refund.items || null,
+          created_at: refund.created_at,
+          created_by: refund.created_by,
+          created_by_name: refund.customers?.email || null,
         })),
       };
 
@@ -462,6 +531,17 @@ export function useUpdateOrderStatus() {
     setError(null);
 
     try {
+      // Get current status before updating
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const fromStatus = currentOrder?.status || null;
+
       // Update order status
       const { error: updateError } = await supabase
         .from('orders')
@@ -473,12 +553,13 @@ export function useUpdateOrderStatus() {
 
       if (updateError) throw updateError;
 
-      // Add to status history
+      // Add to status history with from_status
       const { error: historyError } = await supabase
         .from('order_status_history')
         .insert({
           order_id: orderId,
           status: newStatus,
+          from_status: fromStatus,
           note: note || null,
           changed_by: changedBy || null,
         });
@@ -592,6 +673,60 @@ export function useCancelOrder() {
 
   return {
     cancelOrder,
+    loading,
+    error,
+  };
+}
+
+interface RefundOrderParams {
+  orderId: string;
+  amount: number;
+  reason?: string;
+  items?: OrderRefundItem[];
+  adminUserId?: string;
+}
+
+export function useOrderRefund() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refundOrder = useCallback(async ({
+    orderId,
+    amount,
+    reason,
+    items,
+    adminUserId,
+  }: RefundOrderParams) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const payload = {
+        order_id: orderId,
+        amount_cents: Math.round(amount * 100),
+        reason,
+        items: items && items.length > 0 ? items : undefined,
+        admin_user_id: adminUserId,
+      };
+
+      const { data, error: fnError } = await supabase.functions.invoke('stripe-refund', {
+        body: payload,
+      });
+
+      if (fnError) throw fnError;
+
+      return { success: true, data };
+    } catch (err: any) {
+      console.error('Error processing refund:', err);
+      setError(err.message || 'Failed to process refund');
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    refundOrder,
     loading,
     error,
   };

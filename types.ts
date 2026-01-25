@@ -5,8 +5,9 @@ export interface Product {
   description: string;
   price: number;
   image: string;
-  category: 'Vegetables' | 'Herbs' | 'Flowers';
+  category: string;
   stock: number;
+  salePrice?: number | null;
 }
 
 export interface CartItem extends Product {
@@ -17,3 +18,4 @@ export interface Message {
   role: 'user' | 'model';
   text: string;
 }
+

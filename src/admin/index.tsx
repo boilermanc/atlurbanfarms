@@ -51,6 +51,7 @@ export {
   useUpdateOrderStatus,
   useAddOrderNote,
   useCancelOrder,
+  useOrderRefund,
   ORDER_STATUSES,
   ORDER_STATUS_CONFIG,
 } from './hooks/useOrders';
@@ -75,6 +76,8 @@ export type {
   Order,
   OrderItem,
   OrderStatusHistory,
+  OrderRefund,
+  OrderRefundItem,
   OrderFilters,
   OrdersResponse,
   OrderStatus

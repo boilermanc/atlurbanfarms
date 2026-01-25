@@ -94,7 +94,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate }) => {
   return (
-    <aside className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col fixed left-0 top-0 font-admin-body">
+    <aside className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col fixed left-0 top-0 font-admin-body print-hidden">
       {/* Logo */}
       <div className="px-6 py-6 border-b border-slate-200">
         <div className="flex items-center gap-3">

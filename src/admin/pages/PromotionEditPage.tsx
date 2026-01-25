@@ -75,7 +75,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
           .select('id, name, product_categories(name)')
           .eq('is_active', true)
           .order('name'),
-        supabase.from('product_categories').select('id, name').eq('is_active', true).order('name'),
+        supabase.from('product_categories').select('id, name').eq('is_active', true).order('sort_order'),
       ]);
 
       if (productsRes.data) {

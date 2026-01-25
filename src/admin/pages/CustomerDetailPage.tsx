@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, User } from 'lucide-react';
+import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle } from 'lucide-react';
 import {
   Customer,
   CustomerProfile,
@@ -9,16 +9,22 @@ import {
   CustomerAddress,
   CustomerOrder,
   CustomerAttribution,
+  CustomerRole,
+  TAG_COLOR_CONFIG,
   EXPERIENCE_LEVEL_CONFIG,
   ENVIRONMENT_OPTIONS,
   GROWING_SYSTEM_OPTIONS,
   INTEREST_OPTIONS,
 } from '../types/customer';
+import { useCustomerRole } from '../hooks/useCustomerRole';
+import { useCustomerTagAssignments } from '../hooks/useCustomerTagAssignments';
+import { useCustomerTags } from '../hooks/useCustomerTags';
+import { ORDER_STATUS_CONFIG, ViewOrderHandler } from '../hooks/useOrders';
 
 interface CustomerDetailPageProps {
   customerId: string;
   onBack?: () => void;
-  onViewOrder?: (orderId: string) => void;
+  onViewOrder?: ViewOrderHandler;
 }
 
 const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
@@ -38,6 +44,33 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   const [totalSpent, setTotalSpent] = useState(0);
   const [averageOrderValue, setAverageOrderValue] = useState(0);
+
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+
+  // Edit mode states
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [isEditingAddresses, setIsEditingAddresses] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Form data
+  const [editedCustomer, setEditedCustomer] = useState<{
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  }>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+  });
+
+  const [editedAddresses, setEditedAddresses] = useState<CustomerAddress[]>([]);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const { updateRole, updating: updatingRole } = useCustomerRole();
+  const { tags: assignedTags, assignTag, unassignTag } = useCustomerTagAssignments(customerId);
+  const { tags: allTags } = useCustomerTags();
 
   useEffect(() => {
     fetchCustomerData();
@@ -122,6 +155,164 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     }
   };
 
+  const startEditingCustomer = () => {
+    if (customer) {
+      setEditedCustomer({
+        first_name: customer.first_name || '',
+        last_name: customer.last_name || '',
+        email: customer.email,
+        phone: customer.phone || '',
+      });
+      setIsEditingCustomer(true);
+      setValidationErrors({});
+    }
+  };
+
+  const startEditingAddresses = () => {
+    setEditedAddresses([...addresses]);
+    setIsEditingAddresses(true);
+    setValidationErrors({});
+  };
+
+  const cancelEditingCustomer = () => {
+    setIsEditingCustomer(false);
+    setValidationErrors({});
+  };
+
+  const cancelEditingAddresses = () => {
+    setIsEditingAddresses(false);
+    setValidationErrors({});
+  };
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateCustomerForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!editedCustomer.first_name.trim()) {
+      errors.first_name = 'First name is required';
+    }
+
+    if (!editedCustomer.last_name.trim()) {
+      errors.last_name = 'Last name is required';
+    }
+
+    if (!editedCustomer.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(editedCustomer.email)) {
+      errors.email = 'Invalid email format';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateAddressForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    editedAddresses.forEach((address, index) => {
+      if (!address.first_name.trim()) {
+        errors[`address_${index}_first_name`] = 'First name is required';
+      }
+      if (!address.last_name.trim()) {
+        errors[`address_${index}_last_name`] = 'Last name is required';
+      }
+      if (!address.address_line1.trim()) {
+        errors[`address_${index}_address_line1`] = 'Address is required';
+      }
+      if (!address.city.trim()) {
+        errors[`address_${index}_city`] = 'City is required';
+      }
+      if (!address.state.trim()) {
+        errors[`address_${index}_state`] = 'State is required';
+      }
+      if (!address.postal_code.trim()) {
+        errors[`address_${index}_postal_code`] = 'Postal code is required';
+      }
+      if (!address.country.trim()) {
+        errors[`address_${index}_country`] = 'Country is required';
+      }
+    });
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const saveCustomer = async () => {
+    if (!validateCustomerForm()) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          first_name: editedCustomer.first_name,
+          last_name: editedCustomer.last_name,
+          email: editedCustomer.email,
+          phone: editedCustomer.phone || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', customerId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setCustomer(data);
+      setIsEditingCustomer(false);
+      setValidationErrors({});
+    } catch (err) {
+      console.error('Error updating customer:', err);
+      setValidationErrors({ general: 'Failed to update customer information' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveAddresses = async () => {
+    if (!validateAddressForm()) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Update each address
+      for (const address of editedAddresses) {
+        const { error } = await supabase
+          .from('customer_addresses')
+          .update({
+            first_name: address.first_name,
+            last_name: address.last_name,
+            address_line1: address.address_line1,
+            address_line2: address.address_line2 || null,
+            city: address.city,
+            state: address.state,
+            postal_code: address.postal_code,
+            country: address.country,
+            phone: address.phone || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', address.id);
+
+        if (error) throw error;
+      }
+
+      setAddresses(editedAddresses);
+      setIsEditingAddresses(false);
+      setValidationErrors({});
+    } catch (err) {
+      console.error('Error updating addresses:', err);
+      setValidationErrors({ general: 'Failed to update addresses' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
       month: 'short',
@@ -166,16 +357,19 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const getOrderStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-      case 'delivered':
         return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'processing':
-      case 'shipped':
         return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'pending':
+      case 'on_hold':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'pending_payment':
         return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'cancelled':
-      case 'refunded':
         return 'bg-red-100 text-red-700 border-red-200';
+      case 'refunded':
+        return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'failed':
+        return 'bg-slate-200 text-slate-700 border-slate-300';
       default:
         return 'bg-slate-100 text-slate-600 border-slate-200';
     }
@@ -236,15 +430,223 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           {/* COLUMN 1 */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Contact Info</h2>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                  <p className="text-slate-800">{customer.email}</p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Contact Info</h2>
+                {!isEditingCustomer && (
+                  <button
+                    onClick={startEditingCustomer}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {validationErrors.general && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  {validationErrors.general}
                 </div>
+              )}
+
+              {isEditingCustomer ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editedCustomer.first_name}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, first_name: e.target.value })
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                        validationErrors.first_name ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                      }`}
+                    />
+                    {validationErrors.first_name && (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.first_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editedCustomer.last_name}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, last_name: e.target.value })
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                        validationErrors.last_name ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                      }`}
+                    />
+                    {validationErrors.last_name && (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.last_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={editedCustomer.email}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, email: e.target.value })
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                        validationErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                      }`}
+                    />
+                    {validationErrors.email && (
+                      <p className="mt-1 text-xs text-red-600">{validationErrors.email}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={editedCustomer.phone}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, phone: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveCustomer}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingCustomer}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">First Name</p>
+                    <p className="text-slate-800">{customer.first_name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Last Name</p>
+                    <p className="text-slate-800">{customer.last_name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
+                    <p className="text-slate-800">{customer.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
+                    <p className="text-slate-800">{customer.phone || '-'}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Role & Tags Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Role & Tags</h2>
+
+              <div className="space-y-4">
+                {/* Role Dropdown */}
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
-                  <p className="text-slate-800">{customer.phone || '-'}</p>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Role</p>
+                  <select
+                    value={customer?.role || 'customer'}
+                    onChange={async (e) => {
+                      const newRole = e.target.value as CustomerRole;
+                      const result = await updateRole(customerId, newRole);
+                      if (result.success) {
+                        setCustomer(prev => prev ? { ...prev, role: newRole } : null);
+                      }
+                    }}
+                    disabled={updatingRole}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-50"
+                  >
+                    <option value="customer">Customer</option>
+                    <option value="subscriber">Subscriber</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* Tags Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-slate-400 uppercase tracking-wider">Tags</p>
+                    <button
+                      onClick={() => setShowTagDropdown(!showTagDropdown)}
+                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center gap-1 transition-colors"
+                    >
+                      <Plus size={14} />
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Assigned Tags */}
+                  {assignedTags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {assignedTags.map(tag => (
+                        <span
+                          key={tag.id}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${TAG_COLOR_CONFIG[tag.color].badgeClass}`}
+                        >
+                          {tag.name}
+                          <button
+                            onClick={() => unassignTag(tag.id)}
+                            className="hover:opacity-70 transition-opacity"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-sm mb-2">No tags assigned</p>
+                  )}
+
+                  {/* Tag Dropdown */}
+                  {showTagDropdown && (
+                    <div className="mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {allTags
+                        .filter(tag => !assignedTags.find(at => at.id === tag.id))
+                        .map(tag => (
+                          <button
+                            key={tag.id}
+                            onClick={async () => {
+                              await assignTag(tag.id);
+                              setShowTagDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg transition-colors flex items-center gap-2"
+                          >
+                            <span className={`w-3 h-3 rounded-full bg-${tag.color}-500`}></span>
+                            <span className="text-slate-800 text-sm">{tag.name}</span>
+                          </button>
+                        ))}
+                      {allTags.filter(tag => !assignedTags.find(at => at.id === tag.id)).length === 0 && (
+                        <p className="text-slate-500 text-sm p-2">All tags assigned</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -339,16 +741,28 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           {/* COLUMN 2 */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Addresses</h2>
-              {addresses.length > 0 ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Addresses</h2>
+                {!isEditingAddresses && addresses.length > 0 && (
+                  <button
+                    onClick={startEditingAddresses}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingAddresses ? (
                 <div className="space-y-4">
-                  {addresses.map((address) => (
+                  {editedAddresses.map((address, index) => (
                     <div
                       key={address.id}
-                      className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                      className="p-4 bg-slate-50 rounded-xl border border-slate-200"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs uppercase tracking-wider text-slate-500">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
                           {address.type}
                         </span>
                         {address.is_default && (
@@ -357,25 +771,281 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-slate-800 font-medium">
-                        {address.first_name} {address.last_name}
-                      </p>
-                      <p className="text-slate-600 text-sm">{address.address_line1}</p>
-                      {address.address_line2 && (
-                        <p className="text-slate-600 text-sm">{address.address_line2}</p>
-                      )}
-                      <p className="text-slate-600 text-sm">
-                        {address.city}, {address.state} {address.postal_code}
-                      </p>
-                      <p className="text-slate-500 text-sm">{address.country}</p>
-                      {address.phone && (
-                        <p className="text-slate-500 text-sm mt-1">{address.phone}</p>
-                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            First Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.first_name}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].first_name = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_first_name`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_first_name`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_first_name`]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            Last Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.last_name}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].last_name = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_last_name`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_last_name`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_last_name`]}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Address Line 1 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={address.address_line1}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].address_line1 = e.target.value;
+                            setEditedAddresses(updated);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors[`address_${index}_address_line1`]
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors[`address_${index}_address_line1`] && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors[`address_${index}_address_line1`]}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Address Line 2
+                        </label>
+                        <input
+                          type="text"
+                          value={address.address_line2 || ''}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].address_line2 = e.target.value;
+                            setEditedAddresses(updated);
+                          }}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            City <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.city}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].city = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_city`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_city`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_city`]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            State <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.state}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].state = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_state`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_state`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_state`]}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            Postal Code <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.postal_code}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].postal_code = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_postal_code`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_postal_code`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_postal_code`]}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                            Country <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={address.country}
+                            onChange={(e) => {
+                              const updated = [...editedAddresses];
+                              updated[index].country = e.target.value;
+                              setEditedAddresses(updated);
+                            }}
+                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                              validationErrors[`address_${index}_country`]
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-200'
+                            }`}
+                          />
+                          {validationErrors[`address_${index}_country`] && (
+                            <p className="mt-1 text-xs text-red-600">
+                              {validationErrors[`address_${index}_country`]}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={address.phone || ''}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].phone = e.target.value;
+                            setEditedAddresses(updated);
+                          }}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
                     </div>
                   ))}
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveAddresses}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save All'}
+                    </button>
+                    <button
+                      onClick={cancelEditingAddresses}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <p className="text-slate-500">No saved addresses</p>
+                <>
+                  {addresses.length > 0 ? (
+                    <div className="space-y-4">
+                      {addresses.map((address) => (
+                        <div
+                          key={address.id}
+                          className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs uppercase tracking-wider text-slate-500">
+                              {address.type}
+                            </span>
+                            {address.is_default && (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-800 font-medium">
+                            {address.first_name} {address.last_name}
+                          </p>
+                          <p className="text-slate-600 text-sm">{address.address_line1}</p>
+                          {address.address_line2 && (
+                            <p className="text-slate-600 text-sm">{address.address_line2}</p>
+                          )}
+                          <p className="text-slate-600 text-sm">
+                            {address.city}, {address.state} {address.postal_code}
+                          </p>
+                          <p className="text-slate-500 text-sm">{address.country}</p>
+                          {address.phone && (
+                            <p className="text-slate-500 text-sm mt-1">{address.phone}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500">No saved addresses</p>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -474,7 +1144,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         <span
                           className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold capitalize border ${getOrderStatusBadge(order.status)}`}
                         >
-                          {order.status}
+                          {ORDER_STATUS_CONFIG[order.status as keyof typeof ORDER_STATUS_CONFIG]?.label || order.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-600">
@@ -485,7 +1155,10 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => onViewOrder?.(order.id)}
+                          onClick={() => onViewOrder?.(order.id, {
+                            fromCustomerId: customerId,
+                            fromCustomerName: getCustomerName(),
+                          })}
                           className="text-emerald-600 hover:text-emerald-700 transition-colors text-sm font-medium"
                         >
                           View

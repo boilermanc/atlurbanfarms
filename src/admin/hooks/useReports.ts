@@ -488,7 +488,7 @@ export function useShippingReport(startDate: string, endDate: string) {
           const existing = carrierMap.get(carrier) || { shipments: 0, transitDays: [] };
 
           // Calculate transit time for delivered orders
-          if (order.status === 'delivered') {
+          if (order.status === 'completed') {
             const created = new Date(order.created_at);
             const delivered = new Date(order.updated_at);
             const transitDays = Math.ceil((delivered.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
@@ -523,8 +523,8 @@ export function useShippingReport(startDate: string, endDate: string) {
         : 0;
 
       // Find delivery exceptions (cancelled, stuck orders)
-      const exceptions = ['cancelled'];
-      const stuckStatuses = ['pending', 'paid', 'allocated'];
+      const exceptions = ['cancelled', 'failed'];
+      const stuckStatuses = ['pending_payment', 'processing', 'on_hold'];
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -543,6 +543,8 @@ export function useShippingReport(startDate: string, endDate: string) {
           status: order.status,
           issue: order.status === 'cancelled'
             ? 'Order cancelled'
+            : order.status === 'failed'
+              ? 'Payment failed'
             : 'Order stuck in processing',
           date: order.created_at,
         }))

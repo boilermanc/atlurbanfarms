@@ -30,6 +30,7 @@ interface Product {
   images: ProductImage[];
   primary_image: ProductImage | null;
   created_at: string;
+  purchase_count?: number;
 }
 
 interface ProductsPageProps {
@@ -57,11 +58,28 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
       const { data, error: supabaseError } = await supabase
         .from('products')
         .select(`*, category:product_categories(*), images:product_images(*)`)
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true });
       if (supabaseError) throw supabaseError;
+
+      // Fetch purchase counts from order_items (excluding cancelled orders)
+      const { data: orderItemsData, error: orderItemsError } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, orders!inner(status)');
+
+      if (orderItemsError) throw orderItemsError;
+
+      // Calculate total purchases per product
+      const purchaseCounts: Record<string, number> = {};
+      (orderItemsData || []).forEach((item: any) => {
+        if (item.orders?.status !== 'cancelled') {
+          purchaseCounts[item.product_id] = (purchaseCounts[item.product_id] || 0) + item.quantity;
+        }
+      });
+
       const productsWithPrimaryImage = (data || []).map(product => ({
         ...product,
-        primary_image: product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0] || null
+        primary_image: product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0] || null,
+        purchase_count: purchaseCounts[product.id] || 0
       }));
       setProducts(productsWithPrimaryImage);
     } catch (err) {
@@ -73,7 +91,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const { data, error: supabaseError } = await supabase.from('product_categories').select('*').order('name');
+      const { data, error: supabaseError } = await supabase.from('product_categories').select('*').order('sort_order');
       if (supabaseError) throw supabaseError;
       setCategories(data || []);
     } catch (err) {
@@ -119,6 +137,19 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
       setError(err instanceof Error ? err.message : 'Failed to delete product');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleToggleActive = async (product: Product) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: !product.is_active })
+        .eq('id', product.id);
+      if (error) throw error;
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_active: !p.is_active } : p));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update product');
     }
   };
 
@@ -175,6 +206,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                   <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Category</th>
                   <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Price</th>
                   <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Stock</th>
+                  <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Purchases</th>
                   <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
                   <th className="text-right py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
                 </tr>
@@ -193,7 +225,15 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                     <td className="py-4 px-6 text-slate-600">{product.category?.name || 'Uncategorized'}</td>
                     <td className="py-4 px-6"><span className="text-slate-800 font-semibold">${product.price.toFixed(2)}</span>{product.compare_at_price && <span className="text-slate-400 text-sm line-through ml-2">${product.compare_at_price.toFixed(2)}</span>}</td>
                     <td className="py-4 px-6"><span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span></td>
-                    <td className="py-4 px-6"><span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${product.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{product.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td className="py-4 px-6"><span className="text-slate-600 font-medium">{product.purchase_count || 0}</span></td>
+                    <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => handleToggleActive(product)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${product.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${product.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => onEditProduct(product.id)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"><Edit2 size={18} /></button>

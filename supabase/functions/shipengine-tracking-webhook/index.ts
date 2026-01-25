@@ -206,9 +206,12 @@ serve(async (req) => {
     if (trackingData.status_code === 'DE' && shipment.order_id) {
       const { error: orderError } = await supabaseClient
         .from('orders')
-        .update({ status: 'delivered' })
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', shipment.order_id)
-        .eq('status', 'shipped') // Only update if currently shipped
+        .in('status', ['processing', 'on_hold'])
 
       if (orderError) {
         console.error('Failed to update order status:', orderError)

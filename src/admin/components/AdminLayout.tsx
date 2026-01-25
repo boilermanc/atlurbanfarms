@@ -4,6 +4,7 @@ import AdminSidebar from './AdminSidebar';
 import { AdminProvider } from '../context/AdminContext';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { supabase } from '../../lib/supabase';
+import { ORDER_STATUS_CONFIG, ViewOrderHandler } from '../hooks/useOrders';
 import {
   Package,
   Leaf,
@@ -29,6 +30,7 @@ const CustomersPage = lazy(() => import('../pages/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('../pages/CustomerDetailPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
+const OrderCreatePage = lazy(() => import('../pages/OrderCreatePage'));
 const FAQPage = lazy(() => import('../pages/FAQPage'));
 const ContentPagesPage = lazy(() => import('../pages/ContentPagesPage'));
 const ContentEditPage = lazy(() => import('../pages/ContentEditPage'));
@@ -63,6 +65,7 @@ const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   orders: 'Orders',
   'order-detail': 'Order Details',
+  'order-create': 'Create Order',
   products: 'Products',
   'product-edit': 'Edit Product',
   categories: 'Categories',
@@ -108,7 +111,7 @@ interface DashboardStats {
 }
 
 // Dashboard Component
-const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: (orderId: string) => void }> = ({ onNavigate, onViewOrder }) => {
+const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: ViewOrderHandler }> = ({ onNavigate, onViewOrder }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -128,7 +131,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: (or
         const { count: pendingCount } = await supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .in('status', ['paid', 'processing']);
+          .in('status', ['pending_payment', 'processing', 'on_hold']);
 
         // Fetch low stock items - try inventory view first, fallback gracefully
         let lowStockCount = 0;
@@ -214,12 +217,13 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: (or
 
   const getStatusBadge = (status: string) => {
     const statusStyles: Record<string, string> = {
-      pending: 'bg-slate-100 text-slate-600 border-slate-200',
-      paid: 'bg-blue-100 text-blue-700 border-blue-200',
-      processing: 'bg-purple-100 text-purple-700 border-purple-200',
-      shipped: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      delivered: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      pending_payment: 'bg-amber-100 text-amber-700 border-amber-200',
+      processing: 'bg-blue-100 text-blue-700 border-blue-200',
+      on_hold: 'bg-purple-100 text-purple-700 border-purple-200',
+      completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
       cancelled: 'bg-red-100 text-red-700 border-red-200',
+      refunded: 'bg-rose-100 text-rose-700 border-rose-200',
+      failed: 'bg-slate-200 text-slate-700 border-slate-300',
     };
     return statusStyles[status] || 'bg-slate-100 text-slate-600 border-slate-200';
   };
@@ -356,7 +360,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: (or
                   <div className="text-right">
                     <p className="font-semibold text-slate-800">{formatCurrency(order.total)}</p>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(order.status)}`}>
-                      {order.status}
+                      {ORDER_STATUS_CONFIG[order.status as keyof typeof ORDER_STATUS_CONFIG]?.label || order.status}
                     </span>
                   </div>
                 </div>
@@ -431,6 +435,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
+  const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
 
@@ -509,6 +514,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     if (page === 'content-pages') setSelectedContentId(null);
     if (page === 'inventory') setSelectedBatchId(null);
     if (page === 'promotions') setSelectedPromotionId(null);
+    if (page !== 'order-detail') setOrderContext(null);
   };
 
   const handleEditBatch = (batchId?: string) => {
@@ -516,8 +522,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     setCurrentPage('batch-edit');
   };
 
-  const handleViewOrder = (orderId: string) => {
+  const handleViewOrder: ViewOrderHandler = (orderId, options) => {
     setSelectedOrderId(orderId);
+    if (options?.fromCustomerId) {
+      setOrderContext({
+        customerId: options.fromCustomerId,
+        customerName: options.fromCustomerName,
+      });
+    } else {
+      setOrderContext(null);
+    }
     setCurrentPage('order-detail');
   };
 
@@ -541,6 +555,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     setCurrentPage('promotion-edit');
   };
 
+  const handleBackToOrders = () => {
+    setOrderContext(null);
+    handleNavigate('orders');
+  };
+
+  const handleBackToCustomerFromOrder = () => {
+    if (!orderContext) return;
+    handleViewCustomer(orderContext.customerId);
+    setOrderContext(null);
+  };
+
   const renderPage = () => {
     // If children are provided, render them (for backward compatibility)
     if (children) {
@@ -549,14 +574,18 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
     switch (currentPage) {
       case 'orders':
-        return <OrdersPage onViewOrder={handleViewOrder} />;
+        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} />;
       case 'order-detail':
         return selectedOrderId ? (
           <OrderDetailPage
             orderId={selectedOrderId}
-            onBack={() => handleNavigate('orders')}
+            onBack={handleBackToOrders}
+            onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}
+            customerContextName={orderContext?.customerName}
           />
         ) : null;
+      case 'order-create':
+        return <OrderCreatePage onNavigate={handleNavigate} />;
       case 'products':
         return <ProductsPage onEditProduct={handleEditProduct} />;
       case 'product-edit':

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useCustomerProfile } from '../../hooks/useSupabase';
 import { supabase } from '../../lib/supabase';
+import { submitNewsletterPreference } from '../../services/newsletter';
 
 interface ProfileSettingsProps {
   userId: string;
@@ -117,6 +118,17 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) 
       // Update customer profile
       const result = await updateProfile(formData);
       if (result.error) throw new Error(result.error);
+
+      if (userEmail) {
+        await submitNewsletterPreference({
+          email: userEmail,
+          firstName: formData.first_name || null,
+          lastName: formData.last_name || null,
+          customerId: userId,
+          status: formData.newsletter_subscribed ? 'active' : 'unsubscribed',
+          source: 'account_profile',
+        });
+      }
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

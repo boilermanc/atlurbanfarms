@@ -7,12 +7,15 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert
 export type GrowingSystem = 'soil' | 'hydroponic' | 'aquaponic' | 'aeroponic' | 'container';
 export type GrowingInterest = 'microgreens' | 'herbs' | 'vegetables' | 'flowers' | 'mushrooms';
 
+export type CustomerRole = 'customer' | 'subscriber' | 'admin';
+
 export interface Customer {
   id: string;
   email: string;
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  role: CustomerRole;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +97,28 @@ export interface CustomerAttribution {
   created_at: string;
 }
 
+export interface CustomerTag {
+  id: string;
+  name: string;
+  color: 'emerald' | 'blue' | 'purple' | 'amber' | 'red' | 'pink' | 'indigo' | 'slate' | 'teal' | 'cyan';
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerTagAssignment {
+  id: string;
+  customer_id: string;
+  tag_id: string;
+  assigned_at: string;
+  assigned_by: string | null;
+  tag?: CustomerTag; // Joined tag data
+}
+
+export interface CustomerWithTags extends Customer {
+  tags?: CustomerTag[]; // Joined tags
+}
+
 // Status badge configurations
 export const SUBSCRIBER_STATUS_CONFIG: Record<SubscriberStatus, { label: string; color: string }> = {
   active: { label: 'Active', color: 'bg-emerald-500' },
@@ -130,3 +155,24 @@ export const INTEREST_OPTIONS: { value: GrowingInterest; label: string }[] = [
   { value: 'flowers', label: 'Flowers' },
   { value: 'mushrooms', label: 'Mushrooms' },
 ];
+
+// Tag color configurations for badge display
+export const TAG_COLOR_CONFIG: Record<CustomerTag['color'], { label: string; badgeClass: string }> = {
+  emerald: { label: 'Emerald', badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  blue: { label: 'Blue', badgeClass: 'bg-blue-100 text-blue-700 border-blue-200' },
+  purple: { label: 'Purple', badgeClass: 'bg-purple-100 text-purple-700 border-purple-200' },
+  amber: { label: 'Amber', badgeClass: 'bg-amber-100 text-amber-700 border-amber-200' },
+  red: { label: 'Red', badgeClass: 'bg-red-100 text-red-700 border-red-200' },
+  pink: { label: 'Pink', badgeClass: 'bg-pink-100 text-pink-700 border-pink-200' },
+  indigo: { label: 'Indigo', badgeClass: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  slate: { label: 'Slate', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' },
+  teal: { label: 'Teal', badgeClass: 'bg-teal-100 text-teal-700 border-teal-200' },
+  cyan: { label: 'Cyan', badgeClass: 'bg-cyan-100 text-cyan-700 border-cyan-200' },
+};
+
+// Customer role configurations
+export const CUSTOMER_ROLE_CONFIG: Record<CustomerRole, { label: string; badgeClass: string }> = {
+  customer: { label: 'Customer', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' },
+  subscriber: { label: 'Subscriber', badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  admin: { label: 'Admin', badgeClass: 'bg-purple-100 text-purple-700 border-purple-200' },
+};

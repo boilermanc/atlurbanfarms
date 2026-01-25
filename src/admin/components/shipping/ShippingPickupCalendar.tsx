@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../lib/supabase';
 import { PickupLocation } from '../../hooks/usePickupLocations';
 import { PickupSchedule, formatTime } from '../../hooks/usePickupSchedules';
+import type { ViewOrderHandler } from '../../hooks/useOrders';
 
 interface PickupReservationWithOrder {
   id: string;
@@ -35,7 +36,7 @@ interface CalendarSlot {
 interface ShippingPickupCalendarProps {
   locations: PickupLocation[];
   onAddSchedule: (date: string, locationId?: string) => void;
-  onViewOrder: (orderId: string) => void;
+  onViewOrder: ViewOrderHandler;
 }
 
 // Location colors for the calendar
@@ -493,7 +494,7 @@ interface DayDetailPanelProps {
   locationColors: Record<string, typeof LOCATION_COLORS[0]>;
   onClose: () => void;
   onAddSchedule: (date: string, locationId?: string) => void;
-  onViewOrder: (orderId: string) => void;
+  onViewOrder: ViewOrderHandler;
 }
 
 const DayDetailPanel: React.FC<DayDetailPanelProps> = ({
@@ -647,7 +648,7 @@ interface MobileAgendaViewProps {
   onNextMonth: () => void;
   onToday: () => void;
   onAddSchedule: (date: string, locationId?: string) => void;
-  onViewOrder: (orderId: string) => void;
+  onViewOrder: ViewOrderHandler;
 }
 
 const MobileAgendaView: React.FC<MobileAgendaViewProps> = ({

@@ -368,7 +368,7 @@ serve(async (req) => {
     await supabaseClient
       .from('orders')
       .update({
-        status: 'packed', // Or 'shipped' depending on workflow
+        status: 'processing',
         tracking_number: labelData.tracking_number,
         updated_at: new Date().toISOString()
       })

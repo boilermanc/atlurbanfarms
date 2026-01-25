@@ -1,15 +1,19 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
-import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order } from '../hooks/useOrders';
+import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
-import { Printer, X, RefreshCw, Search } from 'lucide-react';
+import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText } from 'lucide-react';
+
+const formatStatusLabel = (status: string) =>
+  ORDER_STATUS_CONFIG[status as OrderStatus]?.label || status.replace(/_/g, ' ');
 
 interface OrdersPageProps {
-  onViewOrder: (orderId: string) => void;
+  onViewOrder: ViewOrderHandler;
+  onNavigate?: (page: string) => void;
 }
 
-const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
+const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
 
   // Filter state
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -22,6 +26,15 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
   // Selection state for batch printing
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [printLoading, setPrintLoading] = useState(false);
+
+  // Bulk actions state
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus | ''>('');
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'status' | 'print' | 'email' | 'archive'>('status');
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Update order status hook
+  const { updateStatus } = useUpdateOrderStatus();
 
   // Build filters object
   const filters = useMemo(() => ({
@@ -80,7 +93,70 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
 
   const clearSelection = useCallback(() => {
     setSelectedOrders(new Set());
+    setBulkStatus('');
   }, []);
+
+  // Bulk action handlers
+  const handleBulkStatusChange = useCallback(() => {
+    if (!bulkStatus || selectedOrders.size === 0) return;
+    setBulkActionType('status');
+    setShowBulkConfirm(true);
+  }, [bulkStatus, selectedOrders.size]);
+
+  const executeBulkStatusChange = useCallback(async () => {
+    if (!bulkStatus || selectedOrders.size === 0) return;
+
+    setBulkLoading(true);
+    try {
+      const orderIds = Array.from(selectedOrders);
+      const results = await Promise.all(
+        orderIds.map(orderId =>
+          updateStatus(orderId, bulkStatus as OrderStatus, `Bulk status change to ${ORDER_STATUS_CONFIG[bulkStatus as OrderStatus].label}`)
+        )
+      );
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      if (failCount > 0) {
+        alert(`Updated ${successCount} orders. ${failCount} failed.`);
+      } else {
+        alert(`Successfully updated ${successCount} orders to ${ORDER_STATUS_CONFIG[bulkStatus as OrderStatus].label}`);
+      }
+
+      // Clear selection and refetch
+      clearSelection();
+      refetch();
+    } catch (err: any) {
+      console.error('Bulk status update error:', err);
+      alert('Failed to update orders: ' + err.message);
+    } finally {
+      setBulkLoading(false);
+      setShowBulkConfirm(false);
+    }
+  }, [bulkStatus, selectedOrders, updateStatus, clearSelection, refetch]);
+
+  const handleBulkPrintInvoices = useCallback(() => {
+    alert('Print Invoices feature coming soon!');
+  }, []);
+
+  const handleBulkEmailInvoices = useCallback(() => {
+    alert('Email Invoices feature coming soon!');
+  }, []);
+
+  const handleBulkArchive = useCallback(() => {
+    setBulkActionType('archive');
+    setShowBulkConfirm(true);
+  }, []);
+
+  const executeBulkAction = useCallback(async () => {
+    if (bulkActionType === 'status') {
+      await executeBulkStatusChange();
+    } else if (bulkActionType === 'archive') {
+      alert('Archive feature coming soon!');
+      setShowBulkConfirm(false);
+    }
+  }, [bulkActionType, executeBulkStatusChange]);
 
   // Print functions
   const openPrintWindow = useCallback((ordersToprint: Order[]) => {
@@ -142,14 +218,13 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
           .shipping-address { background: #f9f9f9; padding: 12px; border-radius: 4px; }
           .notes { background: #fff9e6; padding: 12px; border-radius: 4px; border: 1px solid #f0e6cc; }
           .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-          .status-paid { background: #3b82f6; color: white; }
-          .status-pending { background: #64748b; color: white; }
-          .status-allocated { background: #8b5cf6; color: white; }
-          .status-picking { background: #f59e0b; color: white; }
-          .status-packed { background: #f97316; color: white; }
-          .status-shipped { background: #06b6d4; color: white; }
-          .status-delivered { background: #10b981; color: white; }
+          .status-pending_payment { background: #fbbf24; color: #1f2937; }
+          .status-processing { background: #3b82f6; color: white; }
+          .status-on_hold { background: #a855f7; color: white; }
+          .status-completed { background: #10b981; color: white; }
           .status-cancelled { background: #ef4444; color: white; }
+          .status-refunded { background: #f43f5e; color: white; }
+          .status-failed { background: #475569; color: white; }
           @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
           }
@@ -166,7 +241,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                   <div class="date">${formatDateForPrint(order.created_at)}</div>
                 </div>
                 <div>
-                  <span class="status-badge status-${order.status}">${order.status}</span>
+                  <span class="status-badge status-${order.status}">${formatStatusLabel(order.status)}</span>
                 </div>
               </div>
             </div>
@@ -262,10 +337,10 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
     openPrintWindow(ordersToPrint);
   }, [orders, selectedOrders, openPrintWindow]);
 
-  const handlePrintAllPaid = useCallback(async () => {
+  const handlePrintAllProcessing = useCallback(async () => {
     setPrintLoading(true);
     try {
-      // Fetch all paid orders (not just current page)
+      // Fetch all processing orders (not just current page)
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -289,18 +364,18 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
             )
           )
         `)
-        .eq('status', 'paid')
+        .eq('status', 'processing')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        alert('No paid orders to print');
+        alert('No processing orders to print');
         return;
       }
 
       // Transform to Order format
-      const paidOrders: Order[] = data.map((order: any) => ({
+      const processingOrders: Order[] = data.map((order: any) => ({
         id: order.id,
         order_number: order.order_number,
         customer_id: order.customer_id,
@@ -339,10 +414,10 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
         })),
       }));
 
-      openPrintWindow(paidOrders);
+      openPrintWindow(processingOrders);
     } catch (err: any) {
-      console.error('Error fetching paid orders:', err);
-      alert('Failed to fetch paid orders: ' + err.message);
+      console.error('Error fetching processing orders:', err);
+      alert('Failed to fetch processing orders: ' + err.message);
     } finally {
       setPrintLoading(false);
     }
@@ -369,17 +444,15 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
   // Get status badge - light theme version
   const getStatusBadge = (status: string) => {
     const statusStyles: Record<string, string> = {
-      pending: 'bg-slate-100 text-slate-600 border-slate-200',
-      paid: 'bg-blue-100 text-blue-700 border-blue-200',
-      processing: 'bg-purple-100 text-purple-700 border-purple-200',
-      allocated: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-      picking: 'bg-amber-100 text-amber-700 border-amber-200',
-      packed: 'bg-orange-100 text-orange-700 border-orange-200',
-      shipped: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      delivered: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      cancelled: 'bg-red-100 text-red-700 border-red-200',
+      pending_payment: 'bg-amber-50 text-amber-700 border-amber-200',
+      processing: 'bg-blue-50 text-blue-700 border-blue-200',
+      on_hold: 'bg-purple-50 text-purple-700 border-purple-200',
+      completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      cancelled: 'bg-red-50 text-red-700 border-red-200',
+      refunded: 'bg-rose-50 text-rose-700 border-rose-200',
+      failed: 'bg-slate-100 text-slate-600 border-slate-200',
     };
-    const config = ORDER_STATUS_CONFIG[status as OrderStatus] || { label: status };
+    const config = ORDER_STATUS_CONFIG[status as OrderStatus] || { label: formatStatusLabel(status) };
     const style = statusStyles[status] || 'bg-slate-100 text-slate-600 border-slate-200';
     return (
       <span className={`${style} text-xs px-3 py-1 rounded-full font-semibold border`}>
@@ -474,28 +547,9 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Print Selected Button */}
-            {selectedOrders.size > 0 && (
-              <>
-                <button
-                  onClick={handlePrintSelected}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium"
-                >
-                  <Printer size={18} />
-                  Print Selected ({selectedOrders.size})
-                </button>
-                <button
-                  onClick={clearSelection}
-                  className="p-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors"
-                  title="Clear selection"
-                >
-                  <X size={18} />
-                </button>
-              </>
-            )}
-            {/* Print All Paid Button */}
+            {/* Print All Processing Button */}
             <button
-              onClick={handlePrintAllPaid}
+              onClick={handlePrintAllProcessing}
               disabled={printLoading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 font-medium"
             >
@@ -504,7 +558,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
               ) : (
                 <Printer size={18} />
               )}
-              Print All Paid
+              Print All Processing
             </button>
             <button
               onClick={refetch}
@@ -513,6 +567,15 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
               <RefreshCw size={18} />
               Refresh
             </button>
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('order-create')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+              >
+                <Plus size={20} />
+                Create Order
+              </button>
+            )}
           </div>
         </div>
 
@@ -678,6 +741,104 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
           </div>
         )}
 
+        {/* Bulk Actions Toolbar */}
+        <AnimatePresence>
+          {selectedOrders.size > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl shadow-lg border border-emerald-400/60 overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Selection Count */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-white font-bold">{selectedOrders.size}</span>
+                    </div>
+                    <span className="text-white font-medium">
+                      {selectedOrders.size} {selectedOrders.size === 1 ? 'order' : 'orders'} selected
+                    </span>
+                  </div>
+
+                  <div className="h-8 w-px bg-white/30"></div>
+
+                  {/* Change Status - Primary Action */}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={bulkStatus}
+                      onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                      className="bg-white border-2 border-white/30 rounded-xl px-4 py-2 text-slate-800 font-medium focus:outline-none focus:border-white transition-all"
+                    >
+                      <option value="">Change Status...</option>
+                      {ORDER_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {ORDER_STATUS_CONFIG[status].label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleBulkStatusChange}
+                      disabled={!bulkStatus || bulkLoading}
+                      className="px-4 py-2 bg-white text-emerald-600 rounded-xl hover:bg-emerald-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  <div className="h-8 w-px bg-white/30"></div>
+
+                  {/* Other Bulk Actions */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={handlePrintSelected}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30"
+                      title="Print packing lists"
+                    >
+                      <Printer size={18} />
+                      <span className="hidden sm:inline">Packing Lists</span>
+                    </button>
+                    <button
+                      onClick={handleBulkPrintInvoices}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30"
+                      title="Print invoices (coming soon)"
+                    >
+                      <FileText size={18} />
+                      <span className="hidden sm:inline">Invoices</span>
+                    </button>
+                    <button
+                      onClick={handleBulkEmailInvoices}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30"
+                      title="Email invoices (coming soon)"
+                    >
+                      <Mail size={18} />
+                      <span className="hidden sm:inline">Email</span>
+                    </button>
+                    <button
+                      onClick={handleBulkArchive}
+                      className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30"
+                      title="Archive orders (coming soon)"
+                    >
+                      <Trash2 size={18} />
+                      <span className="hidden sm:inline">Archive</span>
+                    </button>
+                  </div>
+
+                  {/* Clear Selection */}
+                  <button
+                    onClick={clearSelection}
+                    className="ml-auto p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors border border-white/30"
+                    title="Clear selection"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Orders Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {loading ? (
@@ -749,9 +910,6 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Status
                     </th>
-                    <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -806,17 +964,6 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
                       <td className="px-6 py-4 text-center">
                         {getStatusBadge(order.status)}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRowClick(order.id);
-                          }}
-                          className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
-                        >
-                          View
-                        </button>
-                      </td>
                     </motion.tr>
                   ))}
                 </tbody>
@@ -827,6 +974,69 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder }) => {
           {/* Pagination */}
           {!loading && orders.length > 0 && <Pagination />}
         </div>
+
+        {/* Confirmation Dialog */}
+        <AnimatePresence>
+          {showBulkConfirm && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => !bulkLoading && setShowBulkConfirm(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-xl font-bold text-slate-800 mb-2">
+                  Confirm Bulk Action
+                </h3>
+                <p className="text-slate-600 mb-6">
+                  {bulkActionType === 'status' && bulkStatus && (
+                    <>
+                      Are you sure you want to change the status of{' '}
+                      <strong>{selectedOrders.size}</strong> {selectedOrders.size === 1 ? 'order' : 'orders'} to{' '}
+                      <strong>{ORDER_STATUS_CONFIG[bulkStatus as OrderStatus].label}</strong>?
+                    </>
+                  )}
+                  {bulkActionType === 'archive' && (
+                    <>
+                      Are you sure you want to archive{' '}
+                      <strong>{selectedOrders.size}</strong> {selectedOrders.size === 1 ? 'order' : 'orders'}?
+                    </>
+                  )}
+                </p>
+                <div className="flex items-center gap-3 justify-end">
+                  <button
+                    onClick={() => setShowBulkConfirm(false)}
+                    disabled={bulkLoading}
+                    className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={executeBulkAction}
+                    disabled={bulkLoading}
+                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {bulkLoading ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Confirm'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AdminPageWrapper>
   );

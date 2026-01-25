@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { Search, Download, Users, Mail } from 'lucide-react';
+import { Search, Download, Users, Mail, Filter } from 'lucide-react';
 import {
   CustomerWithStats,
   NewsletterSubscriber,
   SubscriberStatus,
   SUBSCRIBER_STATUS_CONFIG,
+  CustomerTag,
+  TAG_COLOR_CONFIG,
 } from '../types/customer';
+import { useCustomerTags } from '../hooks/useCustomerTags';
 
 type TabType = 'customers' | 'newsletter';
 
@@ -24,16 +27,24 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerCount, setCustomerCount] = useState(0);
+  const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([]);
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
   const [subscriberCount, setSubscriberCount] = useState(0);
 
+  const { tags: allTags } = useCustomerTags();
+
   const fetchCustomers = async () => {
     try {
       let query = supabase
         .from('customers')
-        .select('*')
+        .select(`
+          *,
+          customer_tag_assignments(
+            tag:customer_tags(*)
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (customerSearch) {
@@ -44,8 +55,18 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       if (customersError) throw customersError;
 
+      // Filter by tags if selected
+      let filteredCustomers = customersData || [];
+      if (selectedTagFilters.length > 0) {
+        filteredCustomers = filteredCustomers.filter((customer: any) =>
+          customer.customer_tag_assignments?.some((assignment: any) =>
+            selectedTagFilters.includes(assignment.tag?.id)
+          )
+        );
+      }
+
       const customersWithStats: CustomerWithStats[] = await Promise.all(
-        (customersData || []).map(async (customer) => {
+        filteredCustomers.map(async (customer: any) => {
           const { data: orderStats } = await supabase
             .from('orders')
             .select('id, total')
@@ -56,6 +77,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             ...customer,
             order_count: orders.length,
             total_spent: orders.reduce((sum, order) => sum + (order.total || 0), 0),
+            tags: customer.customer_tag_assignments?.map((a: any) => a.tag).filter(Boolean) || [],
           };
         })
       );
@@ -111,7 +133,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     };
 
     loadData();
-  }, [activeTab, customerSearch, subscriberFilter]);
+  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters]);
 
   const handleCustomerClick = (customerId: string) => {
     onViewCustomer?.(customerId);
@@ -228,6 +250,53 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 className="space-y-4"
               >
                 <div className="flex items-center gap-4">
+                  {/* Tag Filter */}
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        const tagId = e.target.value;
+                        if (tagId && !selectedTagFilters.includes(tagId)) {
+                          setSelectedTagFilters([...selectedTagFilters, tagId]);
+                        }
+                      }}
+                      className="pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="">Filter by tag...</option>
+                      {allTags
+                        .filter(tag => !selectedTagFilters.includes(tag.id))
+                        .map(tag => (
+                          <option key={tag.id} value={tag.id}>{tag.name}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Active Tag Filters */}
+                  {selectedTagFilters.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTagFilters.map(tagId => {
+                        const tag = allTags.find(t => t.id === tagId);
+                        if (!tag) return null;
+                        return (
+                          <span
+                            key={tagId}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${TAG_COLOR_CONFIG[tag.color].badgeClass}`}
+                          >
+                            {tag.name}
+                            <button
+                              onClick={() => setSelectedTagFilters(selectedTagFilters.filter(id => id !== tagId))}
+                              className="hover:opacity-70 transition-opacity"
+                            >
+                              <span className="text-xs">×</span>
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Search Bar */}
                   <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
@@ -245,6 +314,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tags</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders</th>
@@ -255,7 +325,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     <tbody className="divide-y divide-slate-100">
                       {customers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center">
+                          <td colSpan={7} className="px-6 py-12 text-center">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <Users size={32} className="text-slate-400" />
                             </div>
@@ -265,31 +335,56 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                           </td>
                         </tr>
                       ) : (
-                        customers.map((customer) => (
-                          <tr
-                            key={customer.id}
-                            onClick={() => handleCustomerClick(customer.id)}
-                            className="hover:bg-slate-50 cursor-pointer transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-sm font-medium">
-                                  {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
+                        customers.map((customer) => {
+                          const customerTags = (customer as any).tags || [];
+
+                          return (
+                            <tr
+                              key={customer.id}
+                              onClick={() => handleCustomerClick(customer.id)}
+                              className="hover:bg-slate-50 cursor-pointer transition-colors"
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-sm font-medium">
+                                    {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
+                                  </div>
+                                  <span className="text-slate-800 font-medium">{getCustomerName(customer)}</span>
                                 </div>
-                                <span className="text-slate-800 font-medium">{getCustomerName(customer)}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-slate-600">{customer.email}</td>
-                            <td className="px-6 py-4 text-slate-600">{customer.phone || '-'}</td>
-                            <td className="px-6 py-4 text-right text-slate-800 font-semibold">{customer.order_count}</td>
-                            <td className="px-6 py-4 text-right text-emerald-600 font-semibold">
-                              {formatCurrency(customer.total_spent)}
-                            </td>
-                            <td className="px-6 py-4 text-slate-500 text-sm">
-                              {formatDate(customer.created_at)}
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-1">
+                                  {customerTags.length > 0 ? (
+                                    <>
+                                      {customerTags.slice(0, 2).map((tag: CustomerTag) => (
+                                        <span
+                                          key={tag.id}
+                                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${TAG_COLOR_CONFIG[tag.color].badgeClass}`}
+                                        >
+                                          {tag.name}
+                                        </span>
+                                      ))}
+                                      {customerTags.length > 2 && (
+                                        <span className="text-slate-400 text-xs">+{customerTags.length - 2}</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">-</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-slate-600">{customer.email}</td>
+                              <td className="px-6 py-4 text-slate-600">{customer.phone || '-'}</td>
+                              <td className="px-6 py-4 text-right text-slate-800 font-semibold">{customer.order_count}</td>
+                              <td className="px-6 py-4 text-right text-emerald-600 font-semibold">
+                                {formatCurrency(customer.total_spent)}
+                              </td>
+                              <td className="px-6 py-4 text-slate-500 text-sm">
+                                {formatDate(customer.created_at)}
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

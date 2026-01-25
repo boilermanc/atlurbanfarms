@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Star } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Star, Plus, X } from 'lucide-react';
+import { useProductTags } from '../hooks/useProductTags';
+import { useProductTagAssignments } from '../hooks/useProductTagAssignments';
 
 interface Category {
   id: string;
@@ -39,7 +41,8 @@ interface ProductFormData {
 
 interface ProductEditPageProps {
   productId?: string;
-  onNavigate: (page: string, params?: Record<string, string>) => void;
+  onBack: () => void;
+  onSave: () => void;
 }
 
 const SUN_OPTIONS = ['Full Sun', 'Partial Shade', 'Full Shade'];
@@ -49,16 +52,21 @@ const generateSlug = (name: string): string => {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 };
 
-const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate }) => {
+const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, onSave }) => {
   const isEditMode = Boolean(productId);
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+
+  const { tags: allTags } = useProductTags();
+  const { tags: assignedTags, assignTag, unassignTag } = useProductTagAssignments(productId);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -80,7 +88,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
   });
 
   const fetchCategories = useCallback(async () => {
-    const { data } = await supabase.from('product_categories').select('*').eq('is_active', true).order('name');
+    const { data } = await supabase.from('product_categories').select('*').eq('is_active', true).order('sort_order');
     setCategories(data || []);
   }, []);
 
@@ -130,6 +138,8 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+    setError(null);
+    setInfoMessage(null);
     setFormData(prev => {
       const newData = { ...prev, [name]: type === 'checkbox' ? checked : value };
       if (name === 'name' && !isEditMode) {
@@ -226,6 +236,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
 
     setSaving(true);
     setError(null);
+    setInfoMessage(null);
 
     try {
       const productData = {
@@ -265,7 +276,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         }
       }
 
-      onNavigate('products');
+      onSave();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save product');
     } finally {
@@ -276,11 +287,40 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
   const handleDelete = async () => {
     if (!productId) return;
     setDeleting(true);
+    setError(null);
+    setInfoMessage(null);
     try {
-      await supabase.from('product_images').delete().eq('product_id', productId);
-      const { error } = await supabase.from('products').delete().eq('id', productId);
-      if (error) throw error;
-      onNavigate('products');
+      // Check if product has order history
+      const { data: orderItems, error: orderCheckError } = await supabase
+        .from('order_items')
+        .select('id')
+        .eq('product_id', productId)
+        .limit(1);
+
+      if (orderCheckError) throw orderCheckError;
+
+      if (orderItems && orderItems.length > 0) {
+        // Product has order history - archive instead of delete
+        const { error: archiveError } = await supabase
+          .from('products')
+          .update({ is_active: false })
+          .eq('id', productId);
+
+        if (archiveError) throw archiveError;
+
+        setInfoMessage('This product has order history and cannot be deleted. It has been archived instead.');
+        setDeleting(false);
+        setDeleteModalOpen(false);
+
+        // Refresh the product data to show updated status
+        await fetchProduct();
+      } else {
+        // No order history - safe to delete
+        await supabase.from('product_images').delete().eq('product_id', productId);
+        const { error } = await supabase.from('products').delete().eq('id', productId);
+        if (error) throw error;
+        onSave();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete product');
       setDeleting(false);
@@ -303,7 +343,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
       <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
         <div className="flex items-center justify-between">
           <div>
-            <button type="button" onClick={() => onNavigate('products')} className="text-slate-500 hover:text-slate-700 mb-2 flex items-center gap-1 text-sm transition-colors">
+            <button type="button" onClick={onBack} className="text-slate-500 hover:text-slate-700 mb-2 flex items-center gap-1 text-sm transition-colors">
               <ArrowLeft size={16} />
               Back to Products
             </button>
@@ -313,7 +353,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
             {isEditMode && (
               <button type="button" onClick={() => setDeleteModalOpen(true)} className="px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors">Delete</button>
             )}
-            <button type="button" onClick={() => onNavigate('products')} className="px-4 py-2 text-slate-600 hover:text-slate-800">Cancel</button>
+            <button type="button" onClick={onBack} className="px-4 py-2 text-slate-600 hover:text-slate-800">Cancel</button>
             <button type="submit" disabled={saving} className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
               {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {isEditMode ? 'Save Changes' : 'Create Product'}
@@ -322,6 +362,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         </div>
 
         {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">{error}</div>}
+        {infoMessage && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-700">{infoMessage}</div>}
 
         {/* Basic Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
@@ -341,7 +382,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-600 mb-1">Full Description</label>
-              <textarea name="description" value={formData.description} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
+              <textarea name="description" value={formData.description} onChange={handleChange} rows={12} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
@@ -356,7 +397,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
                 <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Compare at Price</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sale Price</label>
                 <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
             </div>
@@ -476,6 +517,73 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
             </label>
           </div>
         </div>
+
+        {/* Tags */}
+        {isEditMode && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Tags</h2>
+              <button
+                type="button"
+                onClick={() => setShowTagDropdown(!showTagDropdown)}
+                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center gap-1 transition-colors"
+              >
+                <Plus size={14} />
+                Add Tag
+              </button>
+            </div>
+
+            {/* Assigned Tags */}
+            {assignedTags.length > 0 ? (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {assignedTags.map(tag => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"
+                  >
+                    {tag.name}
+                    <button
+                      type="button"
+                      onClick={() => unassignTag(tag.id)}
+                      className="hover:opacity-70 transition-opacity"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-sm mb-2">No tags assigned</p>
+            )}
+
+            {/* Tag Dropdown */}
+            {showTagDropdown && (
+              <div className="mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                {allTags
+                  .filter(tag => !assignedTags.find(at => at.id === tag.id))
+                  .map(tag => (
+                    <button
+                      type="button"
+                      key={tag.id}
+                      onClick={async () => {
+                        await assignTag(tag.id);
+                        setShowTagDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg transition-colors"
+                    >
+                      <span className="text-slate-800 text-sm font-medium">{tag.name}</span>
+                      {tag.tag_type && (
+                        <span className="ml-2 text-xs text-slate-400">({tag.tag_type})</span>
+                      )}
+                    </button>
+                  ))}
+                {allTags.filter(tag => !assignedTags.find(at => at.id === tag.id)).length === 0 && (
+                  <p className="text-slate-500 text-sm p-2">All tags assigned</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </form>
 
       {/* Delete Modal */}
@@ -483,7 +591,10 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onNavigate
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
             <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Product</h3>
-            <p className="text-slate-600 mb-6">Are you sure you want to delete this product? This action cannot be undone.</p>
+            <p className="text-slate-600 mb-2">Are you sure you want to delete this product?</p>
+            <p className="text-slate-500 text-sm mb-6">
+              Note: If this product has order history, it will be archived (set to inactive) instead of deleted to preserve order records.
+            </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeleteModalOpen(false)} disabled={deleting} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
               <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2">

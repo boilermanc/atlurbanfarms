@@ -17,6 +17,7 @@ const mapProduct = (p: any): Product => ({
   name: p.name,
   description: p.description || '',
   price: p.price,
+  salePrice: p.compare_at_price ?? null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
   stock: p.quantity_available || 0
@@ -149,6 +150,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       inStock={product.stock > 0}
                       onAddToCart={(qty) => onAddToCart(product, qty)}
                       onClick={() => setSelectedProduct(rawProduct)}
+                      salePrice={product.salePrice ?? null}
                     />
                   </motion.div>
                 );
