@@ -11,7 +11,7 @@ interface ProductCardProps {
   inStock: boolean;
   onAddToCart: (quantity: number) => void;
   onClick?: () => void;
-  salePrice?: number | null;
+  compareAtPrice?: number | null;
   saleBadge?: string | null;
 }
 
@@ -24,11 +24,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
   inStock,
   onAddToCart,
   onClick,
-  salePrice,
+  compareAtPrice,
   saleBadge,
 }) => {
-  const derivedSalePrice = typeof salePrice === 'number' && salePrice < price ? salePrice : null;
-  const isOnSale = derivedSalePrice !== null;
+  // Product is on sale when compare_at_price exists and is greater than current price
+  const isOnSale = typeof compareAtPrice === 'number' && compareAtPrice > price;
+  const percentOff = isOnSale ? Math.round((1 - price / compareAtPrice!) * 100) : 0;
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
@@ -73,9 +74,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <motion.div
-      whileHover={{ y: -8, boxShadow: "0 25px 50px -12px rgba(16, 185, 129, 0.15)" }}
+      whileHover={{ y: -8, boxShadow: "0 25px 50px -12px rgba(var(--brand-primary-rgb), 0.15)" }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className="group relative bg-white rounded-[2.5rem] p-5 border border-gray-100 shadow-sm transition-colors hover:border-emerald-100 flex flex-col h-full cursor-pointer"
+      className="group relative bg-white rounded-[2.5rem] p-5 border border-gray-100 shadow-sm transition-colors flex flex-col h-full cursor-pointer"
+      style={{ ['--hover-border' as string]: 'rgba(var(--brand-primary-rgb), 0.2)' }}
       onClick={handleCardClick}
     >
       {/* Image Container */}
@@ -132,7 +134,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </span>
           {isOnSale && (
             <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
-              {saleBadge || 'On Sale'}
+              {saleBadge || (percentOff > 0 ? `${percentOff}% Off` : 'On Sale')}
             </span>
           )}
           {!inStock && (
@@ -146,21 +148,21 @@ const ProductCard: React.FC<ProductCardProps> = ({
       {/* Product Info */}
       <div className="flex-1 flex flex-col px-1">
         <div className="flex justify-between items-start mb-2 gap-4">
-          <h3 className="font-heading font-extrabold text-xl text-gray-900 leading-tight group-hover:text-emerald-600 transition-colors">
+          <h3 className="font-heading font-extrabold text-xl text-gray-900 leading-tight transition-colors group-hover:brand-text" style={{ ['--group-hover-color' as string]: 'var(--brand-primary)' }}>
             {name}
           </h3>
           <div className="flex flex-col items-end text-right leading-tight">
             {isOnSale ? (
               <>
                 <span className="text-sm font-semibold text-gray-400 line-through tracking-tight">
-                  ${price.toFixed(2)}
+                  ${compareAtPrice!.toFixed(2)}
                 </span>
                 <span className="text-2xl font-black text-red-500">
-                  ${derivedSalePrice?.toFixed(2)}
+                  ${price.toFixed(2)}
                 </span>
               </>
             ) : (
-              <span className="text-2xl font-black text-emerald-600">
+              <span className="text-2xl font-black brand-text">
                 ${price.toFixed(2)}
               </span>
             )}
@@ -175,18 +177,22 @@ const ProductCard: React.FC<ProductCardProps> = ({
         <div className="mt-auto space-y-3">
           {inStock && (
             <div className="flex items-center gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-              <button 
+              <button
                 onClick={decrementQty}
-                className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 hover:text-emerald-600 transition-colors font-black border border-gray-100 active:scale-90"
+                className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 transition-colors font-black border border-gray-100 active:scale-90"
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--brand-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = ''}
               >
                 -
               </button>
               <span className="flex-1 text-center text-sm font-black text-gray-900">
                 {quantity}
               </span>
-              <button 
+              <button
                 onClick={incrementQty}
-                className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 hover:text-emerald-600 transition-colors font-black border border-gray-100 active:scale-90"
+                className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 transition-colors font-black border border-gray-100 active:scale-90"
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--brand-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = ''}
               >
                 +
               </button>
@@ -205,8 +211,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
               }
             }}
             className={`w-full py-4 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-              inStock 
-                ? 'bg-gray-900 text-white hover:bg-emerald-600 shadow-lg shadow-gray-100 hover:shadow-emerald-200' 
+              inStock
+                ? 'bg-gray-900 text-white shadow-lg shadow-gray-100 btn-brand-hover'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
             }`}
           >

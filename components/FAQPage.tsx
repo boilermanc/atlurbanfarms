@@ -1,58 +1,28 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { supabase } from '../src/lib/supabase';
 
-const FAQ_DATA = [
-  {
-    category: "Shipping & Delivery",
-    questions: [
-      {
-        q: "Why do you only ship Monday through Wednesday?",
-        a: "To ensure your live seedlings don't spend the weekend in a shipping warehouse! By shipping early in the week, we guarantee they arrive at your doorstep in peak health, ready for transplanting."
-      },
-      {
-        q: "How are the plants packaged?",
-        a: "We use high-tech, 100% recyclable plant-secure inserts that keep the root ball hydrated and the foliage protected from impact during transit."
-      },
-      {
-        q: "Do you ship nationwide?",
-        a: "Currently, we ship to most states in the Southeast and East Coast to minimize transit time. Check your zip code at checkout for availability."
-      }
-    ]
-  },
-  {
-    category: "Growing & Care",
-    questions: [
-      {
-        q: "What is a 'seedling' versus a 'seed'?",
-        a: "A seedling is a young plant that has already germinated and grown for several weeks. When you buy from us, you're skipping the difficult 'start' phase and getting a plant ready for your garden or Tower Garden."
-      },
-      {
-        q: "Are your plants organic?",
-        a: "We follow strict non-GMO and sustainable growing practices. While we are not 'certified organic' yet, we use climate-controlled nursery environments that eliminate the need for harsh pesticides."
-      },
-      {
-        q: "What if my plant arrives damaged?",
-        a: "Our 'Arrives Alive' guarantee has you covered. If a seedling is damaged during transit, simply snap a photo and contact Sage or our support team within 24 hours for a replacement."
-      }
-    ]
-  },
-  {
-    category: "Sage AI Assistant",
-    questions: [
-      {
-        q: "What can Sage help me with?",
-        a: "Sage is our nursery-trained AI. She can recommend plants based on your local climate, help diagnose common growing issues, and explain our unique nursery technology."
-      },
-      {
-        q: "Is Sage a real person?",
-        a: "Sage is a high-tech AI model trained on years of ATL Urban Farms horticultural data. For complex order issues, she can also connect you with our human growing team."
-      }
-    ]
-  }
-];
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+  category: string | null;
+  sort_order: number;
+  is_active: boolean;
+}
 
-const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
+interface FAQCategory {
+  category: string;
+  questions: { q: string; a: string }[];
+}
+
+interface FAQItemProps {
+  question: string;
+  answer: string;
+}
+
+const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -92,9 +62,102 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
 
 interface FAQPageProps {
   onBack: () => void;
+  onOpenSage?: () => void;
 }
 
-const FAQPage: React.FC<FAQPageProps> = ({ onBack }) => {
+// Convert category name to URL-friendly ID (e.g., "Shipping & Delivery" -> "shipping-delivery")
+const categoryToId = (category: string): string => {
+  return category
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+};
+
+const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
+  const [faqData, setFaqData] = useState<FAQCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchFaqs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('faqs')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (error) throw error;
+
+        // Group FAQs by category
+        const faqs = data as FAQ[];
+        const grouped: Record<string, { q: string; a: string }[]> = {};
+
+        for (const faq of faqs) {
+          const category = faq.category || 'General';
+          if (!grouped[category]) {
+            grouped[category] = [];
+          }
+          grouped[category].push({ q: faq.question, a: faq.answer });
+        }
+
+        // Convert to array format
+        const categories: FAQCategory[] = Object.entries(grouped).map(([category, questions]) => ({
+          category,
+          questions,
+        }));
+
+        setFaqData(categories);
+      } catch (err) {
+        console.error('Error fetching FAQs:', err);
+        setError('Unable to load FAQs. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFaqs();
+  }, []);
+
+  const handleAskSage = () => {
+    if (onOpenSage) {
+      onOpenSage();
+    } else {
+      // Dispatch custom event to open Sage
+      window.dispatchEvent(new CustomEvent('openSage'));
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-40 pb-32 bg-white">
+        <div className="max-w-4xl mx-auto px-4 md:px-12 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-500">Loading FAQs...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen pt-40 pb-32 bg-white">
+        <div className="max-w-4xl mx-auto px-4 md:px-12 text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen pt-40 pb-32 bg-white">
       <div className="max-w-4xl mx-auto px-4 md:px-12">
@@ -105,50 +168,63 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack }) => {
         >
           <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">How can we help?</span>
           <h1 className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6">
-            Frequently Asked <span className="text-emerald-600">Questions</span>
+            Help <span className="text-emerald-600">Center</span>
           </h1>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
             Everything you need to know about our seedlings, our shipping process, and our high-tech growing mission.
           </p>
         </motion.div>
 
-        <div className="space-y-16">
-          {FAQ_DATA.map((section, idx) => (
-            <motion.div
-              key={section.category}
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: idx * 0.1 }}
-            >
-              <h2 className="text-sm font-black uppercase tracking-widest text-emerald-600 mb-8 flex items-center gap-4">
-                {section.category}
-                <div className="h-px bg-emerald-100 flex-1" />
-              </h2>
-              <div className="bg-white rounded-[2rem] border border-gray-100 px-8 shadow-sm">
-                {section.questions.map((item, qIdx) => (
-                  <FAQItem key={qIdx} question={item.q} answer={item.a} />
-                ))}
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {faqData.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No FAQs available at the moment.</p>
+          </div>
+        ) : (
+          <div className="space-y-16">
+            {faqData.map((section, idx) => (
+              <motion.div
+                key={section.category}
+                id={categoryToId(section.category)}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+              >
+                <h2 className="text-sm font-black uppercase tracking-widest text-emerald-600 mb-8 flex items-center gap-4">
+                  {section.category}
+                  <div className="h-px bg-emerald-100 flex-1" />
+                </h2>
+                <div className="bg-white rounded-[2rem] border border-gray-100 px-8 shadow-sm">
+                  {section.questions.map((item: { q: string; a: string }, qIdx: number) => (
+                    <FAQItem key={qIdx} question={item.q} answer={item.a} />
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         {/* Still Have Questions? */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="mt-24 p-12 sage-gradient rounded-[3rem] text-white text-center relative overflow-hidden"
+          className="mt-24 p-12 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-[3rem] text-white text-center relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/30 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
           <h2 className="text-3xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
-          <p className="text-white/80 mb-8 relative z-10 font-medium">Sage AI is available 24/7 to answer your specific growing questions.</p>
-          <button 
-            onClick={() => onBack()}
-            className="px-10 py-5 bg-white text-gray-900 rounded-2xl font-bold hover:bg-gray-50 hover:scale-105 active:scale-95 transition-all shadow-xl relative z-10"
+          <p className="text-white/90 mb-8 relative z-10 font-medium">Sage AI is available 24/7 to answer your specific growing questions.</p>
+          <button
+            onClick={handleAskSage}
+            className="px-10 py-5 bg-white text-emerald-700 rounded-2xl font-bold hover:bg-emerald-50 hover:scale-105 active:scale-95 transition-all shadow-xl relative z-10 flex items-center gap-3 mx-auto"
           >
-            Go Back Home
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+              <path d="M19 3v4"/>
+              <path d="M21 5h-4"/>
+            </svg>
+            Ask Sage
           </button>
         </motion.div>
       </div>

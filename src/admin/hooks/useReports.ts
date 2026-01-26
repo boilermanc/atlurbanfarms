@@ -417,9 +417,33 @@ export function useCustomersReport(startDate: string, endDate: string) {
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 10);
 
-      // Attribution data - table not yet implemented
-      // TODO: Create customer_attribution table if attribution tracking is needed
-      const attribution: AttributionSource[] = [];
+      // Fetch attribution data from order_attributions table
+      const { data: attributionData, error: attributionError } = await supabase
+        .from('order_attributions')
+        .select('source, source_label')
+        .gte('created_at', startISO)
+        .lte('created_at', endISO);
+
+      // Aggregate attribution by source
+      const attributionCounts: Record<string, { count: number; label: string }> = {};
+      if (attributionData && !attributionError) {
+        for (const row of attributionData) {
+          const source = row.source || 'unknown';
+          if (!attributionCounts[source]) {
+            attributionCounts[source] = { count: 0, label: row.source_label || source };
+          }
+          attributionCounts[source].count++;
+        }
+      }
+
+      const totalAttributions = Object.values(attributionCounts).reduce((sum, item) => sum + item.count, 0);
+      const attribution: AttributionSource[] = Object.entries(attributionCounts)
+        .map(([source, data]) => ({
+          source: data.label,
+          count: data.count,
+          percentage: totalAttributions > 0 ? Math.round((data.count / totalAttributions) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
 
       setData({
         customerStats: { newCustomers, returningCustomers },

@@ -20,6 +20,13 @@ const SageAssistant: React.FC = () => {
     }
   }, [messages, isTyping]);
 
+  // Listen for custom 'openSage' event to open the chat programmatically
+  useEffect(() => {
+    const handleOpenSage = () => setIsOpen(true);
+    window.addEventListener('openSage', handleOpenSage);
+    return () => window.removeEventListener('openSage', handleOpenSage);
+  }, []);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isTyping) return;

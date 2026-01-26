@@ -24,7 +24,7 @@ interface Product {
   compare_at_price: number | null;
   quantity_available: number;
   is_active: boolean;
-  is_featured: boolean;
+  featured: boolean;
   category_id: string | null;
   category: Category | null;
   images: ProductImage[];
@@ -37,7 +37,7 @@ interface ProductsPageProps {
   onEditProduct: (productId: string) => void;
 }
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 50;
 
 const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,7 +46,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteModalProduct, setDeleteModalProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -102,6 +102,13 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+
+    // Check for category filter passed from CategoriesPage
+    const storedCategoryFilter = localStorage.getItem('admin_products_category_filter');
+    if (storedCategoryFilter) {
+      setCategoryFilter(storedCategoryFilter);
+      localStorage.removeItem('admin_products_category_filter');
+    }
   }, [fetchProducts, fetchCategories]);
 
   const filteredProducts = useMemo(() => {
@@ -126,6 +133,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
 
   const handleDelete = async () => {
     if (!deleteModalProduct) return;
+
+    // Safety check: prevent deletion of products with orders
+    if ((deleteModalProduct.purchase_count || 0) > 0) {
+      setError('This product has been purchased and cannot be deleted. Set it to Inactive instead.');
+      setDeleteModalProduct(null);
+      return;
+    }
+
     try {
       setDeleting(true);
       await supabase.from('product_images').delete().eq('product_id', deleteModalProduct.id);
@@ -237,7 +252,16 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => onEditProduct(product.id)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"><Edit2 size={18} /></button>
-                        <button onClick={() => setDeleteModalProduct(product)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
+                        {(product.purchase_count || 0) > 0 ? (
+                          <div className="relative group">
+                            <button disabled className="p-2 text-slate-300 cursor-not-allowed rounded-xl"><Trash2 size={18} /></button>
+                            <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              Cannot delete - product has orders
+                            </div>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDeleteModalProduct(product)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18} /></button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -265,14 +289,39 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
       {deleteModalProduct && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Product</h3>
-            <p className="text-slate-600 mb-6">Are you sure you want to delete <strong className="text-slate-800">{deleteModalProduct.name}</strong>? This cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteModalProduct(null)} disabled={deleting} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
-              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2">
-                {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}Delete
-              </button>
-            </div>
+            {(deleteModalProduct.purchase_count || 0) > 0 ? (
+              <>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Cannot Delete Product</h3>
+                <p className="text-slate-600 mb-4">
+                  <strong className="text-slate-800">{deleteModalProduct.name}</strong> has been purchased {deleteModalProduct.purchase_count} time{deleteModalProduct.purchase_count !== 1 ? 's' : ''} and cannot be deleted.
+                </p>
+                <p className="text-slate-600 mb-6">You can deactivate this product instead to hide it from the store.</p>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setDeleteModalProduct(null)} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
+                  <button
+                    onClick={() => {
+                      handleToggleActive(deleteModalProduct);
+                      setDeleteModalProduct(null);
+                    }}
+                    disabled={!deleteModalProduct.is_active}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleteModalProduct.is_active ? 'Deactivate' : 'Already Inactive'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Delete Product</h3>
+                <p className="text-slate-600 mb-6">Are you sure you want to delete <strong className="text-slate-800">{deleteModalProduct.name}</strong>? This cannot be undone.</p>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setDeleteModalProduct(null)} disabled={deleting} className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium">Cancel</button>
+                  <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2">
+                    {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

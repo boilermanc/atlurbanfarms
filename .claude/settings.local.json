@@ -18,7 +18,9 @@
       "Bash(npm run build:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(find:*)",
+      "Bash(cd:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"

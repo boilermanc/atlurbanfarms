@@ -14,12 +14,6 @@ interface ProductInventory {
   low_stock_threshold: number;
 }
 
-interface InventoryUpdate {
-  product_id: string;
-  new_quantity: number;
-  reason_code?: string;
-  notes?: string;
-}
 
 const BulkInventoryPage: React.FC = () => {
   const { adminUser } = useAdminAuth();
@@ -154,33 +148,49 @@ const BulkInventoryPage: React.FC = () => {
       setSuccessMessage(null);
 
       // Prepare updates array
-      const updates: InventoryUpdate[] = Array.from(changes.entries()).map(
+      const updates = Array.from(changes.entries()).map(
         ([product_id, new_quantity]) => ({
           product_id,
           new_quantity,
-          reason_code: 'inventory_count',
-          notes: 'Weekly inventory update',
         })
       );
 
-      // Call RPC function for atomic bulk update
-      const { data: result, error: rpcError } = await supabase.rpc(
-        'bulk_update_product_inventory',
-        {
-          p_updates: updates,
-          p_updated_by: adminUser?.id || 'unknown',
+      // Log the payload for debugging
+      console.log('Saving inventory updates:', updates);
+
+      // Update each product directly (more reliable than RPC)
+      let updatedCount = 0;
+      const errors: string[] = [];
+
+      for (const update of updates) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({
+            quantity_available: update.new_quantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', update.product_id);
+
+        if (updateError) {
+          console.error(`Error updating product ${update.product_id}:`, updateError);
+          const productName = products.find(p => p.id === update.product_id)?.name || update.product_id;
+          errors.push(`Failed to update "${productName}": ${updateError.message}`);
+        } else {
+          updatedCount++;
+          console.log(`Updated product ${update.product_id} to quantity: ${update.new_quantity}`);
         }
-      );
+      }
 
-      if (rpcError) throw rpcError;
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to update inventory');
+      if (errors.length > 0 && updatedCount === 0) {
+        throw new Error(errors.join('; '));
       }
 
       // Show success message
-      const updatedCount = result.updated_count || 0;
-      setSuccessMessage(`Successfully updated ${updatedCount} product(s)`);
+      if (errors.length > 0) {
+        setSuccessMessage(`Updated ${updatedCount} product(s). Some failed: ${errors.join('; ')}`);
+      } else {
+        setSuccessMessage(`Successfully updated ${updatedCount} product(s)`);
+      }
 
       // Clear changes
       setChanges(new Map());

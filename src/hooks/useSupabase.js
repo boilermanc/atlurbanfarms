@@ -334,6 +334,74 @@ export function useProducts() {
 }
 
 /**
+ * Fetch top 8 best-selling active products
+ * Calculates sales from order_items (excluding cancelled orders)
+ */
+export function useBestSellers(limit = 8) {
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    async function fetchBestSellers() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch active products with category and images
+        const { data: productsData, error: productsError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            category:product_categories(*),
+            images:product_images(*)
+          `)
+          .eq('is_active', true)
+
+        if (productsError) throw productsError
+
+        // Fetch order items to calculate sales (excluding cancelled orders)
+        const { data: orderItemsData, error: orderItemsError } = await supabase
+          .from('order_items')
+          .select('product_id, quantity, orders!inner(status)')
+
+        if (orderItemsError) throw orderItemsError
+
+        // Calculate total sales per product
+        const salesCounts = {}
+        ;(orderItemsData || []).forEach(item => {
+          if (item.orders?.status !== 'cancelled') {
+            salesCounts[item.product_id] = (salesCounts[item.product_id] || 0) + item.quantity
+          }
+        })
+
+        // Add primary image and sales count to each product
+        const productsWithSales = (productsData || []).map(product => ({
+          ...product,
+          primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null,
+          sales_count: salesCounts[product.id] || 0
+        }))
+
+        // Sort by sales count descending and take top N
+        const bestSellers = productsWithSales
+          .sort((a, b) => b.sales_count - a.sales_count)
+          .slice(0, limit)
+
+        setProducts(bestSellers)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBestSellers()
+  }, [limit])
+
+  return { products, loading, error }
+}
+
+/**
  * Fetch a single product by slug
  */
 export function useProduct(slug) {
@@ -402,7 +470,7 @@ export function useCategories() {
           .from('product_categories')
           .select('*')
           .eq('is_active', true)
-          .order('sort_order')
+          .order('sort_order', { ascending: true, nullsFirst: false })
 
         if (supabaseError) throw supabaseError
 
@@ -479,7 +547,7 @@ export function useAttributionOptions() {
           .from('attribution_options')
           .select('*')
           .eq('is_active', true)
-          .order('display_order')
+          .order('sort_order')
 
         if (supabaseError) throw supabaseError
 
@@ -832,6 +900,61 @@ export function useCreateOrder() {
   }, [])
 
   return { createOrder, loading, error }
+}
+
+/**
+ * Fetch branding settings from config_settings table
+ * Used for announcement bar, logo, colors, etc.
+ */
+export function useBrandingSettings() {
+  const [settings, setSettings] = useState({
+    announcement_bar_enabled: false,
+    announcement_bar_text: '',
+    homepage_announcement: '',
+    logo_url: '',
+    primary_brand_color: '#10b981',
+    secondary_brand_color: '#047857'
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    async function fetchBrandingSettings() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const { data, error: supabaseError } = await supabase
+          .from('config_settings')
+          .select('key, value, data_type')
+          .eq('category', 'branding')
+
+        if (supabaseError) throw supabaseError
+
+        // Parse settings into an object
+        const brandingSettings = {}
+        ;(data || []).forEach(setting => {
+          let parsedValue = setting.value
+          if (setting.data_type === 'boolean') {
+            parsedValue = setting.value === 'true'
+          } else if (setting.data_type === 'number') {
+            parsedValue = parseFloat(setting.value)
+          }
+          brandingSettings[setting.key] = parsedValue
+        })
+
+        setSettings(prev => ({ ...prev, ...brandingSettings }))
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchBrandingSettings()
+  }, [])
+
+  return { settings, loading, error }
 }
 
 export function useCart() {

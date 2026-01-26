@@ -219,13 +219,17 @@ export function useTrackingEvents(shipmentId: string | null) {
         .order('occurred_at', { ascending: false });
 
       if (fetchError) {
-        throw fetchError;
+        // Handle common errors gracefully (RLS, table not found, etc.)
+        console.warn('Tracking events fetch warning:', fetchError.code, fetchError.message);
+        setEvents([]);
+        setLoading(false);
+        return;
       }
 
       setEvents(data || []);
     } catch (err: any) {
-      console.error('Error fetching tracking events:', err);
-      setError(err.message || 'Failed to fetch tracking events');
+      // Silently handle errors - tracking events are optional
+      console.warn('Error fetching tracking events (non-critical):', err.message);
       setEvents([]);
     } finally {
       setLoading(false);

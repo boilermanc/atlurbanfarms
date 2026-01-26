@@ -133,7 +133,7 @@ BEGIN
     v_product_id := (v_item->>'product_id')::UUID;
     v_quantity := (v_item->>'quantity')::INT;
 
-    SELECT stock_quantity, name INTO v_current_stock, v_product_name
+    SELECT quantity_available, name INTO v_current_stock, v_product_name
     FROM products
     WHERE id = v_product_id
     FOR UPDATE;
@@ -221,7 +221,7 @@ BEGIN
     );
 
     UPDATE products
-    SET stock_quantity = stock_quantity - v_quantity,
+    SET quantity_available = quantity_available - v_quantity,
         updated_at = NOW()
     WHERE id = v_product_id;
   END LOOP;

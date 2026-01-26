@@ -1,23 +1,7 @@
--- Add payment tracking fields for manual order creation
--- This migration adds columns to track payment method, status, and admin who created the order
+-- Add support for skipping inventory check in manual orders (admin override)
+-- This allows admins to create orders for out-of-stock products when necessary
 
--- Add new columns to orders table
-ALTER TABLE orders
-  ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'stripe',
-  ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS created_by_admin_id UUID;
-
--- Create index for admin-created orders
-CREATE INDEX IF NOT EXISTS idx_orders_created_by_admin
-  ON orders(created_by_admin_id)
-  WHERE created_by_admin_id IS NOT NULL;
-
--- Add comments for documentation
-COMMENT ON COLUMN orders.payment_method IS 'Payment method: stripe (customer checkout), cash, check, phone, other (manual orders)';
-COMMENT ON COLUMN orders.payment_status IS 'Payment status: pending, paid, partial, refunded';
-COMMENT ON COLUMN orders.created_by_admin_id IS 'Admin user who created this order manually (null for customer orders)';
-
--- Update the RPC function to accept and handle new payment tracking fields
+-- Update the RPC function to accept skip_inventory_check parameter from order_data
 CREATE OR REPLACE FUNCTION create_order_with_inventory_check(
   p_order_data JSONB,
   p_order_items JSONB[]
@@ -33,33 +17,40 @@ DECLARE
   v_product_name TEXT;
   v_insufficient_items TEXT[] := '{}';
   v_order_status TEXT;
+  v_skip_inventory_check BOOLEAN;
 BEGIN
+  -- Check if inventory check should be skipped (admin override)
+  v_skip_inventory_check := COALESCE((p_order_data->>'skip_inventory_check')::BOOLEAN, false);
+
   -- Phase 1: Check stock for all items (with row locks to prevent race conditions)
-  FOREACH v_item IN ARRAY p_order_items LOOP
-    v_product_id := (v_item->>'product_id')::UUID;
-    v_quantity := (v_item->>'quantity')::INT;
+  -- Skip this phase if admin has overridden inventory restrictions
+  IF NOT v_skip_inventory_check THEN
+    FOREACH v_item IN ARRAY p_order_items LOOP
+      v_product_id := (v_item->>'product_id')::UUID;
+      v_quantity := (v_item->>'quantity')::INT;
 
-    SELECT quantity_available, name INTO v_current_stock, v_product_name
-    FROM products
-    WHERE id = v_product_id
-    FOR UPDATE;  -- Lock the row to prevent concurrent modifications
+      SELECT quantity_available, name INTO v_current_stock, v_product_name
+      FROM products
+      WHERE id = v_product_id
+      FOR UPDATE;  -- Lock the row to prevent concurrent modifications
 
-    IF v_current_stock IS NULL OR v_current_stock < v_quantity THEN
-      v_insufficient_items := array_append(
-        v_insufficient_items,
-        format('%s (requested: %s, available: %s)',
-               v_product_name, v_quantity, COALESCE(v_current_stock, 0))
+      IF v_current_stock IS NULL OR v_current_stock < v_quantity THEN
+        v_insufficient_items := array_append(
+          v_insufficient_items,
+          format('%s (requested: %s, available: %s)',
+                 v_product_name, v_quantity, COALESCE(v_current_stock, 0))
+        );
+      END IF;
+    END LOOP;
+
+    -- If any items have insufficient stock, return error (transaction will rollback)
+    IF array_length(v_insufficient_items, 1) > 0 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'error', 'insufficient_stock',
+        'message', 'Insufficient stock for: ' || array_to_string(v_insufficient_items, ', ')
       );
     END IF;
-  END LOOP;
-
-  -- If any items have insufficient stock, return error (transaction will rollback)
-  IF array_length(v_insufficient_items, 1) > 0 THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'insufficient_stock',
-      'message', 'Insufficient stock for: ' || array_to_string(v_insufficient_items, ', ')
-    );
   END IF;
 
   -- Determine order status based on payment status
@@ -112,6 +103,7 @@ BEGIN
   ) RETURNING id, order_number INTO v_order_id, v_order_number;
 
   -- Phase 3: Create order items and decrement stock
+  -- Note: Stock is decremented even when override is used (may go negative)
   FOREACH v_item IN ARRAY p_order_items LOOP
     v_product_id := (v_item->>'product_id')::UUID;
     v_quantity := (v_item->>'quantity')::INT;
@@ -128,7 +120,7 @@ BEGIN
       (v_item->>'line_total')::NUMERIC
     );
 
-    -- Decrement stock for this product
+    -- Decrement stock for this product (may go negative with override)
     UPDATE products
     SET quantity_available = quantity_available - v_quantity,
         updated_at = NOW()
@@ -162,7 +154,8 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'order_id', v_order_id,
-    'order_number', v_order_number
+    'order_number', v_order_number,
+    'inventory_override_used', v_skip_inventory_check
   );
 END;
 $$ LANGUAGE plpgsql;

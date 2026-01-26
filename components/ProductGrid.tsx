@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProducts } from '../src/hooks/useSupabase';
+import { useBestSellers } from '../src/hooks/useSupabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
@@ -10,6 +10,7 @@ import ProductDetailModal from './ProductDetailModal';
 interface ProductGridProps {
   onAddToCart: (product: Product, quantity: number) => void;
   onAboutClick?: () => void;
+  onShopClick?: () => void;
 }
 
 const ProductCardSkeleton = () => (
@@ -41,11 +42,11 @@ const mapProduct = (p: any): Product => ({
   stock: p.quantity_available || 0
 });
 
-const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) => {
-  const { products: rawProducts, loading, error } = useProducts();
+const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, onShopClick }) => {
+  const { products: rawProducts, loading, error } = useBestSellers(8);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-  // Map Supabase data to local Product type
+  // Map Supabase data to local Product type (already limited to top 8 by sales)
   const products = rawProducts.map(mapProduct);
 
   // Fetch promotions for all products
@@ -72,7 +73,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
   };
 
   return (
-    <section className="py-32 px-4 md:px-12 bg-gray-50/50">
+    <section className="py-32 px-4 md:px-12 bg-emerald-50/40 border-t border-emerald-100/50">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="flex items-end justify-between mb-16 px-2">
@@ -87,14 +88,14 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
             </h2>
           </motion.div>
           
-          <motion.a 
-            href="#shop"
+          <motion.button
+            onClick={onShopClick}
             whileHover={{ x: 5 }}
             className="group flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-emerald-600 transition-colors"
           >
             View All Collection
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition-transform"><line x1="5" x2="19" y1="12" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </motion.a>
+          </motion.button>
         </div>
 
         {/* Grid Display */}
@@ -127,9 +128,16 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
               // Actual Product Cards
               products.map((product, index) => {
                 const promo = productPromotions.get(product.id);
-                const salePrice = promo
+                const promoSalePrice = promo
                   ? calculateSalePrice(product.price, promo.discount_type, promo.discount_value)
                   : null;
+
+                // If there's a promotion, use promo price; otherwise use product price
+                // compareAtPrice is either the original price (for promo) or compare_at_price from DB
+                const displayPrice = promoSalePrice ?? product.price;
+                const displayCompareAtPrice = promoSalePrice
+                  ? product.price  // Promotion: original price is the compare price
+                  : product.salePrice;  // No promo: use compare_at_price from DB
 
                 return (
                   <motion.div
@@ -141,12 +149,12 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick }) 
                       id={product.id}
                       image={product.image}
                       name={product.name}
-                      price={product.price}
+                      price={displayPrice}
                       category={product.category}
                       inStock={product.stock > 0}
                       onAddToCart={(qty) => onAddToCart(product, qty)}
                       onClick={() => setSelectedProduct(rawProducts[index])}
-                      salePrice={salePrice}
+                      compareAtPrice={displayCompareAtPrice}
                       saleBadge={promo?.badge_text}
                     />
                   </motion.div>

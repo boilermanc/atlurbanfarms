@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useProducts } from '../src/hooks/useSupabase';
+import { supabase } from '../src/lib/supabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
@@ -9,6 +9,7 @@ import ProductDetailModal from './ProductDetailModal';
 
 interface FeaturedSectionProps {
   onAddToCart: (product: Product, quantity: number) => void;
+  onNavigate?: (view: string) => void;
 }
 
 // Map Supabase product to local Product type
@@ -23,12 +24,53 @@ const mapProduct = (p: any): Product => ({
   stock: p.quantity_available || 0
 });
 
-const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
-  const { products: rawProducts, loading, error } = useProducts();
+const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNavigate }) => {
+  const [rawProducts, setRawProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-  // Get first 3 products as featured (raw for modal, mapped for display)
-  const featuredRawProducts = rawProducts.slice(0, 3);
+  // Fetch featured products directly
+  useEffect(() => {
+    async function fetchFeaturedProducts() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Query products with featured = true
+        const { data, error: supabaseError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            category:product_categories(*),
+            images:product_images(*)
+          `)
+          .eq('is_active', true)
+          .eq('featured', true)
+          .order('updated_at', { ascending: false })
+          .limit(4);
+
+        if (supabaseError) throw supabaseError;
+
+        // Extract primary image for each product
+        const productsWithPrimaryImage = (data || []).map(product => ({
+          ...product,
+          primary_image: product.images?.find((img: any) => img.is_primary) || product.images?.[0] || null
+        }));
+
+        setRawProducts(productsWithPrimaryImage);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFeaturedProducts();
+  }, []);
+
+  // Map raw products to display format
+  const featuredRawProducts = rawProducts;
   const featuredProducts = featuredRawProducts.map(mapProduct);
 
   // Fetch promotions for featured products
@@ -37,7 +79,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
 
   if (loading) {
     return (
-      <section className="py-24 px-4 md:px-12 bg-white relative overflow-hidden">
+      <section className="py-24 px-4 md:px-12 bg-slate-50 border-t border-slate-100 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="mb-16">
             <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
@@ -65,7 +107,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-white relative overflow-hidden">
+    <section className="py-24 px-4 md:px-12 bg-slate-50 border-t border-slate-100 relative overflow-hidden">
       {/* Decorative background element */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
         <div className="absolute top-1/4 left-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-60" />
@@ -80,7 +122,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
             viewport={{ once: true }}
             className="max-w-2xl"
           >
-            <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Weekly Spotlight</span>
+            <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Weekly Spotlight</span>
             <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight">
               Nursery <span className="sage-text-gradient">Favorites</span>
             </h2>
@@ -92,7 +134,13 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="px-8 py-4 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-sm hover:bg-emerald-100 transition-all flex items-center gap-2"
+            onClick={() => {
+              onNavigate?.('about');
+              setTimeout(() => {
+                document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }}
+            className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
           >
             Meet Our Growers
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
@@ -102,9 +150,16 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {featuredProducts.map((product, idx) => {
             const promo = productPromotions.get(product.id);
-            const salePrice = promo
+            const promoSalePrice = promo
               ? calculateSalePrice(product.price, promo.discount_type, promo.discount_value)
               : null;
+
+            // If there's a promotion, use promo price; otherwise use product price
+            // compareAtPrice is either the original price (for promo) or compare_at_price from DB
+            const displayPrice = promoSalePrice ?? product.price;
+            const displayCompareAtPrice = promoSalePrice
+              ? product.price  // Promotion: original price is the compare price
+              : product.salePrice;  // No promo: use compare_at_price from DB
 
             return (
               <motion.div
@@ -118,12 +173,12 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart }) => {
                   id={product.id}
                   image={product.image}
                   name={product.name}
-                  price={product.price}
+                  price={displayPrice}
                   category={product.category}
                   inStock={product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => setSelectedProduct(featuredRawProducts[idx])}
-                  salePrice={salePrice}
+                  compareAtPrice={displayCompareAtPrice}
                   saleBadge={promo?.badge_text}
                 />
               </motion.div>

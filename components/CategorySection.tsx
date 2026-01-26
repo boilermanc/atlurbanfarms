@@ -85,7 +85,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-white">
+    <section className="py-24 px-4 md:px-12 bg-white border-t border-gray-100">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>

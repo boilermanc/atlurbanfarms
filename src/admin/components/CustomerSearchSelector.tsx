@@ -185,9 +185,12 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
       // Reset form
       setNewCustomer({ email: '', first_name: '', last_name: '', phone: '' });
       setMode('search');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating customer:', err);
-      setError('Failed to create customer');
+      // Show the actual error message from Supabase for debugging
+      const errorMessage = err?.message || err?.details || err?.hint || 'Unknown error';
+      const errorCode = err?.code ? ` (${err.code})` : '';
+      setError(`Failed to create customer: ${errorMessage}${errorCode}`);
     } finally {
       setCreating(false);
     }

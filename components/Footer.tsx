@@ -1,18 +1,102 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { SparkleIcon } from '../constants';
 import { submitNewsletterPreference } from '@/src/services/newsletter';
+import { supabase } from '../src/lib/supabase';
+
+type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms';
 
 interface FooterProps {
-  onNavigate?: (view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => void;
+  onNavigate?: (view: FooterViewType, category?: string) => void;
 }
+
+interface BusinessSettings {
+  support_email: string;
+  support_phone: string;
+  ship_from_address_line1: string;
+  ship_from_address_line2: string;
+  ship_from_city: string;
+  ship_from_state: string;
+  ship_from_zip: string;
+}
+
+interface BrandingSettings {
+  social_facebook: string;
+  social_instagram: string;
+  social_twitter: string;
+  social_youtube: string;
+  social_tiktok: string;
+}
+
+// Helper to scroll to an element by ID, with fallback IDs
+const scrollToSection = (...ids: string[]) => {
+  for (const id of ids) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+  }
+};
 
 const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
-  const handleNav = (e: React.MouseEvent, view: 'home' | 'shop' | 'faq' | 'about' | 'growers', category?: string) => {
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
+  const [brandingSettings, setBrandingSettings] = useState<BrandingSettings | null>(null);
+
+  // Fetch business and branding settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('config_settings')
+          .select('category, key, value')
+          .in('category', ['business', 'branding']);
+
+        if (error) throw error;
+
+        if (data) {
+          const businessData: Record<string, string> = {};
+          const brandingData: Record<string, string> = {};
+
+          data.forEach((row: { category: string; key: string; value: string }) => {
+            if (row.category === 'business') {
+              businessData[row.key] = row.value;
+            } else if (row.category === 'branding') {
+              brandingData[row.key] = row.value;
+            }
+          });
+
+          setBusinessSettings({
+            support_email: businessData.support_email || '',
+            support_phone: businessData.support_phone || '',
+            ship_from_address_line1: businessData.ship_from_address_line1 || '',
+            ship_from_address_line2: businessData.ship_from_address_line2 || '',
+            ship_from_city: businessData.ship_from_city || 'Atlanta',
+            ship_from_state: businessData.ship_from_state || 'GA',
+            ship_from_zip: businessData.ship_from_zip || '',
+          });
+
+          setBrandingSettings({
+            social_facebook: brandingData.social_facebook || '',
+            social_instagram: brandingData.social_instagram || '',
+            social_twitter: brandingData.social_twitter || '',
+            social_youtube: brandingData.social_youtube || '',
+            social_tiktok: brandingData.social_tiktok || '',
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching settings:', err);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
+  const handleNav = (e: React.MouseEvent, view: FooterViewType, category?: string) => {
     e.preventDefault();
     if (onNavigate) {
       onNavigate(view, category);
@@ -64,11 +148,11 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <div className="lg:col-span-5">
             <div className="flex items-center gap-3 mb-8">
               <button onClick={(e) => handleNav(e, 'home')} className="flex items-center gap-3 group text-left">
-                <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-emerald-900/20 group-hover:rotate-6 transition-transform">
+                <div className="w-12 h-12 brand-bg rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl group-hover:rotate-6 transition-transform">
                   A
                 </div>
                 <span className="font-heading text-2xl font-black tracking-tight">
-                  ATL <span className="text-emerald-500">Urban Farms</span>
+                  ATL <span className="brand-text">Urban Farms</span>
                 </span>
               </button>
             </div>
@@ -76,26 +160,66 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               Transforming urban spaces with premium, nursery-grown seedlings. High-tech growing for the modern gardener.
             </p>
             <div className="flex gap-4">
-              {['instagram', 'facebook', 'tiktok'].map((platform) => (
+              {brandingSettings?.social_facebook && (
                 <motion.a
-                  key={platform}
-                  href="#"
-                  onClick={(e) => e.preventDefault()}
+                  href={brandingSettings.social_facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   whileHover={{ y: -5, scale: 1.1 }}
                   className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label={platform}
+                  aria-label="Facebook"
                 >
-                  {platform === 'instagram' && (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-                  )}
-                  {platform === 'facebook' && (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-                  )}
-                  {platform === 'tiktok' && (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
-                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
                 </motion.a>
-              ))}
+              )}
+              {brandingSettings?.social_instagram && (
+                <motion.a
+                  href={brandingSettings.social_instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -5, scale: 1.1 }}
+                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
+                  aria-label="Instagram"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                </motion.a>
+              )}
+              {brandingSettings?.social_twitter && (
+                <motion.a
+                  href={brandingSettings.social_twitter}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -5, scale: 1.1 }}
+                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
+                  aria-label="Twitter/X"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
+                </motion.a>
+              )}
+              {brandingSettings?.social_tiktok && (
+                <motion.a
+                  href={brandingSettings.social_tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -5, scale: 1.1 }}
+                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
+                  aria-label="TikTok"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+                </motion.a>
+              )}
+              {brandingSettings?.social_youtube && (
+                <motion.a
+                  href={brandingSettings.social_youtube}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -5, scale: 1.1 }}
+                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
+                  aria-label="YouTube"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+                </motion.a>
+              )}
             </div>
           </div>
 
@@ -126,11 +250,14 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <button
                   type="submit"
                   disabled={status === 'loading'}
-                  className={`px-8 py-4 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-900/20 whitespace-nowrap flex items-center justify-center gap-2 ${
+                  className={`px-8 py-4 rounded-2xl font-bold transition-all shadow-lg whitespace-nowrap flex items-center justify-center gap-2 ${
                     status === 'loading'
                       ? 'bg-white/20 text-white/70 cursor-not-allowed'
-                      : 'bg-emerald-600 text-white hover:bg-emerald-50 hover:text-emerald-600 hover:scale-[1.02] active:scale-95'
+                      : 'brand-bg text-white hover:bg-white hover:scale-[1.02] active:scale-95'
                   }`}
+                  style={status !== 'loading' ? { ['--hover-text' as string]: 'var(--brand-primary)' } : undefined}
+                  onMouseEnter={(e) => status !== 'loading' && (e.currentTarget.style.color = 'var(--brand-primary)')}
+                  onMouseLeave={(e) => status !== 'loading' && (e.currentTarget.style.color = '')}
                 >
                   {status === 'loading' ? (
                     <>
@@ -157,7 +284,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         {/* Link Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-12 border-b border-white/10 pb-16">
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 text-emerald-500 uppercase tracking-widest text-xs">Shop</h4>
+            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Shop</h4>
             <ul className="space-y-4">
               {shopLinks.map(item => (
                 <li key={item.label}>
@@ -172,43 +299,57 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 text-emerald-500 uppercase tracking-widest text-xs">Company</h4>
+            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Company</h4>
             <ul className="space-y-4">
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">About Us</button></li>
-              <li><button onClick={(e) => handleNav(e, 'growers')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Meet the Growers</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'about'); setTimeout(() => { document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Meet the Growers</button></li>
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Our Story</button></li>
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Sustainability</button></li>
               <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Careers</button></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 text-emerald-500 uppercase tracking-widest text-xs">Support</h4>
+            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Support</h4>
             <ul className="space-y-4">
               <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">FAQ</button></li>
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Contact</button></li>
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Shipping Policy</button></li>
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Returns</button></li>
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Wholesale</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('contact', 'contact-us'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Contact</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('shipping', 'shipping-and-delivery', 'shipping-delivery'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Shipping Policy</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('returns', 'returns-and-refunds', 'refunds'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Returns</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('wholesale', 'bulk-orders', 'business'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Wholesale</button></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 text-emerald-500 uppercase tracking-widest text-xs">Contact</h4>
+            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Contact</h4>
             <div className="space-y-6">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Visit Our Nursery</p>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  123 High-Tech Way<br />
-                  Atlanta, GA 30318
+                  {businessSettings?.ship_from_address_line1 || '123 High-Tech Way'}
+                  {businessSettings?.ship_from_address_line2 && <><br />{businessSettings.ship_from_address_line2}</>}
+                  <br />
+                  {businessSettings?.ship_from_city || 'Atlanta'}, {businessSettings?.ship_from_state || 'GA'} {businessSettings?.ship_from_zip || '30318'}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Grow Support</p>
-                <button 
-                  onClick={(e) => handleNav(e, 'faq')}
-                  className="text-gray-400 hover:text-white text-sm transition-colors text-left"
-                >
-                  hello@atlurbanfarms.com
-                </button>
+                {businessSettings?.support_email ? (
+                  <a
+                    href={`mailto:${businessSettings.support_email}`}
+                    className="text-gray-400 hover:text-white text-sm transition-colors block"
+                  >
+                    {businessSettings.support_email}
+                  </a>
+                ) : (
+                  <span className="text-gray-400 text-sm">hello@atlurbanfarms.com</span>
+                )}
+                {businessSettings?.support_phone && (
+                  <a
+                    href={`tel:${businessSettings.support_phone}`}
+                    className="text-gray-400 hover:text-white text-sm transition-colors block mt-1"
+                  >
+                    {businessSettings.support_phone}
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -221,12 +362,12 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               © 2025 ATL URBAN FARMS. ALL RIGHTS RESERVED.
             </p>
             <div className="flex gap-6">
-              <button onClick={(e) => handleNav(e, 'faq')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Terms of Service</button>
-              <button onClick={(e) => handleNav(e, 'faq')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Privacy Policy</button>
+              <button onClick={(e) => handleNav(e, 'terms')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Terms of Service</button>
+              <button onClick={(e) => handleNav(e, 'privacy')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Privacy Policy</button>
             </div>
           </div>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-600/60">
-            Built by Sweetwater Technologies
+            Built by Sweetwater Technology
           </p>
         </div>
       </div>

@@ -99,6 +99,9 @@ interface DashboardStats {
   todayRevenue: number;
   pendingOrders: number;
   lowStockItems: number;
+  outOfStockItems: number;
+  totalActiveProducts: number;
+  inventoryHealth: 'critical' | 'low' | 'good';
   totalCustomers: number;
   recentOrders: Array<{
     id: string;
@@ -133,18 +136,48 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           .select('*', { count: 'exact', head: true })
           .in('status', ['pending_payment', 'processing', 'on_hold']);
 
-        // Fetch low stock items - try inventory view first, fallback gracefully
+        // Fetch inventory stats from products table directly
+        // Get total active products
+        const { count: totalActiveCount } = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_active', true);
+
+        // Fetch all active products to calculate low stock properly
+        // We need to compare quantity_available to each product's low_stock_threshold
+        const { data: activeProducts } = await supabase
+          .from('products')
+          .select('id, quantity_available, low_stock_threshold')
+          .eq('is_active', true);
+
+        let outOfStockCount = 0;
         let lowStockCount = 0;
-        try {
-          const { count, error } = await supabase
-            .from('inventory_by_product')
-            .select('*', { count: 'exact', head: true })
-            .eq('stock_status', 'low_stock');
-          if (!error) {
-            lowStockCount = count || 0;
-          }
-        } catch {
-          // View doesn't exist yet - that's okay
+
+        if (activeProducts) {
+          activeProducts.forEach((product) => {
+            const qty = product.quantity_available ?? 0;
+            const threshold = product.low_stock_threshold ?? 10;
+
+            if (qty === 0) {
+              outOfStockCount++;
+            } else if (qty <= threshold) {
+              lowStockCount++;
+            }
+          });
+        }
+
+        // Calculate inventory health based on percentage of problematic items
+        const totalActive = totalActiveCount || 0;
+        const problemItems = outOfStockCount + lowStockCount;
+        const problemPercentage = totalActive > 0 ? (problemItems / totalActive) * 100 : 0;
+
+        let inventoryHealth: 'critical' | 'low' | 'good' = 'good';
+        if (outOfStockCount > 0 && outOfStockCount >= totalActive * 0.25) {
+          // Critical: 25% or more products are out of stock
+          inventoryHealth = 'critical';
+        } else if (problemPercentage >= 30) {
+          // Low: 30% or more products have stock issues
+          inventoryHealth = 'low';
         }
 
         // Fetch total customers
@@ -176,7 +209,10 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           todayOrders: todayOrders.length,
           todayRevenue,
           pendingOrders: pendingCount || 0,
-          lowStockItems: lowStockCount || 0,
+          lowStockItems: lowStockCount + outOfStockCount,
+          outOfStockItems: outOfStockCount,
+          totalActiveProducts: totalActive,
+          inventoryHealth,
           totalCustomers: customerCount || 0,
           recentOrders: (recentOrdersData || []).map((order: any) => ({
             id: order.id,
@@ -390,8 +426,33 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           </div>
         </div>
 
-        {/* Low Stock Alert */}
-        {stats?.lowStockItems && stats.lowStockItems > 0 ? (
+        {/* Inventory Status Card */}
+        {stats?.inventoryHealth === 'critical' ? (
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-6 border border-red-200/60">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-red-100">
+                <AlertTriangle size={24} className="text-red-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-700">Critical Stock Alert</p>
+                <p className="text-lg font-bold text-red-800">
+                  {stats.outOfStockItems} out of stock, {stats.lowStockItems - stats.outOfStockItems} low stock
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  {stats.totalActiveProducts > 0
+                    ? `${Math.round((stats.lowStockItems / stats.totalActiveProducts) * 100)}% of products need attention`
+                    : 'No active products'}
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigate('inventory')}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-xl transition-colors text-sm"
+              >
+                View Inventory
+              </button>
+            </div>
+          </div>
+        ) : stats?.inventoryHealth === 'low' || (stats?.lowStockItems && stats.lowStockItems > 0) ? (
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200/60">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-amber-100">
@@ -399,7 +460,13 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-amber-700">Low Stock Alert</p>
-                <p className="text-lg font-bold text-amber-800">{stats.lowStockItems} items need restocking</p>
+                <p className="text-lg font-bold text-amber-800">
+                  {stats?.outOfStockItems ? `${stats.outOfStockItems} out of stock, ` : ''}
+                  {(stats?.lowStockItems || 0) - (stats?.outOfStockItems || 0)} low stock
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  {stats?.lowStockItems} item{stats?.lowStockItems !== 1 ? 's' : ''} need restocking
+                </p>
               </div>
               <button
                 onClick={() => onNavigate('inventory')}
@@ -418,6 +485,9 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
               <div>
                 <p className="text-sm font-medium text-emerald-700">Inventory Status</p>
                 <p className="text-lg font-bold text-emerald-800">All items well stocked!</p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  {stats?.totalActiveProducts || 0} active product{stats?.totalActiveProducts !== 1 ? 's' : ''} in stock
+                </p>
               </div>
             </div>
           </div>

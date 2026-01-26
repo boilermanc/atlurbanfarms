@@ -25,9 +25,10 @@ interface Product {
 interface ProductLineItemsProps {
   lineItems: OrderLineItem[];
   onChange: (items: OrderLineItem[]) => void;
+  overrideInventory?: boolean;
 }
 
-const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange }) => {
+const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange, overrideInventory = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -124,7 +125,8 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
       const updated = [...lineItems];
       const newQuantity = updated[existingIndex].quantity + 1;
 
-      if (newQuantity > product.quantity_available) {
+      // Only enforce stock limits if override is not enabled
+      if (!overrideInventory && newQuantity > product.quantity_available) {
         setError(`Cannot add more. Only ${product.quantity_available} in stock.`);
         return;
       }
@@ -137,8 +139,8 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
 
       onChange(updated);
     } else {
-      // Add new product
-      if (product.quantity_available < 1) {
+      // Add new product - only enforce stock check if override is not enabled
+      if (!overrideInventory && product.quantity_available < 1) {
         setError('This product is out of stock.');
         return;
       }
@@ -174,7 +176,8 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
       return;
     }
 
-    if (newQuantity > item.available_stock) {
+    // Only enforce stock limits if override is not enabled
+    if (!overrideInventory && newQuantity > item.available_stock) {
       setError(`Cannot exceed available stock of ${item.available_stock}`);
       return;
     }
@@ -234,42 +237,57 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
         {/* Product Search Dropdown */}
         {showDropdown && searchResults.length > 0 && (
           <div className="absolute z-10 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-80 overflow-y-auto">
-            {searchResults.map((product) => (
-              <button
-                key={product.id}
-                onClick={() => handleAddProduct(product)}
-                disabled={product.quantity_available < 1}
-                className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="flex items-center gap-3">
-                  {product.primary_image ? (
-                    <img
-                      src={product.primary_image.url}
-                      alt={product.name}
-                      className="w-10 h-10 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <Package className="text-slate-400" size={20} />
+            {searchResults.map((product) => {
+              const isOutOfStock = product.quantity_available < 1;
+              const isDisabled = isOutOfStock && !overrideInventory;
+
+              return (
+                <button
+                  key={product.id}
+                  onClick={() => handleAddProduct(product)}
+                  disabled={isDisabled}
+                  className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isOutOfStock && overrideInventory ? 'bg-amber-50/50' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {product.primary_image ? (
+                      <img
+                        src={product.primary_image.url}
+                        alt={product.name}
+                        className="w-10 h-10 object-cover rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <Package className="text-slate-400" size={20} />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900">{product.name}</span>
+                        {isOutOfStock && overrideInventory && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
+                            <AlertTriangle size={10} />
+                            Out of Stock
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-emerald-600 font-medium">
+                          {formatCurrency(product.price)}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          Stock: {product.quantity_available}
+                          {product.quantity_available < 5 && product.quantity_available > 0 && ' - Low!'}
+                          {product.quantity_available === 0 && !overrideInventory && ' - Out of Stock'}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex-1">
-                    <div className="font-medium text-slate-900">{product.name}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-emerald-600 font-medium">
-                        {formatCurrency(product.price)}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        Stock: {product.quantity_available}
-                        {product.quantity_available < 5 && product.quantity_available > 0 && ' - Low!'}
-                        {product.quantity_available === 0 && ' - Out of Stock'}
-                      </span>
-                    </div>
+                    <Plus size={18} className="text-slate-400" />
                   </div>
-                  <Plus size={18} className="text-slate-400" />
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -288,88 +306,105 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
           </div>
 
           <div className="divide-y divide-slate-100">
-            {lineItems.map((item) => (
-              <div key={item.product_id} className="p-4 hover:bg-slate-50 transition-colors">
-                <div className="flex items-start gap-4">
-                  {/* Product Image */}
-                  {item.product_image ? (
-                    <img
-                      src={item.product_image}
-                      alt={item.product_name}
-                      className="w-16 h-16 object-cover rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <Package className="text-slate-400" size={24} />
-                    </div>
-                  )}
+            {lineItems.map((item) => {
+              const exceedsStock = item.quantity > item.available_stock;
+              const isOutOfStock = item.available_stock < 1;
 
-                  {/* Product Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-slate-900">{item.product_name}</div>
-                    <div className="text-sm text-slate-600 mt-1">
-                      {formatCurrency(item.product_price)} each
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-xs text-slate-500">
-                        Stock: {item.available_stock}
-                      </span>
-                      {isLowStock(item.available_stock, item.quantity) && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
-                          <AlertTriangle size={12} />
-                          Low Stock
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Quantity Controls */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-slate-100 rounded-lg">
-                      <button
-                        onClick={() => handleQuantityChange(item.product_id, item.quantity - 1)}
-                        className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
-                        title="Decrease quantity"
-                      >
-                        <Minus size={16} className="text-slate-600" />
-                      </button>
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleQuantityChange(item.product_id, parseInt(e.target.value) || 1)
-                        }
-                        min="1"
-                        max={item.available_stock}
-                        className="w-16 text-center bg-transparent border-none focus:outline-none font-medium"
+              return (
+                <div key={item.product_id} className={`p-4 hover:bg-slate-50 transition-colors ${exceedsStock ? 'bg-amber-50/50' : ''}`}>
+                  <div className="flex items-start gap-4">
+                    {/* Product Image */}
+                    {item.product_image ? (
+                      <img
+                        src={item.product_image}
+                        alt={item.product_name}
+                        className="w-16 h-16 object-cover rounded-lg"
                       />
+                    ) : (
+                      <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <Package className="text-slate-400" size={24} />
+                      </div>
+                    )}
+
+                    {/* Product Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-900">{item.product_name}</div>
+                      <div className="text-sm text-slate-600 mt-1">
+                        {formatCurrency(item.product_price)} each
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="text-xs text-slate-500">
+                          Stock: {item.available_stock}
+                        </span>
+                        {isOutOfStock && overrideInventory && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full text-xs">
+                            <AlertTriangle size={12} />
+                            Out of Stock
+                          </span>
+                        )}
+                        {exceedsStock && !isOutOfStock && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
+                            <AlertTriangle size={12} />
+                            Exceeds Stock
+                          </span>
+                        )}
+                        {!exceedsStock && !isOutOfStock && isLowStock(item.available_stock, item.quantity) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
+                            <AlertTriangle size={12} />
+                            Low Stock
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quantity Controls */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-slate-100 rounded-lg">
+                        <button
+                          onClick={() => handleQuantityChange(item.product_id, item.quantity - 1)}
+                          className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                          title="Decrease quantity"
+                        >
+                          <Minus size={16} className="text-slate-600" />
+                        </button>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleQuantityChange(item.product_id, parseInt(e.target.value) || 1)
+                          }
+                          min="1"
+                          max={overrideInventory ? undefined : item.available_stock}
+                          className={`w-16 text-center bg-transparent border-none focus:outline-none font-medium ${exceedsStock ? 'text-amber-700' : ''}`}
+                        />
+                        <button
+                          onClick={() => handleQuantityChange(item.product_id, item.quantity + 1)}
+                          disabled={!overrideInventory && item.quantity >= item.available_stock}
+                          className="p-2 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Increase quantity"
+                        >
+                          <Plus size={16} className="text-slate-600" />
+                        </button>
+                      </div>
+
+                      {/* Line Total */}
+                      <div className="w-24 text-right font-medium text-slate-900">
+                        {formatCurrency(item.line_total)}
+                      </div>
+
+                      {/* Remove Button */}
                       <button
-                        onClick={() => handleQuantityChange(item.product_id, item.quantity + 1)}
-                        disabled={item.quantity >= item.available_stock}
-                        className="p-2 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Increase quantity"
+                        onClick={() => handleRemoveProduct(item.product_id)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Remove product"
                       >
-                        <Plus size={16} className="text-slate-600" />
+                        <X size={18} />
                       </button>
                     </div>
-
-                    {/* Line Total */}
-                    <div className="w-24 text-right font-medium text-slate-900">
-                      {formatCurrency(item.line_total)}
-                    </div>
-
-                    {/* Remove Button */}
-                    <button
-                      onClick={() => handleRemoveProduct(item.product_id)}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Remove product"
-                    >
-                      <X size={18} />
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Subtotal */}

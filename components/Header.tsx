@@ -1,24 +1,53 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SHIPPING_NOTICE, SparkleIcon } from '../constants';
-import { useCategories } from '../src/hooks/useSupabase';
+import { SparkleIcon } from '../constants';
+import { useCategories, useBrandingSettings } from '../src/hooks/useSupabase';
 import { useAuth } from '../src/hooks/useAuth';
 
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'growers' | 'login' | 'account', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'login' | 'account', category?: string) => void;
 }
+
+const ANNOUNCEMENT_DISMISSED_KEY = 'announcement_bar_dismissed';
 
 const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const { categories: rawCategories } = useCategories();
   const { user, loading: authLoading, signOut } = useAuth();
+  const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
+
+  // Check if announcement was previously dismissed
+  useEffect(() => {
+    const dismissed = localStorage.getItem(ANNOUNCEMENT_DISMISSED_KEY);
+    if (dismissed === brandingSettings.announcement_bar_text) {
+      setIsAnnouncementDismissed(true);
+    }
+  }, [brandingSettings.announcement_bar_text]);
+
+  // Reset logo error when logo URL changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [brandingSettings.logo_url]);
+
+  const handleDismissAnnouncement = () => {
+    setIsAnnouncementDismissed(true);
+    localStorage.setItem(ANNOUNCEMENT_DISMISSED_KEY, brandingSettings.announcement_bar_text);
+  };
+
+  // Show announcement bar if enabled, has text, and not dismissed
+  const showAnnouncementBar = !brandingLoading &&
+    brandingSettings.announcement_bar_enabled &&
+    brandingSettings.announcement_bar_text &&
+    !isAnnouncementDismissed;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,22 +74,58 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
     return items;
   }, [rawCategories]);
 
-  const logo = (
-    <div onClick={handleLogoClick} className="flex items-center gap-2 group cursor-pointer">
-      <div className="w-9 h-9 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-emerald-200 group-hover:rotate-6 transition-transform">
+  // Default text logo fallback
+  const defaultLogo = (
+    <>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:rotate-6 transition-transform brand-bg brand-shadow">
         A
       </div>
       <span className="font-heading text-lg font-extrabold tracking-tight text-gray-900">
-        ATL <span className="text-emerald-600">Urban Farms</span>
+        ATL <span className="brand-text">Urban Farms</span>
       </span>
+    </>
+  );
+
+  const logo = (
+    <div onClick={handleLogoClick} className="flex items-center gap-2 group cursor-pointer">
+      {brandingSettings.logo_url && !logoError ? (
+        <img
+          src={brandingSettings.logo_url}
+          alt="ATL Urban Farms"
+          className="h-9 w-auto object-contain group-hover:scale-105 transition-transform"
+          onError={() => setLogoError(true)}
+        />
+      ) : (
+        defaultLogo
+      )}
     </div>
   );
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="bg-emerald-600 text-white text-[10px] md:text-xs py-2 px-4 text-center font-bold uppercase tracking-widest">
-        {SHIPPING_NOTICE}
-      </div>
+      <AnimatePresence>
+        {showAnnouncementBar && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="brand-bg text-white text-[10px] md:text-xs py-2 px-4 text-center font-bold uppercase tracking-widest relative"
+          >
+            <span className="pr-6">{brandingSettings.announcement_bar_text}</span>
+            <button
+              onClick={handleDismissAnnouncement}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-white/20 rounded transition-colors"
+              aria-label="Dismiss announcement"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" x2="2" y1="2" y2="12"/>
+                <line x1="2" x2="12" y1="2" y2="12"/>
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <nav className={`transition-all duration-300 ${isScrolled ? 'glass py-3 shadow-lg shadow-emerald-900/5' : 'bg-white/80 backdrop-blur-sm py-5'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-12 flex items-center justify-between">
@@ -122,19 +187,25 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
               onClick={() => onNavigate('faq')}
               className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
             >
-              FAQ
-            </button>
-            <button
-              onClick={() => onNavigate('growers')}
-              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
-            >
-              Growers
+              Support
             </button>
             <button
               onClick={() => onNavigate('about')}
               className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
             >
               About
+            </button>
+            <button
+              onClick={() => onNavigate('schools')}
+              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+            >
+              Schools
+            </button>
+            <button
+              onClick={() => onNavigate('calendar')}
+              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+            >
+              Calendar
             </button>
           </div>
 
@@ -149,10 +220,13 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                     onMouseLeave={() => setIsUserDropdownOpen(false)}
                   >
                     <button
-                      className="p-2 text-gray-700 hover:text-emerald-600 transition-colors"
+                      className="p-2 text-gray-700 transition-colors"
+                      style={{ ['--hover-color' as string]: 'var(--brand-primary)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = 'var(--brand-primary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = ''}
                     >
-                      <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-emerald-600">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center brand-bg-light">
+                        <span className="text-sm font-bold brand-text">
                           {user.email?.charAt(0).toUpperCase()}
                         </span>
                       </div>
@@ -218,7 +292,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                 ) : (
                   <button
                     onClick={() => onNavigate('login')}
-                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-full hover:bg-emerald-700 transition-colors shadow-md shadow-emerald-200"
+                    className="hidden md:flex items-center gap-2 px-4 py-2 text-white font-bold text-sm rounded-full transition-colors shadow-md btn-brand brand-shadow"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -254,7 +328,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                     key={cartCount}
                     initial={{ scale: 0.5, opacity: 0 }}
                     animate={{ scale: [1.3, 1], opacity: 1 }}
-                    className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm"
+                    className="absolute top-0 right-0 brand-bg text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm"
                   >
                     {cartCount}
                   </motion.span>
@@ -311,16 +385,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                     }}
                     className="w-full text-left font-bold text-lg text-gray-800"
                   >
-                    FAQ
-                  </button>
-                  <button
-                    onClick={() => {
-                      onNavigate('growers');
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full text-left font-bold text-lg text-gray-800"
-                  >
-                    Meet the Growers
+                    Support
                   </button>
                   <button
                     onClick={() => {
@@ -330,6 +395,24 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                     className="w-full text-left font-bold text-lg text-gray-800"
                   >
                     About
+                  </button>
+                  <button
+                    onClick={() => {
+                      onNavigate('schools');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left font-bold text-lg text-gray-800"
+                  >
+                    Schools
+                  </button>
+                  <button
+                    onClick={() => {
+                      onNavigate('calendar');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left font-bold text-lg text-gray-800"
+                  >
+                    Calendar
                   </button>
                 </div>
 
@@ -341,11 +424,11 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                         onNavigate(user ? 'account' : 'login');
                         setIsMobileMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-3 py-3 px-4 bg-emerald-50 rounded-xl"
+                      className="w-full flex items-center gap-3 py-3 px-4 rounded-xl brand-bg-light"
                     >
                       {user ? (
                         <>
-                          <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center">
+                          <div className="w-10 h-10 brand-bg rounded-full flex items-center justify-center">
                             <span className="text-lg font-bold text-white">
                               {user.email?.charAt(0).toUpperCase()}
                             </span>
@@ -357,7 +440,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                         </>
                       ) : (
                         <>
-                          <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center">
+                          <div className="w-10 h-10 brand-bg rounded-full flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                               <circle cx="12" cy="7" r="4" />

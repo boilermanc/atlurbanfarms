@@ -1,5 +1,94 @@
 /* Admin Panel Design System Styles */
 
+/* ============================================
+   Dynamic Brand Color System
+   ============================================
+   The --brand-primary CSS variable is set dynamically
+   from Admin > Branding settings. All brand-colored
+   elements should use these variables instead of
+   hardcoded emerald colors.
+   ============================================ */
+
+:root {
+  /* Default brand color (emerald-500) - overridden by JS */
+  --brand-primary: #10b981;
+  --brand-primary-rgb: 16, 185, 129;
+  /* Default secondary brand color (emerald-700) - overridden by JS */
+  --brand-secondary: #047857;
+  --brand-secondary-rgb: 4, 120, 87;
+}
+
+/* Brand color utility classes for customer-facing site */
+.brand-bg {
+  background-color: var(--brand-primary);
+}
+
+.brand-bg-light {
+  background-color: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.brand-bg-hover:hover {
+  background-color: var(--brand-primary);
+}
+
+.brand-text {
+  color: var(--brand-primary);
+}
+
+.brand-border {
+  border-color: var(--brand-primary);
+}
+
+.brand-shadow {
+  box-shadow: 0 10px 15px -3px rgba(var(--brand-primary-rgb), 0.2),
+              0 4px 6px -4px rgba(var(--brand-primary-rgb), 0.2);
+}
+
+.brand-ring:focus {
+  --tw-ring-color: rgba(var(--brand-primary-rgb), 0.2);
+  box-shadow: 0 0 0 3px var(--tw-ring-color);
+}
+
+/* Primary button with brand color */
+.btn-brand {
+  background-color: var(--brand-primary);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.btn-brand:hover {
+  background-color: var(--brand-secondary);
+}
+
+/* Primary button hover using secondary brand color */
+.btn-primary:hover {
+  background-color: var(--brand-secondary);
+}
+
+/* Secondary brand color utility classes */
+.brand-secondary-bg {
+  background-color: var(--brand-secondary);
+}
+
+.brand-secondary-text {
+  color: var(--brand-secondary);
+}
+
+.brand-secondary-border {
+  border-color: var(--brand-secondary);
+}
+
+/* Gray button that changes to brand on hover */
+.btn-brand-hover {
+  background-color: #111827; /* gray-900 */
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.btn-brand-hover:hover {
+  background-color: var(--brand-primary);
+}
+
 /* Admin-specific font families */
 .font-admin-body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -42,34 +131,130 @@
 .print-hidden {}
 
 @media print {
-  body {
-    background: #fff !important;
+  /* Reset page for clean printing */
+  @page {
+    size: portrait;
+    margin: 0.5in;
   }
 
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide all non-print elements */
   .no-print,
   .print-hidden {
     display: none !important;
   }
 
-  .inventory-print-overlay {
-    position: static !important;
-    inset: auto !important;
+  /* Hide the admin layout wrapper elements */
+  .min-h-screen {
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
+  /* Remove sidebar spacing */
+  .ml-64 {
+    margin-left: 0 !important;
+  }
+
+  /* Remove main content padding for print */
+  main {
     padding: 0 !important;
-    background: transparent !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Inventory print overlay - make it the only visible element */
+  .inventory-print-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    display: block !important;
+    z-index: 9999 !important;
+    overflow: visible !important;
   }
 
   .inventory-print-surface {
     box-shadow: none !important;
     border: none !important;
+    border-radius: 0 !important;
     max-height: none !important;
     height: auto !important;
     width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
+    padding: 0 !important;
   }
 
   .inventory-print-content {
     max-height: none !important;
     overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .inventory-print-header {
+    margin-bottom: 1rem !important;
+    padding-bottom: 0.5rem !important;
+    border-bottom: 2px solid #000 !important;
+  }
+
+  /* Table print styles */
+  .inventory-print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+    page-break-inside: auto !important;
+  }
+
+  .inventory-print-table thead {
+    display: table-header-group !important;
+  }
+
+  .inventory-print-table tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  .inventory-print-table th {
+    background: #f0f0f0 !important;
+    border: 1px solid #000 !important;
+    padding: 6px 8px !important;
+    font-size: 9pt !important;
+    font-weight: bold !important;
+  }
+
+  .inventory-print-table td {
+    border: 1px solid #333 !important;
+    padding: 6px 8px !important;
+  }
+
+  .inventory-print-row.category-break td {
+    border-top: 2px solid #000 !important;
+  }
+
+  /* Counted box for manual entry */
+  .inventory-print-table .counted-box {
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    height: 28px !important;
+    background: #fff !important;
+    min-width: 80px !important;
+  }
+
+  .inventory-print-table .counted-cell {
+    width: 100px !important;
   }
 }
 

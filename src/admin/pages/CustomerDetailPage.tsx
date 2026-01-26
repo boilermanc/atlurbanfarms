@@ -68,6 +68,17 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const [editedAddresses, setEditedAddresses] = useState<CustomerAddress[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   const { updateRole, updating: updatingRole } = useCustomerRole();
   const { tags: assignedTags, assignTag, unassignTag } = useCustomerTagAssignments(customerId);
   const { tags: allTags } = useCustomerTags();
@@ -266,9 +277,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       setCustomer(data);
       setIsEditingCustomer(false);
       setValidationErrors({});
+      setToast({ message: 'Customer information updated successfully', type: 'success' });
     } catch (err) {
       console.error('Error updating customer:', err);
       setValidationErrors({ general: 'Failed to update customer information' });
+      setToast({ message: 'Failed to update customer information', type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -305,9 +318,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       setAddresses(editedAddresses);
       setIsEditingAddresses(false);
       setValidationErrors({});
+      setToast({ message: 'Addresses updated successfully', type: 'success' });
     } catch (err) {
       console.error('Error updating addresses:', err);
       setValidationErrors({ general: 'Failed to update addresses' });
+      setToast({ message: 'Failed to update addresses', type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -414,6 +429,36 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           <ArrowLeft size={20} />
           Back to Customers
         </button>
+
+        {/* Toast Notification */}
+        {toast && (
+          <div
+            className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg border flex items-center gap-3 animate-slide-down ${
+              toast.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span className="font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 hover:opacity-70 transition-opacity"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 text-2xl font-bold">

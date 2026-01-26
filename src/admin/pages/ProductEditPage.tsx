@@ -119,7 +119,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           quantity_available: data.quantity_available?.toString() || '0',
           low_stock_threshold: data.low_stock_threshold?.toString() || '10',
           is_active: data.is_active ?? true,
-          is_featured: data.is_featured ?? false,
+          is_featured: data.featured ?? false,
         });
         setImages(data.images?.sort((a: ProductImage, b: ProductImage) => a.sort_order - b.sort_order) || []);
       }
@@ -191,8 +191,18 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           }]);
         }
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } catch (err: any) {
+      const message = err?.message || 'Failed to upload image';
+      // Provide more helpful error messages for common issues
+      if (message.includes('bucket') && message.includes('not found')) {
+        setError('Storage bucket not configured. Please run database migrations or contact admin.');
+      } else if (message.includes('Payload too large') || message.includes('file size')) {
+        setError('Image file is too large. Maximum size is 5MB.');
+      } else if (message.includes('mime') || message.includes('type')) {
+        setError('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      } else {
+        setError(message);
+      }
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -255,7 +265,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         quantity_available: parseInt(formData.quantity_available) || 0,
         low_stock_threshold: parseInt(formData.low_stock_threshold) || 10,
         is_active: formData.is_active,
-        is_featured: formData.is_featured,
+        featured: formData.is_featured,
       };
 
       if (isEditMode && productId) {

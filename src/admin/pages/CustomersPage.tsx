@@ -37,6 +37,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
   const fetchCustomers = async () => {
     try {
+      // First try to fetch customers with tags
       let query = supabase
         .from('customers')
         .select(`
@@ -51,9 +52,32 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
       }
 
-      const { data: customersData, error: customersError } = await query;
+      let { data: customersData, error: customersError } = await query;
 
-      if (customersError) throw customersError;
+      // If the query with tags fails (e.g., tag tables don't exist), fallback to basic query
+      if (customersError) {
+        console.error('Error fetching customers with tags, falling back to basic query:', customersError);
+
+        // Try without the tag join
+        let fallbackQuery = supabase
+          .from('customers')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (customerSearch) {
+          fallbackQuery = fallbackQuery.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
+        }
+
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+
+        if (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          throw fallbackError;
+        }
+
+        // Use fallback data without tags
+        customersData = (fallbackData || []).map((c: any) => ({ ...c, customer_tag_assignments: [] }));
+      }
 
       // Filter by tags if selected
       let filteredCustomers = customersData || [];
@@ -84,9 +108,11 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       setCustomers(customersWithStats);
       setCustomerCount(customersWithStats.length);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching customers:', err);
-      setError('Failed to load customers');
+      // Show more specific error message
+      const errorMessage = err?.message || err?.code || 'Unknown error';
+      setError(`Failed to load customers: ${errorMessage}`);
     }
   };
 

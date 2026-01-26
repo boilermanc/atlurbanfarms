@@ -20,9 +20,8 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
   const { discount: autoDiscount } = useAutoApplyPromotion(items);
 
   const discountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
-  const isFreeShipping = autoDiscount?.free_shipping || false;
-  const shipping = isFreeShipping || subtotal > 50 ? 0 : 12.50;
-  const total = subtotal - discountAmount + shipping;
+  const isFreeShipping = autoDiscount?.free_shipping || subtotal > 50;
+  const total = subtotal - discountAmount;
 
   return (
     <AnimatePresence>
@@ -57,9 +56,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2">Basket is empty</h3>
                   <p className="text-gray-500 text-sm mb-6">Looks like you haven't added any seedlings yet.</p>
-                  <button 
+                  <button
                     onClick={onClose}
-                    className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all"
+                    className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold transition-all btn-brand-hover"
                   >
                     Start Shopping
                   </button>
@@ -78,7 +77,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                           </button>
                         </div>
-                        <p className="text-emerald-600 font-bold">${item.price.toFixed(2)}</p>
+                        <p className="brand-text font-bold">${item.price.toFixed(2)}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
@@ -111,19 +110,19 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
                   {discountAmount > 0 && autoDiscount && (
-                    <div className="flex justify-between text-sm text-emerald-600 font-medium">
+                    <div className="flex justify-between text-sm brand-text font-medium">
                       <span>{autoDiscount.description}</span>
                       <span>-${discountAmount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Shipping</span>
-                    <span className={isFreeShipping ? 'text-emerald-600 font-medium' : ''}>
-                      {shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}
+                    <span className={isFreeShipping ? 'brand-text font-medium' : 'text-gray-400 italic'}>
+                      {isFreeShipping ? 'FREE' : 'Calculated at checkout'}
                     </span>
                   </div>
-                  {shipping > 0 && !isFreeShipping && subtotal < 50 && (
-                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
+                  {!isFreeShipping && (
+                    <p className="text-[10px] brand-text font-bold uppercase tracking-wider">
                       Add ${(50 - subtotal).toFixed(2)} more for free shipping
                     </p>
                   )}
@@ -133,9 +132,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                   </div>
                 </div>
                 
-                <button 
+                <button
                   onClick={onCheckout}
-                  className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all shadow-xl shadow-gray-200 flex items-center justify-center gap-3"
+                  className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold transition-all shadow-xl shadow-gray-200 flex items-center justify-center gap-3 btn-brand-hover"
                 >
                   Checkout Now
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" x2="15" y1="12" y2="12"/><polyline points="12 19 19 12 12 5"/></svg>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Eye, Save, FileText } from 'lucide-react';
+import { ArrowLeft, Eye, Save, FileText, Check, AlertCircle } from 'lucide-react';
 
 interface ContentPage {
   id: string;
@@ -15,15 +15,18 @@ interface ContentPage {
 }
 
 interface ContentEditPageProps {
-  slug?: string;
-  onNavigate?: (page: string) => void;
+  contentId?: string | null;
+  onBack?: () => void;
+  onSave?: () => void;
 }
 
-const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) => {
+const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, onSave }) => {
   const [page, setPage] = useState<ContentPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -32,14 +35,14 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
   const [hasChanges, setHasChanges] = useState(false);
 
   const fetchPage = useCallback(async () => {
-    if (!slug) return;
+    if (!contentId) return;
 
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('content_pages')
         .select('*')
-        .eq('slug', slug)
+        .eq('id', contentId)
         .single();
 
       if (error) throw error;
@@ -55,7 +58,7 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [contentId]);
 
   useEffect(() => {
     fetchPage();
@@ -75,10 +78,13 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
     if (!page) return;
 
     setSaving(true);
+    setError(null);
+    setSaveSuccess(false);
+
     try {
       const { data: userData } = await supabase.auth.getUser();
 
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('content_pages')
         .update({
           title: formData.title,
@@ -88,12 +94,17 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
         })
         .eq('id', page.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       await fetchPage();
       setHasChanges(false);
-    } catch (error) {
-      console.error('Error saving content page:', error);
+      setSaveSuccess(true);
+
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error saving content page:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save content page');
     } finally {
       setSaving(false);
     }
@@ -105,8 +116,8 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
         return;
       }
     }
-    if (onNavigate) {
-      onNavigate('content-pages');
+    if (onBack) {
+      onBack();
     }
   };
 
@@ -341,8 +352,20 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ slug, onNavigate }) =
           </div>
         </div>
 
-        {/* Unsaved changes indicator */}
-        {hasChanges && (
+        {/* Toast notifications */}
+        {saveSuccess && (
+          <div className="fixed bottom-6 right-6 bg-emerald-100 text-emerald-800 px-4 py-2 rounded-xl font-medium shadow-lg border border-emerald-200 flex items-center gap-2 z-50">
+            <Check size={18} />
+            Changes saved successfully
+          </div>
+        )}
+        {error && (
+          <div className="fixed bottom-6 right-6 bg-red-100 text-red-800 px-4 py-2 rounded-xl font-medium shadow-lg border border-red-200 flex items-center gap-2 z-50">
+            <AlertCircle size={18} />
+            {error}
+          </div>
+        )}
+        {hasChanges && !saveSuccess && !error && (
           <div className="fixed bottom-6 right-6 bg-amber-100 text-amber-800 px-4 py-2 rounded-xl font-medium shadow-lg border border-amber-200">
             You have unsaved changes
           </div>

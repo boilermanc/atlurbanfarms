@@ -4,7 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import CustomerSearchSelector from '../components/CustomerSearchSelector';
 import ProductLineItems, { OrderLineItem } from '../components/ProductLineItems';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Save, Package, MapPin, CreditCard } from 'lucide-react';
+import { ArrowLeft, Save, Package, MapPin, CreditCard, AlertTriangle } from 'lucide-react';
 import {
   usePickupLocations,
   useAvailablePickupSlots,
@@ -119,6 +119,10 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [paymentStatus, setPaymentStatus] = useState<string>('paid');
   const [internalNotes, setInternalNotes] = useState<string>('');
 
+  // Inventory override state
+  const [overrideInventory, setOverrideInventory] = useState<boolean>(false);
+  const [overrideReason, setOverrideReason] = useState<string>('');
+
   // Form state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +191,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     if (!paymentMethod) errors.push('Payment method is required');
     if (!paymentStatus) errors.push('Payment status is required');
 
+    // Override validation
+    if (overrideInventory && !overrideReason.trim()) {
+      errors.push('Please provide a reason for the inventory override');
+    }
+
     setValidationErrors(errors);
     return errors.length === 0;
   };
@@ -219,6 +228,15 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             ? 'failed'
             : 'pending_payment';
 
+      // Build internal notes with override reason if applicable
+      let finalInternalNotes = internalNotes || '';
+      if (overrideInventory && overrideReason.trim()) {
+        const overrideNote = `[INVENTORY OVERRIDE] ${overrideReason.trim()}`;
+        finalInternalNotes = finalInternalNotes
+          ? `${overrideNote}\n\n${finalInternalNotes}`
+          : overrideNote;
+      }
+
       // Prepare order data
       const orderData = {
         customer_id: selectedCustomer!.id,
@@ -233,7 +251,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         payment_method: paymentMethod,
         payment_status: paymentStatus,
         created_by_admin_id: user.id,
-        internal_notes: internalNotes || null,
+        internal_notes: finalInternalNotes || null,
+        skip_inventory_check: overrideInventory,
       };
 
       // Add delivery-specific fields
@@ -356,13 +375,66 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <span className="text-emerald-600 font-semibold">2</span>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <span className="text-emerald-600 font-semibold">2</span>
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900">Products</h2>
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">Products</h2>
+
+              {/* Override Inventory Toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={overrideInventory}
+                  onChange={(e) => {
+                    setOverrideInventory(e.target.checked);
+                    if (!e.target.checked) {
+                      setOverrideReason('');
+                    }
+                  }}
+                  className="w-4 h-4 text-amber-600 bg-white border-slate-300 rounded focus:ring-amber-500 focus:ring-2"
+                />
+                <span className="text-sm text-slate-700">Override inventory restrictions</span>
+              </label>
             </div>
-            <ProductLineItems lineItems={lineItems} onChange={setLineItems} />
+
+            {/* Override Warning & Reason */}
+            {overrideInventory && (
+              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <div className="font-medium text-amber-800 mb-1">
+                      Inventory Override Enabled
+                    </div>
+                    <p className="text-sm text-amber-700 mb-3">
+                      You can now add out-of-stock products or exceed available quantities.
+                      This may result in backorders or fulfillment delays.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-amber-800 mb-1">
+                        Reason for override <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        placeholder="e.g., Phone order - customer confirmed willing to wait, special request, reservation..."
+                        rows={2}
+                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors resize-none text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <ProductLineItems
+              lineItems={lineItems}
+              onChange={setLineItems}
+              overrideInventory={overrideInventory}
+            />
           </motion.div>
 
           {/* 3. Delivery Method */}

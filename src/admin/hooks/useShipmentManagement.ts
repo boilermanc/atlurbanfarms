@@ -82,14 +82,27 @@ export function useShipmentManagement(orderId: string | null) {
         .limit(1)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
+      // PGRST116 = no rows found, which is expected for orders without shipments
+      // Also handle 406 (Not Acceptable) and other common errors gracefully
+      if (fetchError) {
+        const ignorableCodes = ['PGRST116', '406', 'PGRST301'];
+        const isIgnorable = ignorableCodes.includes(fetchError.code) ||
+          fetchError.message?.includes('No rows') ||
+          fetchError.message?.includes('not found');
+
+        if (!isIgnorable) {
+          console.warn('Shipment fetch warning:', fetchError.code, fetchError.message);
+        }
+        // Don't throw - just treat as no shipment
+        setShipment(null);
+        setLoading(false);
+        return;
       }
 
       setShipment(data || null);
     } catch (err: any) {
-      console.error('Error fetching shipment:', err);
-      setError(err.message || 'Failed to fetch shipment');
+      // Silently handle errors - shipment data is optional
+      console.warn('Error fetching shipment (non-critical):', err.message);
       setShipment(null);
     } finally {
       setLoading(false);

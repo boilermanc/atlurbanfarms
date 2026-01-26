@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAttributionOptions } from '../hooks/useSupabase';
+import { supabase } from '../lib/supabase';
 
 interface OrderItem {
   id: string;
@@ -43,6 +44,7 @@ interface OrderConfirmationPageProps {
   shippingAddress: ShippingAddress | null;
   pickupInfo?: PickupInfo;
   totals: OrderTotals;
+  orderId?: string;
   orderNumber?: string;
   isGuest?: boolean;
   isPickup?: boolean;
@@ -57,6 +59,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   shippingAddress,
   pickupInfo,
   totals,
+  orderId,
   orderNumber: providedOrderNumber,
   isGuest = true,
   isPickup = false,
@@ -65,7 +68,9 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
 }) => {
   const [showConfetti, setShowConfetti] = useState(true);
   const [attributionValue, setAttributionValue] = useState('');
+  const [attributionOtherText, setAttributionOtherText] = useState('');
   const [attributionSubmitted, setAttributionSubmitted] = useState(false);
+  const [attributionSaving, setAttributionSaving] = useState(false);
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
 
   const { options: attributionOptions, loading: attributionLoading } = useAttributionOptions();
@@ -126,9 +131,32 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   }, []);
 
   const handleAttributionSubmit = async () => {
-    // Here you would typically save the attribution to your database
-    // await supabase.from('order_attributions').insert({ order_number: orderNumber, source: attributionValue });
-    setAttributionSubmitted(true);
+    if (!attributionValue) return;
+
+    setAttributionSaving(true);
+    try {
+      // Find the selected option to get the label
+      const selectedOption = attributionOptions.find(opt => opt.value === attributionValue);
+
+      const { error } = await supabase
+        .from('order_attributions')
+        .insert({
+          order_id: orderId || null,
+          order_number: orderNumber,
+          source: attributionValue,
+          source_label: selectedOption?.label || attributionValue,
+          other_text: attributionValue === 'other' ? attributionOtherText : null
+        });
+
+      if (error) {
+        console.error('Attribution save error:', error);
+      }
+    } catch (err) {
+      console.error('Attribution save error:', err);
+    } finally {
+      setAttributionSaving(false);
+      setAttributionSubmitted(true);
+    }
   };
 
   const containerVariants = {
@@ -367,11 +395,11 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                       How did you find us?
                     </p>
 
-                    <div className="relative mb-6">
+                    <div className="relative mb-4">
                       <select
                         value={attributionValue}
                         onChange={(e) => setAttributionValue(e.target.value)}
-                        disabled={attributionLoading}
+                        disabled={attributionLoading || attributionSaving}
                         className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all appearance-none cursor-pointer pr-12"
                       >
                         <option value="" disabled>Select an option</option>
@@ -388,17 +416,30 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                       </div>
                     </div>
 
+                    {/* Other text input - shown when "other" is selected */}
+                    {attributionValue === 'other' && (
+                      <input
+                        type="text"
+                        value={attributionOtherText}
+                        onChange={(e) => setAttributionOtherText(e.target.value)}
+                        placeholder="Please tell us more..."
+                        disabled={attributionSaving}
+                        className="w-full px-6 py-3 mb-4 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all placeholder-gray-400"
+                      />
+                    )}
+
                     <div className="flex gap-3 mt-auto">
                       <button
                         onClick={handleAttributionSubmit}
-                        disabled={!attributionValue}
+                        disabled={!attributionValue || attributionSaving}
                         className="flex-1 py-3.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                       >
-                        Submit
+                        {attributionSaving ? 'Saving...' : 'Submit'}
                       </button>
                       <button
                         onClick={() => setAttributionSubmitted(true)}
-                        className="px-6 py-3.5 text-gray-400 font-bold hover:text-gray-700 transition-colors text-sm"
+                        disabled={attributionSaving}
+                        className="px-6 py-3.5 text-gray-400 font-bold hover:text-gray-700 transition-colors text-sm disabled:opacity-50"
                       >
                         Skip
                       </button>

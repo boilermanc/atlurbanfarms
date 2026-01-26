@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AdminPageWrapper from '../components/AdminPageWrapper';
+import { useAdminContext } from '../context/AdminContext';
 import { supabase } from '../../lib/supabase';
 import { Plus, GripVertical, FolderOpen, Edit2, Trash2, Upload, X } from 'lucide-react';
 
@@ -28,7 +28,7 @@ const generateSlug = (name: string): string => {
 };
 
 const CategoriesPage: React.FC = () => {
-  const navigate = useNavigate();
+  const { navigate } = useAdminContext();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,8 +140,18 @@ const CategoriesPage: React.FC = () => {
 
       const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, image_url: publicUrl }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } catch (err: any) {
+      const message = err?.message || 'Failed to upload image';
+      // Provide more helpful error messages for common issues
+      if (message.includes('bucket') && message.includes('not found')) {
+        setError('Storage bucket not configured. Please run database migrations or contact admin.');
+      } else if (message.includes('Payload too large') || message.includes('file size')) {
+        setError('Image file is too large. Maximum size is 5MB.');
+      } else if (message.includes('mime') || message.includes('type')) {
+        setError('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      } else {
+        setError(message);
+      }
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -331,9 +341,11 @@ const CategoriesPage: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/products?category=${category.id}`);
+                          // Store category filter for ProductsPage to pick up
+                          localStorage.setItem('admin_products_category_filter', category.id);
+                          navigate('products');
                         }}
-                        className="text-slate-500 text-sm hover:text-emerald-600 hover:underline transition-colors text-left"
+                        className="text-emerald-600 text-sm hover:text-emerald-700 hover:underline transition-colors text-left font-medium"
                       >
                         {category.product_count || 0} products
                       </button>

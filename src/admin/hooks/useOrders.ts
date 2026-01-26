@@ -206,6 +206,7 @@ export function useOrders(filters: OrderFilters = {}) {
               id,
               name,
               address_line1,
+              address_line2,
               city,
               state,
               postal_code,
@@ -372,7 +373,7 @@ export function useOrder(orderId: string | null) {
     setError(null);
 
     try {
-      // Fetch order with items and customer
+      // Fetch order with items, customer, and pickup reservation
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select(`
@@ -407,6 +408,25 @@ export function useOrder(orderId: string | null) {
             created_by,
             customers:created_by (
               email
+            )
+          ),
+          pickup_reservations (
+            id,
+            pickup_date,
+            pickup_time_start,
+            pickup_time_end,
+            status,
+            notes,
+            pickup_locations (
+              id,
+              name,
+              address_line1,
+              address_line2,
+              city,
+              state,
+              postal_code,
+              phone,
+              instructions
             )
           )
         `)
@@ -493,6 +513,21 @@ export function useOrder(orderId: string | null) {
           created_by: refund.created_by,
           created_by_name: refund.customers?.email || null,
         })),
+        // Pickup fields
+        is_pickup: orderData.is_pickup || false,
+        pickup_location_id: orderData.pickup_location_id || null,
+        pickup_date: orderData.pickup_date || null,
+        pickup_time_start: orderData.pickup_time_start || null,
+        pickup_time_end: orderData.pickup_time_end || null,
+        pickup_reservation: orderData.pickup_reservations?.[0] ? {
+          id: orderData.pickup_reservations[0].id,
+          location: orderData.pickup_reservations[0].pickup_locations,
+          pickup_date: orderData.pickup_reservations[0].pickup_date,
+          pickup_time_start: orderData.pickup_reservations[0].pickup_time_start,
+          pickup_time_end: orderData.pickup_reservations[0].pickup_time_end,
+          status: orderData.pickup_reservations[0].status,
+          notes: orderData.pickup_reservations[0].notes,
+        } : undefined,
       };
 
       setOrder(formattedOrder);

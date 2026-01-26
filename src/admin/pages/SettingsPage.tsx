@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings, ConfigSetting } from '../hooks/useSettings';
-import { Building2, ShoppingCart, Package, Bell, Palette, Save, Truck } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Building2, ShoppingCart, Package, Bell, Palette, Save, Truck, Upload, Trash2 } from 'lucide-react';
 
 type TabType = 'business' | 'shipping' | 'checkout' | 'inventory' | 'notifications' | 'branding';
 
@@ -48,9 +49,14 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
   branding: {
     logo_url: { value: '', dataType: 'string' },
     primary_brand_color: { value: '#10b981', dataType: 'string' },
-    homepage_announcement: { value: '', dataType: 'string' },
+    secondary_brand_color: { value: '#047857', dataType: 'string' },
     announcement_bar_enabled: { value: false, dataType: 'boolean' },
     announcement_bar_text: { value: '', dataType: 'string' },
+    social_facebook: { value: '', dataType: 'string' },
+    social_instagram: { value: '', dataType: 'string' },
+    social_twitter: { value: '', dataType: 'string' },
+    social_youtube: { value: '', dataType: 'string' },
+    social_tiktok: { value: '', dataType: 'string' },
   },
   shipping: {
     weekly_cutoff_day: { value: '0', dataType: 'string' },
@@ -125,6 +131,11 @@ const SettingsPage: React.FC = () => {
   const [formData, setFormData] = useState<Record<string, Record<string, any>>>({});
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
+  // Logo upload state
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   // Initialize form data with defaults and loaded settings
   useEffect(() => {
     const newFormData: Record<string, Record<string, any>> = {};
@@ -182,6 +193,91 @@ const SettingsPage: React.FC = () => {
       refetch();
     }
   }, [formData, bulkUpdate, refetch]);
+
+  const handleLogoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!validTypes.includes(file.type)) {
+      setLogoError('Invalid file type. Please upload JPG, PNG, GIF, WebP, or SVG images.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError('File is too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setLogoUploading(true);
+    setLogoError(null);
+
+    try {
+      // Get file extension
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const fileName = `branding/logo-${Date.now()}.${ext}`;
+
+      // Upload to storage
+      const { data, error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(data.path);
+
+      // Update form data
+      updateField('branding', 'logo_url', urlData.publicUrl);
+
+      // Save to config_settings immediately
+      await bulkUpdate('branding', {
+        logo_url: { value: urlData.publicUrl, dataType: 'string' },
+      });
+
+      setSaveMessage('Logo uploaded!');
+      setTimeout(() => setSaveMessage(null), 3000);
+      refetch();
+    } catch (err: any) {
+      const message = err?.message || 'Failed to upload logo';
+      if (message.includes('bucket') && message.includes('not found')) {
+        setLogoError('Storage bucket not configured. Please contact admin.');
+      } else if (message.includes('Payload too large') || message.includes('file size')) {
+        setLogoError('Image file is too large. Maximum size is 5MB.');
+      } else {
+        setLogoError(message);
+      }
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
+    }
+  }, [updateField, bulkUpdate, refetch]);
+
+  const handleLogoDelete = useCallback(async () => {
+    setLogoError(null);
+
+    try {
+      // Clear the logo URL
+      updateField('branding', 'logo_url', '');
+
+      // Save to config_settings
+      await bulkUpdate('branding', {
+        logo_url: { value: '', dataType: 'string' },
+      });
+
+      setSaveMessage('Logo removed!');
+      setTimeout(() => setSaveMessage(null), 3000);
+      refetch();
+    } catch (err: any) {
+      setLogoError(err?.message || 'Failed to remove logo');
+    }
+  }, [updateField, bulkUpdate, refetch]);
 
   const renderBusinessTab = () => (
     <div className="space-y-6">
@@ -637,30 +733,111 @@ const SettingsPage: React.FC = () => {
 
   const renderBrandingTab = () => (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Logo URL</label>
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={formData.branding?.logo_url || ''}
-            onChange={(e) => updateField('branding', 'logo_url', e.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            placeholder="https://example.com/logo.png"
-          />
-          {formData.branding?.logo_url && (
-            <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-              <img
-                src={formData.branding.logo_url}
-                alt="Logo preview"
-                className="max-w-full max-h-full object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+      <div className="space-y-3">
+        <label className="block text-sm font-medium text-slate-700">Logo</label>
+
+        {/* Logo Error */}
+        {logoError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+            <p className="text-sm text-red-700">{logoError}</p>
+          </div>
+        )}
+
+        {/* Current Logo Preview */}
+        {formData.branding?.logo_url ? (
+          <div className="flex items-start gap-4">
+            <div className="relative group">
+              <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
+                <img
+                  src={formData.branding.logo_url}
+                  alt="Current logo"
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '';
+                    (e.target as HTMLImageElement).alt = 'Failed to load';
+                  }}
+                />
+              </div>
+              {/* Overlay with actions on hover */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  className="p-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                  title="Replace logo"
+                >
+                  <Upload size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogoDelete}
+                  className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  title="Remove logo"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-        <p className="text-xs text-slate-500">Enter the URL of your logo image</p>
+            <div className="flex-1">
+              <p className="text-sm text-slate-600 mb-2">Current logo</p>
+              <p className="text-xs text-slate-400 break-all">{formData.branding.logo_url}</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                  className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  Replace
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={handleLogoDelete}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Upload Zone when no logo exists */
+          <div
+            className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
+            onClick={() => logoInputRef.current?.click()}
+          >
+            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              {logoUploading ? (
+                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Upload size={24} className="text-slate-400" />
+              )}
+            </div>
+            <p className="text-slate-700 font-medium">Click to upload your logo</p>
+            <p className="text-slate-400 text-sm mt-1">PNG, JPG, GIF, WebP, or SVG up to 5MB</p>
+          </div>
+        )}
+
+        {/* Hidden file input */}
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+          onChange={handleLogoUpload}
+          className="hidden"
+          disabled={logoUploading}
+        />
+
+        {/* Upload loading indicator (shown when replacing) */}
+        {logoUploading && formData.branding?.logo_url && (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            Uploading...
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500">Upload your brand logo (recommended size: 200x200px or larger)</p>
       </div>
 
       <div className="space-y-2">
@@ -683,25 +860,34 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Homepage Announcement</label>
-        <textarea
-          value={formData.branding?.homepage_announcement || ''}
-          onChange={(e) => updateField('branding', 'homepage_announcement', e.target.value)}
-          rows={3}
-          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
-          placeholder="Welcome to our farm! Check out our fresh produce..."
-        />
-        <p className="text-xs text-slate-500">Displayed on the homepage</p>
+        <label className="block text-sm font-medium text-slate-700">Secondary Brand Color</label>
+        <div className="flex items-center gap-4">
+          <input
+            type="color"
+            value={formData.branding?.secondary_brand_color || '#047857'}
+            onChange={(e) => updateField('branding', 'secondary_brand_color', e.target.value)}
+            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
+          />
+          <input
+            type="text"
+            value={formData.branding?.secondary_brand_color || '#047857'}
+            onChange={(e) => updateField('branding', 'secondary_brand_color', e.target.value)}
+            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            placeholder="#047857"
+          />
+        </div>
+        <p className="text-xs text-slate-500">Used for hover states, accents, and secondary buttons</p>
       </div>
 
       <div className="border-t border-slate-200 pt-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Announcement Bar</h3>
+        <h3 className="text-lg font-medium text-slate-800 mb-1">Site-Wide Announcement Bar</h3>
+        <p className="text-sm text-slate-500 mb-4">Display a dismissible banner at the top of every page. Great for promotions, shipping deadlines, or important notices.</p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200/60">
             <div>
-              <h4 className="text-slate-800 font-medium">Show Announcement Bar</h4>
-              <p className="text-sm text-slate-500">Display a banner at the top of the site</p>
+              <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
+              <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
             </div>
             <button
               onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
@@ -725,7 +911,7 @@ const SettingsPage: React.FC = () => {
                 exit={{ opacity: 0, height: 0 }}
                 className="space-y-2"
               >
-                <label className="block text-sm font-medium text-slate-700">Announcement Bar Text</label>
+                <label className="block text-sm font-medium text-slate-700">Announcement Message</label>
                 <input
                   type="text"
                   value={formData.branding?.announcement_bar_text || ''}
@@ -733,9 +919,72 @@ const SettingsPage: React.FC = () => {
                   className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   placeholder="Free shipping on orders over $50!"
                 />
+                <p className="text-xs text-slate-500">This text appears in the green bar at the very top of your website</p>
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 pt-6">
+        <h3 className="text-lg font-medium text-slate-800 mb-4">Social Media Links</h3>
+        <p className="text-sm text-slate-500 mb-6">Add your social media URLs to display icons in the website footer. Leave blank to hide.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Facebook URL</label>
+            <input
+              type="url"
+              value={formData.branding?.social_facebook || ''}
+              onChange={(e) => updateField('branding', 'social_facebook', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="https://facebook.com/yourpage"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Instagram URL</label>
+            <input
+              type="url"
+              value={formData.branding?.social_instagram || ''}
+              onChange={(e) => updateField('branding', 'social_instagram', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="https://instagram.com/yourpage"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Twitter/X URL</label>
+            <input
+              type="url"
+              value={formData.branding?.social_twitter || ''}
+              onChange={(e) => updateField('branding', 'social_twitter', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="https://twitter.com/yourpage"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">TikTok URL</label>
+            <input
+              type="url"
+              value={formData.branding?.social_tiktok || ''}
+              onChange={(e) => updateField('branding', 'social_tiktok', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="https://tiktok.com/@yourpage"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">YouTube URL</label>
+            <input
+              type="url"
+              value={formData.branding?.social_youtube || ''}
+              onChange={(e) => updateField('branding', 'social_youtube', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="https://youtube.com/@yourchannel"
+            />
+          </div>
         </div>
       </div>
     </div>

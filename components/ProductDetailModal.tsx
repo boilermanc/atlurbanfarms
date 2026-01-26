@@ -9,6 +9,7 @@ interface RawProduct {
   slug?: string;
   description?: string;
   price: number;
+  compare_at_price?: number | null;
   quantity_available?: number;
   growing_instructions?: string;
   days_to_maturity?: number;
@@ -70,6 +71,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const categoryName = product.category?.name || 'Uncategorized';
   const inStock = (product.quantity_available || 0) > 0;
 
+  // Sale pricing logic
+  const isOnSale = typeof product.compare_at_price === 'number' && product.compare_at_price > product.price;
+  const percentOff = isOnSale ? Math.round((1 - product.price / product.compare_at_price!) * 100) : 0;
+
   const handleAddToCart = () => {
     onAddToCart(quantity);
     onClose();
@@ -124,11 +129,16 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       className={`w-full h-full object-cover ${!inStock ? 'grayscale opacity-70' : ''}`}
                     />
 
-                    {/* Category Badge */}
-                    <div className="absolute top-4 left-4">
+                    {/* Category Badge & Sale Badge */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-2">
                       <span className="px-4 py-2 bg-white/95 backdrop-blur-md text-gray-900 text-xs font-black uppercase tracking-wider rounded-xl shadow-lg border border-white/50">
                         {categoryName}
                       </span>
+                      {isOnSale && (
+                        <span className="px-4 py-2 bg-red-500 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg">
+                          {percentOff > 0 ? `${percentOff}% Off` : 'On Sale'}
+                        </span>
+                      )}
                     </div>
 
                     {/* Out of Stock Overlay */}
@@ -156,9 +166,20 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         {product.name}
                       </h2>
                       <div className="flex items-center gap-4">
-                        <span className="text-3xl font-black text-emerald-600">
-                          ${product.price.toFixed(2)}
-                        </span>
+                        {isOnSale ? (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl font-semibold text-gray-400 line-through">
+                              ${product.compare_at_price!.toFixed(2)}
+                            </span>
+                            <span className="text-3xl font-black text-red-500">
+                              ${product.price.toFixed(2)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-3xl font-black text-emerald-600">
+                            ${product.price.toFixed(2)}
+                          </span>
+                        )}
                         {inStock && (
                           <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl">
                             {product.quantity_available} in stock
@@ -271,7 +292,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                           </button>
                         </div>
                         <span className="text-sm text-gray-400">
-                          Total: <span className="font-bold text-emerald-600">${(product.price * quantity).toFixed(2)}</span>
+                          Total: <span className={`font-bold ${isOnSale ? 'text-red-500' : 'text-emerald-600'}`}>${(product.price * quantity).toFixed(2)}</span>
                         </span>
                       </div>
                     )}

@@ -15,10 +15,10 @@ interface ContentPage {
 }
 
 interface ContentPagesPageProps {
-  onNavigate?: (page: string, params?: Record<string, string>) => void;
+  onEditContent?: (contentId: string) => void;
 }
 
-const ContentPagesPage: React.FC<ContentPagesPageProps> = ({ onNavigate }) => {
+const ContentPagesPage: React.FC<ContentPagesPageProps> = ({ onEditContent }) => {
   const [pages, setPages] = useState<ContentPage[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -70,8 +70,8 @@ const ContentPagesPage: React.FC<ContentPagesPageProps> = ({ onNavigate }) => {
   };
 
   const handleEditPage = (page: ContentPage) => {
-    if (onNavigate) {
-      onNavigate('content-edit', { slug: page.slug });
+    if (onEditContent) {
+      onEditContent(page.id);
     }
   };
 
