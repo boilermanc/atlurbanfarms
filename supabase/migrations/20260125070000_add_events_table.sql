@@ -24,11 +24,13 @@ CREATE INDEX IF NOT EXISTS idx_events_is_active ON events(is_active);
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 
 -- Public read access for active events
+DROP POLICY IF EXISTS "Anyone can view active events" ON events;
 CREATE POLICY "Anyone can view active events"
   ON events FOR SELECT
   USING (is_active = true);
 
 -- Admin full access
+DROP POLICY IF EXISTS "Admins can manage events" ON events;
 CREATE POLICY "Admins can manage events"
   ON events FOR ALL
   TO authenticated
@@ -48,14 +50,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS events_updated_at ON events;
 CREATE TRIGGER events_updated_at
   BEFORE UPDATE ON events
   FOR EACH ROW
   EXECUTE FUNCTION update_events_updated_at();
 
--- Insert some sample events
-INSERT INTO events (title, description, event_type, start_date, end_date, start_time, end_time, location) VALUES
-  ('Weekly Shipping', 'Regular shipping day for online orders', 'shipping', CURRENT_DATE + INTERVAL '2 days', NULL, '09:00', '17:00', NULL),
-  ('Farm Open Hours', 'Visit our urban farm! Browse seedlings and get growing tips', 'open_hours', CURRENT_DATE + INTERVAL '5 days', NULL, '10:00', '14:00', 'ATL Urban Farms - Main Location'),
-  ('Container Gardening Workshop', 'Learn how to grow vegetables in small spaces', 'workshop', CURRENT_DATE + INTERVAL '10 days', NULL, '11:00', '13:00', 'ATL Urban Farms - Education Center'),
-  ('Spring Plant Sale', 'Annual spring plant sale with special discounts', 'farm_event', CURRENT_DATE + INTERVAL '14 days', CURRENT_DATE + INTERVAL '15 days', '09:00', '16:00', 'ATL Urban Farms - Main Location');
+-- Sample events (commented out to avoid duplicates on re-run)
+-- INSERT INTO events (title, description, event_type, start_date, end_date, start_time, end_time, location) VALUES
+--   ('Weekly Shipping', 'Regular shipping day for online orders', 'shipping', CURRENT_DATE + INTERVAL '2 days', NULL, '09:00', '17:00', NULL),
+--   ('Farm Open Hours', 'Visit our urban farm! Browse seedlings and get growing tips', 'open_hours', CURRENT_DATE + INTERVAL '5 days', NULL, '10:00', '14:00', 'ATL Urban Farms - Main Location'),
+--   ('Container Gardening Workshop', 'Learn how to grow vegetables in small spaces', 'workshop', CURRENT_DATE + INTERVAL '10 days', NULL, '11:00', '13:00', 'ATL Urban Farms - Education Center'),
+--   ('Spring Plant Sale', 'Annual spring plant sale with special discounts', 'farm_event', CURRENT_DATE + INTERVAL '14 days', CURRENT_DATE + INTERVAL '15 days', '09:00', '16:00', 'ATL Urban Farms - Main Location');

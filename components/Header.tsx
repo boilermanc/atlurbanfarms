@@ -77,10 +77,10 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
   // Default text logo fallback
   const defaultLogo = (
     <>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:rotate-6 transition-transform brand-bg brand-shadow">
+      <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-lg group-hover:rotate-6 transition-transform brand-bg brand-shadow">
         A
       </div>
-      <span className="font-heading text-lg font-extrabold tracking-tight text-gray-900">
+      <span className="font-heading text-lg md:text-xl font-extrabold tracking-tight text-gray-900">
         ATL <span className="brand-text">Urban Farms</span>
       </span>
     </>
@@ -92,7 +92,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
         <img
           src={brandingSettings.logo_url}
           alt="ATL Urban Farms"
-          className="h-9 w-auto object-contain group-hover:scale-105 transition-transform"
+          className="h-10 md:h-12 lg:h-14 w-auto object-contain group-hover:scale-105 transition-transform"
           onError={() => setLogoError(true)}
         />
       ) : (

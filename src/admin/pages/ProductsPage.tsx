@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { Plus, Search, Edit2, Trash2, Package, Image } from 'lucide-react';
@@ -40,16 +41,44 @@ interface ProductsPageProps {
 const ITEMS_PER_PAGE = 50;
 
 const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('active');
-  const [currentPage, setCurrentPage] = useState(1);
   const [deleteModalProduct, setDeleteModalProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Read filters from URL params (with sensible defaults)
+  const searchQuery = searchParams.get('search') || '';
+  const categoryFilter = searchParams.get('category') || 'all';
+  const statusFilter = searchParams.get('status') || 'active';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
+  // Helper to update URL params
+  const updateParam = useCallback((key: string, value: string, defaultValue: string) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      if (value === defaultValue) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+      // Reset page when filters change (except when changing page itself)
+      if (key !== 'page') {
+        newParams.delete('page');
+      }
+      return newParams;
+    });
+  }, [setSearchParams]);
+
+  const setSearchQuery = useCallback((value: string) => updateParam('search', value, ''), [updateParam]);
+  const setCategoryFilter = useCallback((value: string) => updateParam('category', value, 'all'), [updateParam]);
+  const setStatusFilter = useCallback((value: string) => updateParam('status', value, 'active'), [updateParam]);
+  const setCurrentPage = useCallback((value: number | ((prev: number) => number)) => {
+    const newValue = typeof value === 'function' ? value(currentPage) : value;
+    updateParam('page', newValue.toString(), '1');
+  }, [updateParam, currentPage]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -103,13 +132,13 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     fetchProducts();
     fetchCategories();
 
-    // Check for category filter passed from CategoriesPage
+    // Check for category filter passed from CategoriesPage (one-time migration to URL)
     const storedCategoryFilter = localStorage.getItem('admin_products_category_filter');
     if (storedCategoryFilter) {
       setCategoryFilter(storedCategoryFilter);
       localStorage.removeItem('admin_products_category_filter');
     }
-  }, [fetchProducts, fetchCategories]);
+  }, [fetchProducts, fetchCategories, setCategoryFilter]);
 
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
@@ -129,7 +158,6 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredProducts, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, categoryFilter, statusFilter]);
 
   const handleDelete = async () => {
     if (!deleteModalProduct) return;
@@ -238,7 +266,16 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-slate-600">{product.category?.name || 'Uncategorized'}</td>
-                    <td className="py-4 px-6"><span className="text-slate-800 font-semibold">${product.price.toFixed(2)}</span>{product.compare_at_price && <span className="text-slate-400 text-sm line-through ml-2">${product.compare_at_price.toFixed(2)}</span>}</td>
+                    <td className="py-4 px-6">
+                      {product.compare_at_price && product.compare_at_price > product.price ? (
+                        <>
+                          <span className="text-slate-400 text-sm line-through">${product.compare_at_price.toFixed(2)}</span>
+                          <span className="text-red-600 font-semibold ml-2">${product.price.toFixed(2)}</span>
+                        </>
+                      ) : (
+                        <span className="text-slate-800 font-semibold">${product.price.toFixed(2)}</span>
+                      )}
+                    </td>
                     <td className="py-4 px-6"><span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span></td>
                     <td className="py-4 px-6"><span className="text-slate-600 font-medium">{product.purchase_count || 0}</span></td>
                     <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>

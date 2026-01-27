@@ -20,7 +20,11 @@
       "Bash(findstr:*)",
       "Bash(taskkill:*)",
       "Bash(find:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(npx supabase:*)",
+      "Bash(ren:*)",
+      "Bash(curl:*)",
+      "Bash(npm ls:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"

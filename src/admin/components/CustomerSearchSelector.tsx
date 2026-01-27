@@ -163,15 +163,20 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
         return;
       }
 
-      // Create new customer
+      // Create new customer with a generated UUID
+      // (customers table id doesn't auto-generate since it normally matches auth.uid())
+      const newCustomerId = crypto.randomUUID();
       const { data, error: createError } = await supabase
         .from('customers')
         .insert([
           {
+            id: newCustomerId,
             email: newCustomer.email.toLowerCase(),
             first_name: newCustomer.first_name,
             last_name: newCustomer.last_name,
             phone: newCustomer.phone || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           },
         ])
         .select()

@@ -79,13 +79,23 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
-  // Don't render section if no categories
-  if (loading || !dbCategories || dbCategories.length === 0) {
+  // Find the Seedlings parent category
+  const seedlingsParent = dbCategories?.find((c: any) =>
+    c.name.toLowerCase() === 'seedlings' && !c.parent_id
+  );
+
+  // Get only seedling subcategories
+  const seedlingCategories = dbCategories?.filter((c: any) =>
+    c.parent_id === seedlingsParent?.id
+  ) || [];
+
+  // Don't render section if no seedling subcategories
+  if (loading || seedlingCategories.length === 0) {
     return null;
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-white border-t border-gray-100">
+    <section className="py-24 px-4 md:px-12 bg-white border-y border-gray-200">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>
@@ -97,9 +107,9 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-100px" }}
-          className={`grid grid-cols-2 gap-6 ${dbCategories.length <= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
+          className={`grid grid-cols-2 gap-6 ${seedlingCategories.length <= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}
         >
-          {dbCategories.map((cat: any) => {
+          {seedlingCategories.map((cat: any) => {
             const style = categoryStyles[cat.name] || defaultStyle;
             return (
               <motion.div
@@ -109,11 +119,21 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
                 whileHover="hover"
                 className="cursor-pointer group relative p-8 rounded-[2.5rem] bg-gray-50 border border-transparent hover:border-emerald-100 hover:bg-emerald-50/50 transition-all duration-300 flex flex-col items-center text-center overflow-hidden"
               >
-                <div className="w-20 h-20 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center mb-6 group-hover:shadow-lg group-hover:shadow-emerald-100/50 transition-all">
-                  <div className={style.color === 'purple' ? 'text-purple-500' : 'text-emerald-500'}>{style.icon}</div>
-                </div>
+                {cat.image_url ? (
+                  <div className="w-full h-48 rounded-[1.5rem] overflow-hidden mb-6 group-hover:shadow-lg group-hover:shadow-emerald-100/50 transition-all">
+                    <img
+                      src={cat.image_url}
+                      alt={cat.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-[1.5rem] bg-white shadow-sm flex items-center justify-center mb-6 group-hover:shadow-lg group-hover:shadow-emerald-100/50 transition-all">
+                    <div className={style.color === 'purple' ? 'text-purple-500' : 'text-emerald-500'}>{style.icon}</div>
+                  </div>
+                )}
                 <h3 className="font-heading font-extrabold text-lg text-gray-900 mb-1 tracking-tight">{cat.name}</h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{cat.description || style.description}</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest max-w-[70%]">{cat.description || style.description}</p>
               </motion.div>
             );
           })}

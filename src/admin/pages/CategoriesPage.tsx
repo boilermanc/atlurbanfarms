@@ -12,7 +12,10 @@ interface Category {
   image_url: string | null;
   is_active: boolean;
   sort_order: number;
+  parent_id: string | null;
+  parent?: { id: string; name: string } | null;
   product_count?: number;
+  children?: Category[];
 }
 
 interface CategoryFormData {
@@ -21,6 +24,7 @@ interface CategoryFormData {
   description: string;
   image_url: string;
   is_active: boolean;
+  parent_id: string;
 }
 
 const generateSlug = (name: string): string => {
@@ -46,6 +50,7 @@ const CategoriesPage: React.FC = () => {
     description: '',
     image_url: '',
     is_active: true,
+    parent_id: '',
   });
 
   const fetchCategories = useCallback(async () => {
@@ -55,7 +60,7 @@ const CategoriesPage: React.FC = () => {
 
       const { data: categoriesData, error: catError } = await supabase
         .from('product_categories')
-        .select('*')
+        .select('*, parent:parent_id(id, name)')
         .order('sort_order', { ascending: true });
 
       if (catError) throw catError;
@@ -99,10 +104,11 @@ const CategoriesPage: React.FC = () => {
         description: category.description || '',
         image_url: category.image_url || '',
         is_active: category.is_active,
+        parent_id: category.parent_id || '',
       });
     } else {
       setEditingCategory(null);
-      setFormData({ name: '', slug: '', description: '', image_url: '', is_active: true });
+      setFormData({ name: '', slug: '', description: '', image_url: '', is_active: true, parent_id: '' });
     }
     setModalOpen(true);
   };
@@ -113,7 +119,7 @@ const CategoriesPage: React.FC = () => {
     setError(null);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     setFormData(prev => {
@@ -175,6 +181,7 @@ const CategoriesPage: React.FC = () => {
         description: formData.description || null,
         image_url: formData.image_url || null,
         is_active: formData.is_active,
+        parent_id: formData.parent_id || null,
       };
 
       if (editingCategory) {
@@ -278,6 +285,48 @@ const CategoriesPage: React.FC = () => {
     }
   };
 
+  // Get all descendant IDs of a category (to prevent circular references)
+  const getDescendantIds = (categoryId: string, allCategories: Category[]): string[] => {
+    const children = allCategories.filter(c => c.parent_id === categoryId);
+    const descendantIds: string[] = children.map(c => c.id);
+    children.forEach(child => {
+      descendantIds.push(...getDescendantIds(child.id, allCategories));
+    });
+    return descendantIds;
+  };
+
+  // Get available parent options (excluding self and descendants to prevent circular references)
+  const getAvailableParentOptions = (): Category[] => {
+    if (!editingCategory) {
+      // For new categories, all existing categories can be parents
+      return categories;
+    }
+    // For editing, exclude self and all descendants
+    const excludeIds = new Set([editingCategory.id, ...getDescendantIds(editingCategory.id, categories)]);
+    return categories.filter(c => !excludeIds.has(c.id));
+  };
+
+  // Organize categories for display: parents first, then children indented
+  const organizeForDisplay = (): Category[] => {
+    const topLevel = categories.filter(c => !c.parent_id);
+    const result: Category[] = [];
+
+    topLevel.forEach(parent => {
+      result.push(parent);
+      // Add children right after parent
+      const children = categories.filter(c => c.parent_id === parent.id);
+      children.forEach(child => result.push(child));
+    });
+
+    // Add any orphaned children (parent was deleted or doesn't exist)
+    const orphans = categories.filter(c => c.parent_id && !categories.find(p => p.id === c.parent_id));
+    result.push(...orphans);
+
+    return result;
+  };
+
+  const displayCategories = organizeForDisplay();
+
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
@@ -309,71 +358,79 @@ const CategoriesPage: React.FC = () => {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, category)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, category)}
-                  className={`p-4 hover:bg-slate-50 transition-colors ${draggedItem?.id === category.id ? 'opacity-50' : ''}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="text-slate-400 cursor-grab active:cursor-grabbing">
-                      <GripVertical size={20} />
-                    </div>
-
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
-                      {category.image_url ? (
-                        <img src={category.image_url} alt={category.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-400">
-                          <FolderOpen size={20} />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-slate-800 font-medium">{category.name}</p>
-                        <span className="text-slate-400 text-sm">/{category.slug}</span>
+              {displayCategories.map((category) => {
+                const isChild = !!category.parent_id;
+                return (
+                  <div
+                    key={category.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, category)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, category)}
+                    className={`p-4 hover:bg-slate-50 transition-colors ${draggedItem?.id === category.id ? 'opacity-50' : ''} ${isChild ? 'bg-slate-50/50' : ''}`}
+                  >
+                    <div className={`flex items-center gap-4 ${isChild ? 'ml-8' : ''}`}>
+                      <div className="text-slate-400 cursor-grab active:cursor-grabbing">
+                        <GripVertical size={20} />
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Store category filter for ProductsPage to pick up
-                          localStorage.setItem('admin_products_category_filter', category.id);
-                          navigate('products');
-                        }}
-                        className="text-emerald-600 text-sm hover:text-emerald-700 hover:underline transition-colors text-left font-medium"
-                      >
-                        {category.product_count || 0} products
-                      </button>
-                    </div>
 
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleActive(category); }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${category.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${category.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
+                      <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
+                        {category.image_url ? (
+                          <img src={category.image_url} alt={category.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                            <FolderOpen size={20} />
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openModal(category)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
-                        <Edit2 size={18} />
-                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-slate-800 font-medium">{category.name}</p>
+                          <span className="text-slate-400 text-sm">/{category.slug}</span>
+                          {category.parent && (
+                            <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                              Child of {category.parent.name}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Store category filter for ProductsPage to pick up
+                            localStorage.setItem('admin_products_category_filter', category.id);
+                            navigate('products');
+                          }}
+                          className="text-emerald-600 text-sm hover:text-emerald-700 hover:underline transition-colors text-left font-medium"
+                        >
+                          {category.product_count || 0} products
+                        </button>
+                      </div>
+
                       <button
-                        onClick={() => setDeleteModalCategory(category)}
-                        disabled={(category.product_count || 0) > 0}
-                        className={`p-2 rounded-xl transition-colors ${(category.product_count || 0) > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600 hover:bg-red-50'}`}
-                        title={(category.product_count || 0) > 0 ? 'Cannot delete category with products' : 'Delete'}
+                        onClick={(e) => { e.stopPropagation(); handleToggleActive(category); }}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${category.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}
                       >
-                        <Trash2 size={18} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${category.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
                       </button>
+
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openModal(category)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteModalCategory(category)}
+                          disabled={(category.product_count || 0) > 0}
+                          className={`p-2 rounded-xl transition-colors ${(category.product_count || 0) > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-red-600 hover:bg-red-50'}`}
+                          title={(category.product_count || 0) > 0 ? 'Cannot delete category with products' : 'Delete'}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -396,6 +453,23 @@ const CategoriesPage: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Slug</label>
                 <input type="text" name="slug" value={formData.slug} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Parent Category</label>
+                <select
+                  name="parent_id"
+                  value={formData.parent_id}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="">None (Top Level)</option>
+                  {getAvailableParentOptions().map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.parent ? `${cat.parent.name} → ${cat.name}` : cat.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">Select a parent to make this a subcategory</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Description</label>

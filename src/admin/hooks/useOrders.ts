@@ -81,7 +81,7 @@ export interface PickupLocation {
 
 export interface PickupReservation {
   id: string;
-  location: PickupLocation;
+  location: PickupLocation | null;
   pickup_date: string;
   pickup_time_start: string;
   pickup_time_end: string;

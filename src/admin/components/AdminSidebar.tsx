@@ -53,11 +53,11 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'SHIPPING',
+    title: 'SCHEDULING',
     items: [
+      { id: 'calendar', label: 'Events Calendar', icon: Calendar },
       { id: 'shipping', label: 'Shipping', icon: Truck },
       { id: 'fulfillment', label: 'Fulfillment', icon: Package },
-      { id: 'calendar', label: 'Calendar', icon: Calendar },
     ],
   },
   {

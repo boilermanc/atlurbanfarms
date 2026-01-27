@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { Search, Download, Users, Mail, Filter } from 'lucide-react';
+import { Search, Download, Users, Mail, Filter, Plus, X } from 'lucide-react';
 import {
   CustomerWithStats,
   NewsletterSubscriber,
@@ -10,6 +10,7 @@ import {
   SUBSCRIBER_STATUS_CONFIG,
   CustomerTag,
   TAG_COLOR_CONFIG,
+  NEWSLETTER_SUBSCRIBER_BADGE,
 } from '../types/customer';
 import { useCustomerTags } from '../hooks/useCustomerTags';
 
@@ -34,6 +35,107 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [subscriberCount, setSubscriberCount] = useState(0);
 
   const { tags: allTags } = useCustomerTags();
+
+  // Create Customer Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    email: '',
+    first_name: '',
+    last_name: '',
+    phone: '',
+    role: 'customer',
+    newsletter_subscribed: false,
+    sms_opt_in: false,
+  });
+
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      first_name: '',
+      last_name: '',
+      phone: '',
+      role: 'customer',
+      newsletter_subscribed: false,
+      sms_opt_in: false,
+    });
+    setCreateError(null);
+  };
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError(null);
+
+    // Validation
+    if (!formData.email.trim()) {
+      setCreateError('Email is required');
+      return;
+    }
+    if (!validateEmail(formData.email)) {
+      setCreateError('Please enter a valid email address');
+      return;
+    }
+    if (!formData.first_name.trim()) {
+      setCreateError('First name is required');
+      return;
+    }
+    if (!formData.last_name.trim()) {
+      setCreateError('Last name is required');
+      return;
+    }
+
+    setCreateLoading(true);
+
+    try {
+      // Check for duplicate email
+      const { data: existing } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', formData.email.toLowerCase().trim())
+        .single();
+
+      if (existing) {
+        setCreateError('A customer with this email already exists');
+        setCreateLoading(false);
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from('customers')
+        .insert({
+          id: crypto.randomUUID(),
+          email: formData.email.toLowerCase().trim(),
+          first_name: formData.first_name.trim(),
+          last_name: formData.last_name.trim(),
+          phone: formData.phone.trim() || null,
+          role: formData.role,
+          newsletter_subscribed: formData.newsletter_subscribed,
+          sms_opt_in: formData.sms_opt_in,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // Refresh customers list
+      await fetchCustomers();
+      setShowCreateModal(false);
+      resetForm();
+    } catch (err: any) {
+      console.error('Error creating customer:', err);
+      setCreateError(err.message || 'Failed to create customer');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -227,6 +329,15 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 : `${subscriberCount} newsletter subscribers`}
             </p>
           </div>
+          {activeTab === 'customers' && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Add Customer
+            </button>
+          )}
         </div>
 
         <div className="border-b border-slate-200">
@@ -380,6 +491,14 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex flex-wrap gap-1">
+                                  {/* Newsletter Subscriber Badge */}
+                                  {customer.newsletter_subscribed && (
+                                    <span
+                                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${NEWSLETTER_SUBSCRIBER_BADGE.badgeClass}`}
+                                    >
+                                      {NEWSLETTER_SUBSCRIBER_BADGE.label}
+                                    </span>
+                                  )}
                                   {customerTags.length > 0 ? (
                                     <>
                                       {customerTags.slice(0, 2).map((tag: CustomerTag) => (
@@ -394,9 +513,9 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                                         <span className="text-slate-400 text-xs">+{customerTags.length - 2}</span>
                                       )}
                                     </>
-                                  ) : (
+                                  ) : !customer.newsletter_subscribed ? (
                                     <span className="text-slate-400 text-xs">-</span>
-                                  )}
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-slate-600">{customer.email}</td>
@@ -499,6 +618,159 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             )}
           </AnimatePresence>
         )}
+
+        {/* Create Customer Modal */}
+        <AnimatePresence>
+          {showCreateModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => {
+                setShowCreateModal(false);
+                resetForm();
+              }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-800">Add Customer</h2>
+                  <button
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      resetForm();
+                    }}
+                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-slate-500" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateCustomer} className="p-6 space-y-4">
+                  {createError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                      {createError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder="customer@example.com"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        First Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.first_name}
+                        onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        placeholder="John"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Last Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.last_name}
+                        onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                        placeholder="Doe"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder="(555) 123-4567"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    >
+                      <option value="customer">Customer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.newsletter_subscribed}
+                        onChange={(e) => setFormData({ ...formData, newsletter_subscribed: e.target.checked })}
+                        className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500/20"
+                      />
+                      <span className="text-sm text-slate-700">Newsletter Subscriber</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.sms_opt_in}
+                        onChange={(e) => setFormData({ ...formData, sms_opt_in: e.target.checked })}
+                        className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500/20"
+                      />
+                      <span className="text-sm text-slate-700">SMS Opt-in</span>
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateModal(false);
+                        resetForm();
+                      }}
+                      className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={createLoading}
+                      className="flex-1 px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {createLoading ? 'Creating...' : 'Create Customer'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AdminPageWrapper>
   );

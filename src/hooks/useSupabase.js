@@ -289,116 +289,160 @@ export function useAddresses(customerId) {
 
 /**
  * Fetch all active products with category and primary image
+ * Includes realtime subscription to automatically update when products change
  */
 export function useProducts() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        setLoading(true)
-        setError(null)
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        const { data, error: supabaseError } = await supabase
-          .from('products')
-          .select(`
-            *,
-            category:product_categories(*),
-            images:product_images(*)
-          `)
-          .eq('is_active', true)
-          .order('name')
+      const { data, error: supabaseError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:product_categories(*),
+          images:product_images(*)
+        `)
+        .eq('is_active', true)
+        .order('name')
 
-        if (supabaseError) throw supabaseError
+      if (supabaseError) throw supabaseError
 
-        // Extract primary image for each product
-        const productsWithPrimaryImage = data.map(product => ({
-          ...product,
-          primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null
-        }))
+      // Extract primary image for each product
+      const productsWithPrimaryImage = data.map(product => ({
+        ...product,
+        primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null
+      }))
 
-        setProducts(productsWithPrimaryImage)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setProducts(productsWithPrimaryImage)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-
-    fetchProducts()
   }, [])
 
-  return { products, loading, error }
+  useEffect(() => {
+    fetchProducts()
+
+    // Subscribe to realtime changes on products table
+    const channel = supabase
+      .channel('products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          // Refetch products when any change occurs
+          fetchProducts()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchProducts])
+
+  return { products, loading, error, refetch: fetchProducts }
 }
 
 /**
  * Fetch top 8 best-selling active products
  * Calculates sales from order_items (excluding cancelled orders)
+ * Includes realtime subscription to automatically update when products change
  */
 export function useBestSellers(limit = 8) {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function fetchBestSellers() {
-      try {
-        setLoading(true)
-        setError(null)
+  const fetchBestSellers = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        // Fetch active products with category and images
-        const { data: productsData, error: productsError } = await supabase
-          .from('products')
-          .select(`
-            *,
-            category:product_categories(*),
-            images:product_images(*)
-          `)
-          .eq('is_active', true)
+      // Fetch active products with category and images
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:product_categories(*),
+          images:product_images(*)
+        `)
+        .eq('is_active', true)
 
-        if (productsError) throw productsError
+      if (productsError) throw productsError
 
-        // Fetch order items to calculate sales (excluding cancelled orders)
-        const { data: orderItemsData, error: orderItemsError } = await supabase
-          .from('order_items')
-          .select('product_id, quantity, orders!inner(status)')
+      // Fetch order items to calculate sales (excluding cancelled orders)
+      const { data: orderItemsData, error: orderItemsError } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, orders!inner(status)')
 
-        if (orderItemsError) throw orderItemsError
+      if (orderItemsError) throw orderItemsError
 
-        // Calculate total sales per product
-        const salesCounts = {}
-        ;(orderItemsData || []).forEach(item => {
-          if (item.orders?.status !== 'cancelled') {
-            salesCounts[item.product_id] = (salesCounts[item.product_id] || 0) + item.quantity
-          }
-        })
+      // Calculate total sales per product
+      const salesCounts = {}
+      ;(orderItemsData || []).forEach(item => {
+        if (item.orders?.status !== 'cancelled') {
+          salesCounts[item.product_id] = (salesCounts[item.product_id] || 0) + item.quantity
+        }
+      })
 
-        // Add primary image and sales count to each product
-        const productsWithSales = (productsData || []).map(product => ({
-          ...product,
-          primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null,
-          sales_count: salesCounts[product.id] || 0
-        }))
+      // Add primary image and sales count to each product
+      const productsWithSales = (productsData || []).map(product => ({
+        ...product,
+        primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null,
+        sales_count: salesCounts[product.id] || 0
+      }))
 
-        // Sort by sales count descending and take top N
-        const bestSellers = productsWithSales
-          .sort((a, b) => b.sales_count - a.sales_count)
-          .slice(0, limit)
+      // Sort by sales count descending and take top N
+      const bestSellers = productsWithSales
+        .sort((a, b) => b.sales_count - a.sales_count)
+        .slice(0, limit)
 
-        setProducts(bestSellers)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setProducts(bestSellers)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-
-    fetchBestSellers()
   }, [limit])
 
-  return { products, loading, error }
+  useEffect(() => {
+    fetchBestSellers()
+
+    // Subscribe to realtime changes on products table
+    const channel = supabase
+      .channel('bestsellers-products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          // Refetch best sellers when any product changes
+          fetchBestSellers()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchBestSellers])
+
+  return { products, loading, error, refetch: fetchBestSellers }
 }
 
 /**
@@ -454,38 +498,60 @@ export function useProduct(slug) {
 
 /**
  * Fetch all active categories
+ * Includes realtime subscription to automatically update when categories change
  */
 export function useCategories() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        setLoading(true)
-        setError(null)
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        const { data, error: supabaseError } = await supabase
-          .from('product_categories')
-          .select('*')
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true, nullsFirst: false })
+      const { data, error: supabaseError } = await supabase
+        .from('product_categories')
+        .select('*, parent:parent_id(id, name)')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true, nullsFirst: false })
 
-        if (supabaseError) throw supabaseError
+      if (supabaseError) throw supabaseError
 
-        setCategories(data)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+      setCategories(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-
-    fetchCategories()
   }, [])
 
-  return { categories, loading, error }
+  useEffect(() => {
+    fetchCategories()
+
+    // Subscribe to realtime changes on product_categories table
+    const channel = supabase
+      .channel('categories-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'product_categories'
+        },
+        () => {
+          // Refetch categories when any change occurs
+          fetchCategories()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchCategories])
+
+  return { categories, loading, error, refetch: fetchCategories }
 }
 
 /**

@@ -7,7 +7,7 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert
 export type GrowingSystem = 'soil' | 'hydroponic' | 'aquaponic' | 'aeroponic' | 'container';
 export type GrowingInterest = 'microgreens' | 'herbs' | 'vegetables' | 'flowers' | 'mushrooms';
 
-export type CustomerRole = 'customer' | 'subscriber' | 'admin';
+export type CustomerRole = 'customer' | 'admin';
 
 export interface Customer {
   id: string;
@@ -16,6 +16,8 @@ export interface Customer {
   last_name: string | null;
   phone: string | null;
   role: CustomerRole;
+  newsletter_subscribed: boolean;
+  sms_opt_in: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -173,6 +175,11 @@ export const TAG_COLOR_CONFIG: Record<CustomerTag['color'], { label: string; bad
 // Customer role configurations
 export const CUSTOMER_ROLE_CONFIG: Record<CustomerRole, { label: string; badgeClass: string }> = {
   customer: { label: 'Customer', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' },
-  subscriber: { label: 'Subscriber', badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   admin: { label: 'Admin', badgeClass: 'bg-purple-100 text-purple-700 border-purple-200' },
+};
+
+// Newsletter subscriber badge config (for display purposes)
+export const NEWSLETTER_SUBSCRIBER_BADGE = {
+  label: 'Subscriber',
+  badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 };

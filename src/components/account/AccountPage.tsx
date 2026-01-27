@@ -317,6 +317,7 @@ interface SettingsTabProps {
 
 const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
   const [newsletterEnabled, setNewsletterEnabled] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -329,10 +330,10 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
         </p>
       </div>
 
-      {/* Email Preferences */}
+      {/* Communication Preferences */}
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-        <h2 className="font-heading font-bold text-gray-900 mb-4">Email Preferences</h2>
-        <div className="flex items-center justify-between py-3">
+        <h2 className="font-heading font-bold text-gray-900 mb-4">Communication Preferences</h2>
+        <div className="flex items-center justify-between py-3 border-b border-gray-50">
           <div>
             <p className="font-medium text-gray-900">Newsletter</p>
             <p className="text-sm text-gray-500">Receive updates about new products and promotions</p>
@@ -346,6 +347,24 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
             <span
               className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
                 newsletterEnabled ? 'left-6' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+        <div className="flex items-center justify-between py-3">
+          <div>
+            <p className="font-medium text-gray-900">SMS Updates</p>
+            <p className="text-sm text-gray-500">Receive text messages about your orders</p>
+          </div>
+          <button
+            onClick={() => setSmsOptIn(!smsOptIn)}
+            className={`relative w-12 h-7 rounded-full transition-colors ${
+              smsOptIn ? 'bg-emerald-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                smsOptIn ? 'left-6' : 'left-1'
               }`}
             />
           </button>

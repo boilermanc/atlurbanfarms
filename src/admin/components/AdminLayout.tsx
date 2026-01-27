@@ -76,7 +76,7 @@ const PAGE_TITLES: Record<string, string> = {
   shipping: 'Shipping',
   fulfillment: 'Fulfillment',
   zones: 'Shipping Zones & Rules',
-  calendar: 'Shipping Calendar',
+  calendar: 'Events Calendar',
   services: 'Shipping Services',
   faqs: 'FAQs',
   'content-pages': 'Content Pages',

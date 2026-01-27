@@ -1,8 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import BlackoutDateModal from '../components/BlackoutDateModal';
 import OverrideDateModal from '../components/OverrideDateModal';
+import { Calendar, Truck, Plus, Pencil, Trash2, X } from 'lucide-react';
+
+type TabType = 'events' | 'shipping';
+
+interface Event {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: 'workshop' | 'open_hours' | 'farm_event' | 'shipping';
+  start_date: string;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  max_attendees: number | null;
+  is_active: boolean;
+}
 
 interface ShippingConfig {
   id?: string;
@@ -30,7 +48,43 @@ interface OverrideDate {
 const DAY_INDEX_TO_DB: Record<number, number> = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const EVENT_TYPES = [
+  { value: 'workshop', label: 'Workshop', color: 'purple' },
+  { value: 'open_hours', label: 'Open Hours', color: 'blue' },
+  { value: 'farm_event', label: 'Farm Event', color: 'amber' },
+  { value: 'shipping', label: 'Shipping Day', color: 'emerald' },
+];
+
+const EVENT_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+  workshop: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700' },
+  open_hours: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700' },
+  farm_event: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700' },
+  shipping: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+};
+
 const ShippingCalendarPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('events');
+
+  // Events state
+  const [events, setEvents] = useState<Event[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventModalOpen, setEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    event_type: 'workshop' as Event['event_type'],
+    start_date: '',
+    end_date: '',
+    start_time: '',
+    end_time: '',
+    location: '',
+    max_attendees: '',
+    is_active: true,
+  });
+  const [eventSaving, setEventSaving] = useState(false);
+
+  // Shipping state
   const [config, setConfig] = useState<ShippingConfig>({
     shipping_days: [1, 2, 3, 4, 5], // Mon-Fri by default
     default_cutoff_time: '12:00',
@@ -41,18 +95,141 @@ const ShippingCalendarPage: React.FC = () => {
   const [blackoutDates, setBlackoutDates] = useState<BlackoutDate[]>([]);
   const [overrideDates, setOverrideDates] = useState<OverrideDate[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [loading, setLoading] = useState(true);
+  const [shippingLoading, setShippingLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [blackoutModalOpen, setBlackoutModalOpen] = useState(false);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
+    fetchEvents();
+    fetchShippingData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  // Events functions
+  const fetchEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('start_date', { ascending: false });
+
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const openEventModal = (event?: Event) => {
+    if (event) {
+      setEditingEvent(event);
+      setEventForm({
+        title: event.title,
+        description: event.description || '',
+        event_type: event.event_type,
+        start_date: event.start_date,
+        end_date: event.end_date || '',
+        start_time: event.start_time || '',
+        end_time: event.end_time || '',
+        location: event.location || '',
+        max_attendees: event.max_attendees?.toString() || '',
+        is_active: event.is_active,
+      });
+    } else {
+      setEditingEvent(null);
+      setEventForm({
+        title: '',
+        description: '',
+        event_type: 'workshop',
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: '',
+        start_time: '10:00',
+        end_time: '12:00',
+        location: '',
+        max_attendees: '',
+        is_active: true,
+      });
+    }
+    setEventModalOpen(true);
+  };
+
+  const closeEventModal = () => {
+    setEventModalOpen(false);
+    setEditingEvent(null);
+  };
+
+  const handleEventSave = async () => {
+    if (!eventForm.title || !eventForm.start_date) return;
+
+    setEventSaving(true);
+    try {
+      const eventData = {
+        title: eventForm.title,
+        description: eventForm.description || null,
+        event_type: eventForm.event_type,
+        start_date: eventForm.start_date,
+        end_date: eventForm.end_date || null,
+        start_time: eventForm.start_time || null,
+        end_time: eventForm.end_time || null,
+        location: eventForm.location || null,
+        max_attendees: eventForm.max_attendees ? parseInt(eventForm.max_attendees) : null,
+        is_active: eventForm.is_active,
+      };
+
+      if (editingEvent) {
+        const { error } = await supabase
+          .from('events')
+          .update(eventData)
+          .eq('id', editingEvent.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('events')
+          .insert(eventData);
+        if (error) throw error;
+      }
+
+      await fetchEvents();
+      closeEventModal();
+    } catch (error) {
+      console.error('Error saving event:', error);
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
+  const handleEventDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) throw error;
+      setEvents(prev => prev.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
+  };
+
+  const toggleEventActive = async (event: Event) => {
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ is_active: !event.is_active })
+        .eq('id', event.id);
+      if (error) throw error;
+      setEvents(prev => prev.map(e => e.id === event.id ? { ...e, is_active: !e.is_active } : e));
+    } catch (error) {
+      console.error('Error toggling event:', error);
+    }
+  };
+
+  // Shipping functions
+  const fetchShippingData = async () => {
+    setShippingLoading(true);
     try {
       // Fetch config - may not exist yet
       try {
@@ -105,7 +282,7 @@ const ShippingCalendarPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
-      setLoading(false);
+      setShippingLoading(false);
     }
   };
 
@@ -265,23 +442,141 @@ const ShippingCalendarPage: React.FC = () => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  if (loading) {
-    return (
-      <AdminPageWrapper>
+  const formatTime = (time: string | null) => {
+    if (!time) return '';
+    const [hours, minutes] = time.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const tabs = [
+    { id: 'events' as TabType, label: 'Events', icon: <Calendar size={20} /> },
+    { id: 'shipping' as TabType, label: 'Shipping Config', icon: <Truck size={20} /> },
+  ];
+
+  const renderEventsTab = () => {
+    if (eventsLoading) {
+      return (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
         </div>
-      </AdminPageWrapper>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Add Event Button */}
+        <div className="flex justify-between items-center">
+          <p className="text-slate-500">Manage workshops, farm events, open hours, and shipping days visible on the public calendar.</p>
+          <button
+            onClick={() => openEventModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+          >
+            <Plus size={18} />
+            Add Event
+          </button>
+        </div>
+
+        {/* Events List */}
+        {events.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-2xl">
+            <Calendar className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+            <p className="text-slate-500">No events yet. Create your first event!</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Event</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Type</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Date</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Time</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Status</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(event => (
+                  <tr key={event.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="py-3 px-4">
+                      <div>
+                        <p className="font-medium text-slate-800">{event.title}</p>
+                        {event.location && (
+                          <p className="text-sm text-slate-500">{event.location}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${EVENT_COLORS[event.event_type]?.badge || 'bg-slate-100 text-slate-700'}`}>
+                        {EVENT_TYPES.find(t => t.value === event.event_type)?.label || event.event_type}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {formatDate(event.start_date)}
+                      {event.end_date && event.end_date !== event.start_date && (
+                        <span> - {formatDate(event.end_date)}</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {event.start_time ? formatTime(event.start_time) : '-'}
+                      {event.end_time && ` - ${formatTime(event.end_time)}`}
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => toggleEventActive(event)}
+                        className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                          event.is_active
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {event.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEventModal(event)}
+                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleEventDelete(event.id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     );
-  }
+  };
 
-  return (
-    <AdminPageWrapper>
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-slate-800 mb-8">Shipping Calendar</h1>
+  const renderShippingTab = () => {
+    if (shippingLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        </div>
+      );
+    }
 
+    return (
+      <div className="space-y-8">
         {/* Config Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
           <h2 className="text-xl font-semibold text-slate-800 mb-6">Shipping Configuration</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -353,7 +648,7 @@ const ShippingCalendarPage: React.FC = () => {
         </div>
 
         {/* Calendar View */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-800">Calendar View</h2>
             <div className="flex items-center gap-4">
@@ -434,7 +729,7 @@ const ShippingCalendarPage: React.FC = () => {
         </div>
 
         {/* Blackout Dates List */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-slate-800">Blackout Dates</h2>
             <button
@@ -531,6 +826,219 @@ const ShippingCalendarPage: React.FC = () => {
           )}
         </div>
       </div>
+    );
+  };
+
+  return (
+    <AdminPageWrapper>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-slate-800 mb-8">Events Calendar</h1>
+
+        {/* Tab Navigation */}
+        <div className="border-b border-slate-200 mb-8">
+          <nav className="flex gap-1 overflow-x-auto pb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-emerald-600'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+                {activeTab === tab.id && (
+                  <motion.div
+                    layoutId="activeCalendarTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500"
+                    initial={false}
+                  />
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === 'events' ? renderEventsTab() : renderShippingTab()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Event Modal */}
+      <AnimatePresence>
+        {eventModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={closeEventModal}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                  <h2 className="text-xl font-semibold text-slate-800">
+                    {editingEvent ? 'Edit Event' : 'Add Event'}
+                  </h2>
+                  <button
+                    onClick={closeEventModal}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                    <input
+                      type="text"
+                      value={eventForm.title}
+                      onChange={e => setEventForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Event title"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Event Type</label>
+                    <select
+                      value={eventForm.event_type}
+                      onChange={e => setEventForm(prev => ({ ...prev, event_type: e.target.value as Event['event_type'] }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      {EVENT_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                    <textarea
+                      value={eventForm.description}
+                      onChange={e => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      rows={3}
+                      placeholder="Event description"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Date *</label>
+                      <input
+                        type="date"
+                        value={eventForm.start_date}
+                        onChange={e => setEventForm(prev => ({ ...prev, start_date: e.target.value }))}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={eventForm.end_date}
+                        onChange={e => setEventForm(prev => ({ ...prev, end_date: e.target.value }))}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Time</label>
+                      <input
+                        type="time"
+                        value={eventForm.start_time}
+                        onChange={e => setEventForm(prev => ({ ...prev, start_time: e.target.value }))}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">End Time</label>
+                      <input
+                        type="time"
+                        value={eventForm.end_time}
+                        onChange={e => setEventForm(prev => ({ ...prev, end_time: e.target.value }))}
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={eventForm.location}
+                      onChange={e => setEventForm(prev => ({ ...prev, location: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Event location"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Max Attendees</label>
+                    <input
+                      type="number"
+                      value={eventForm.max_attendees}
+                      onChange={e => setEventForm(prev => ({ ...prev, max_attendees: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Leave empty for unlimited"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="is_active"
+                      checked={eventForm.is_active}
+                      onChange={e => setEventForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                      className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                    />
+                    <label htmlFor="is_active" className="text-sm font-medium text-slate-700">
+                      Active (visible on public calendar)
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 p-6 border-t border-slate-200">
+                  <button
+                    onClick={closeEventModal}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEventSave}
+                    disabled={eventSaving || !eventForm.title || !eventForm.start_date}
+                    className="px-6 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  >
+                    {eventSaving ? 'Saving...' : editingEvent ? 'Update Event' : 'Create Event'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <BlackoutDateModal
         isOpen={blackoutModalOpen}

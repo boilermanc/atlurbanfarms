@@ -30,7 +30,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
-  // Fetch featured products directly
+  // Fetch featured products with realtime subscription
   useEffect(() => {
     async function fetchFeaturedProducts() {
       try {
@@ -67,6 +67,27 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
     }
 
     fetchFeaturedProducts();
+
+    // Subscribe to realtime changes on products table
+    const channel = supabase
+      .channel('featured-products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          // Refetch when any product changes (status, featured flag, etc.)
+          fetchFeaturedProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Map raw products to display format
@@ -79,7 +100,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
 
   if (loading) {
     return (
-      <section className="py-24 px-4 md:px-12 bg-slate-50 border-t border-slate-100 relative overflow-hidden">
+      <section className="py-24 px-4 md:px-12 bg-gray-50 border-y border-gray-200 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="mb-16">
             <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
@@ -107,7 +128,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-slate-50 border-t border-slate-100 relative overflow-hidden">
+    <section className="py-24 px-4 md:px-12 bg-gray-50 border-y border-gray-200 relative overflow-hidden">
       {/* Decorative background element */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
         <div className="absolute top-1/4 left-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-60" />
@@ -136,9 +157,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             whileTap={{ scale: 0.95 }}
             onClick={() => {
               onNavigate?.('about');
-              setTimeout(() => {
-                document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
+              // Set hash so AboutPage's useEffect can detect it and scroll to growers section
+              window.history.replaceState(null, '', '/#growers');
             }}
             className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
           >

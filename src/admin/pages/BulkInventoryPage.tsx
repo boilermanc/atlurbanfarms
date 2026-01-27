@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -12,6 +13,8 @@ interface ProductInventory {
   quantity_available: number;
   is_active: boolean;
   low_stock_threshold: number;
+  price: number | null;
+  compare_at_price: number | null;
 }
 
 
@@ -55,6 +58,8 @@ const BulkInventoryPage: React.FC = () => {
           quantity_available,
           is_active,
           low_stock_threshold,
+          price,
+          compare_at_price,
           category:product_categories(name)
         `)
         .order('name');
@@ -70,6 +75,8 @@ const BulkInventoryPage: React.FC = () => {
         is_active: p.is_active,
         low_stock_threshold: p.low_stock_threshold || 10,
         category_name: p.category?.name || 'Uncategorized',
+        price: p.price,
+        compare_at_price: p.compare_at_price,
       }));
 
       setProducts(mappedProducts);
@@ -222,7 +229,7 @@ const BulkInventoryPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${hasChanges() ? 'pb-28' : ''}`}>
         {/* Alerts */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
@@ -328,6 +335,12 @@ const BulkInventoryPage: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Category
                   </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Regular Price
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Sale Price
+                  </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Current Inventory
                   </th>
@@ -342,7 +355,7 @@ const BulkInventoryPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Package size={32} className="text-slate-400" />
                       </div>
@@ -366,14 +379,29 @@ const BulkInventoryPage: React.FC = () => {
                       >
                         <td className="px-6 py-4">
                           <div>
-                            <p className="text-slate-800 font-medium">{product.name}</p>
+                            <Link
+                              to={`/admin/products/${product.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {product.name}
+                            </Link>
                             {!product.is_active && (
-                              <span className="text-xs text-slate-400 italic">Inactive</span>
+                              <span className="text-xs text-slate-400 italic ml-2">Inactive</span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-slate-600 text-sm">{product.category_name}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-slate-800">
+                            {product.price != null ? `$${product.price.toFixed(2)}` : '-'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-emerald-600">
+                            {product.compare_at_price != null ? `$${product.compare_at_price.toFixed(2)}` : '-'}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
+import { useBrandingSettings } from '../src/hooks/useSupabase';
 
 interface FAQ {
   id: string;
@@ -78,6 +79,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   const [faqData, setFaqData] = useState<FAQCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { settings: brandingSettings } = useBrandingSettings();
 
   useEffect(() => {
     const fetchFaqs = async () => {
@@ -209,10 +211,11 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="mt-24 p-12 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-[3rem] text-white text-center relative overflow-hidden"
+          className="mt-24 p-12 rounded-[3rem] text-white text-center relative overflow-hidden"
+          style={{ backgroundColor: brandingSettings.secondary_brand_color || '#047857' }}
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/30 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
           <h2 className="text-3xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
           <p className="text-white/90 mb-8 relative z-10 font-medium">Sage AI is available 24/7 to answer your specific growing questions.</p>
           <button

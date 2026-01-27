@@ -50,6 +50,9 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   // Edit mode states
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isEditingPreferences, setIsEditingPreferences] = useState(false);
+  const [isEditingAttribution, setIsEditingAttribution] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Form data
@@ -66,6 +69,9 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   });
 
   const [editedAddresses, setEditedAddresses] = useState<CustomerAddress[]>([]);
+  const [editedProfile, setEditedProfile] = useState<Partial<CustomerProfile>>({});
+  const [editedPreferences, setEditedPreferences] = useState<Partial<CustomerPreferences>>({});
+  const [editedAttribution, setEditedAttribution] = useState<Partial<CustomerAttribution>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Toast notification state
@@ -192,6 +198,55 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   const cancelEditingAddresses = () => {
     setIsEditingAddresses(false);
+    setValidationErrors({});
+  };
+
+  const startEditingProfile = () => {
+    setEditedProfile({
+      environment: profile?.environment || null,
+      experience_level: profile?.experience_level || null,
+      growing_systems: profile?.growing_systems || [],
+      interests: profile?.interests || [],
+      hardiness_zone: profile?.hardiness_zone || '',
+    });
+    setIsEditingProfile(true);
+    setValidationErrors({});
+  };
+
+  const cancelEditingProfile = () => {
+    setIsEditingProfile(false);
+    setValidationErrors({});
+  };
+
+  const startEditingPreferences = () => {
+    setEditedPreferences({
+      email_notifications: preferences?.email_notifications ?? true,
+      sms_notifications: preferences?.sms_notifications ?? false,
+      newsletter_subscribed: preferences?.newsletter_subscribed ?? false,
+    });
+    setIsEditingPreferences(true);
+    setValidationErrors({});
+  };
+
+  const cancelEditingPreferences = () => {
+    setIsEditingPreferences(false);
+    setValidationErrors({});
+  };
+
+  const startEditingAttribution = () => {
+    setEditedAttribution({
+      source: attribution?.source || '',
+      medium: attribution?.medium || '',
+      campaign: attribution?.campaign || '',
+      referrer: attribution?.referrer || '',
+      landing_page: attribution?.landing_page || '',
+    });
+    setIsEditingAttribution(true);
+    setValidationErrors({});
+  };
+
+  const cancelEditingAttribution = () => {
+    setIsEditingAttribution(false);
     setValidationErrors({});
   };
 
@@ -323,6 +378,153 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       console.error('Error updating addresses:', err);
       setValidationErrors({ general: 'Failed to update addresses' });
       setToast({ message: 'Failed to update addresses', type: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const profileData = {
+        environment: editedProfile.environment || null,
+        experience_level: editedProfile.experience_level || null,
+        growing_systems: editedProfile.growing_systems || [],
+        interests: editedProfile.interests || [],
+        hardiness_zone: editedProfile.hardiness_zone || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (profile?.id) {
+        // Update existing profile
+        const { data, error } = await supabase
+          .from('customer_profiles')
+          .update(profileData)
+          .eq('id', profile.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      } else {
+        // Create new profile
+        const { data, error } = await supabase
+          .from('customer_profiles')
+          .insert({
+            customer_id: customerId,
+            ...profileData,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setProfile(data);
+      }
+
+      setIsEditingProfile(false);
+      setValidationErrors({});
+      setToast({ message: 'Growing profile updated successfully', type: 'success' });
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      setValidationErrors({ general: 'Failed to update growing profile' });
+      setToast({ message: 'Failed to update growing profile', type: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const savePreferences = async () => {
+    setIsSaving(true);
+    try {
+      const preferencesData = {
+        email_notifications: editedPreferences.email_notifications ?? true,
+        sms_notifications: editedPreferences.sms_notifications ?? false,
+        newsletter_subscribed: editedPreferences.newsletter_subscribed ?? false,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (preferences?.id) {
+        // Update existing preferences
+        const { data, error } = await supabase
+          .from('customer_preferences')
+          .update(preferencesData)
+          .eq('id', preferences.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setPreferences(data);
+      } else {
+        // Create new preferences
+        const { data, error } = await supabase
+          .from('customer_preferences')
+          .insert({
+            customer_id: customerId,
+            ...preferencesData,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setPreferences(data);
+      }
+
+      setIsEditingPreferences(false);
+      setValidationErrors({});
+      setToast({ message: 'Preferences updated successfully', type: 'success' });
+    } catch (err) {
+      console.error('Error updating preferences:', err);
+      setValidationErrors({ general: 'Failed to update preferences' });
+      setToast({ message: 'Failed to update preferences', type: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveAttribution = async () => {
+    setIsSaving(true);
+    try {
+      const attributionData = {
+        source: editedAttribution.source || null,
+        medium: editedAttribution.medium || null,
+        campaign: editedAttribution.campaign || null,
+        referrer: editedAttribution.referrer || null,
+        landing_page: editedAttribution.landing_page || null,
+      };
+
+      if (attribution?.id) {
+        // Update existing attribution
+        const { data, error } = await supabase
+          .from('customer_attribution')
+          .update(attributionData)
+          .eq('id', attribution.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setAttribution(data);
+      } else {
+        // Create new attribution
+        const { data, error } = await supabase
+          .from('customer_attribution')
+          .insert({
+            customer_id: customerId,
+            ...attributionData,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        setAttribution(data);
+      }
+
+      setIsEditingAttribution(false);
+      setValidationErrors({});
+      setToast({ message: 'Attribution updated successfully', type: 'success' });
+    } catch (err) {
+      console.error('Error updating attribution:', err);
+      setValidationErrors({ general: 'Failed to update attribution' });
+      setToast({ message: 'Failed to update attribution', type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -629,9 +831,70 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-50"
                   >
                     <option value="customer">Customer</option>
-                    <option value="subscriber">Subscriber</option>
                     <option value="admin">Admin</option>
                   </select>
+                </div>
+
+                {/* Newsletter Subscriber Checkbox */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={customer?.newsletter_subscribed || false}
+                      onChange={async (e) => {
+                        const newValue = e.target.checked;
+                        try {
+                          const { error } = await supabase
+                            .from('customers')
+                            .update({ newsletter_subscribed: newValue, updated_at: new Date().toISOString() })
+                            .eq('id', customerId);
+                          if (!error) {
+                            setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
+                            setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
+                          }
+                        } catch (err) {
+                          console.error('Error updating newsletter subscription:', err);
+                          setToast({ message: 'Failed to update subscription', type: 'error' });
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter Subscriber</span>
+                      <p className="text-xs text-slate-400">Receive newsletters and promotional emails</p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* SMS Opt-in Checkbox */}
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={customer?.sms_opt_in || false}
+                      onChange={async (e) => {
+                        const newValue = e.target.checked;
+                        try {
+                          const { error } = await supabase
+                            .from('customers')
+                            .update({ sms_opt_in: newValue, updated_at: new Date().toISOString() })
+                            .eq('id', customerId);
+                          if (!error) {
+                            setCustomer(prev => prev ? { ...prev, sms_opt_in: newValue } : null);
+                            setToast({ message: newValue ? 'SMS notifications enabled' : 'SMS notifications disabled', type: 'success' });
+                          }
+                        } catch (err) {
+                          console.error('Error updating SMS opt-in:', err);
+                          setToast({ message: 'Failed to update SMS preference', type: 'error' });
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Updates</span>
+                      <p className="text-xs text-slate-400">Receive text messages about orders</p>
+                    </div>
+                  </label>
                 </div>
 
                 {/* Tags Section */}
@@ -697,8 +960,174 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Growing Profile</h2>
-              {profile ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Growing Profile</h2>
+                {!isEditingProfile && (
+                  <button
+                    onClick={startEditingProfile}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingProfile ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Environment
+                    </label>
+                    <select
+                      value={editedProfile.environment || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, environment: e.target.value as any || null })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">Select environment...</option>
+                      {ENVIRONMENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Experience Level
+                    </label>
+                    <select
+                      value={editedProfile.experience_level || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, experience_level: e.target.value as any || null })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">Select experience level...</option>
+                      {Object.entries(EXPERIENCE_LEVEL_CONFIG).map(([value, config]) => (
+                        <option key={value} value={value}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+                      Growing Systems
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {GROWING_SYSTEM_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                            editedProfile.growing_systems?.includes(opt.value)
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editedProfile.growing_systems?.includes(opt.value) || false}
+                            onChange={(e) => {
+                              const current = editedProfile.growing_systems || [];
+                              if (e.target.checked) {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_systems: [...current, opt.value],
+                                });
+                              } else {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_systems: current.filter((s) => s !== opt.value),
+                                });
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span className="text-sm">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+                      Interests
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {INTEREST_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                            editedProfile.interests?.includes(opt.value)
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editedProfile.interests?.includes(opt.value) || false}
+                            onChange={(e) => {
+                              const current = editedProfile.interests || [];
+                              if (e.target.checked) {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  interests: [...current, opt.value],
+                                });
+                              } else {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  interests: current.filter((i) => i !== opt.value),
+                                });
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span className="text-sm">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Hardiness Zone
+                    </label>
+                    <input
+                      type="text"
+                      value={editedProfile.hardiness_zone || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, hardiness_zone: e.target.value })
+                      }
+                      placeholder="e.g., 7b"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveProfile}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingProfile}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : profile ? (
                 <div className="space-y-3">
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</p>
@@ -737,8 +1166,86 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Preferences</h2>
-              {preferences ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Preferences</h2>
+                {!isEditingPreferences && (
+                  <button
+                    onClick={startEditingPreferences}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingPreferences ? (
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.email_notifications ?? true}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, email_notifications: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Email Notifications</span>
+                      <p className="text-xs text-slate-400">Receive order updates and announcements via email</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.sms_notifications ?? false}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, sms_notifications: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Notifications</span>
+                      <p className="text-xs text-slate-400">Receive text messages for important updates</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.newsletter_subscribed ?? false}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, newsletter_subscribed: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
+                      <p className="text-xs text-slate-400">Receive newsletters and promotional content</p>
+                    </div>
+                  </label>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={savePreferences}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingPreferences}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : preferences ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600">Email Notifications</span>
@@ -1116,8 +1623,123 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Attribution</h2>
-              {attribution ? (
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Attribution</h2>
+                {!isEditingAttribution && (
+                  <button
+                    onClick={startEditingAttribution}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingAttribution ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Source
+                    </label>
+                    <select
+                      value={editedAttribution.source || ''}
+                      onChange={(e) =>
+                        setEditedAttribution({ ...editedAttribution, source: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">Select source...</option>
+                      <option value="google">Google Search</option>
+                      <option value="social">Social Media</option>
+                      <option value="referral">Word of Mouth / Referral</option>
+                      <option value="farmers_market">Farmer's Market</option>
+                      <option value="event">Event / Workshop</option>
+                      <option value="advertisement">Advertisement</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Medium
+                    </label>
+                    <input
+                      type="text"
+                      value={editedAttribution.medium || ''}
+                      onChange={(e) =>
+                        setEditedAttribution({ ...editedAttribution, medium: e.target.value })
+                      }
+                      placeholder="e.g., organic, cpc, email"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Campaign
+                    </label>
+                    <input
+                      type="text"
+                      value={editedAttribution.campaign || ''}
+                      onChange={(e) =>
+                        setEditedAttribution({ ...editedAttribution, campaign: e.target.value })
+                      }
+                      placeholder="e.g., spring_sale_2026"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Referrer
+                    </label>
+                    <input
+                      type="text"
+                      value={editedAttribution.referrer || ''}
+                      onChange={(e) =>
+                        setEditedAttribution({ ...editedAttribution, referrer: e.target.value })
+                      }
+                      placeholder="e.g., https://example.com"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Landing Page
+                    </label>
+                    <input
+                      type="text"
+                      value={editedAttribution.landing_page || ''}
+                      onChange={(e) =>
+                        setEditedAttribution({ ...editedAttribution, landing_page: e.target.value })
+                      }
+                      placeholder="e.g., /products/microgreens"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveAttribution}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingAttribution}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : attribution ? (
                 <div className="space-y-3">
                   {attribution.source && (
                     <div>

@@ -11,8 +11,14 @@ interface ShopPageProps {
   initialCategory?: string;
 }
 
-// Special category names that are NOT seedlings
-const NON_SEEDLING_CATEGORIES = ['Merchandise', 'Supplies'];
+// Category type with hierarchy
+interface Category {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  parent?: { id: string; name: string } | null;
+  sort_order?: number;
+}
 
 // Map Supabase product to local Product type
 const mapProduct = (p: any): Product => ({
@@ -197,110 +203,143 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
 
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [activeSection, setActiveSection] = useState<'all' | 'seedlings' | 'merchandise' | 'supplies'>('all');
+  // Track active parent category (null = "All Products")
+  const [activeParentId, setActiveParentId] = useState<string | null>(null);
+  // Track active subcategory within the parent (null = show all in parent)
+  const [activeSubcategoryId, setActiveSubcategoryId] = useState<string | null>(null);
 
   // Scroll to top when page mounts
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Sync selectedCategory when initialCategory prop changes (e.g., from header navigation)
+  // Sync active parent when initialCategory prop changes (e.g., from header navigation)
   useEffect(() => {
-    setSelectedCategory(initialCategory);
-  }, [initialCategory]);
+    if (initialCategory === 'All') {
+      setActiveParentId(null);
+      setActiveSubcategoryId(null);
+    } else {
+      // Find the category by name
+      const category = rawCategories.find((c: Category) => c.name === initialCategory);
+      if (category) {
+        if (category.parent_id) {
+          // It's a subcategory - set parent and subcategory
+          setActiveParentId(category.parent_id);
+          setActiveSubcategoryId(category.id);
+        } else {
+          // It's a parent category
+          setActiveParentId(category.id);
+          setActiveSubcategoryId(null);
+        }
+      }
+    }
+  }, [initialCategory, rawCategories]);
 
   // Map Supabase data to local types
   const products = rawProducts.map(mapProduct);
 
-  // Separate categories into seedlings vs non-seedlings
-  const { seedlingCategories, merchandiseCategory, suppliesCategory } = useMemo(() => {
-    const seedling: any[] = [];
-    let merchandise: any = null;
-    let supplies: any = null;
+  // Separate categories into parent categories and get children helper
+  const { parentCategories, getChildCategories, getCategoryById } = useMemo(() => {
+    const categories = rawCategories as Category[];
 
-    rawCategories.forEach((cat: any) => {
-      const catNameLower = cat.name.toLowerCase();
-      if (catNameLower === 'merchandise') {
-        merchandise = cat;
-      } else if (catNameLower === 'supplies') {
-        supplies = cat;
-      } else {
-        seedling.push(cat);
-      }
-    });
+    // Parent categories have no parent_id
+    const parents = categories.filter(c => !c.parent_id);
+
+    // Helper to get children for a parent
+    const getChildren = (parentId: string): Category[] => {
+      return categories.filter(c => c.parent_id === parentId);
+    };
+
+    // Helper to get category by id
+    const getById = (id: string): Category | undefined => {
+      return categories.find(c => c.id === id);
+    };
 
     return {
-      seedlingCategories: seedling,
-      merchandiseCategory: merchandise,
-      suppliesCategory: supplies
+      parentCategories: parents,
+      getChildCategories: getChildren,
+      getCategoryById: getById
     };
   }, [rawCategories]);
 
-  // Build category filter options
-  const categoryOptions = useMemo(() => {
-    const options = ['All'];
+  // Get subcategories for the currently active parent
+  const activeSubcategories = useMemo(() => {
+    if (!activeParentId) return [];
+    return getChildCategories(activeParentId);
+  }, [activeParentId, getChildCategories]);
 
-    // Add seedling categories
-    seedlingCategories.forEach((cat: any) => {
-      options.push(cat.name);
-    });
-
-    // Add divider categories
-    if (merchandiseCategory) options.push(merchandiseCategory.name);
-    if (suppliesCategory) options.push(suppliesCategory.name);
-
-    return options;
-  }, [seedlingCategories, merchandiseCategory, suppliesCategory]);
-
-  // Filter products based on search and category
+  // Filter products based on search and category hierarchy
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+      // Search filter
       const matchesSearch = searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [products, selectedCategory, searchQuery]);
+      if (!matchesSearch) return false;
 
-  // Group products by section
-  const { seedlingProducts, merchandiseProducts, suppliesProducts } = useMemo(() => {
-    const seedlings: Product[] = [];
-    const merchandise: Product[] = [];
-    const supplies: Product[] = [];
+      // If no parent selected, show all
+      if (!activeParentId) return true;
 
-    filteredProducts.forEach(product => {
-      const catNameLower = product.category.toLowerCase();
-      if (catNameLower === 'merchandise') {
-        merchandise.push(product);
-      } else if (catNameLower === 'supplies') {
-        supplies.push(product);
-      } else {
-        seedlings.push(product);
+      // Find the product's category
+      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
+      const productCategoryId = rawProduct?.category?.id;
+      const productParentId = rawProduct?.category?.parent_id;
+
+      // If subcategory selected, only show products in that subcategory
+      if (activeSubcategoryId) {
+        return productCategoryId === activeSubcategoryId;
       }
+
+      // Show products in the parent category itself OR any of its subcategories
+      const subcategoryIds = getChildCategories(activeParentId).map(c => c.id);
+      return productCategoryId === activeParentId || subcategoryIds.includes(productCategoryId) || productParentId === activeParentId;
     });
+  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories]);
 
-    return {
-      seedlingProducts: seedlings,
-      merchandiseProducts: merchandise,
-      suppliesProducts: supplies
-    };
-  }, [filteredProducts]);
-
-  // Group seedling products by category
-  const seedlingsByCategory = useMemo(() => {
+  // Group products by parent category for the "All Products" view
+  const productsByParentCategory = useMemo(() => {
     const grouped: Record<string, Product[]> = {};
 
-    seedlingProducts.forEach(product => {
-      if (!grouped[product.category]) {
-        grouped[product.category] = [];
+    filteredProducts.forEach(product => {
+      const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
+      const productCategoryId = rawProduct?.category?.id;
+      const productParentId = rawProduct?.category?.parent_id;
+
+      // Determine which parent this product belongs to
+      let parentId = productParentId || productCategoryId;
+
+      if (!grouped[parentId]) {
+        grouped[parentId] = [];
       }
-      grouped[product.category].push(product);
+      grouped[parentId].push(product);
     });
 
-    // Sort by category order from seedlingCategories
-    const orderedCategories = seedlingCategories.map((c: any) => c.name);
+    return grouped;
+  }, [filteredProducts, rawProducts]);
+
+  // Group products by subcategory when viewing a parent category
+  const productsBySubcategory = useMemo(() => {
+    if (!activeParentId) return {};
+
+    const grouped: Record<string, Product[]> = {};
+    const subcategories = getChildCategories(activeParentId);
+
+    filteredProducts.forEach(product => {
+      const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
+      const productCategoryId = rawProduct?.category?.id;
+
+      // Find the subcategory name
+      const subcat = subcategories.find(c => c.id === productCategoryId);
+      const categoryName = subcat?.name || rawProduct?.category?.name || 'Other';
+
+      if (!grouped[categoryName]) {
+        grouped[categoryName] = [];
+      }
+      grouped[categoryName].push(product);
+    });
+
+    // Sort by subcategory order
+    const orderedCategories = subcategories.map(c => c.name);
     const sortedGrouped: Record<string, Product[]> = {};
 
     orderedCategories.forEach((catName: string) => {
@@ -309,7 +348,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       }
     });
 
-    // Add any remaining categories not in seedlingCategories
+    // Add any remaining
     Object.keys(grouped).forEach(catName => {
       if (!sortedGrouped[catName]) {
         sortedGrouped[catName] = grouped[catName];
@@ -317,13 +356,13 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     });
 
     return sortedGrouped;
-  }, [seedlingProducts, seedlingCategories]);
+  }, [filteredProducts, rawProducts, activeParentId, getChildCategories]);
 
   const loading = productsLoading || categoriesLoading;
   const error = productsError;
 
-  // Determine if we should show sectioned view (when viewing "All" or searching)
-  const showSectionedView = selectedCategory === 'All';
+  // Determine if we should show sectioned view (when viewing "All" with no search)
+  const showSectionedView = !activeParentId && !searchQuery;
 
   return (
     <div className="min-h-screen pt-40 pb-20 bg-white">
@@ -343,92 +382,78 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           </p>
         </div>
 
-        {/* Section Tabs (for All view) */}
-        {showSectionedView && !searchQuery && (
+        {/* Main Category Tabs - ALWAYS visible */}
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+          <button
+            onClick={() => {
+              setActiveParentId(null);
+              setActiveSubcategoryId(null);
+            }}
+            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
+              !activeParentId
+                ? 'bg-gray-900 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            All Products
+          </button>
+          {parentCategories.map((cat: Category) => {
+            const productCount = productsByParentCategory[cat.id]?.length || 0;
+            const isActive = activeParentId === cat.id;
+            // Use different colors for different parent categories
+            const catNameLower = cat.name.toLowerCase();
+            const colorClasses = catNameLower === 'merchandise'
+              ? isActive ? 'bg-purple-600 text-white shadow-lg shadow-purple-100' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+              : catNameLower === 'supplies'
+              ? isActive ? 'bg-amber-600 text-white shadow-lg shadow-amber-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+              : isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100';
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveParentId(cat.id);
+                  setActiveSubcategoryId(null);
+                }}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${colorClasses}`}
+              >
+                {cat.name} {productCount > 0 && `(${productCount})`}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Subcategory Chips - Only show when parent category is selected AND has children */}
+        {activeParentId && activeSubcategories.length > 0 && (
           <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
             <button
-              onClick={() => setActiveSection('all')}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                activeSection === 'all'
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              onClick={() => setActiveSubcategoryId(null)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap border ${
+                !activeSubcategoryId
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
               }`}
             >
-              All Products
+              All
             </button>
-            <button
-              onClick={() => setActiveSection('seedlings')}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                activeSection === 'seedlings'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-              }`}
-            >
-              Seedlings ({seedlingProducts.length})
-            </button>
-            {merchandiseProducts.length > 0 && (
+            {activeSubcategories.map((subcat: Category) => (
               <button
-                onClick={() => setActiveSection('merchandise')}
-                className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                  activeSection === 'merchandise'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                key={subcat.id}
+                onClick={() => setActiveSubcategoryId(subcat.id)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap border ${
+                  activeSubcategoryId === subcat.id
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
                 }`}
               >
-                Merchandise ({merchandiseProducts.length})
+                {subcat.name}
               </button>
-            )}
-            {suppliesProducts.length > 0 && (
-              <button
-                onClick={() => setActiveSection('supplies')}
-                className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-                  activeSection === 'supplies'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                }`}
-              >
-                Supplies ({suppliesProducts.length})
-              </button>
-            )}
+            ))}
           </div>
         )}
 
-        {/* Filters & Search */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 w-full md:w-auto scrollbar-hide">
-            {categoryOptions.map((cat, index) => {
-              // Add visual separator before Merchandise/Supplies
-              const isNonSeedling = NON_SEEDLING_CATEGORIES.includes(cat);
-              const prevCat = index > 0 ? categoryOptions[index - 1] : null;
-              const showSeparator = isNonSeedling && prevCat && !NON_SEEDLING_CATEGORIES.includes(prevCat);
-
-              return (
-                <React.Fragment key={cat}>
-                  {showSeparator && (
-                    <div className="w-px h-6 bg-gray-200 mx-2" />
-                  )}
-                  <button
-                    onClick={() => {
-                      setSelectedCategory(cat);
-                      if (cat !== 'All') {
-                        setActiveSection('all'); // Reset section view when selecting specific category
-                      }
-                    }}
-                    className={`px-6 py-2.5 rounded-2xl text-sm font-bold transition-all whitespace-nowrap border ${
-                      selectedCategory === cat
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100'
-                      : isNonSeedling
-                        ? 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300'
-                        : 'bg-gray-50 text-gray-500 border-gray-100 hover:border-emerald-200'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </div>
-
+        {/* Search */}
+        <div className="flex justify-end mb-8">
           <div className="relative w-full md:w-80 group">
             <input
               type="text"
@@ -465,61 +490,86 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">Failed to load products</h3>
             <p className="text-red-500">{error}</p>
           </div>
-        ) : showSectionedView && !searchQuery ? (
-          // Sectioned View (All Products)
+        ) : showSectionedView ? (
+          // Sectioned View (All Products - no parent selected)
           <div>
-            {/* Show All Sections or Specific Section based on activeSection */}
-            {(activeSection === 'all' || activeSection === 'seedlings') && seedlingProducts.length > 0 && (
-              <div className="mb-16">
-                <div className="mb-8">
-                  <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-                    Seedlings
-                  </h2>
-                  <p className="text-gray-500 mt-1">
-                    Premium, climate-controlled seedlings fresh from our nursery
-                  </p>
-                </div>
+            {parentCategories.map((parentCat: Category) => {
+              const parentProducts = productsByParentCategory[parentCat.id] || [];
+              if (parentProducts.length === 0) return null;
 
-                {/* Seedling Categories */}
-                {Object.entries(seedlingsByCategory).map(([categoryName, categoryProducts]) => (
-                  <CategorySubsection
-                    key={categoryName}
-                    categoryName={categoryName}
-                    products={categoryProducts}
-                    rawProducts={rawProducts}
-                    onAddToCart={onAddToCart}
-                    onProductClick={setSelectedProduct}
-                  />
-                ))}
-              </div>
-            )}
+              const catNameLower = parentCat.name.toLowerCase();
+              const accentColor = catNameLower === 'merchandise' ? 'purple' : catNameLower === 'supplies' ? 'amber' : 'emerald';
+              const hasSubcategories = getChildCategories(parentCat.id).length > 0;
 
-            {(activeSection === 'all' || activeSection === 'merchandise') && merchandiseProducts.length > 0 && (
-              <ProductSection
-                title="Merchandise"
-                subtitle="Show your ATL Urban Farms pride"
-                products={merchandiseProducts}
+              // For parent categories with subcategories, show grouped by subcategory
+              if (hasSubcategories) {
+                // Group products by subcategory for this parent
+                const groupedBySubcat: Record<string, Product[]> = {};
+                parentProducts.forEach(product => {
+                  const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
+                  const subcatName = rawProduct?.category?.name || 'Other';
+                  if (!groupedBySubcat[subcatName]) {
+                    groupedBySubcat[subcatName] = [];
+                  }
+                  groupedBySubcat[subcatName].push(product);
+                });
+
+                return (
+                  <div key={parentCat.id} className="mb-16">
+                    <div className="mb-8">
+                      <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
+                        <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
+                        {parentCat.name}
+                      </h2>
+                    </div>
+
+                    {Object.entries(groupedBySubcat).map(([subcatName, subcatProducts]) => (
+                      <CategorySubsection
+                        key={subcatName}
+                        categoryName={subcatName}
+                        products={subcatProducts}
+                        rawProducts={rawProducts}
+                        onAddToCart={onAddToCart}
+                        onProductClick={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+                );
+              }
+
+              // For parent categories without subcategories, show as a section
+              return (
+                <ProductSection
+                  key={parentCat.id}
+                  title={parentCat.name}
+                  products={parentProducts}
+                  rawProducts={rawProducts}
+                  onAddToCart={onAddToCart}
+                  onProductClick={setSelectedProduct}
+                  showViewAll
+                  accentColor={accentColor}
+                />
+              );
+            })}
+          </div>
+        ) : activeParentId && !activeSubcategoryId && activeSubcategories.length > 0 ? (
+          // Parent category with subcategories - show grouped by subcategory
+          <div>
+            <div className="mb-8">
+              <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900">
+                {getCategoryById(activeParentId)?.name || 'Products'}
+              </h2>
+            </div>
+            {Object.entries(productsBySubcategory).map(([subcatName, subcatProducts]) => (
+              <CategorySubsection
+                key={subcatName}
+                categoryName={subcatName}
+                products={subcatProducts}
                 rawProducts={rawProducts}
                 onAddToCart={onAddToCart}
                 onProductClick={setSelectedProduct}
-                showViewAll
-                accentColor="purple"
               />
-            )}
-
-            {(activeSection === 'all' || activeSection === 'supplies') && suppliesProducts.length > 0 && (
-              <ProductSection
-                title="Supplies"
-                subtitle="Everything you need to help your plants thrive"
-                products={suppliesProducts}
-                rawProducts={rawProducts}
-                onAddToCart={onAddToCart}
-                onProductClick={setSelectedProduct}
-                showViewAll
-                accentColor="amber"
-              />
-            )}
+            ))}
           </div>
         ) : (
           // Filtered View (Specific Category or Search Results)
@@ -565,7 +615,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-500">Try adjusting your filters or searching for something else.</p>
             <button
-              onClick={() => {setSelectedCategory('All'); setSearchQuery(''); setActiveSection('all');}}
+              onClick={() => {setActiveParentId(null); setActiveSubcategoryId(null); setSearchQuery('');}}
               className="mt-6 text-emerald-600 font-bold hover:underline"
             >
               Clear all filters

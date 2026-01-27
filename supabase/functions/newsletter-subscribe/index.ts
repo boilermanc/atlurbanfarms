@@ -56,18 +56,22 @@ serve(async (req) => {
       .maybeSingle();
 
     const now = new Date().toISOString();
-    const subscriberRecord = {
+    const subscriberRecord: Record<string, unknown> = {
       email: rawEmail,
       first_name: payload.first_name?.trim() || null,
       last_name: payload.last_name?.trim() || null,
       customer_id: payload.customer_id || null,
       source: payload.source || (payload.customer_id ? 'account_profile' : 'footer'),
       status,
-      tags: payload.tags || null,
       subscribed_at: status === 'active' ? (existing?.subscribed_at ?? now) : existing?.subscribed_at ?? now,
       unsubscribed_at: status === 'active' ? null : now,
       updated_at: now,
     };
+
+    // Only include tags if provided (avoids schema cache issues)
+    if (payload.tags && payload.tags.length > 0) {
+      subscriberRecord.tags = payload.tags;
+    }
 
     const { data, error } = await supabaseAdmin
       .from('newsletter_subscribers')

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
+import ErrorBoundary from '../components/ErrorBoundary';
 import {
   useOrder,
   useUpdateOrderStatus,
@@ -81,9 +82,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [refundReason, setRefundReason] = useState('');
   const [refundError, setRefundError] = useState<string | null>(null);
 
-  // Format date
-  const formatDate = (dateString: string, includeTime = false) => {
+  // Format date - handles null/undefined/invalid dates
+  const formatDate = (dateString: string | null | undefined, includeTime = false) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
     if (includeTime) {
       return date.toLocaleString('en-US', {
         month: 'short',
@@ -101,8 +104,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     });
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
+  // Format currency - handles null/undefined/NaN amounts
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '$0.00';
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -535,6 +541,26 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           </button>
         </div>
 
+        <ErrorBoundary
+          fallback={
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <h3 className="text-red-800 font-semibold">Unable to display order details</h3>
+                  <p className="text-red-600 text-sm mt-1">
+                    This order may have corrupted or missing data. Please check the database for issues with order #{order.order_number}.
+                  </p>
+                  <p className="text-red-500 text-xs mt-2">
+                    Common issues: Missing pickup location data, invalid JSON in address fields, or deleted related records.
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
+        >
         {/* Order Header */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -623,43 +649,56 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 </div>
               </div>
               <div className="p-6 space-y-4">
-                <div>
-                  <p className="font-medium text-slate-800">{order.pickup_reservation.location.name}</p>
-                  <address className="text-slate-600 not-italic leading-relaxed mt-1">
-                    <p>{order.pickup_reservation.location.address_line1}</p>
-                    {order.pickup_reservation.location.address_line2 && (
-                      <p>{order.pickup_reservation.location.address_line2}</p>
+                {order.pickup_reservation.location ? (
+                  <>
+                    <div>
+                      <p className="font-medium text-slate-800">{order.pickup_reservation.location.name}</p>
+                      <address className="text-slate-600 not-italic leading-relaxed mt-1">
+                        <p>{order.pickup_reservation.location.address_line1}</p>
+                        {order.pickup_reservation.location.address_line2 && (
+                          <p>{order.pickup_reservation.location.address_line2}</p>
+                        )}
+                        <p>
+                          {order.pickup_reservation.location.city}, {order.pickup_reservation.location.state} {order.pickup_reservation.location.postal_code}
+                        </p>
+                      </address>
+                      {order.pickup_reservation.location.phone && (
+                        <p className="text-slate-500 text-sm mt-2">{order.pickup_reservation.location.phone}</p>
+                      )}
+                    </div>
+
+                    {order.pickup_reservation.location.instructions && (
+                      <div className="border-t border-slate-200 pt-4">
+                        <p className="text-slate-400 text-sm">Pickup Instructions</p>
+                        <p className="text-slate-600 text-sm mt-1">{order.pickup_reservation.location.instructions}</p>
+                      </div>
                     )}
-                    <p>
-                      {order.pickup_reservation.location.city}, {order.pickup_reservation.location.state} {order.pickup_reservation.location.postal_code}
+                  </>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-amber-700 font-medium">Pickup Location Unavailable</p>
+                    <p className="text-amber-600 text-sm mt-1">
+                      The pickup location data is missing or has been deleted. Please contact the customer to arrange an alternative.
                     </p>
-                  </address>
-                  {order.pickup_reservation.location.phone && (
-                    <p className="text-slate-500 text-sm mt-2">{order.pickup_reservation.location.phone}</p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div className="border-t border-slate-200 pt-4">
                   <p className="text-slate-400 text-sm">Pickup Date & Time</p>
                   <p className="text-slate-800 font-medium">
-                    {new Date(order.pickup_reservation.pickup_date + 'T00:00:00').toLocaleDateString('en-US', {
+                    {order.pickup_reservation.pickup_date ? new Date(order.pickup_reservation.pickup_date + 'T00:00:00').toLocaleDateString('en-US', {
                       weekday: 'long',
                       month: 'long',
                       day: 'numeric',
                       year: 'numeric'
-                    })}
+                    }) : 'Date not specified'}
                   </p>
                   <p className="text-slate-600">
-                    {formatPickupTime(order.pickup_reservation.pickup_time_start)} - {formatPickupTime(order.pickup_reservation.pickup_time_end)}
+                    {order.pickup_reservation.pickup_time_start && order.pickup_reservation.pickup_time_end
+                      ? `${formatPickupTime(order.pickup_reservation.pickup_time_start)} - ${formatPickupTime(order.pickup_reservation.pickup_time_end)}`
+                      : 'Time not specified'}
                   </p>
                 </div>
-
-                {order.pickup_reservation.location.instructions && (
-                  <div className="border-t border-slate-200 pt-4">
-                    <p className="text-slate-400 text-sm">Pickup Instructions</p>
-                    <p className="text-slate-600 text-sm mt-1">{order.pickup_reservation.location.instructions}</p>
-                  </div>
-                )}
               </div>
             </div>
           ) : (
@@ -672,11 +711,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   <p className="text-slate-400 text-sm mb-2">Shipping Address</p>
                   {order.shipping_address ? (
                     <address className="text-slate-600 not-italic leading-relaxed">
-                      <p className="font-medium text-slate-800">{order.shipping_address.name}</p>
-                      <p>{order.shipping_address.street}</p>
+                      <p className="font-medium text-slate-800">{order.shipping_address.name || 'Name not provided'}</p>
+                      <p>{order.shipping_address.street || 'Street not provided'}</p>
                       {order.shipping_address.street2 && <p>{order.shipping_address.street2}</p>}
                       <p>
-                        {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.zip}
+                        {order.shipping_address.city || 'City'}, {order.shipping_address.state || 'State'} {order.shipping_address.zip || 'ZIP'}
                       </p>
                     </address>
                   ) : (
@@ -701,36 +740,42 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
             <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Items</h2>
           </div>
           <div className="divide-y divide-slate-100">
-            {order.items?.map((item) => (
-              <div key={item.id} className="flex items-center gap-4 p-4">
-                {item.product_image ? (
-                  <img
-                    src={item.product_image}
-                    alt={item.product_name}
-                    className="w-16 h-16 object-cover rounded-lg bg-slate-100"
-                  />
-                ) : (
-                  <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+            {order.items && order.items.length > 0 ? (
+              order.items.map((item) => (
+                <div key={item.id || Math.random()} className="flex items-center gap-4 p-4">
+                  {item.product_image ? (
+                    <img
+                      src={item.product_image}
+                      alt={item.product_name || 'Product'}
+                      className="w-16 h-16 object-cover rounded-lg bg-slate-100"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-slate-800 font-medium truncate">
+                      {item.product_name || 'Unknown Product'}
+                    </h3>
+                    <p className="text-slate-500 text-sm">
+                      {formatCurrency(item.unit_price)} x {item.quantity ?? 0}
+                    </p>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-slate-800 font-medium truncate">
-                    {item.product_name}
-                  </h3>
-                  <p className="text-slate-500 text-sm">
-                    {formatCurrency(item.unit_price)} x {item.quantity}
-                  </p>
+                  <div className="text-right">
+                    <p className="text-slate-800 font-medium">
+                      {formatCurrency(item.line_total)}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-slate-800 font-medium">
-                    {formatCurrency(item.line_total)}
-                  </p>
-                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-slate-400">
+                No items found for this order
               </div>
-            ))}
+            )}
           </div>
           <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
             <div className="flex justify-between text-slate-600">
@@ -1498,6 +1543,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
             </motion.div>
           )}
         </AnimatePresence>
+        </ErrorBoundary>
       </div>
     </AdminPageWrapper>
   );
