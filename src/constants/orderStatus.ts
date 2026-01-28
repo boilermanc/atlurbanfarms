@@ -23,7 +23,8 @@ export const ORDER_STATUS_CONFIG: Record<
   failed: { label: 'Failed', color: 'bg-slate-600' },
 };
 
-export const getOrderStatusLabel = (status: string) => {
+export const getOrderStatusLabel = (status: string | null | undefined) => {
+  if (!status) return 'Unknown';
   const key = status as OrderStatus;
   return ORDER_STATUS_CONFIG[key]?.label || status.replace(/_/g, ' ');
 };

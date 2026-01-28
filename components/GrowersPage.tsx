@@ -91,7 +91,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen pt-40 pb-20 bg-white selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen pt-28 pb-20 bg-white selection:bg-emerald-100 selection:text-emerald-900">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 md:px-12 mb-24">
         <motion.div

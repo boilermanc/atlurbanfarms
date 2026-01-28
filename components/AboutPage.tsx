@@ -96,6 +96,8 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
     if (window.location.hash === '#growers') {
       setTimeout(() => {
         document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
+        // Clean up hash after scrolling
+        window.history.replaceState(null, '', window.location.pathname);
       }, 100);
     } else {
       window.scrollTo(0, 0);
@@ -103,7 +105,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
   }, []);
 
   return (
-    <div className="min-h-screen pt-40 pb-20 bg-white selection:bg-purple-100 selection:text-purple-900">
+    <div className="min-h-screen pt-28 pb-20 bg-white selection:bg-purple-100 selection:text-purple-900">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 md:px-12 mb-32">
         <motion.div 

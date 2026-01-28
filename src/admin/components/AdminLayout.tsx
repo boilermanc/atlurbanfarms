@@ -669,7 +669,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'categories':
         return <CategoriesPage />;
       case 'inventory':
-        return <InventoryPage onNavigateToBatchEdit={handleEditBatch} />;
+        return <InventoryPage onNavigateToBatchEdit={handleEditBatch} onEditProduct={handleEditProduct} />;
       case 'batch-edit':
         return <BatchEditPage batchId={selectedBatchId || undefined} onNavigateBack={() => handleNavigate('inventory')} />;
       case 'customers':

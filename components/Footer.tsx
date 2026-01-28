@@ -5,7 +5,7 @@ import { SparkleIcon } from '../constants';
 import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
 
-type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms';
+type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar';
 
 interface FooterProps {
   onNavigate?: (view: FooterViewType, category?: string) => void;
@@ -22,6 +22,7 @@ interface BusinessSettings {
 }
 
 interface BrandingSettings {
+  logo_url: string;
   social_facebook: string;
   social_instagram: string;
   social_twitter: string;
@@ -81,6 +82,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           });
 
           setBrandingSettings({
+            logo_url: brandingData.logo_url || '',
             social_facebook: brandingData.social_facebook || '',
             social_instagram: brandingData.social_instagram || '',
             social_twitter: brandingData.social_twitter || '',
@@ -148,12 +150,22 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <div className="lg:col-span-5">
             <div className="flex items-center gap-3 mb-8">
               <button onClick={(e) => handleNav(e, 'home')} className="flex items-center gap-3 group text-left">
-                <div className="w-12 h-12 brand-bg rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl group-hover:rotate-6 transition-transform">
-                  A
-                </div>
-                <span className="font-heading text-2xl font-black tracking-tight">
-                  ATL <span className="brand-text">Urban Farms</span>
-                </span>
+                {brandingSettings?.logo_url ? (
+                  <img
+                    src={brandingSettings.logo_url}
+                    alt="ATL Urban Farms"
+                    className="h-14 w-auto object-contain group-hover:scale-105 transition-transform"
+                  />
+                ) : (
+                  <>
+                    <div className="w-12 h-12 brand-bg rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl group-hover:rotate-6 transition-transform">
+                      A
+                    </div>
+                    <span className="font-heading text-2xl font-black tracking-tight">
+                      ATL <span className="brand-text">Urban Farms</span>
+                    </span>
+                  </>
+                )}
               </button>
             </div>
             <p className="text-gray-400 text-lg leading-relaxed max-w-md mb-10">
@@ -329,6 +341,28 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   <br />
                   {businessSettings?.ship_from_city || 'Atlanta'}, {businessSettings?.ship_from_state || 'GA'} {businessSettings?.ship_from_zip || '30318'}
                 </p>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                    [
+                      businessSettings?.ship_from_address_line1 || '123 High-Tech Way',
+                      businessSettings?.ship_from_address_line2,
+                      `${businessSettings?.ship_from_city || 'Atlanta'}, ${businessSettings?.ship_from_state || 'GA'} ${businessSettings?.ship_from_zip || '30318'}`,
+                    ].filter(Boolean).join(', ')
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors mt-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Get Directions
+                </a>
+                <button
+                  onClick={(e) => handleNav(e, 'calendar')}
+                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors mt-2 ml-4"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+                  View Open Hours
+                </button>
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Grow Support</p>

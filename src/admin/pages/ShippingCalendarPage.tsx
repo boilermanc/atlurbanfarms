@@ -4,9 +4,27 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import BlackoutDateModal from '../components/BlackoutDateModal';
 import OverrideDateModal from '../components/OverrideDateModal';
-import { Calendar, Truck, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Calendar, Truck, Plus, Pencil, Trash2, X, Repeat } from 'lucide-react';
 
 type TabType = 'events' | 'shipping';
+
+interface RecurrenceRule {
+  type: 'none' | 'daily' | 'weekly' | 'monthly';
+  interval: number;
+  daysOfWeek: number[]; // 0=Sun, 6=Sat
+  endType: 'never' | 'after' | 'on_date';
+  endAfterOccurrences: number;
+  endDate: string | null;
+}
+
+const DEFAULT_RECURRENCE: RecurrenceRule = {
+  type: 'none',
+  interval: 1,
+  daysOfWeek: [],
+  endType: 'never',
+  endAfterOccurrences: 10,
+  endDate: null,
+};
 
 interface Event {
   id: string;
@@ -20,6 +38,8 @@ interface Event {
   location: string | null;
   max_attendees: number | null;
   is_active: boolean;
+  recurrence_rule: RecurrenceRule | null;
+  parent_event_id: string | null;
 }
 
 interface ShippingConfig {
@@ -83,6 +103,7 @@ const ShippingCalendarPage: React.FC = () => {
     is_active: true,
   });
   const [eventSaving, setEventSaving] = useState(false);
+  const [recurrence, setRecurrence] = useState<RecurrenceRule>({ ...DEFAULT_RECURRENCE });
 
   // Shipping state
   const [config, setConfig] = useState<ShippingConfig>({
@@ -139,6 +160,7 @@ const ShippingCalendarPage: React.FC = () => {
         max_attendees: event.max_attendees?.toString() || '',
         is_active: event.is_active,
       });
+      setRecurrence(event.recurrence_rule || { ...DEFAULT_RECURRENCE });
     } else {
       setEditingEvent(null);
       setEventForm({
@@ -153,6 +175,7 @@ const ShippingCalendarPage: React.FC = () => {
         max_attendees: '',
         is_active: true,
       });
+      setRecurrence({ ...DEFAULT_RECURRENCE });
     }
     setEventModalOpen(true);
   };
@@ -160,6 +183,50 @@ const ShippingCalendarPage: React.FC = () => {
   const closeEventModal = () => {
     setEventModalOpen(false);
     setEditingEvent(null);
+  };
+
+  const generateRecurringDates = (startDate: string, rule: RecurrenceRule): string[] => {
+    const dates: string[] = [];
+    const start = new Date(startDate + 'T00:00:00');
+    const maxDate = new Date(start);
+    maxDate.setMonth(maxDate.getMonth() + 12); // Max 1 year out
+
+    let endDate: Date | null = null;
+    let maxOccurrences = 365;
+
+    if (rule.endType === 'on_date' && rule.endDate) {
+      endDate = new Date(rule.endDate + 'T00:00:00');
+    } else if (rule.endType === 'after') {
+      maxOccurrences = rule.endAfterOccurrences;
+    }
+
+    const finalEnd = endDate && endDate < maxDate ? endDate : maxDate;
+    const current = new Date(start);
+
+    while (current <= finalEnd && dates.length < maxOccurrences) {
+      const dateStr = current.toISOString().split('T')[0];
+
+      if (rule.type === 'weekly') {
+        if (rule.daysOfWeek.length === 0 || rule.daysOfWeek.includes(current.getDay())) {
+          dates.push(dateStr);
+        }
+        // Advance by 1 day; skip weeks based on interval
+        const prevWeek = Math.floor((current.getTime() - start.getTime()) / (7 * 86400000));
+        current.setDate(current.getDate() + 1);
+        const newWeek = Math.floor((current.getTime() - start.getTime()) / (7 * 86400000));
+        if (newWeek > prevWeek && (newWeek % rule.interval) !== 0) {
+          current.setDate(current.getDate() + (rule.interval - 1) * 7);
+        }
+      } else if (rule.type === 'daily') {
+        dates.push(dateStr);
+        current.setDate(current.getDate() + rule.interval);
+      } else if (rule.type === 'monthly') {
+        dates.push(dateStr);
+        current.setMonth(current.getMonth() + rule.interval);
+      }
+    }
+
+    return dates;
   };
 
   const handleEventSave = async () => {
@@ -178,6 +245,7 @@ const ShippingCalendarPage: React.FC = () => {
         location: eventForm.location || null,
         max_attendees: eventForm.max_attendees ? parseInt(eventForm.max_attendees) : null,
         is_active: eventForm.is_active,
+        recurrence_rule: recurrence.type !== 'none' ? recurrence : null,
       };
 
       if (editingEvent) {
@@ -186,6 +254,30 @@ const ShippingCalendarPage: React.FC = () => {
           .update(eventData)
           .eq('id', editingEvent.id);
         if (error) throw error;
+      } else if (recurrence.type !== 'none') {
+        // Create the parent event first
+        const { data: parent, error: parentError } = await supabase
+          .from('events')
+          .insert(eventData)
+          .select('id')
+          .single();
+        if (parentError) throw parentError;
+
+        // Generate recurring instances (skip the first date since parent covers it)
+        const dates = generateRecurringDates(eventForm.start_date, recurrence);
+        const childDates = dates.slice(1); // Skip first — that's the parent
+
+        if (childDates.length > 0) {
+          const children = childDates.map(date => ({
+            ...eventData,
+            start_date: date,
+            end_date: null,
+            parent_event_id: parent.id,
+            recurrence_rule: null, // Only parent stores the rule
+          }));
+          const { error: childError } = await supabase.from('events').insert(children);
+          if (childError) throw childError;
+        }
       } else {
         const { error } = await supabase
           .from('events')
@@ -503,7 +595,12 @@ const ShippingCalendarPage: React.FC = () => {
                   <tr key={event.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="py-3 px-4">
                       <div>
-                        <p className="font-medium text-slate-800">{event.title}</p>
+                        <p className="font-medium text-slate-800 flex items-center gap-1.5">
+                          {event.title}
+                          {(event.recurrence_rule || event.parent_event_id) && (
+                            <Repeat size={14} className="text-emerald-500" title="Recurring event" />
+                          )}
+                        </p>
                         {event.location && (
                           <p className="text-sm text-slate-500">{event.location}</p>
                         )}
@@ -1017,6 +1114,114 @@ const ShippingCalendarPage: React.FC = () => {
                       Active (visible on public calendar)
                     </label>
                   </div>
+
+                  {/* Recurrence Options */}
+                  {!editingEvent && (
+                    <div className="border-t border-slate-200 pt-4 space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Repeat size={16} />
+                        Recurrence
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Repeat</label>
+                        <select
+                          value={recurrence.type}
+                          onChange={e => setRecurrence(prev => ({ ...prev, type: e.target.value as RecurrenceRule['type'] }))}
+                          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        >
+                          <option value="none">Does not repeat</option>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+
+                      {recurrence.type !== 'none' && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                              Every {recurrence.type === 'daily' ? 'X days' : recurrence.type === 'weekly' ? 'X weeks' : 'X months'}
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="12"
+                              value={recurrence.interval}
+                              onChange={e => setRecurrence(prev => ({ ...prev, interval: parseInt(e.target.value) || 1 }))}
+                              className="w-24 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            />
+                          </div>
+
+                          {recurrence.type === 'weekly' && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">On days</label>
+                              <div className="flex flex-wrap gap-2">
+                                {DAYS_OF_WEEK.map((day, idx) => (
+                                  <button
+                                    key={day}
+                                    type="button"
+                                    onClick={() => setRecurrence(prev => ({
+                                      ...prev,
+                                      daysOfWeek: prev.daysOfWeek.includes(idx)
+                                        ? prev.daysOfWeek.filter(d => d !== idx)
+                                        : [...prev.daysOfWeek, idx].sort((a, b) => a - b),
+                                    }))}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                                      recurrence.daysOfWeek.includes(idx)
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {day}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Ends</label>
+                            <select
+                              value={recurrence.endType}
+                              onChange={e => setRecurrence(prev => ({ ...prev, endType: e.target.value as RecurrenceRule['endType'] }))}
+                              className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            >
+                              <option value="never">Never (up to 1 year)</option>
+                              <option value="after">After X occurrences</option>
+                              <option value="on_date">On date</option>
+                            </select>
+                          </div>
+
+                          {recurrence.endType === 'after' && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Number of occurrences</label>
+                              <input
+                                type="number"
+                                min="2"
+                                max="365"
+                                value={recurrence.endAfterOccurrences}
+                                onChange={e => setRecurrence(prev => ({ ...prev, endAfterOccurrences: parseInt(e.target.value) || 10 }))}
+                                className="w-24 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              />
+                            </div>
+                          )}
+
+                          {recurrence.endType === 'on_date' && (
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">End date</label>
+                              <input
+                                type="date"
+                                value={recurrence.endDate || ''}
+                                onChange={e => setRecurrence(prev => ({ ...prev, endDate: e.target.value || null }))}
+                                className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-3 p-6 border-t border-slate-200">

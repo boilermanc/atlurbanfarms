@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { Plus, Search, Edit2, Trash2, Package, Image } from 'lucide-react';
@@ -41,44 +40,16 @@ interface ProductsPageProps {
 const ITEMS_PER_PAGE = 50;
 
 const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteModalProduct, setDeleteModalProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Read filters from URL params (with sensible defaults)
-  const searchQuery = searchParams.get('search') || '';
-  const categoryFilter = searchParams.get('category') || 'all';
-  const statusFilter = searchParams.get('status') || 'active';
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
-
-  // Helper to update URL params
-  const updateParam = useCallback((key: string, value: string, defaultValue: string) => {
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      if (value === defaultValue) {
-        newParams.delete(key);
-      } else {
-        newParams.set(key, value);
-      }
-      // Reset page when filters change (except when changing page itself)
-      if (key !== 'page') {
-        newParams.delete('page');
-      }
-      return newParams;
-    });
-  }, [setSearchParams]);
-
-  const setSearchQuery = useCallback((value: string) => updateParam('search', value, ''), [updateParam]);
-  const setCategoryFilter = useCallback((value: string) => updateParam('category', value, 'all'), [updateParam]);
-  const setStatusFilter = useCallback((value: string) => updateParam('status', value, 'active'), [updateParam]);
-  const setCurrentPage = useCallback((value: number | ((prev: number) => number)) => {
-    const newValue = typeof value === 'function' ? value(currentPage) : value;
-    updateParam('page', newValue.toString(), '1');
-  }, [updateParam, currentPage]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchProducts = useCallback(async () => {
     try {

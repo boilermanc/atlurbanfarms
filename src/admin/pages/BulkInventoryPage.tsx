@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -18,7 +17,11 @@ interface ProductInventory {
 }
 
 
-const BulkInventoryPage: React.FC = () => {
+interface BulkInventoryPageProps {
+  onEditProduct?: (productId: string) => void;
+}
+
+const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) => {
   const { adminUser } = useAdminAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -229,7 +232,7 @@ const BulkInventoryPage: React.FC = () => {
   };
 
   return (
-    <div className={`space-y-4 ${hasChanges() ? 'pb-28' : ''}`}>
+    <div className={`space-y-4 ${hasChanges() ? 'pb-36' : ''}`}>
         {/* Alerts */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
@@ -339,7 +342,7 @@ const BulkInventoryPage: React.FC = () => {
                     Regular Price
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Sale Price
+                    Compare at Price
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Current Inventory
@@ -379,12 +382,13 @@ const BulkInventoryPage: React.FC = () => {
                       >
                         <td className="px-6 py-4">
                           <div>
-                            <Link
-                              to={`/admin/products/${product.id}`}
-                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct?.(product.id)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left"
                             >
                               {product.name}
-                            </Link>
+                            </button>
                             {!product.is_active && (
                               <span className="text-xs text-slate-400 italic ml-2">Inactive</span>
                             )}

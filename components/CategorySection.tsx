@@ -84,18 +84,27 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
     c.name.toLowerCase() === 'seedlings' && !c.parent_id
   );
 
-  // Get only seedling subcategories
-  const seedlingCategories = dbCategories?.filter((c: any) =>
-    c.parent_id === seedlingsParent?.id
-  ) || [];
+  // Get seedling subcategories, or fall back to all subcategories (those with a parent),
+  // or finally all categories if no hierarchy exists yet
+  const seedlingCategories = (() => {
+    if (seedlingsParent) {
+      // Ideal case: show children of the "Seedlings" parent
+      return dbCategories?.filter((c: any) => c.parent_id === seedlingsParent.id) || [];
+    }
+    // Fallback: show categories that have a parent (i.e., subcategories)
+    const subcategories = dbCategories?.filter((c: any) => c.parent_id) || [];
+    if (subcategories.length > 0) return subcategories;
+    // Final fallback: show all active categories
+    return dbCategories || [];
+  })();
 
-  // Don't render section if no seedling subcategories
+  // Don't render section if no categories at all
   if (loading || seedlingCategories.length === 0) {
     return null;
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-white border-y border-gray-200">
+    <section className="py-24 px-4 md:px-12 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>

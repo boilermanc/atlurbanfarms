@@ -73,7 +73,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
   };
 
   return (
-    <section className="py-32 px-4 md:px-12 bg-gray-50 border-y border-gray-200">
+    <section className="py-32 px-4 md:px-12 bg-gray-50 border-b border-gray-200">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="flex items-end justify-between mb-16 px-2">
@@ -185,10 +185,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
               onClick={onAboutClick}
               className="px-10 py-5 bg-emerald-600 text-white rounded-[1.5rem] font-bold hover:bg-emerald-700 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-100 whitespace-nowrap"
             >
-              Learn Our Tech
-            </button>
-            <button className="px-10 py-5 bg-white text-gray-900 border-2 border-gray-100 rounded-[1.5rem] font-bold hover:border-emerald-600 transition-all whitespace-nowrap">
-              Events Calendar
+              Learn More
             </button>
           </div>
         </motion.div>

@@ -26,6 +26,14 @@ const EVENT_COLORS: Record<string, { bg: string; border: string; text: string; d
   shipping: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-500' },
 };
 
+interface BrandingSettings {
+  social_facebook: string;
+  social_instagram: string;
+  social_twitter: string;
+  social_youtube: string;
+  social_tiktok: string;
+}
+
 const EVENT_LABELS: Record<string, string> = {
   workshop: 'Workshop',
   open_hours: 'Open Hours',
@@ -35,16 +43,85 @@ const EVENT_LABELS: Record<string, string> = {
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+interface ShippingConfig {
+  shipping_days: number[]; // 0=Sun, 1=Mon, 2=Tue, etc.
+}
+
 const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
   const [events, setEvents] = useState<Event[]>([]);
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({ shipping_days: [] });
+  const [blackoutDates, setBlackoutDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [activeFilters, setActiveFilters] = useState<string[]>(['workshop', 'open_hours', 'farm_event', 'shipping']);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [brandingSettings, setBrandingSettings] = useState<BrandingSettings>({
+    social_facebook: '',
+    social_instagram: '',
+    social_twitter: '',
+    social_youtube: '',
+    social_tiktok: '',
+  });
 
   useEffect(() => {
     fetchEvents();
+    fetchBrandingSettings();
+    fetchShippingConfig();
   }, []);
+
+  const fetchShippingConfig = async () => {
+    try {
+      const { data: configData } = await supabase
+        .from('shipping_calendar_config')
+        .select('shipping_days')
+        .single();
+
+      if (configData) {
+        setShippingConfig({ shipping_days: configData.shipping_days || [] });
+      }
+    } catch {
+      // Table may not exist yet
+    }
+
+    try {
+      const { data: blackouts } = await supabase
+        .from('shipping_blackout_dates')
+        .select('blackout_date');
+
+      if (blackouts) {
+        setBlackoutDates(new Set(blackouts.map((b: { blackout_date: string }) => b.blackout_date)));
+      }
+    } catch {
+      // Table may not exist yet
+    }
+  };
+
+  const fetchBrandingSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('config_settings')
+        .select('key, value')
+        .eq('category', 'branding');
+
+      if (error) throw error;
+
+      if (data) {
+        const brandingData: Record<string, string> = {};
+        data.forEach((row: { key: string; value: string }) => {
+          brandingData[row.key] = row.value;
+        });
+        setBrandingSettings({
+          social_facebook: brandingData.social_facebook || '',
+          social_instagram: brandingData.social_instagram || '',
+          social_twitter: brandingData.social_twitter || '',
+          social_youtube: brandingData.social_youtube || '',
+          social_tiktok: brandingData.social_tiktok || '',
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching branding settings:', err);
+    }
+  };
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -88,9 +165,42 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
     return days;
   }, [currentMonth]);
 
+  // Generate synthetic shipping day events for the visible month
+  const shippingEvents = useMemo(() => {
+    if (shippingConfig.shipping_days.length === 0) return [];
+
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const result: Event[] = [];
+
+    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+      const dayOfWeek = d.getDay(); // 0=Sun
+      const dateStr = d.toISOString().split('T')[0];
+
+      if (shippingConfig.shipping_days.includes(dayOfWeek) && !blackoutDates.has(dateStr)) {
+        result.push({
+          id: `shipping-${dateStr}`,
+          title: 'Shipping Day',
+          description: 'Orders are shipped out today',
+          event_type: 'shipping',
+          start_date: dateStr,
+          end_date: null,
+          start_time: null,
+          end_time: null,
+          location: null,
+          max_attendees: null,
+        });
+      }
+    }
+    return result;
+  }, [currentMonth, shippingConfig.shipping_days, blackoutDates]);
+
   const getEventsForDate = (dateStr: string): Event[] => {
-    return events.filter(event => {
-      if (!activeFilters.includes(event.event_type)) return false;
+    const allEvents = [...events, ...shippingEvents];
+    return allEvents.filter(event => {
+      if (activeFilter !== 'all' && event.event_type !== activeFilter) return false;
       const eventStart = event.start_date;
       const eventEnd = event.end_date || event.start_date;
       return dateStr >= eventStart && dateStr <= eventEnd;
@@ -101,10 +211,11 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
 
   const upcomingEvents = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    return events
-      .filter(e => e.start_date >= today && activeFilters.includes(e.event_type))
+    return [...events, ...shippingEvents]
+      .filter(e => e.start_date >= today && (activeFilter === 'all' || e.event_type === activeFilter))
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
       .slice(0, 5);
-  }, [events, activeFilters]);
+  }, [events, shippingEvents, activeFilter]);
 
   const formatTime = (time: string | null) => {
     if (!time) return '';
@@ -125,13 +236,6 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
     return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
   };
 
-  const toggleFilter = (eventType: string) => {
-    setActiveFilters(prev =>
-      prev.includes(eventType)
-        ? prev.filter(f => f !== eventType)
-        : [...prev, eventType]
-    );
-  };
 
   if (loading) {
     return (
@@ -167,17 +271,27 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
 
         {/* Filter Pills */}
         <div className="flex flex-wrap justify-center gap-3 mb-10">
+          <button
+            onClick={() => setActiveFilter('all')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all border-2 ${
+              activeFilter === 'all'
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-gray-100 text-gray-400 border-transparent'
+            }`}
+          >
+            All Events
+          </button>
           {Object.entries(EVENT_LABELS).map(([type, label]) => {
-            const isActive = activeFilters.includes(type);
+            const isActive = activeFilter === type;
             const colors = EVENT_COLORS[type];
             return (
               <button
                 key={type}
-                onClick={() => toggleFilter(type)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                onClick={() => setActiveFilter(type)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all border-2 ${
                   isActive
-                    ? `${colors.bg} ${colors.text} ${colors.border} border-2`
-                    : 'bg-gray-100 text-gray-400 border-2 border-transparent'
+                    ? `${colors.bg} ${colors.text} ${colors.border}`
+                    : 'bg-gray-100 text-gray-400 border-transparent'
                 }`}
               >
                 <span className={`w-2.5 h-2.5 rounded-full ${isActive ? colors.dot : 'bg-gray-300'}`} />
@@ -386,29 +500,77 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
             >
               <h3 className="font-bold mb-3">Join Us!</h3>
               <p className="text-sm text-emerald-100 mb-4">
-                Follow us on social media for event updates and growing tips.
+                Follow us on social media for event updates.
               </p>
               <div className="flex gap-3">
-                <a
-                  href="#"
-                  className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
-                  aria-label="Instagram"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-                    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
-                  </svg>
-                </a>
-                <a
-                  href="#"
-                  className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
-                  aria-label="Facebook"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
-                  </svg>
-                </a>
+                {brandingSettings.social_facebook && (
+                  <a
+                    href={brandingSettings.social_facebook}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                    aria-label="Facebook"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+                    </svg>
+                  </a>
+                )}
+                {brandingSettings.social_instagram && (
+                  <a
+                    href={brandingSettings.social_instagram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                    aria-label="Instagram"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+                    </svg>
+                  </a>
+                )}
+                {brandingSettings.social_twitter && (
+                  <a
+                    href={brandingSettings.social_twitter}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                    aria-label="Twitter"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
+                    </svg>
+                  </a>
+                )}
+                {brandingSettings.social_tiktok && (
+                  <a
+                    href={brandingSettings.social_tiktok}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                    aria-label="TikTok"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>
+                    </svg>
+                  </a>
+                )}
+                {brandingSettings.social_youtube && (
+                  <a
+                    href={brandingSettings.social_youtube}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors"
+                    aria-label="YouTube"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/>
+                      <path d="m10 15 5-3-5-3z"/>
+                    </svg>
+                  </a>
+                )}
               </div>
             </motion.div>
           </div>

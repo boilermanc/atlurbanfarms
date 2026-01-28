@@ -436,19 +436,32 @@ export function useOrder(orderId: string | null) {
       if (orderError) throw orderError;
 
       // Fetch status history
-      const { data: historyData, error: historyError } = await supabase
-        .from('order_status_history')
-        .select(`
-          *,
-          customers:changed_by (
-            email
-          )
-        `)
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
+      let historyData: any[] | null = null;
+      try {
+        const { data, error: historyError } = await supabase
+          .from('order_status_history')
+          .select(`
+            *,
+            customers:changed_by (
+              email
+            )
+          `)
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
 
-      if (historyError && historyError.code !== 'PGRST116') {
-        console.warn('Could not fetch status history:', historyError);
+        if (historyError && historyError.code !== 'PGRST116') {
+          console.warn('Could not fetch status history:', historyError);
+        }
+        historyData = data;
+      } catch (histErr) {
+        console.warn('Status history fetch failed, trying without join:', histErr);
+        // Fallback: fetch without the customer join
+        const { data } = await supabase
+          .from('order_status_history')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+        historyData = data;
       }
 
       // Transform to Order type

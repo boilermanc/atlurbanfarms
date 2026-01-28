@@ -276,7 +276,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -285,7 +285,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <FAQPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
             <SageAssistant />
@@ -295,7 +295,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <AboutPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -304,7 +304,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <SchoolsPage onBack={() => setView('home')} onNavigate={(newView: string) => handleNavigate(newView as ViewType)} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -313,7 +313,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <CalendarPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -322,7 +322,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <ContentPage slug="privacy" onBack={() => handleNavigate('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -331,7 +331,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             <ContentPage slug="terms" onBack={() => handleNavigate('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -386,7 +386,7 @@ const App: React.FC = () => {
         return (
           <div className="min-h-screen bg-[#fafafa] selection:bg-emerald-100 selection:text-emerald-900">
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
             
             <main>
               <Hero onShopClick={() => handleNavigate('shop')} onAboutClick={() => handleNavigate('about')} />
@@ -399,7 +399,7 @@ const App: React.FC = () => {
                 <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} />
               </section>
 
-              <section className="py-24 px-4 md:px-12 bg-white overflow-hidden relative border-y border-gray-200">
+              <section className="py-24 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
                 <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
                   <svg className="w-96 h-96 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                 </div>

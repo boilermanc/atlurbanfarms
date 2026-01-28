@@ -603,14 +603,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   {order.customer_name || <span className="text-slate-400 italic">Guest</span>}
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <a href={`mailto:${order.customer_email}`} className="hover:text-emerald-600">
-                  {order.customer_email}
-                </a>
-              </div>
+              {order.customer_email ? (
+                <div className="flex items-center gap-2 text-slate-600">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <a href={`mailto:${order.customer_email}`} className="hover:text-emerald-600">
+                    {order.customer_email}
+                  </a>
+                </div>
+              ) : (
+                <p className="text-slate-400 italic text-sm">No email on file</p>
+              )}
               {order.customer_phone && (
                 <div className="flex items-center gap-2 text-slate-600">
                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -821,11 +825,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200" />
 
                 <div className="space-y-6">
-                  {order.status_history.map((history, index) => (
+                  {(order.status_history || []).map((history, index) => (
                     <div key={history.id} className="relative pl-10">
                       {/* Timeline dot */}
                       <div className={`absolute left-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                        index === order.status_history!.length - 1
+                        index === (order.status_history?.length ?? 0) - 1
                           ? 'bg-emerald-500'
                           : 'bg-slate-300'
                       }`}>
@@ -853,7 +857,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                           </p>
                         )}
                         <p className="text-slate-400 text-xs mt-1">
-                          by {history.changed_by_name}
+                          by {history.changed_by_name || 'System'}
                         </p>
                       </div>
                     </div>
@@ -886,8 +890,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                           {formatDate(refund.created_at, true)}
                         </p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status)}`}>
-                        {refund.status.replace(/_/g, ' ').toUpperCase()}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status || '')}`}>
+                        {(refund.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
                       </span>
                     </div>
                     {refund.reason && (
@@ -942,7 +946,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   <div>
                     <p className="text-slate-400 text-sm">Tracking Number</p>
                     <a
-                      href={getTrackingUrl(shipment?.tracking_number || order.tracking_number)}
+                      href={getTrackingUrl(shipment?.tracking_number || order.tracking_number || '')}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-emerald-600 hover:text-emerald-700 font-mono text-sm"

@@ -9,11 +9,12 @@ interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
   onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'login' | 'account', category?: string) => void;
+  currentView?: string;
 }
 
 const ANNOUNCEMENT_DISMISSED_KEY = 'announcement_bar_dismissed';
 
-const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) => {
+const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, currentView }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
@@ -64,23 +65,38 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
     setIsMobileMenuOpen(false);
   };
 
-  // Build shop items from Supabase categories
+  // Build shop items from Supabase categories with hierarchy
   const SHOP_ITEMS = useMemo(() => {
-    const items = [
+    const parents = rawCategories.filter((c: any) => !c.parent_id);
+    const children = rawCategories.filter((c: any) => c.parent_id);
+    const items: { name: string; category: string; featured?: boolean; isChild?: boolean }[] = [
       { name: 'All Products', category: 'All' },
-      ...rawCategories.map((c: any) => ({ name: c.name, category: c.name })),
-      { name: 'Tower Planner', category: 'All', featured: true },
     ];
+    parents.forEach((p: any) => {
+      items.push({ name: p.name, category: p.name });
+      children
+        .filter((c: any) => c.parent_id === p.id)
+        .forEach((c: any) => {
+          items.push({ name: c.name, category: c.name, isChild: true });
+        });
+    });
+    // Add any children whose parent wasn't found (edge case)
+    children
+      .filter((c: any) => !parents.some((p: any) => p.id === c.parent_id))
+      .forEach((c: any) => {
+        items.push({ name: c.name, category: c.name, isChild: true });
+      });
+    items.push({ name: 'Tower Planner', category: 'All', featured: true });
     return items;
   }, [rawCategories]);
 
   // Default text logo fallback
   const defaultLogo = (
     <>
-      <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-lg group-hover:rotate-6 transition-transform brand-bg brand-shadow">
+      <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center text-white font-bold text-xl md:text-2xl shadow-lg group-hover:rotate-6 transition-transform brand-bg brand-shadow">
         A
       </div>
-      <span className="font-heading text-lg md:text-xl font-extrabold tracking-tight text-gray-900">
+      <span className="font-heading text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">
         ATL <span className="brand-text">Urban Farms</span>
       </span>
     </>
@@ -92,7 +108,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
         <img
           src={brandingSettings.logo_url}
           alt="ATL Urban Farms"
-          className="h-10 md:h-12 lg:h-14 w-auto object-contain group-hover:scale-105 transition-transform"
+          className="h-14 md:h-16 lg:h-20 w-auto object-contain group-hover:scale-105 transition-transform"
           onError={() => setLogoError(true)}
         />
       ) : (
@@ -145,9 +161,9 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
               onMouseEnter={() => setIsShopDropdownOpen(true)}
               onMouseLeave={() => setIsShopDropdownOpen(false)}
             >
-              <button 
+              <button
                 onClick={() => onNavigate('shop')}
-                className="flex items-center gap-1.5 text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors"
+                className={`flex items-center gap-1.5 text-sm font-bold transition-colors ${currentView === 'shop' ? 'brand-text' : 'text-gray-700 hover:text-emerald-600'}`}
               >
                 Shop
                 <svg className={`w-4 h-4 transition-transform duration-300 ${isShopDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -168,13 +184,15 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                           onNavigate('shop', item.category);
                           setIsShopDropdownOpen(false);
                         }}
-                        className={`w-full text-left block px-5 py-2.5 text-sm font-semibold transition-colors flex items-center justify-between ${
-                          item.featured 
-                          ? 'sage-text-gradient bg-purple-50/50' 
-                          : 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-700'
+                        className={`w-full text-left block py-2.5 text-sm transition-colors flex items-center justify-between ${
+                          item.featured
+                          ? 'px-5 sage-text-gradient bg-purple-50/50 font-semibold'
+                          : item.isChild
+                          ? 'pl-8 pr-5 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 font-medium'
+                          : 'px-5 text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 font-semibold'
                         }`}
                       >
-                        {item.name}
+                        {item.isChild ? `› ${item.name}` : item.name}
                         {item.featured && <SparkleIcon className="w-4 h-4 text-purple-500" />}
                       </button>
                     ))}
@@ -185,25 +203,25 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
             
             <button
               onClick={() => onNavigate('faq')}
-              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+              className={`text-sm font-bold transition-colors py-2 ${currentView === 'faq' ? 'brand-text' : 'text-gray-700 hover:text-emerald-600'}`}
             >
               Support
             </button>
             <button
               onClick={() => onNavigate('about')}
-              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+              className={`text-sm font-bold transition-colors py-2 ${currentView === 'about' ? 'brand-text' : 'text-gray-700 hover:text-emerald-600'}`}
             >
               About
             </button>
             <button
               onClick={() => onNavigate('schools')}
-              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+              className={`text-sm font-bold transition-colors py-2 ${currentView === 'schools' ? 'brand-text' : 'text-gray-700 hover:text-emerald-600'}`}
             >
               Schools
             </button>
             <button
               onClick={() => onNavigate('calendar')}
-              className="text-sm font-bold text-gray-700 hover:text-emerald-600 transition-colors py-2"
+              className={`text-sm font-bold transition-colors py-2 ${currentView === 'calendar' ? 'brand-text' : 'text-gray-700 hover:text-emerald-600'}`}
             >
               Calendar
             </button>
@@ -368,9 +386,15 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                           onNavigate('shop', item.category);
                           setIsMobileMenuOpen(false);
                         }}
-                        className={`w-full text-left flex items-center justify-between font-bold text-lg ${item.featured ? 'sage-text-gradient' : 'text-gray-800'}`}
+                        className={`w-full text-left flex items-center justify-between ${
+                          item.featured
+                          ? 'font-bold text-lg sage-text-gradient'
+                          : item.isChild
+                          ? 'pl-4 font-semibold text-base text-gray-500'
+                          : 'font-bold text-lg text-gray-800'
+                        }`}
                       >
-                        {item.name}
+                        {item.isChild ? `› ${item.name}` : item.name}
                         {item.featured && <SparkleIcon className="w-5 h-5 text-purple-500" />}
                       </button>
                     ))}
@@ -383,7 +407,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                       onNavigate('faq');
                       setIsMobileMenuOpen(false);
                     }}
-                    className="w-full text-left font-bold text-lg text-gray-800"
+                    className={`w-full text-left font-bold text-lg ${currentView === 'faq' ? 'brand-text' : 'text-gray-800'}`}
                   >
                     Support
                   </button>
@@ -392,7 +416,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                       onNavigate('about');
                       setIsMobileMenuOpen(false);
                     }}
-                    className="w-full text-left font-bold text-lg text-gray-800"
+                    className={`w-full text-left font-bold text-lg ${currentView === 'about' ? 'brand-text' : 'text-gray-800'}`}
                   >
                     About
                   </button>
@@ -401,7 +425,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                       onNavigate('schools');
                       setIsMobileMenuOpen(false);
                     }}
-                    className="w-full text-left font-bold text-lg text-gray-800"
+                    className={`w-full text-left font-bold text-lg ${currentView === 'schools' ? 'brand-text' : 'text-gray-800'}`}
                   >
                     Schools
                   </button>
@@ -410,7 +434,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate }) =>
                       onNavigate('calendar');
                       setIsMobileMenuOpen(false);
                     }}
-                    className="w-full text-left font-bold text-lg text-gray-800"
+                    className={`w-full text-left font-bold text-lg ${currentView === 'calendar' ? 'brand-text' : 'text-gray-800'}`}
                   >
                     Calendar
                   </button>

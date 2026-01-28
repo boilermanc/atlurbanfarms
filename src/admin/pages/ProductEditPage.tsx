@@ -350,7 +350,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
 
   return (
     <AdminPageWrapper>
-      <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl pb-24">
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
         <div className="flex items-center justify-between">
           <div>
             <button type="button" onClick={onBack} className="text-slate-500 hover:text-slate-700 mb-2 flex items-center gap-1 text-sm transition-colors">
@@ -396,12 +396,12 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Price *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Selling Price *</label>
                 <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sale Price</label>
-                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Compare at Price</label>
+                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" placeholder="Original price before sale" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
             </div>
           </div>
@@ -588,15 +588,13 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           </div>
         )}
 
-        {/* Sticky Footer */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-40">
-          <div className="max-w-4xl mx-auto flex items-center justify-end gap-3">
-            <button type="button" onClick={onBack} className="px-4 py-2.5 text-slate-600 hover:text-slate-800 font-medium transition-colors">Cancel</button>
-            <button type="submit" disabled={saving} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
-              {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              {isEditMode ? 'Save Changes' : 'Create Product'}
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-200">
+          <button type="button" onClick={onBack} className="px-4 py-2.5 text-slate-600 hover:text-slate-800 font-medium transition-colors">Cancel</button>
+          <button type="submit" disabled={saving} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors">
+            {saving && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {isEditMode ? 'Save Changes' : 'Create Product'}
+          </button>
         </div>
       </form>
 

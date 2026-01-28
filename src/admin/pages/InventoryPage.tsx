@@ -9,9 +9,10 @@ const UNFULFILLED_ORDER_STATUSES = ['pending_payment', 'processing', 'on_hold'];
 
 interface InventoryPageProps {
   onNavigateToBatchEdit?: (batchId?: string) => void;
+  onEditProduct?: (productId: string) => void;
 }
 
-const InventoryPage: React.FC<InventoryPageProps> = () => {
+const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
   const [showPrintReport, setShowPrintReport] = useState(false);
   const [printReportLoading, setPrintReportLoading] = useState(false);
   const [printReportError, setPrintReportError] = useState<string | null>(null);
@@ -123,7 +124,7 @@ const InventoryPage: React.FC<InventoryPageProps> = () => {
           </button>
         </div>
 
-        <BulkInventoryPage />
+        <BulkInventoryPage onEditProduct={onEditProduct} />
       </div>
 
       <InventoryPrintReport
