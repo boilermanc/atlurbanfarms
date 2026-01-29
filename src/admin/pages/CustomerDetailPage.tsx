@@ -203,11 +203,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   const startEditingProfile = () => {
     setEditedProfile({
-      environment: profile?.environment || null,
+      growing_environment: profile?.growing_environment || null,
       experience_level: profile?.experience_level || null,
       growing_systems: profile?.growing_systems || [],
-      interests: profile?.interests || [],
-      hardiness_zone: profile?.hardiness_zone || '',
+      growing_interests: profile?.growing_interests || [],
+      usda_zone: profile?.usda_zone || '',
     });
     setIsEditingProfile(true);
     setValidationErrors({});
@@ -387,11 +387,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     setIsSaving(true);
     try {
       const profileData = {
-        environment: editedProfile.environment || null,
+        growing_environment: editedProfile.growing_environment || null,
         experience_level: editedProfile.experience_level || null,
         growing_systems: editedProfile.growing_systems || [],
-        interests: editedProfile.interests || [],
-        hardiness_zone: editedProfile.hardiness_zone || null,
+        growing_interests: editedProfile.growing_interests || [],
+        usda_zone: editedProfile.usda_zone || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -980,9 +980,9 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       Environment
                     </label>
                     <select
-                      value={editedProfile.environment || ''}
+                      value={editedProfile.growing_environment || ''}
                       onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, environment: e.target.value as any || null })
+                        setEditedProfile({ ...editedProfile, growing_environment: e.target.value as any || null })
                       }
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     >
@@ -1019,11 +1019,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
                       Growing Systems
                     </label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {GROWING_SYSTEM_OPTIONS.map((opt) => (
                         <label
                           key={opt.value}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
                             editedProfile.growing_systems?.includes(opt.value)
                               ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                               : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
@@ -1048,7 +1048,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                             }}
                             className="sr-only"
                           />
-                          <span className="text-sm">{opt.label}</span>
+                          <span>{opt.label}</span>
                         </label>
                       ))}
                     </div>
@@ -1058,36 +1058,36 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
                       Interests
                     </label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {INTEREST_OPTIONS.map((opt) => (
                         <label
                           key={opt.value}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors ${
-                            editedProfile.interests?.includes(opt.value)
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
+                            editedProfile.growing_interests?.includes(opt.value)
                               ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
                               : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                           }`}
                         >
                           <input
                             type="checkbox"
-                            checked={editedProfile.interests?.includes(opt.value) || false}
+                            checked={editedProfile.growing_interests?.includes(opt.value) || false}
                             onChange={(e) => {
-                              const current = editedProfile.interests || [];
+                              const current = editedProfile.growing_interests || [];
                               if (e.target.checked) {
                                 setEditedProfile({
                                   ...editedProfile,
-                                  interests: [...current, opt.value],
+                                  growing_interests: [...current, opt.value],
                                 });
                               } else {
                                 setEditedProfile({
                                   ...editedProfile,
-                                  interests: current.filter((i) => i !== opt.value),
+                                  growing_interests: current.filter((i) => i !== opt.value),
                                 });
                               }
                             }}
                             className="sr-only"
                           />
-                          <span className="text-sm">{opt.label}</span>
+                          <span>{opt.label}</span>
                         </label>
                       ))}
                     </div>
@@ -1095,13 +1095,13 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
                   <div>
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      Hardiness Zone
+                      USDA Zone
                     </label>
                     <input
                       type="text"
-                      value={editedProfile.hardiness_zone || ''}
+                      value={editedProfile.usda_zone || ''}
                       onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, hardiness_zone: e.target.value })
+                        setEditedProfile({ ...editedProfile, usda_zone: e.target.value })
                       }
                       placeholder="e.g., 7b"
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -1131,7 +1131,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                 <div className="space-y-3">
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</p>
-                    <p className="text-slate-800">{getEnvironmentLabel(profile.environment)}</p>
+                    <p className="text-slate-800">{getEnvironmentLabel(profile.growing_environment)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Experience</p>
@@ -1153,11 +1153,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Interests</p>
-                    <p className="text-slate-800">{getInterestLabels(profile.interests)}</p>
+                    <p className="text-slate-800">{getInterestLabels(profile.growing_interests)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Hardiness Zone</p>
-                    <p className="text-slate-800">{profile.hardiness_zone || '-'}</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">USDA Zone</p>
+                    <p className="text-slate-800">{profile.usda_zone || '-'}</p>
                   </div>
                 </div>
               ) : (

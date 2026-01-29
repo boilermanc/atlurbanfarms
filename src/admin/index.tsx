@@ -37,6 +37,7 @@ export { default as CategoriesPage } from './pages/CategoriesPage';
 export { default as ReportsPage } from './pages/ReportsPage';
 export { default as AuditLogPage } from './pages/AuditLogPage';
 export { default as AdminUsersPage } from './pages/AdminUsersPage';
+export { default as AlertsPage } from './pages/AlertsPage';
 
 // Admin User Components
 export { default as InviteAdminModal } from './components/InviteAdminModal';
@@ -61,6 +62,13 @@ export {
   useUpdateSetting,
   useBulkUpdateSettings,
 } from './hooks/useSettings';
+export {
+  useBackInStockAlerts,
+  useProductsWithPendingAlerts,
+  useNotifyBackInStock,
+  useCancelAlert,
+  useAlertStats,
+} from './hooks/useAlerts';
 
 // Admin Types
 export * from './types/inventory';
@@ -86,3 +94,8 @@ export type { ShippingService } from './pages/ShippingServicesPage';
 export type { ConfigSetting, SettingsMap } from './hooks/useSettings';
 export type { AdminUser, AdminRole } from './pages/AdminUsersPage';
 export { ALL_PERMISSIONS } from './pages/AdminUsersPage';
+export type {
+  BackInStockAlert,
+  AlertsFilter,
+  ProductWithAlerts,
+} from './hooks/useAlerts';

@@ -65,7 +65,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-16"
+      className="mb-10"
     >
       <div className="flex items-end justify-between mb-8">
         <div>
@@ -199,6 +199,16 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
   );
 };
 
+// Helper to check if a product is in stock based on inventory rules
+const isProductInStock = (rawProduct: any): boolean => {
+  // If track_inventory is false, check stock_status
+  if (rawProduct.track_inventory === false) {
+    return rawProduct.stock_status === 'in_stock';
+  }
+  // If track_inventory is true (or not set), check quantity_available
+  return (rawProduct.quantity_available || 0) > 0;
+};
+
 const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All' }) => {
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
@@ -209,6 +219,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [activeParentId, setActiveParentId] = useState<string | null>(null);
   // Track active subcategory within the parent (null = show all in parent)
   const [activeSubcategoryId, setActiveSubcategoryId] = useState<string | null>(null);
+  // Toggle to show only in-stock products
+  const [showInStockOnly, setShowInStockOnly] = useState(false);
 
   // Scroll to top when page mounts
   useEffect(() => {
@@ -270,18 +282,25 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     return getChildCategories(activeParentId);
   }, [activeParentId, getChildCategories]);
 
-  // Filter products based on search and category hierarchy
+  // Filter products based on search, category hierarchy, and stock status
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Search filter
       const matchesSearch = searchQuery === '' || p.name.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
 
-      // If no parent selected, show all
+      // Find the raw product data
+      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
+
+      // In-stock filter
+      if (showInStockOnly && rawProduct) {
+        if (!isProductInStock(rawProduct)) return false;
+      }
+
+      // If no parent selected, show all (that passed above filters)
       if (!activeParentId) return true;
 
       // Find the product's category
-      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
       const productCategoryId = rawProduct?.category?.id;
       const productParentId = rawProduct?.category?.parent_id;
 
@@ -294,7 +313,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       const subcategoryIds = getChildCategories(activeParentId).map(c => c.id);
       return productCategoryId === activeParentId || subcategoryIds.includes(productCategoryId) || productParentId === activeParentId;
     });
-  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories]);
+  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly]);
 
   // Group products by parent category for the "All Products" view
   const productsByParentCategory = useMemo(() => {
@@ -365,10 +384,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery;
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-white">
+    <div className="min-h-screen pt-20 pb-12 bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
-        <div className="mb-12">
+        <div className="mb-8">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -452,9 +471,27 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           </div>
         )}
 
-        {/* Search */}
-        <div className="flex justify-end mb-8">
-          <div className="relative w-full md:w-80 group">
+        {/* Filters and Search */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          {/* In-stock toggle */}
+          <label className="flex items-center gap-3 cursor-pointer select-none group">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={showInStockOnly}
+                onChange={(e) => setShowInStockOnly(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></div>
+            </div>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+              Show in-stock only
+            </span>
+          </label>
+
+          {/* Search */}
+          <div className="relative w-full sm:w-80 group">
             <input
               type="text"
               value={searchQuery}
@@ -483,7 +520,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             ))}
           </div>
         ) : error ? (
-          <div className="py-24 text-center">
+          <div className="py-16 text-center">
             <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
             </div>
@@ -515,7 +552,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 });
 
                 return (
-                  <div key={parentCat.id} className="mb-16">
+                  <div key={parentCat.id} className="mb-10">
                     <div className="mb-8">
                       <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
@@ -608,14 +645,14 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         )}
 
         {!loading && !error && filteredProducts.length === 0 && (
-          <div className="py-24 text-center">
+          <div className="py-16 text-center">
             <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/><path d="M11 8v3"/><path d="M11 15h.01"/></svg>
             </div>
             <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-500">Try adjusting your filters or searching for something else.</p>
             <button
-              onClick={() => {setActiveParentId(null); setActiveSubcategoryId(null); setSearchQuery('');}}
+              onClick={() => {setActiveParentId(null); setActiveSubcategoryId(null); setSearchQuery(''); setShowInStockOnly(false);}}
               className="mt-6 text-emerald-600 font-bold hover:underline"
             >
               Clear all filters

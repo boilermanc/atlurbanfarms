@@ -4,9 +4,9 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import BlackoutDateModal from '../components/BlackoutDateModal';
 import OverrideDateModal from '../components/OverrideDateModal';
-import { Calendar, Truck, Plus, Pencil, Trash2, X, Repeat } from 'lucide-react';
+import { Calendar, Truck, Plus, Pencil, Trash2, X, Repeat, Tags, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
-type TabType = 'events' | 'shipping';
+type TabType = 'events' | 'shipping' | 'categories' | 'calendar_view';
 
 interface RecurrenceRule {
   type: 'none' | 'daily' | 'weekly' | 'monthly';
@@ -40,6 +40,19 @@ interface Event {
   is_active: boolean;
   recurrence_rule: RecurrenceRule | null;
   parent_event_id: string | null;
+  category_id: string | null;
+}
+
+interface EventCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ShippingConfig {
@@ -105,6 +118,21 @@ const ShippingCalendarPage: React.FC = () => {
   const [eventSaving, setEventSaving] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceRule>({ ...DEFAULT_RECURRENCE });
 
+  // Categories state
+  const [categories, setCategories] = useState<EventCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<EventCategory | null>(null);
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    color: '#10b981',
+    icon: '',
+    sort_order: 0,
+    is_active: true,
+  });
+  const [categorySaving, setCategorySaving] = useState(false);
+
   // Shipping state
   const [config, setConfig] = useState<ShippingConfig>({
     shipping_days: [1, 2, 3, 4, 5], // Mon-Fri by default
@@ -122,9 +150,15 @@ const ShippingCalendarPage: React.FC = () => {
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  // Events Calendar View state
+  const [eventsCalendarMonth, setEventsCalendarMonth] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [dayEventsPopupOpen, setDayEventsPopupOpen] = useState(false);
+
   useEffect(() => {
     fetchEvents();
     fetchShippingData();
+    fetchCategories();
   }, []);
 
   // Events functions
@@ -316,6 +350,115 @@ const ShippingCalendarPage: React.FC = () => {
       setEvents(prev => prev.map(e => e.id === event.id ? { ...e, is_active: !e.is_active } : e));
     } catch (error) {
       console.error('Error toggling event:', error);
+    }
+  };
+
+  // Categories functions
+  const fetchCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('event_categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const openCategoryModal = (category?: EventCategory) => {
+    if (category) {
+      setEditingCategory(category);
+      setCategoryForm({
+        name: category.name,
+        description: category.description || '',
+        color: category.color || '#10b981',
+        icon: category.icon || '',
+        sort_order: category.sort_order,
+        is_active: category.is_active,
+      });
+    } else {
+      setEditingCategory(null);
+      setCategoryForm({
+        name: '',
+        description: '',
+        color: '#10b981',
+        icon: '',
+        sort_order: categories.length,
+        is_active: true,
+      });
+    }
+    setCategoryModalOpen(true);
+  };
+
+  const closeCategoryModal = () => {
+    setCategoryModalOpen(false);
+    setEditingCategory(null);
+  };
+
+  const handleCategorySave = async () => {
+    if (!categoryForm.name.trim()) return;
+
+    setCategorySaving(true);
+    try {
+      const categoryData = {
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim() || null,
+        color: categoryForm.color,
+        icon: categoryForm.icon.trim() || null,
+        sort_order: categoryForm.sort_order,
+        is_active: categoryForm.is_active,
+      };
+
+      if (editingCategory) {
+        const { error } = await supabase
+          .from('event_categories')
+          .update(categoryData)
+          .eq('id', editingCategory.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('event_categories')
+          .insert(categoryData);
+        if (error) throw error;
+      }
+
+      await fetchCategories();
+      closeCategoryModal();
+    } catch (error) {
+      console.error('Error saving category:', error);
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleCategoryDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this category? Events using this category will have their category cleared.')) return;
+
+    try {
+      const { error } = await supabase.from('event_categories').delete().eq('id', id);
+      if (error) throw error;
+      setCategories(prev => prev.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('Error deleting category:', error);
+    }
+  };
+
+  const toggleCategoryActive = async (category: EventCategory) => {
+    try {
+      const { error } = await supabase
+        .from('event_categories')
+        .update({ is_active: !category.is_active })
+        .eq('id', category.id);
+      if (error) throw error;
+      setCategories(prev => prev.map(c => c.id === category.id ? { ...c, is_active: !c.is_active } : c));
+    } catch (error) {
+      console.error('Error toggling category:', error);
     }
   };
 
@@ -518,6 +661,44 @@ const ShippingCalendarPage: React.FC = () => {
     return days;
   }, [currentMonth]);
 
+  // Events Calendar View days
+  const eventsCalendarDays = useMemo(() => {
+    const year = eventsCalendarMonth.getFullYear();
+    const month = eventsCalendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startPadding = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    const days: { date: Date | null; dateStr: string | null }[] = [];
+
+    for (let i = 0; i < startPadding; i++) {
+      days.push({ date: null, dateStr: null });
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const date = new Date(year, month, day);
+      const dateStr = date.toISOString().split('T')[0];
+      days.push({ date, dateStr });
+    }
+
+    return days;
+  }, [eventsCalendarMonth]);
+
+  // Get events for a specific date
+  const getEventsForDate = (dateStr: string): Event[] => {
+    return events.filter(event => {
+      // Check if event falls on this date
+      if (event.start_date === dateStr) return true;
+      // Check if date is within multi-day event range
+      if (event.end_date && event.start_date <= dateStr && event.end_date >= dateStr) return true;
+      return false;
+    });
+  };
+
+  // Get events for the selected day popup
+  const selectedDayEvents = selectedCalendarDate ? getEventsForDate(selectedCalendarDate) : [];
+
   const getDateStatus = (dateStr: string, dayOfWeek: number) => {
     const isBlackout = blackoutDates.some(b => b.blackout_date === dateStr);
     const isOverride = overrideDates.some(o => o.override_date === dateStr);
@@ -545,6 +726,8 @@ const ShippingCalendarPage: React.FC = () => {
 
   const tabs = [
     { id: 'events' as TabType, label: 'Events', icon: <Calendar size={20} /> },
+    { id: 'calendar_view' as TabType, label: 'Calendar View', icon: <Eye size={20} /> },
+    { id: 'categories' as TabType, label: 'Event Categories', icon: <Tags size={20} /> },
     { id: 'shipping' as TabType, label: 'Shipping Config', icon: <Truck size={20} /> },
   ];
 
@@ -657,6 +840,121 @@ const ShippingCalendarPage: React.FC = () => {
             </table>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderCalendarViewTab = () => {
+    if (eventsLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Calendar Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-slate-800">Events Calendar</h2>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setEventsCalendarMonth(new Date(eventsCalendarMonth.getFullYear(), eventsCalendarMonth.getMonth() - 1))}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-slate-800 font-medium min-w-[150px] text-center">
+                {eventsCalendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+              <button
+                onClick={() => setEventsCalendarMonth(new Date(eventsCalendarMonth.getFullYear(), eventsCalendarMonth.getMonth() + 1))}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ChevronRight size={20} />
+              </button>
+              <button
+                onClick={() => setEventsCalendarMonth(new Date())}
+                className="px-3 py-1 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors font-medium"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-4 mb-4">
+            {EVENT_TYPES.map(type => (
+              <div key={type.value} className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded ${EVENT_COLORS[type.value]?.badge.split(' ')[0] || 'bg-slate-200'}`}></div>
+                <span className="text-sm text-slate-500">{type.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {/* Day Headers */}
+            {DAYS_OF_WEEK.map(day => (
+              <div key={day} className="p-2 text-center text-sm font-medium text-slate-500 border-b border-slate-200">
+                {day}
+              </div>
+            ))}
+
+            {/* Calendar Days */}
+            {eventsCalendarDays.map((day, index) => {
+              if (!day.date || !day.dateStr) {
+                return <div key={`empty-${index}`} className="min-h-[100px] p-1 bg-slate-50/50"></div>;
+              }
+
+              const dayEvents = getEventsForDate(day.dateStr);
+              const isToday = day.dateStr === new Date().toISOString().split('T')[0];
+              const hasEvents = dayEvents.length > 0;
+
+              return (
+                <button
+                  key={day.dateStr}
+                  onClick={() => {
+                    setSelectedCalendarDate(day.dateStr);
+                    setDayEventsPopupOpen(true);
+                  }}
+                  className={`min-h-[100px] p-1 text-left transition-all hover:bg-slate-100 border border-transparent hover:border-slate-300 rounded-lg ${
+                    isToday ? 'bg-emerald-50 ring-2 ring-emerald-400' : 'bg-white'
+                  }`}
+                >
+                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    {day.date.getDate()}
+                  </div>
+                  <div className="space-y-0.5 overflow-hidden">
+                    {dayEvents.slice(0, 3).map(event => (
+                      <div
+                        key={event.id}
+                        className={`text-xs px-1.5 py-0.5 rounded truncate ${
+                          event.is_active
+                            ? EVENT_COLORS[event.event_type]?.badge || 'bg-slate-100 text-slate-700'
+                            : 'bg-slate-100 text-slate-400 line-through'
+                        }`}
+                        title={event.title}
+                      >
+                        {event.start_time && (
+                          <span className="font-medium">{formatTime(event.start_time).split(' ')[0]} </span>
+                        )}
+                        {event.title}
+                      </div>
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <div className="text-xs text-slate-500 px-1.5">
+                        +{dayEvents.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   };
@@ -926,6 +1224,124 @@ const ShippingCalendarPage: React.FC = () => {
     );
   };
 
+  const CATEGORY_COLORS = [
+    { value: '#10b981', label: 'Green' },
+    { value: '#3b82f6', label: 'Blue' },
+    { value: '#8b5cf6', label: 'Purple' },
+    { value: '#f59e0b', label: 'Amber' },
+    { value: '#ef4444', label: 'Red' },
+    { value: '#ec4899', label: 'Pink' },
+    { value: '#06b6d4', label: 'Cyan' },
+    { value: '#6366f1', label: 'Indigo' },
+  ];
+
+  const renderCategoriesTab = () => {
+    if (categoriesLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Add Category Button */}
+        <div className="flex justify-between items-center">
+          <p className="text-slate-500">Organize your events by creating custom categories with colors and icons.</p>
+          <button
+            onClick={() => openCategoryModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+          >
+            <Plus size={18} />
+            Add Category
+          </button>
+        </div>
+
+        {/* Categories List */}
+        {categories.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-2xl">
+            <Tags className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+            <p className="text-slate-500">No categories yet. Create your first category!</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Category</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Description</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Color</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Order</th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Status</th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map(category => (
+                  <tr key={category.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                        <span className="font-medium text-slate-800">{category.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      {category.description || '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div
+                        className="w-8 h-8 rounded-lg border border-slate-200"
+                        style={{ backgroundColor: category.color }}
+                        title={category.color}
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">
+                      {category.sort_order}
+                    </td>
+                    <td className="py-3 px-4">
+                      <button
+                        onClick={() => toggleCategoryActive(category)}
+                        className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                          category.is_active
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {category.is_active ? 'Active' : 'Inactive'}
+                      </button>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openCategoryModal(category)}
+                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleCategoryDelete(category.id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <AdminPageWrapper>
       <div className="max-w-7xl mx-auto">
@@ -967,7 +1383,10 @@ const ShippingCalendarPage: React.FC = () => {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === 'events' ? renderEventsTab() : renderShippingTab()}
+            {activeTab === 'events' && renderEventsTab()}
+            {activeTab === 'calendar_view' && renderCalendarViewTab()}
+            {activeTab === 'categories' && renderCategoriesTab()}
+            {activeTab === 'shipping' && renderShippingTab()}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -1245,6 +1664,152 @@ const ShippingCalendarPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Day Events Popup */}
+      <AnimatePresence>
+        {dayEventsPopupOpen && selectedCalendarDate && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => {
+                setDayEventsPopupOpen(false);
+                setSelectedCalendarDate(null);
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div
+                className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-800">
+                      {new Date(selectedCalendarDate + 'T00:00:00').toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {selectedDayEvents.length} event{selectedDayEvents.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDayEventsPopupOpen(false);
+                      setSelectedCalendarDate(null);
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-4 overflow-y-auto max-h-[60vh]">
+                  {selectedDayEvents.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className="mx-auto h-12 w-12 text-slate-300 mb-3" />
+                      <p className="text-slate-500 mb-4">No events on this day</p>
+                      <button
+                        onClick={() => {
+                          setDayEventsPopupOpen(false);
+                          setSelectedCalendarDate(null);
+                          setEventForm(prev => ({
+                            ...prev,
+                            start_date: selectedCalendarDate,
+                          }));
+                          setEventModalOpen(true);
+                        }}
+                        className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+                      >
+                        <Plus size={16} className="inline mr-1" />
+                        Add Event
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedDayEvents.map(event => (
+                        <div
+                          key={event.id}
+                          className={`p-4 rounded-xl border ${EVENT_COLORS[event.event_type]?.border || 'border-slate-200'} ${EVENT_COLORS[event.event_type]?.bg || 'bg-slate-50'} ${!event.is_active ? 'opacity-60' : ''}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EVENT_COLORS[event.event_type]?.badge || 'bg-slate-100 text-slate-700'}`}>
+                                  {EVENT_TYPES.find(t => t.value === event.event_type)?.label}
+                                </span>
+                                {!event.is_active && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                    Inactive
+                                  </span>
+                                )}
+                                {(event.recurrence_rule || event.parent_event_id) && (
+                                  <Repeat size={12} className="text-emerald-500" title="Recurring" />
+                                )}
+                              </div>
+                              <h3 className={`font-medium ${EVENT_COLORS[event.event_type]?.text || 'text-slate-800'} ${!event.is_active ? 'line-through' : ''}`}>
+                                {event.title}
+                              </h3>
+                              {event.start_time && (
+                                <p className="text-sm text-slate-600 mt-1">
+                                  {formatTime(event.start_time)}
+                                  {event.end_time && ` - ${formatTime(event.end_time)}`}
+                                </p>
+                              )}
+                              {event.location && (
+                                <p className="text-sm text-slate-500 mt-1">{event.location}</p>
+                              )}
+                              {event.description && (
+                                <p className="text-sm text-slate-500 mt-2 line-clamp-2">{event.description}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setDayEventsPopupOpen(false);
+                                setSelectedCalendarDate(null);
+                                openEventModal(event);
+                              }}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors flex-shrink-0"
+                              title="Edit Event"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setDayEventsPopupOpen(false);
+                          setSelectedCalendarDate(null);
+                          setEventForm(prev => ({
+                            ...prev,
+                            start_date: selectedCalendarDate,
+                          }));
+                          setEventModalOpen(true);
+                        }}
+                        className="w-full py-3 text-emerald-600 hover:bg-emerald-50 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus size={16} />
+                        Add Event
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       <BlackoutDateModal
         isOpen={blackoutModalOpen}
         onClose={() => {
@@ -1264,6 +1829,148 @@ const ShippingCalendarPage: React.FC = () => {
         onSave={handleOverrideSave}
         initialDate={selectedDate}
       />
+
+      {/* Category Modal */}
+      <AnimatePresence>
+        {categoryModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={closeCategoryModal}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                  <h2 className="text-xl font-semibold text-slate-800">
+                    {editingCategory ? 'Edit Category' : 'Add Category'}
+                  </h2>
+                  <button
+                    onClick={closeCategoryModal}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
+                    <input
+                      type="text"
+                      value={categoryForm.name}
+                      onChange={e => setCategoryForm(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="Category name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                    <textarea
+                      value={categoryForm.description}
+                      onChange={e => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      rows={3}
+                      placeholder="Category description"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Color</label>
+                    <div className="flex flex-wrap gap-2">
+                      {CATEGORY_COLORS.map(color => (
+                        <button
+                          key={color.value}
+                          type="button"
+                          onClick={() => setCategoryForm(prev => ({ ...prev, color: color.value }))}
+                          className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                            categoryForm.color === color.value
+                              ? 'border-slate-800 scale-110'
+                              : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: color.value }}
+                          title={color.label}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-sm text-slate-500">Custom:</label>
+                      <input
+                        type="color"
+                        value={categoryForm.color}
+                        onChange={e => setCategoryForm(prev => ({ ...prev, color: e.target.value }))}
+                        className="w-8 h-8 rounded cursor-pointer"
+                      />
+                      <span className="text-sm text-slate-500">{categoryForm.color}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Icon (optional)</label>
+                    <input
+                      type="text"
+                      value={categoryForm.icon}
+                      onChange={e => setCategoryForm(prev => ({ ...prev, icon: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="e.g., calendar, truck, users"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Icon identifier for frontend display</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Sort Order</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={categoryForm.sort_order}
+                      onChange={e => setCategoryForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                      className="w-24 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Lower numbers appear first</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="category_is_active"
+                      checked={categoryForm.is_active}
+                      onChange={e => setCategoryForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                      className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                    />
+                    <label htmlFor="category_is_active" className="text-sm font-medium text-slate-700">
+                      Active (visible to users)
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 p-6 border-t border-slate-200">
+                  <button
+                    onClick={closeCategoryModal}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCategorySave}
+                    disabled={categorySaving || !categoryForm.name.trim()}
+                    className="px-6 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50"
+                  >
+                    {categorySaving ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </AdminPageWrapper>
   );
 };

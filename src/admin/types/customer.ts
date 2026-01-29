@@ -30,11 +30,11 @@ export interface CustomerWithStats extends Customer {
 export interface CustomerProfile {
   id: string;
   customer_id: string;
-  environment: GrowingEnvironment | null;
+  growing_environment: GrowingEnvironment | null;
   experience_level: ExperienceLevel | null;
   growing_systems: GrowingSystem[] | null;
-  interests: GrowingInterest[] | null;
-  hardiness_zone: string | null;
+  growing_interests: GrowingInterest[] | null;
+  usda_zone: string | null;
   created_at: string;
   updated_at: string;
 }

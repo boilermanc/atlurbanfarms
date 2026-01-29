@@ -1023,6 +1023,77 @@ export function useBrandingSettings() {
   return { settings, loading, error }
 }
 
+/**
+ * Subscribe to back-in-stock alerts for a product
+ */
+export function useBackInStockAlert() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(false)
+
+  const subscribe = useCallback(async ({ productId, email, customerId = null }) => {
+    setLoading(true)
+    setError(null)
+    setSuccess(false)
+
+    try {
+      // Check if already subscribed
+      const { data: existing, error: checkError } = await supabase
+        .from('back_in_stock_alerts')
+        .select('id, status')
+        .eq('product_id', productId)
+        .eq('email', email)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError
+      }
+
+      if (existing) {
+        if (existing.status === 'pending') {
+          setError('You are already subscribed to alerts for this product.')
+          return { success: false, alreadySubscribed: true }
+        }
+        // If previously notified or cancelled, update to pending
+        const { error: updateError } = await supabase
+          .from('back_in_stock_alerts')
+          .update({ status: 'pending', notified_at: null, customer_id: customerId })
+          .eq('id', existing.id)
+
+        if (updateError) throw updateError
+      } else {
+        // Insert new subscription
+        const { error: insertError } = await supabase
+          .from('back_in_stock_alerts')
+          .insert({
+            product_id: productId,
+            email: email,
+            customer_id: customerId,
+            status: 'pending'
+          })
+
+        if (insertError) throw insertError
+      }
+
+      setSuccess(true)
+      return { success: true }
+    } catch (err) {
+      console.error('Error subscribing to back-in-stock alert:', err)
+      setError(err.message || 'Failed to subscribe. Please try again.')
+      return { success: false, error: err.message }
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    setError(null)
+    setSuccess(false)
+  }, [])
+
+  return { subscribe, loading, error, success, reset }
+}
+
 export function useCart() {
   const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)

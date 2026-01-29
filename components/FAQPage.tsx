@@ -133,7 +133,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-28 pb-32 bg-white">
+      <div className="min-h-screen pt-20 pb-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 md:px-12 flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
@@ -146,7 +146,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen pt-28 pb-32 bg-white">
+      <div className="min-h-screen pt-20 pb-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 md:px-12 text-center">
           <p className="text-red-500 mb-4">{error}</p>
           <button
@@ -161,12 +161,12 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   }
 
   return (
-    <div className="min-h-screen pt-28 pb-32 bg-white">
+    <div className="min-h-screen pt-20 pb-20 bg-white">
       <div className="max-w-4xl mx-auto px-4 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-20"
+          className="text-center mb-12"
         >
           <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">How can we help?</span>
           <h1 className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6">
@@ -182,7 +182,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
             <p className="text-gray-500">No FAQs available at the moment.</p>
           </div>
         ) : (
-          <div className="space-y-16">
+          <div className="space-y-12">
             {faqData.map((section, idx) => (
               <motion.div
                 key={section.category}
@@ -211,7 +211,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="mt-24 p-12 rounded-[3rem] text-white text-center relative overflow-hidden"
+          className="mt-16 p-10 rounded-[3rem] text-white text-center relative overflow-hidden"
           style={{ backgroundColor: brandingSettings.secondary_brand_color || '#047857' }}
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />

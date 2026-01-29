@@ -91,9 +91,9 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-white selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen pt-20 pb-12 bg-white selection:bg-emerald-100 selection:text-emerald-900">
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-24">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-12">
         <motion.div
           initial="hidden"
           animate="visible"
@@ -111,7 +111,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
       </section>
 
       {/* Team Stats */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-24">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -133,7 +133,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
       </section>
 
       {/* Growers Grid */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-24">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-12">
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[...Array(6)].map((_, idx) => (
@@ -197,9 +197,9 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
       </section>
 
       {/* Values Section */}
-      <section className="py-24 bg-gray-50">
+      <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
-          <div className="text-center mb-16">
+          <div className="text-center mb-10">
             <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Philosophy</span>
             <h2 className="text-4xl font-heading font-black text-gray-900">What Drives <span className="sage-text-gradient">Our Team</span></h2>
           </div>
@@ -245,7 +245,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
       </section>
 
       {/* Join the Team CTA */}
-      <section className="px-4 md:px-12 py-24">
+      <section className="px-4 md:px-12 py-16">
         <div className="max-w-7xl mx-auto bg-gray-900 rounded-[4rem] p-12 md:p-24 relative overflow-hidden text-center">
           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/leaf.png')] opacity-5 pointer-events-none" />
           <motion.div

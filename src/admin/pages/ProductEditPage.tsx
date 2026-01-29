@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Star, Plus, X } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Star, Plus, X, Link, Package, Layers, ShoppingBag } from 'lucide-react';
 import { useProductTags } from '../hooks/useProductTags';
 import { useProductTagAssignments } from '../hooks/useProductTagAssignments';
+
+type ProductType = 'simple' | 'grouped' | 'external' | 'bundle';
 
 interface Category {
   id: string;
@@ -18,6 +20,21 @@ interface ProductImage {
   alt_text: string | null;
   is_primary: boolean;
   sort_order: number;
+}
+
+interface SimpleProduct {
+  id: string;
+  name: string;
+  price: number;
+  quantity_available: number;
+}
+
+interface ProductRelationship {
+  id?: string;
+  child_product_id: string;
+  quantity: number;
+  sort_order: number;
+  product?: SimpleProduct;
 }
 
 interface ProductFormData {
@@ -35,8 +52,12 @@ interface ProductFormData {
   track_inventory: boolean;
   quantity_available: string;
   low_stock_threshold: string;
+  stock_status: 'in_stock' | 'out_of_stock';
   is_active: boolean;
   is_featured: boolean;
+  product_type: ProductType;
+  external_url: string;
+  external_button_text: string;
 }
 
 interface ProductEditPageProps {
@@ -47,6 +68,12 @@ interface ProductEditPageProps {
 
 const SUN_OPTIONS = ['Full Sun', 'Partial Shade', 'Full Shade'];
 const WATER_OPTIONS = ['Low', 'Medium', 'High'];
+const PRODUCT_TYPE_OPTIONS: { value: ProductType; label: string; description: string; icon: React.ReactNode }[] = [
+  { value: 'simple', label: 'Simple', description: 'A standard product with its own inventory', icon: <Package size={20} /> },
+  { value: 'grouped', label: 'Grouped', description: 'A collection of related products shown together', icon: <Layers size={20} /> },
+  { value: 'external', label: 'External/Affiliate', description: 'Links to an external website for purchase', icon: <Link size={20} /> },
+  { value: 'bundle', label: 'Smart Bundle', description: 'A set of products sold together with quantities', icon: <ShoppingBag size={20} /> },
+];
 
 const generateSlug = (name: string): string => {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -83,14 +110,60 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     track_inventory: true,
     quantity_available: '0',
     low_stock_threshold: '10',
+    stock_status: 'in_stock',
     is_active: true,
     is_featured: false,
+    product_type: 'simple',
+    external_url: '',
+    external_button_text: 'Buy Now',
   });
+
+  // State for product relationships (grouped/bundle)
+  const [availableProducts, setAvailableProducts] = useState<SimpleProduct[]>([]);
+  const [relationships, setRelationships] = useState<ProductRelationship[]>([]);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
 
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase.from('product_categories').select('*').eq('is_active', true).order('sort_order');
     setCategories(data || []);
   }, []);
+
+  const fetchAvailableProducts = useCallback(async () => {
+    const { data } = await supabase
+      .from('products')
+      .select('id, name, price, quantity_available')
+      .eq('is_active', true)
+      .eq('product_type', 'simple') // Only simple products can be part of groups/bundles
+      .neq('id', productId || '') // Exclude current product
+      .order('name');
+    setAvailableProducts(data || []);
+  }, [productId]);
+
+  const fetchRelationships = useCallback(async () => {
+    if (!productId) return;
+    const { data } = await supabase
+      .from('product_relationships')
+      .select(`
+        id,
+        child_product_id,
+        quantity,
+        sort_order,
+        product:products!child_product_id(id, name, price, quantity_available)
+      `)
+      .eq('parent_product_id', productId)
+      .order('sort_order');
+
+    if (data) {
+      setRelationships(data.map((r: any) => ({
+        id: r.id,
+        child_product_id: r.child_product_id,
+        quantity: r.quantity,
+        sort_order: r.sort_order,
+        product: r.product,
+      })));
+    }
+  }, [productId]);
 
   const fetchProduct = useCallback(async () => {
     if (!productId) return;
@@ -118,8 +191,12 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           track_inventory: data.track_inventory ?? true,
           quantity_available: data.quantity_available?.toString() || '0',
           low_stock_threshold: data.low_stock_threshold?.toString() || '10',
+          stock_status: data.stock_status || 'in_stock',
           is_active: data.is_active ?? true,
           is_featured: data.featured ?? false,
+          product_type: data.product_type || 'simple',
+          external_url: data.external_url || '',
+          external_button_text: data.external_button_text || 'Buy Now',
         });
         setImages(data.images?.sort((a: ProductImage, b: ProductImage) => a.sort_order - b.sort_order) || []);
       }
@@ -132,8 +209,12 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
 
   useEffect(() => {
     fetchCategories();
-    if (isEditMode) fetchProduct();
-  }, [fetchCategories, fetchProduct, isEditMode]);
+    fetchAvailableProducts();
+    if (isEditMode) {
+      fetchProduct();
+      fetchRelationships();
+    }
+  }, [fetchCategories, fetchAvailableProducts, fetchProduct, fetchRelationships, isEditMode]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -261,12 +342,18 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         days_to_maturity: formData.days_to_maturity ? parseInt(formData.days_to_maturity) : null,
         sun_requirements: formData.sun_requirements || null,
         water_requirements: formData.water_requirements || null,
-        track_inventory: formData.track_inventory,
+        track_inventory: formData.product_type === 'simple' ? formData.track_inventory : false,
         quantity_available: parseInt(formData.quantity_available) || 0,
         low_stock_threshold: parseInt(formData.low_stock_threshold) || 10,
+        stock_status: formData.stock_status,
         is_active: formData.is_active,
         featured: formData.is_featured,
+        product_type: formData.product_type,
+        external_url: formData.product_type === 'external' ? formData.external_url : null,
+        external_button_text: formData.product_type === 'external' ? formData.external_button_text : null,
       };
+
+      let savedProductId = productId;
 
       if (isEditMode && productId) {
         const { error: updateError } = await supabase.from('products').update(productData).eq('id', productId);
@@ -274,6 +361,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
       } else {
         const { data: newProduct, error: insertError } = await supabase.from('products').insert(productData).select().single();
         if (insertError) throw insertError;
+        savedProductId = newProduct.id;
 
         if (images.length > 0) {
           const imageInserts = images.map((img, idx) => ({
@@ -283,6 +371,25 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             sort_order: idx,
           }));
           await supabase.from('product_images').insert(imageInserts);
+        }
+      }
+
+      // Save product relationships for grouped/bundle types
+      if ((formData.product_type === 'grouped' || formData.product_type === 'bundle') && savedProductId) {
+        // Delete existing relationships
+        await supabase.from('product_relationships').delete().eq('parent_product_id', savedProductId);
+
+        // Insert new relationships
+        if (relationships.length > 0) {
+          const relationshipInserts = relationships.map((rel, idx) => ({
+            parent_product_id: savedProductId,
+            child_product_id: rel.child_product_id,
+            relationship_type: formData.product_type,
+            quantity: formData.product_type === 'bundle' ? rel.quantity : 1,
+            sort_order: idx,
+          }));
+          const { error: relError } = await supabase.from('product_relationships').insert(relationshipInserts);
+          if (relError) throw relError;
         }
       }
 
@@ -338,6 +445,34 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     }
   };
 
+  // Product relationship management functions
+  const addProductToRelationship = (product: SimpleProduct) => {
+    if (relationships.some(r => r.child_product_id === product.id)) return;
+    setRelationships(prev => [...prev, {
+      child_product_id: product.id,
+      quantity: 1,
+      sort_order: prev.length,
+      product,
+    }]);
+    setShowProductPicker(false);
+    setProductSearch('');
+  };
+
+  const removeProductFromRelationship = (childProductId: string) => {
+    setRelationships(prev => prev.filter(r => r.child_product_id !== childProductId));
+  };
+
+  const updateRelationshipQuantity = (childProductId: string, quantity: number) => {
+    setRelationships(prev => prev.map(r =>
+      r.child_product_id === childProductId ? { ...r, quantity: Math.max(1, quantity) } : r
+    ));
+  };
+
+  const filteredAvailableProducts = availableProducts.filter(p =>
+    !relationships.some(r => r.child_product_id === p.id) &&
+    p.name.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
   if (loading) {
     return (
       <AdminPageWrapper>
@@ -366,6 +501,37 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
 
         {error && <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">{error}</div>}
         {infoMessage && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-700">{infoMessage}</div>}
+
+        {/* Product Type Selector */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Product Type</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {PRODUCT_TYPE_OPTIONS.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                onClick={() => setFormData(prev => ({ ...prev, product_type: option.value }))}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  formData.product_type === option.value
+                    ? 'border-emerald-500 bg-emerald-50'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${
+                  formData.product_type === option.value
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {option.icon}
+                </div>
+                <h3 className={`font-semibold ${
+                  formData.product_type === option.value ? 'text-emerald-700' : 'text-slate-700'
+                }`}>{option.label}</h3>
+                <p className="text-sm text-slate-500 mt-1">{option.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Basic Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
@@ -436,28 +602,190 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           </div>
         </div>
 
-        {/* Inventory */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Inventory</h2>
-          <div className="space-y-4">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" name="track_inventory" checked={formData.track_inventory} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
-              <span className="text-slate-700">Track inventory</span>
-            </label>
-            {formData.track_inventory && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Quantity Available</label>
-                  <input type="number" name="quantity_available" value={formData.quantity_available} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+        {/* Inventory - Only for Simple products */}
+        {formData.product_type === 'simple' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Inventory</h2>
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="track_inventory" checked={formData.track_inventory} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
+                <span className="text-slate-700">Track inventory</span>
+              </label>
+              {formData.track_inventory ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Quantity Available</label>
+                    <input type="number" name="quantity_available" value={formData.quantity_available} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Low Stock Threshold</label>
+                    <input type="number" name="low_stock_threshold" value={formData.low_stock_threshold} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                  </div>
                 </div>
+              ) : (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Low Stock Threshold</label>
-                  <input type="number" name="low_stock_threshold" value={formData.low_stock_threshold} onChange={handleChange} min="0" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                  <label className="block text-sm font-medium text-slate-600 mb-1">Stock Status</label>
+                  <select
+                    name="stock_status"
+                    value={formData.stock_status}
+                    onChange={handleChange}
+                    className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  >
+                    <option value="in_stock">In Stock</option>
+                    <option value="out_of_stock">Out of Stock</option>
+                  </select>
+                  <p className="text-slate-500 text-sm mt-1">Manually set whether this product is available for purchase</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* External/Affiliate Product Fields */}
+        {formData.product_type === 'external' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">External Product Settings</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">External URL *</label>
+                <input
+                  type="url"
+                  name="external_url"
+                  value={formData.external_url}
+                  onChange={handleChange}
+                  placeholder="https://example.com/product"
+                  required={formData.product_type === 'external'}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+                <p className="text-slate-500 text-sm mt-1">The URL where customers will be redirected to purchase this product</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Button Text</label>
+                <input
+                  type="text"
+                  name="external_button_text"
+                  value={formData.external_button_text}
+                  onChange={handleChange}
+                  placeholder="Buy Now"
+                  className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+                <p className="text-slate-500 text-sm mt-1">The text displayed on the purchase button</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Grouped Products Selector */}
+        {formData.product_type === 'grouped' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Grouped Products</h2>
+                <p className="text-sm text-slate-500">Select products to include in this group</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductPicker(true)}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+              >
+                <Plus size={16} />
+                Add Product
+              </button>
+            </div>
+
+            {relationships.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <Layers size={32} className="mx-auto mb-2 opacity-50" />
+                <p>No products added yet</p>
+                <p className="text-sm">Click "Add Product" to select products for this group</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {relationships.map((rel) => (
+                  <div key={rel.child_product_id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <div>
+                      <span className="font-medium text-slate-800">{rel.product?.name}</span>
+                      <span className="text-slate-500 ml-2">${rel.product?.price?.toFixed(2)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeProductFromRelationship(rel.child_product_id)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bundle Products Selector */}
+        {formData.product_type === 'bundle' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Bundle Contents</h2>
+                <p className="text-sm text-slate-500">Select products and quantities for this bundle</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProductPicker(true)}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+              >
+                <Plus size={16} />
+                Add Product
+              </button>
+            </div>
+
+            {relationships.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <ShoppingBag size={32} className="mx-auto mb-2 opacity-50" />
+                <p>No products added yet</p>
+                <p className="text-sm">Click "Add Product" to add products to this bundle</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {relationships.map((rel) => (
+                  <div key={rel.child_product_id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <div className="flex-1">
+                      <span className="font-medium text-slate-800">{rel.product?.name}</span>
+                      <span className="text-slate-500 ml-2">${rel.product?.price?.toFixed(2)} each</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-slate-600">Qty:</label>
+                        <input
+                          type="number"
+                          value={rel.quantity}
+                          onChange={(e) => updateRelationshipQuantity(rel.child_product_id, parseInt(e.target.value) || 1)}
+                          min="1"
+                          className="w-16 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProductFromRelationship(rel.child_product_id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Bundle total value:</span>
+                    <span className="font-semibold text-slate-800">
+                      ${relationships.reduce((sum, rel) => sum + (rel.product?.price || 0) * rel.quantity, 0).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* Images */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
@@ -612,6 +940,56 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium flex items-center gap-2">
                 {deleting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Picker Modal */}
+      {showProductPicker && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-800">Select Product</h3>
+              <button
+                type="button"
+                onClick={() => { setShowProductPicker(false); setProductSearch(''); }}
+                className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              placeholder="Search products..."
+              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all mb-4"
+            />
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {filteredAvailableProducts.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <p>No products found</p>
+                  <p className="text-sm">Only simple, active products can be added</p>
+                </div>
+              ) : (
+                filteredAvailableProducts.map((product) => (
+                  <button
+                    type="button"
+                    key={product.id}
+                    onClick={() => addProductToRelationship(product)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-emerald-50 rounded-xl transition-colors text-left"
+                  >
+                    <div>
+                      <span className="font-medium text-slate-800">{product.name}</span>
+                      <div className="text-sm text-slate-500">
+                        ${product.price?.toFixed(2)} • {product.quantity_available} in stock
+                      </div>
+                    </div>
+                    <Plus size={20} className="text-emerald-500" />
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>

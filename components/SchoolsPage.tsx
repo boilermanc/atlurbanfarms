@@ -106,9 +106,9 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
   ];
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-white selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen pt-20 pb-12 bg-white selection:bg-emerald-100 selection:text-emerald-900">
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-24">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-12">
         <motion.div
           initial="hidden"
           animate="visible"
@@ -126,7 +126,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       </section>
 
       {/* Image Banner */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-32">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-20">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -143,13 +143,13 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       </section>
 
       {/* Program Benefits */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-10"
           >
             <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Why Partner With Us</span>
             <h2 className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6">
@@ -183,7 +183,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       </section>
 
       {/* Program Features */}
-      <section className="py-24 bg-white">
+      <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -233,7 +233,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       </section>
 
       {/* Contact Form Section */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
             <motion.div
@@ -397,7 +397,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       </section>
 
       {/* Testimonial Section */}
-      <section className="py-24 bg-white">
+      <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

@@ -100,9 +100,9 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
 
   if (loading) {
     return (
-      <section className="py-24 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
+      <section className="py-16 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-16">
+          <div className="mb-10">
             <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
             <div className="h-12 w-80 bg-gray-100 rounded animate-pulse" />
           </div>
@@ -128,7 +128,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   }
 
   return (
-    <section className="py-24 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
+    <section className="py-16 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
       {/* Decorative background element */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none -z-10">
         <div className="absolute top-1/4 left-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl opacity-60" />
@@ -136,7 +136,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
       </div>
 
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}

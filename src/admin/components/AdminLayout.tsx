@@ -48,6 +48,8 @@ const AdminUsersPage = lazy(() => import('../pages/AdminUsersPage'));
 const ShippingPage = lazy(() => import('../pages/ShippingPage'));
 const PromotionsPage = lazy(() => import('../pages/PromotionsPage'));
 const PromotionEditPage = lazy(() => import('../pages/PromotionEditPage'));
+const FulfillmentPage = lazy(() => import('../pages/FulfillmentPage'));
+const AlertsPage = lazy(() => import('../pages/AlertsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -91,6 +93,7 @@ const PAGE_TITLES: Record<string, string> = {
   'audit-log': 'Audit Log',
   promotions: 'Promotions',
   'promotion-edit': 'Edit Promotion',
+  alerts: 'Alerts',
 };
 
 // Dashboard Stats Interface
@@ -674,6 +677,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <BatchEditPage batchId={selectedBatchId || undefined} onNavigateBack={() => handleNavigate('inventory')} />;
       case 'customers':
         return <CustomersPage onViewCustomer={handleViewCustomer} />;
+      case 'alerts':
+        return <AlertsPage />;
       case 'customer-detail':
         return selectedCustomerId ? (
           <CustomerDetailPage
@@ -685,7 +690,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'shipping':
         return <ShippingPage />;
       case 'fulfillment':
-        return <OrdersPage onViewOrder={handleViewOrder} />;
+        return <FulfillmentPage onViewOrder={handleViewOrder} />;
       case 'zones':
         return <ShippingZonesPage />;
       case 'calendar':

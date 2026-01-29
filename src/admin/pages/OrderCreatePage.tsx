@@ -121,7 +121,6 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
   // Inventory override state
   const [overrideInventory, setOverrideInventory] = useState<boolean>(false);
-  const [overrideReason, setOverrideReason] = useState<string>('');
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
@@ -191,11 +190,6 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     if (!paymentMethod) errors.push('Payment method is required');
     if (!paymentStatus) errors.push('Payment status is required');
 
-    // Override validation
-    if (overrideInventory && !overrideReason.trim()) {
-      errors.push('Please provide a reason for the inventory override');
-    }
-
     setValidationErrors(errors);
     return errors.length === 0;
   };
@@ -228,14 +222,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             ? 'failed'
             : 'pending_payment';
 
-      // Build internal notes with override reason if applicable
-      let finalInternalNotes = internalNotes || '';
-      if (overrideInventory && overrideReason.trim()) {
-        const overrideNote = `[INVENTORY OVERRIDE] ${overrideReason.trim()}`;
-        finalInternalNotes = finalInternalNotes
-          ? `${overrideNote}\n\n${finalInternalNotes}`
-          : overrideNote;
-      }
+      // Build internal notes
+      const finalInternalNotes = internalNotes || '';
 
       // Prepare order data
       const orderData = {
@@ -388,19 +376,14 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                 <input
                   type="checkbox"
                   checked={overrideInventory}
-                  onChange={(e) => {
-                    setOverrideInventory(e.target.checked);
-                    if (!e.target.checked) {
-                      setOverrideReason('');
-                    }
-                  }}
+                  onChange={(e) => setOverrideInventory(e.target.checked)}
                   className="w-4 h-4 text-amber-600 bg-white border-slate-300 rounded focus:ring-amber-500 focus:ring-2"
                 />
                 <span className="text-sm text-slate-700">Override inventory restrictions</span>
               </label>
             </div>
 
-            {/* Override Warning & Reason */}
+            {/* Override Warning */}
             {overrideInventory && (
               <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="flex items-start gap-3">
@@ -409,22 +392,10 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                     <div className="font-medium text-amber-800 mb-1">
                       Inventory Override Enabled
                     </div>
-                    <p className="text-sm text-amber-700 mb-3">
+                    <p className="text-sm text-amber-700">
                       You can now add out-of-stock products or exceed available quantities.
                       This may result in backorders or fulfillment delays.
                     </p>
-                    <div>
-                      <label className="block text-sm font-medium text-amber-800 mb-1">
-                        Reason for override <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        value={overrideReason}
-                        onChange={(e) => setOverrideReason(e.target.value)}
-                        placeholder="e.g., Phone order - customer confirmed willing to wait, special request, reservation..."
-                        rows={2}
-                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors resize-none text-sm"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBackInStockAlert } from '../src/hooks/useSupabase';
 
 // Raw Supabase product type with all possible fields
 interface RawProduct {
@@ -43,12 +44,20 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 }) => {
   const [quantity, setQuantity] = useState(1);
 
-  // Reset quantity when modal opens with new product
+  // Back-in-stock notification state
+  const [showNotifyForm, setShowNotifyForm] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
+
+  // Reset quantity and notify form when modal opens with new product
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
+      setShowNotifyForm(false);
+      setNotifyEmail('');
+      resetNotify();
     }
-  }, [isOpen, product?.id]);
+  }, [isOpen, product?.id, resetNotify]);
 
   // Close on escape key
   useEffect(() => {
@@ -78,6 +87,12 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const handleAddToCart = () => {
     onAddToCart(quantity);
     onClose();
+  };
+
+  const handleNotifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifyEmail || !notifyEmail.includes('@') || !product) return;
+    await subscribe({ productId: product.id, email: notifyEmail });
   };
 
   return (
@@ -297,33 +312,101 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       </div>
                     )}
 
-                    <motion.button
-                      whileTap={inStock ? { scale: 0.98 } : undefined}
-                      whileHover={inStock ? { scale: 1.01 } : undefined}
-                      disabled={!inStock}
-                      onClick={handleAddToCart}
-                      className={`w-full py-5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 ${
-                        inStock
-                          ? 'bg-gray-900 text-white hover:bg-emerald-600 shadow-xl shadow-gray-200 hover:shadow-emerald-200'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
-                      }`}
-                    >
-                      {inStock ? (
-                        <>
-                          Add {quantity > 1 ? quantity : ''} to Cart
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
-                          </svg>
-                        </>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          Out of Stock
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                          </svg>
-                        </span>
-                      )}
-                    </motion.button>
+                    {inStock ? (
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        whileHover={{ scale: 1.01 }}
+                        onClick={handleAddToCart}
+                        className="w-full py-5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 bg-gray-900 text-white hover:bg-emerald-600 shadow-xl shadow-gray-200 hover:shadow-emerald-200"
+                      >
+                        Add {quantity > 1 ? quantity : ''} to Cart
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+                        </svg>
+                      </motion.button>
+                    ) : (
+                      <AnimatePresence mode="wait">
+                        {notifySuccess ? (
+                          <motion.div
+                            key="success"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="w-full py-5 px-6 rounded-2xl bg-emerald-50 border border-emerald-200"
+                          >
+                            <div className="flex items-center justify-center gap-3 text-emerald-700 font-bold text-base">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                              We'll email you when it's back!
+                            </div>
+                            <p className="text-emerald-600/80 text-sm text-center mt-2">Check your inbox for confirmation.</p>
+                          </motion.div>
+                        ) : showNotifyForm ? (
+                          <motion.form
+                            key="form"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            onSubmit={handleNotifySubmit}
+                            className="space-y-3"
+                          >
+                            <div className="flex gap-3">
+                              <input
+                                type="email"
+                                value={notifyEmail}
+                                onChange={(e) => setNotifyEmail(e.target.value)}
+                                placeholder="Enter your email address"
+                                className="flex-1 px-5 py-4 rounded-2xl text-base border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNotifyForm(false);
+                                  setNotifyEmail('');
+                                  resetNotify();
+                                }}
+                                className="flex-1 py-4 rounded-2xl text-base font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={notifyLoading || !notifyEmail.includes('@')}
+                                className="flex-1 py-4 rounded-2xl text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                              >
+                                {notifyLoading ? (
+                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                                    Notify Me
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            {notifyError && (
+                              <p className="text-sm text-red-500 text-center">{notifyError}</p>
+                            )}
+                          </motion.form>
+                        ) : (
+                          <motion.button
+                            key="notify-btn"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            whileTap={{ scale: 0.98 }}
+                            whileHover={{ scale: 1.01 }}
+                            onClick={() => setShowNotifyForm(true)}
+                            className="w-full py-5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            Notify Me When Available
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+                    )}
                   </motion.div>
                 </div>
               </div>

@@ -105,9 +105,9 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
   }, []);
 
   return (
-    <div className="min-h-screen pt-28 pb-20 bg-white selection:bg-purple-100 selection:text-purple-900">
+    <div className="min-h-screen pt-20 pb-12 bg-white selection:bg-purple-100 selection:text-purple-900">
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-32">
+      <section className="max-w-7xl mx-auto px-4 md:px-12 mb-20">
         <motion.div 
           initial="hidden"
           animate="visible"
@@ -139,7 +139,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* Our Story Section */}
-      <section id="story" className="py-24 px-4 md:px-12 bg-white overflow-hidden">
+      <section id="story" className="py-16 px-4 md:px-12 bg-white overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
              <motion.div
@@ -193,7 +193,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* The Difference Section */}
-      <section className="py-24 bg-gray-50 overflow-hidden">
+      <section className="py-16 bg-gray-50 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <motion.div
@@ -237,9 +237,9 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* Tech Grid */}
-      <section className="py-32 bg-white">
+      <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
-          <div className="text-center mb-20">
+          <div className="text-center mb-12">
             <h2 className="text-4xl font-heading font-black text-gray-900">The Technology Behind the <span className="sage-text-gradient">Green</span></h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -265,14 +265,14 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* Meet the Growers Section */}
-      <section id="growers" className="py-24 bg-white scroll-mt-32">
+      <section id="growers" className="py-16 bg-white scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={staggerContainer}
-            className="text-center max-w-4xl mx-auto mb-16"
+            className="text-center max-w-4xl mx-auto mb-10"
           >
             <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Team</motion.span>
             <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-[1.1]">
@@ -288,7 +288,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16"
+            className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10"
           >
             {[
               { value: '50+', label: 'Years Combined Experience' },
@@ -366,8 +366,8 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
           )}
 
           {/* Values Section */}
-          <div className="mt-24 py-24 bg-gray-50 -mx-4 md:-mx-12 px-4 md:px-12 rounded-[3rem]">
-            <div className="text-center mb-16">
+          <div className="mt-16 py-16 bg-gray-50 -mx-4 md:-mx-12 px-4 md:px-12 rounded-[3rem]">
+            <div className="text-center mb-10">
               <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Philosophy</span>
               <h3 className="text-4xl font-heading font-black text-gray-900">What Drives <span className="sage-text-gradient">Our Team</span></h3>
             </div>
@@ -414,7 +414,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* Call to Action */}
-      <section className="px-4 md:px-12 pb-32">
+      <section className="px-4 md:px-12 pb-20">
         <div className="max-w-7xl mx-auto bg-gray-900 rounded-[4rem] p-12 md:p-24 relative overflow-hidden text-center">
           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/leaf.png')] opacity-5 pointer-events-none" />
           <motion.div

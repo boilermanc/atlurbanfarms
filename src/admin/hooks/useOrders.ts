@@ -19,6 +19,7 @@ export type ViewOrderHandler = (orderId: string, options?: ViewOrderOptions) => 
 // Types
 export interface OrderFilters {
   status?: string;
+  statuses?: string[];  // Support multiple statuses for multi-select filtering
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -218,8 +219,13 @@ export function useOrders(filters: OrderFilters = {}) {
         .order('created_at', { ascending: false })
         .range(offset, offset + perPage - 1);
 
-      // Apply status filter
-      if (filters.status && filters.status !== 'all') {
+      // Apply status filter (supports both single status and multiple statuses)
+      if (filters.statuses && filters.statuses.length > 0) {
+        // Multi-status filter
+        countQuery = countQuery.in('status', filters.statuses);
+        dataQuery = dataQuery.in('status', filters.statuses);
+      } else if (filters.status && filters.status !== 'all') {
+        // Single status filter (backwards compatible)
         countQuery = countQuery.eq('status', filters.status);
         dataQuery = dataQuery.eq('status', filters.status);
       }
@@ -339,7 +345,7 @@ export function useOrders(filters: OrderFilters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [filters.status, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage, offset]);
+  }, [filters.status, filters.statuses, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage, offset]);
 
   useEffect(() => {
     fetchOrders();
