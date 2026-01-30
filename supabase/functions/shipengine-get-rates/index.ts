@@ -522,12 +522,16 @@ serve(async (req) => {
     const shippingSettings = await getShippingSettings(supabaseClient, [
       'warehouse_address',
       'default_package',
-      'shipping_markup_percent'
+      'shipping_rate_markup_type',
+      'shipping_rate_markup_percent',
+      'shipping_rate_markup_dollars'
     ])
 
     const warehouseAddress = shippingSettings.warehouse_address
     const defaultPackage = shippingSettings.default_package
-    const markupPercent = shippingSettings.shipping_markup_percent || 0
+    const markupType = shippingSettings.shipping_rate_markup_type || 'percentage'
+    const markupPercent = shippingSettings.shipping_rate_markup_percent || 0
+    const markupDollars = shippingSettings.shipping_rate_markup_dollars || 0
 
     if (!warehouseAddress || !warehouseAddress.address_line1) {
       return new Response(
@@ -723,9 +727,13 @@ serve(async (req) => {
         return true
       })
       .map((rate: any) => {
-        // Apply markup if configured
+        // Apply markup based on configured type
         let amount = rate.shipping_amount.amount
-        if (markupPercent > 0) {
+        if (markupType === 'fixed' && markupDollars > 0) {
+          // Fixed dollar amount markup
+          amount = amount + markupDollars
+        } else if (markupType === 'percentage' && markupPercent > 0) {
+          // Percentage markup
           amount = amount * (1 + markupPercent / 100)
         }
 

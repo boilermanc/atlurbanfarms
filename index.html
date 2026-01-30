@@ -5,11 +5,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ATL Urban Farms | Premium Seedlings</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Critical CSS loaded first to prevent FOUC -->
+    <link rel="stylesheet" href="/index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
+      /* FOUC prevention - hide until styles load */
+      html { visibility: hidden; }
+      html.styles-loaded { visibility: visible; }
+
       body {
         font-family: 'Inter', sans-serif;
         background-color: #fafafa;
@@ -38,6 +43,16 @@
         -webkit-backdrop-filter: blur(12px);
       }
     </style>
+    <script>
+      // Reveal content once DOM is ready (styles will have loaded by then)
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+          document.documentElement.classList.add('styles-loaded');
+        });
+      } else {
+        document.documentElement.classList.add('styles-loaded');
+      }
+    </script>
   <script type="importmap">
 {
   "imports": {
@@ -49,7 +64,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>

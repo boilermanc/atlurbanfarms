@@ -42,7 +42,9 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
   shipping: {
     free_shipping_enabled: { value: false, dataType: 'boolean' },
     free_shipping_threshold: { value: 50, dataType: 'number' },
+    shipping_rate_markup_type: { value: 'percentage', dataType: 'string' },
     shipping_rate_markup_percent: { value: 0, dataType: 'number' },
+    shipping_rate_markup_dollars: { value: 0, dataType: 'number' },
     default_package_length: { value: 12, dataType: 'number' },
     default_package_width: { value: 9, dataType: 'number' },
     default_package_height: { value: 6, dataType: 'number' },
@@ -198,12 +200,8 @@ const ShippingSettingsTab: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
         <h3 className="text-lg font-medium text-slate-800 mb-4">Free Shipping</h3>
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <div>
-              <h4 className="text-slate-800 font-medium">Enable Free Shipping</h4>
-              <p className="text-sm text-slate-500">Offer free shipping for orders above a threshold</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
               <input
                 type="checkbox"
                 checked={formData.shipping?.free_shipping_enabled ?? false}
@@ -212,6 +210,10 @@ const ShippingSettingsTab: React.FC = () => {
               />
               <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
+            <div>
+              <h4 className="text-slate-800 font-medium">Enable Free Shipping</h4>
+              <p className="text-sm text-slate-500">Offer free shipping for orders above a threshold</p>
+            </div>
           </div>
 
           <AnimatePresence>
@@ -241,18 +243,74 @@ const ShippingSettingsTab: React.FC = () => {
       {/* Rate Markup Section */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
         <h3 className="text-lg font-medium text-slate-800 mb-4">Rate Markup</h3>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-600">Markup Percentage (%)</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.1"
-            value={formData.shipping?.shipping_rate_markup_percent ?? 0}
-            onChange={(e) => updateField('shipping', 'shipping_rate_markup_percent', parseFloat(e.target.value) || 0)}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-          />
-          <p className="text-xs text-slate-500">Add a percentage markup to all carrier shipping rates (0 = no markup)</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Markup Type</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => updateField('shipping', 'shipping_rate_markup_type', 'percentage')}
+                className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${
+                  formData.shipping?.shipping_rate_markup_type === 'percentage' || !formData.shipping?.shipping_rate_markup_type
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Percentage (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => updateField('shipping', 'shipping_rate_markup_type', 'fixed')}
+                className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${
+                  formData.shipping?.shipping_rate_markup_type === 'fixed'
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Fixed Amount ($)
+              </button>
+            </div>
+          </div>
+
+          {(formData.shipping?.shipping_rate_markup_type === 'percentage' || !formData.shipping?.shipping_rate_markup_type) && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-600">Markup Percentage (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={formData.shipping?.shipping_rate_markup_percent ?? 0}
+                onChange={(e) => updateField('shipping', 'shipping_rate_markup_percent', parseFloat(e.target.value) || 0)}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              />
+              <p className="text-xs text-slate-500">Add a percentage markup to all carrier shipping rates (e.g., 10 = 10% markup)</p>
+            </div>
+          )}
+
+          {formData.shipping?.shipping_rate_markup_type === 'fixed' && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-600">Markup Amount ($)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.shipping?.shipping_rate_markup_dollars ?? 0}
+                  onChange={(e) => updateField('shipping', 'shipping_rate_markup_dollars', parseFloat(e.target.value) || 0)}
+                  className="w-full pl-8 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+              <p className="text-xs text-slate-500">Add a fixed dollar amount to all carrier shipping rates (e.g., 2.50 = $2.50 added)</p>
+            </div>
+          )}
+
+          <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+            <strong>How it works:</strong> {formData.shipping?.shipping_rate_markup_type === 'fixed'
+              ? 'The fixed amount is added to each carrier rate. Example: $8.99 rate + $2.50 markup = $11.49 shown to customer.'
+              : 'The percentage is applied to each carrier rate. Example: $10.00 rate × 10% markup = $11.00 shown to customer.'}
+          </p>
         </div>
       </div>
 

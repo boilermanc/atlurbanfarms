@@ -18,7 +18,7 @@ const mapProduct = (p: any): Product => ({
   name: p.name,
   description: p.description || '',
   price: p.price,
-  salePrice: p.compare_at_price ?? null,
+  compareAtPrice: p.compare_at_price ?? null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
   stock: p.quantity_available || 0
@@ -100,7 +100,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
 
   if (loading) {
     return (
-      <section className="py-16 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
+      <section className="py-12 px-4 md:px-12 bg-gray-50 border-b border-gray-200 relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="mb-10">
             <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
@@ -136,7 +136,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
       </div>
 
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-5">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -156,9 +156,12 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
-              // Set hash before navigating so AboutPage's useEffect can detect it
-              window.location.hash = 'growers';
               onNavigate?.('about');
+              // Set hash after navigation triggers, then scroll to section
+              setTimeout(() => {
+                window.location.hash = 'growers';
+                document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
+              }, 150);
             }}
             className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
           >
@@ -179,7 +182,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             const displayPrice = promoSalePrice ?? product.price;
             const displayCompareAtPrice = promoSalePrice
               ? product.price  // Promotion: original price is the compare price
-              : product.salePrice;  // No promo: use compare_at_price from DB
+              : product.compareAtPrice;  // No promo: use compare_at_price from DB
 
             return (
               <motion.div

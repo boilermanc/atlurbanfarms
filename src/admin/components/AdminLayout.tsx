@@ -50,6 +50,9 @@ const PromotionsPage = lazy(() => import('../pages/PromotionsPage'));
 const PromotionEditPage = lazy(() => import('../pages/PromotionEditPage'));
 const FulfillmentPage = lazy(() => import('../pages/FulfillmentPage'));
 const AlertsPage = lazy(() => import('../pages/AlertsPage'));
+const GiftCardsPage = lazy(() => import('../pages/GiftCardsPage'));
+const GiftCardDetailPage = lazy(() => import('../pages/GiftCardDetailPage'));
+const GiftCardCreateModal = lazy(() => import('./GiftCardCreateModal'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -94,6 +97,8 @@ const PAGE_TITLES: Record<string, string> = {
   promotions: 'Promotions',
   'promotion-edit': 'Edit Promotion',
   alerts: 'Alerts',
+  'gift-cards': 'Gift Cards',
+  'gift-card-detail': 'Gift Card Details',
 };
 
 // Dashboard Stats Interface
@@ -508,6 +513,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
+  const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null);
+  const [showGiftCardCreateModal, setShowGiftCardCreateModal] = useState(false);
   const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
@@ -587,6 +594,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     if (page === 'content-pages') setSelectedContentId(null);
     if (page === 'inventory') setSelectedBatchId(null);
     if (page === 'promotions') setSelectedPromotionId(null);
+    if (page === 'gift-cards') setSelectedGiftCardId(null);
     if (page !== 'order-detail') setOrderContext(null);
   };
 
@@ -626,6 +634,21 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const handleEditPromotion = (promotionId: string) => {
     setSelectedPromotionId(promotionId || null);
     setCurrentPage('promotion-edit');
+  };
+
+  const handleViewGiftCard = (giftCardId: string) => {
+    setSelectedGiftCardId(giftCardId);
+    setCurrentPage('gift-card-detail');
+  };
+
+  const handleCreateGiftCard = () => {
+    setShowGiftCardCreateModal(true);
+  };
+
+  const handleGiftCardCreated = (_: string, code: string) => {
+    setShowGiftCardCreateModal(false);
+    // Optionally navigate to the new gift card or just refresh the list
+    handleNavigate('gift-cards');
   };
 
   const handleBackToOrders = () => {
@@ -735,6 +758,20 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             onSave={() => handleNavigate('promotions')}
           />
         );
+      case 'gift-cards':
+        return (
+          <GiftCardsPage
+            onViewGiftCard={handleViewGiftCard}
+            onCreateGiftCard={handleCreateGiftCard}
+          />
+        );
+      case 'gift-card-detail':
+        return selectedGiftCardId ? (
+          <GiftCardDetailPage
+            giftCardId={selectedGiftCardId}
+            onBack={() => handleNavigate('gift-cards')}
+          />
+        ) : null;
       case 'dashboard':
       default:
         return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} />;
@@ -761,6 +798,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             </Suspense>
           </main>
         </div>
+
+        {/* Gift Card Create Modal */}
+        <Suspense fallback={null}>
+          <GiftCardCreateModal
+            isOpen={showGiftCardCreateModal}
+            onClose={() => setShowGiftCardCreateModal(false)}
+            onSuccess={handleGiftCardCreated}
+          />
+        </Suspense>
       </div>
     </AdminProvider>
   );

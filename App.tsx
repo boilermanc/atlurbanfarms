@@ -116,6 +116,7 @@ const App: React.FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [calendarFilter, setCalendarFilter] = useState<string | undefined>(undefined);
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
 
   // Fetch branding settings and apply primary brand color
@@ -195,12 +196,20 @@ const App: React.FC = () => {
     setCart(prev => prev.filter(item => item.id !== id));
   }, []);
 
-  const handleNavigate = useCallback((newView: ViewType, category: string = 'All') => {
+  const handleNavigate = useCallback((newView: ViewType, category: string = 'All', options?: { calendarFilter?: string }) => {
     // Scroll to top immediately before view change for reliable behavior
     window.scrollTo(0, 0);
 
     setView(newView);
     setSelectedCategory(category);
+
+    // Set calendar filter if navigating to calendar with a filter
+    if (newView === 'calendar' && options?.calendarFilter) {
+      setCalendarFilter(options.calendarFilter);
+    } else if (newView !== 'calendar') {
+      // Reset filter when navigating away from calendar
+      setCalendarFilter(undefined);
+    }
 
     // Update browser URL for admin views
     const newPath = getPathForView(newView);
@@ -314,7 +323,7 @@ const App: React.FC = () => {
           <>
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
-            <CalendarPage onBack={() => setView('home')} />
+            <CalendarPage onBack={() => setView('home')} initialFilter={calendarFilter} />
             <Footer onNavigate={handleNavigate} />
           </>
         );
@@ -399,7 +408,7 @@ const App: React.FC = () => {
                 <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} />
               </section>
 
-              <section className="py-24 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
+              <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
                 <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
                   <svg className="w-96 h-96 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                 </div>

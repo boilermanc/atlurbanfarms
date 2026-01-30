@@ -17,6 +17,7 @@ interface Event {
 
 interface CalendarPageProps {
   onBack: () => void;
+  initialFilter?: string;
 }
 
 const EVENT_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
@@ -32,6 +33,7 @@ interface BrandingSettings {
   social_twitter: string;
   social_youtube: string;
   social_tiktok: string;
+  secondary_brand_color: string;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -47,20 +49,21 @@ interface ShippingConfig {
   shipping_days: number[]; // 0=Sun, 1=Mon, 2=Tue, etc.
 }
 
-const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
+const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [shippingConfig, setShippingConfig] = useState<ShippingConfig>({ shipping_days: [] });
   const [blackoutDates, setBlackoutDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [activeFilter, setActiveFilter] = useState<string>(initialFilter || 'all');
   const [brandingSettings, setBrandingSettings] = useState<BrandingSettings>({
     social_facebook: '',
     social_instagram: '',
     social_twitter: '',
     social_youtube: '',
     social_tiktok: '',
+    secondary_brand_color: '#10b981', // Default emerald-500
   });
 
   useEffect(() => {
@@ -116,6 +119,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
           social_twitter: brandingData.social_twitter || '',
           social_youtube: brandingData.social_youtube || '',
           social_tiktok: brandingData.social_tiktok || '',
+          secondary_brand_color: brandingData.secondary_brand_color || '#10b981',
         });
       }
     } catch (err) {
@@ -496,10 +500,11 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack }) => {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl shadow-lg p-6 text-white"
+              className="rounded-3xl shadow-lg p-6 text-white"
+              style={{ backgroundColor: brandingSettings.secondary_brand_color }}
             >
               <h3 className="font-bold mb-3">Join Us!</h3>
-              <p className="text-sm text-emerald-100 mb-4">
+              <p className="text-sm text-white/80 mb-4">
                 Follow us on social media for event updates.
               </p>
               <div className="flex gap-3">

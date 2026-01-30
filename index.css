@@ -1,3 +1,11 @@
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* Configure source paths for Tailwind to scan */
+@source "./*.{tsx,ts,jsx,js,html}";
+@source "./src/**/*.{tsx,ts,jsx,js}";
+@source "./components/**/*.{tsx,ts,jsx,js}";
+
 /* Admin Panel Design System Styles */
 
 /* ============================================
@@ -366,4 +374,66 @@
   text-align: center;
   padding: 2rem 0;
   gap: 0.5rem;
+}
+
+/* ============================================
+   Product Description Rich Text Styling
+   ============================================
+   Styles for HTML content from the rich text
+   editor in product descriptions.
+   ============================================ */
+
+.product-description u {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+}
+
+.product-description a {
+  color: #10b981;
+  text-decoration: underline;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.product-description a:hover {
+  color: #059669;
+}
+
+.product-description ul {
+  list-style-type: disc;
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+.product-description ol {
+  list-style-type: decimal;
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+
+.product-description li {
+  margin: 0.25rem 0;
+}
+
+.product-description p {
+  margin: 0.5rem 0;
+}
+
+.product-description p:first-child {
+  margin-top: 0;
+}
+
+.product-description p:last-child {
+  margin-bottom: 0;
+}
+
+.product-description strong,
+.product-description b {
+  font-weight: 700;
+  color: #374151;
+}
+
+.product-description em,
+.product-description i {
+  font-style: italic;
 }

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Upload, Trash2, Star, Plus, X, Link, Package, Layers, ShoppingBag } from 'lucide-react';
 import { useProductTags } from '../hooks/useProductTags';
 import { useProductTagAssignments } from '../hooks/useProductTagAssignments';
+import RichTextEditor from '../components/RichTextEditor';
 
 type ProductType = 'simple' | 'grouped' | 'external' | 'bundle';
 
@@ -551,7 +552,11 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-600 mb-1">Full Description</label>
-              <textarea name="description" value={formData.description} onChange={handleChange} rows={12} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
+              <RichTextEditor
+                value={formData.description}
+                onChange={(html) => setFormData(prev => ({ ...prev, description: html }))}
+                placeholder="Enter product description with formatting..."
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Category</label>
@@ -562,12 +567,14 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Selling Price *</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Price *</label>
                 <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <p className="text-slate-500 text-xs mt-1">Current selling price</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Compare at Price</label>
-                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" placeholder="Original price before sale" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Compare At Price</label>
+                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" placeholder="e.g. 25.00" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <p className="text-slate-500 text-xs mt-1">Original price (shows strikethrough when higher than price)</p>
               </div>
             </div>
           </div>

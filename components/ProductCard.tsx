@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBackInStockAlert } from '../src/hooks/useSupabase';
+import { useAuth } from '../src/hooks/useAuth';
 
 interface ProductCardProps {
   id: string;
@@ -14,6 +15,11 @@ interface ProductCardProps {
   onClick?: () => void;
   compareAtPrice?: number | null;
   saleBadge?: string | null;
+  shortDescription?: string | null;
+  description?: string | null;
+  // Favorites support - when provided, these override localStorage behavior
+  isFavorited?: boolean;
+  onToggleFavorite?: (productId: string) => void;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
@@ -27,39 +33,56 @@ const ProductCard: React.FC<ProductCardProps> = ({
   onClick,
   compareAtPrice,
   saleBadge,
+  shortDescription,
+  description,
+  isFavorited,
+  onToggleFavorite,
 }) => {
   // Product is on sale when compare_at_price exists and is greater than current price
   const isOnSale = typeof compareAtPrice === 'number' && compareAtPrice > price;
   const percentOff = isOnSale ? Math.round((1 - price / compareAtPrice!) * 100) : 0;
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [localWishlisted, setLocalWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
   // Back-in-stock notification state
   const [showNotifyForm, setShowNotifyForm] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
+  const { user } = useAuth();
 
-  // Initialize wishlist state from localStorage
+  // Use prop value if provided, otherwise fallback to local state
+  const isWishlisted = isFavorited !== undefined ? isFavorited : localWishlisted;
+
+  // Initialize wishlist state from localStorage (only when not using prop)
   useEffect(() => {
-    const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
-    setIsWishlisted(wishlist.includes(id));
-  }, [id]);
+    if (isFavorited === undefined) {
+      const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
+      setLocalWishlisted(wishlist.includes(id));
+    }
+  }, [id, isFavorited]);
 
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
+    // If callback provided, use it (handles both db and localStorage)
+    if (onToggleFavorite) {
+      onToggleFavorite(id);
+      return;
+    }
+
+    // Fallback to localStorage-only behavior
     const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
     let newWishlist;
-    
+
     if (isWishlisted) {
       newWishlist = wishlist.filter((itemId: string) => itemId !== id);
     } else {
       newWishlist = [...wishlist, id];
     }
-    
+
     localStorage.setItem('atl_wishlist', JSON.stringify(newWishlist));
-    setIsWishlisted(!isWishlisted);
+    setLocalWishlisted(!localWishlisted);
   };
 
   const incrementQty = (e: React.MouseEvent) => {
@@ -87,6 +110,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleNotifyClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Pre-fill email if user is logged in
+    if (user?.email) {
+      setNotifyEmail(user.email);
+    }
     setShowNotifyForm(true);
     resetNotify();
   };
@@ -160,7 +187,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </span>
           {isOnSale && (
             <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
-              {saleBadge || (percentOff > 0 ? `${percentOff}% Off` : 'On Sale')}
+              {saleBadge || (percentOff > 0 ? `${percentOff}% Off` : 'On Sale!')}
             </span>
           )}
           {!inStock && (
@@ -195,9 +222,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
         
-        <p className="text-gray-400 text-sm mb-6 line-clamp-2 leading-relaxed font-medium">
-          Premium climate-controlled seedling, ready for immediate transplant into your {category.toLowerCase()} garden.
-        </p>
+        {(shortDescription || description) && (
+          <p className="text-gray-400 text-sm mb-6 line-clamp-2 leading-relaxed font-medium">
+            {shortDescription || description}
+          </p>
+        )}
 
         {/* Action Controls */}
         <div className="mt-auto space-y-3">

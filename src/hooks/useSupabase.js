@@ -1094,6 +1094,146 @@ export function useBackInStockAlert() {
   return { subscribe, loading, error, success, reset }
 }
 
+/**
+ * Manage customer favorites (wishlist) with database persistence
+ * Falls back to localStorage for non-logged-in users
+ */
+export function useFavorites(userId) {
+  const [favorites, setFavorites] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch favorites from database or localStorage
+  const fetchFavorites = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      if (userId) {
+        // Logged in - fetch from database
+        const { data, error: supabaseError } = await supabase
+          .from('customer_favorites')
+          .select('product_id, created_at')
+          .eq('customer_id', userId)
+          .order('created_at', { ascending: false })
+
+        if (supabaseError) throw supabaseError
+        setFavorites((data || []).map(f => f.product_id))
+      } else {
+        // Not logged in - use localStorage
+        const localFavorites = JSON.parse(localStorage.getItem('atl_wishlist') || '[]')
+        setFavorites(localFavorites)
+      }
+    } catch (err) {
+      console.error('Error fetching favorites:', err)
+      setError(err.message)
+      // Fallback to localStorage on error
+      const localFavorites = JSON.parse(localStorage.getItem('atl_wishlist') || '[]')
+      setFavorites(localFavorites)
+    } finally {
+      setLoading(false)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    fetchFavorites()
+  }, [fetchFavorites])
+
+  // Check if a product is favorited
+  const isFavorite = useCallback((productId) => {
+    return favorites.includes(productId)
+  }, [favorites])
+
+  // Toggle favorite status for a product
+  const toggleFavorite = useCallback(async (productId) => {
+    const isCurrentlyFavorited = favorites.includes(productId)
+
+    try {
+      if (userId) {
+        // Logged in - update database
+        if (isCurrentlyFavorited) {
+          const { error: deleteError } = await supabase
+            .from('customer_favorites')
+            .delete()
+            .eq('customer_id', userId)
+            .eq('product_id', productId)
+
+          if (deleteError) throw deleteError
+        } else {
+          const { error: insertError } = await supabase
+            .from('customer_favorites')
+            .insert({ customer_id: userId, product_id: productId })
+
+          if (insertError) throw insertError
+        }
+      }
+
+      // Update local state and localStorage
+      const newFavorites = isCurrentlyFavorited
+        ? favorites.filter(id => id !== productId)
+        : [...favorites, productId]
+
+      setFavorites(newFavorites)
+      localStorage.setItem('atl_wishlist', JSON.stringify(newFavorites))
+
+      return { success: true, isFavorited: !isCurrentlyFavorited }
+    } catch (err) {
+      console.error('Error toggling favorite:', err)
+      setError(err.message)
+      return { success: false, error: err.message }
+    }
+  }, [userId, favorites])
+
+  // Sync localStorage favorites to database when user logs in
+  const syncLocalFavoritesToDatabase = useCallback(async () => {
+    if (!userId) return
+
+    try {
+      const localFavorites = JSON.parse(localStorage.getItem('atl_wishlist') || '[]')
+      if (localFavorites.length === 0) return
+
+      // Get existing database favorites
+      const { data: existingFavorites } = await supabase
+        .from('customer_favorites')
+        .select('product_id')
+        .eq('customer_id', userId)
+
+      const existingIds = (existingFavorites || []).map(f => f.product_id)
+
+      // Find favorites that need to be added to the database
+      const newFavorites = localFavorites.filter(id => !existingIds.includes(id))
+
+      if (newFavorites.length > 0) {
+        const { error: insertError } = await supabase
+          .from('customer_favorites')
+          .insert(newFavorites.map(productId => ({
+            customer_id: userId,
+            product_id: productId
+          })))
+
+        if (insertError) {
+          console.error('Error syncing favorites:', insertError)
+        }
+      }
+
+      // Refetch to get merged list
+      await fetchFavorites()
+    } catch (err) {
+      console.error('Error syncing favorites:', err)
+    }
+  }, [userId, fetchFavorites])
+
+  return {
+    favorites,
+    loading,
+    error,
+    isFavorite,
+    toggleFavorite,
+    syncLocalFavoritesToDatabase,
+    refetch: fetchFavorites
+  }
+}
+
 export function useCart() {
   const [cart, setCart] = useState([])
   const [loading, setLoading] = useState(true)

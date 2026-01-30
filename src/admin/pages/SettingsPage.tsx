@@ -884,14 +884,10 @@ const SettingsPage: React.FC = () => {
         <p className="text-sm text-slate-500 mb-4">Display a dismissible banner at the top of every page. Great for promotions, shipping deadlines, or important notices.</p>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-            <div>
-              <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
-              <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
-            </div>
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/60">
             <button
               onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
                 formData.branding?.announcement_bar_enabled ? 'bg-emerald-500' : 'bg-slate-300'
               }`}
             >
@@ -901,6 +897,10 @@ const SettingsPage: React.FC = () => {
                 }`}
               />
             </button>
+            <div>
+              <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
+              <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
+            </div>
           </div>
 
           <AnimatePresence>

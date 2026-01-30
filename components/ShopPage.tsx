@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProducts, useCategories } from '../src/hooks/useSupabase';
+import { useProducts, useCategories, useFavorites } from '../src/hooks/useSupabase';
+import { useAuth } from '../src/hooks/useAuth';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -25,8 +26,9 @@ const mapProduct = (p: any): Product => ({
   id: p.id,
   name: p.name,
   description: p.description || '',
+  shortDescription: p.short_description || null,
   price: p.price,
-  salePrice: p.compare_at_price ?? null,
+  compareAtPrice: p.compare_at_price ?? null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
   stock: p.quantity_available || 0
@@ -42,6 +44,8 @@ interface ProductSectionProps {
   showViewAll?: boolean;
   defaultExpanded?: boolean;
   accentColor?: string;
+  isFavorite?: (productId: string) => boolean;
+  onToggleFavorite?: (productId: string) => void;
 }
 
 const ProductSection: React.FC<ProductSectionProps> = ({
@@ -53,7 +57,9 @@ const ProductSection: React.FC<ProductSectionProps> = ({
   onProductClick,
   showViewAll = false,
   defaultExpanded = false,
-  accentColor = 'emerald'
+  accentColor = 'emerald',
+  isFavorite,
+  onToggleFavorite
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const displayProducts = expanded ? products : products.slice(0, 8);
@@ -107,7 +113,11 @@ const ProductSection: React.FC<ProductSectionProps> = ({
                   inStock={product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => onProductClick(rawProduct)}
-                  compareAtPrice={product.salePrice ?? null}
+                  compareAtPrice={product.compareAtPrice ?? null}
+                  shortDescription={product.shortDescription}
+                  description={product.description}
+                  isFavorited={isFavorite?.(product.id)}
+                  onToggleFavorite={onToggleFavorite}
                 />
               </motion.div>
             );
@@ -134,6 +144,8 @@ interface CategorySubsectionProps {
   rawProducts: any[];
   onAddToCart: (product: Product, quantity: number) => void;
   onProductClick: (product: any) => void;
+  isFavorite?: (productId: string) => boolean;
+  onToggleFavorite?: (productId: string) => void;
 }
 
 const CategorySubsection: React.FC<CategorySubsectionProps> = ({
@@ -141,7 +153,9 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
   products,
   rawProducts,
   onAddToCart,
-  onProductClick
+  onProductClick,
+  isFavorite,
+  onToggleFavorite
 }) => {
   const [expanded, setExpanded] = useState(false);
   const displayProducts = expanded ? products : products.slice(0, 4);
@@ -188,7 +202,11 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
                   inStock={product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => onProductClick(rawProduct)}
-                  compareAtPrice={product.salePrice ?? null}
+                  compareAtPrice={product.compareAtPrice ?? null}
+                  shortDescription={product.shortDescription}
+                  description={product.description}
+                  isFavorited={isFavorite?.(product.id)}
+                  onToggleFavorite={onToggleFavorite}
                 />
               </motion.div>
             );
@@ -212,6 +230,8 @@ const isProductInStock = (rawProduct: any): boolean => {
 const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All' }) => {
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
+  const { user } = useAuth();
+  const { favorites, isFavorite, toggleFavorite, syncLocalFavoritesToDatabase } = useFavorites(user?.id);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -221,6 +241,15 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [activeSubcategoryId, setActiveSubcategoryId] = useState<string | null>(null);
   // Toggle to show only in-stock products
   const [showInStockOnly, setShowInStockOnly] = useState(false);
+  // Show favorites view
+  const [showFavorites, setShowFavorites] = useState(false);
+
+  // Sync localStorage favorites when user logs in
+  useEffect(() => {
+    if (user?.id) {
+      syncLocalFavoritesToDatabase();
+    }
+  }, [user?.id, syncLocalFavoritesToDatabase]);
 
   // Scroll to top when page mounts
   useEffect(() => {
@@ -380,11 +409,16 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const loading = productsLoading || categoriesLoading;
   const error = productsError;
 
+  // Get favorite products
+  const favoriteProducts = useMemo(() => {
+    return products.filter(p => favorites.includes(p.id));
+  }, [products, favorites]);
+
   // Determine if we should show sectioned view (when viewing "All" with no search)
-  const showSectionedView = !activeParentId && !searchQuery;
+  const showSectionedView = !activeParentId && !searchQuery && !showFavorites;
 
   return (
-    <div className="min-h-screen pt-20 pb-12 bg-white">
+    <div className="min-h-screen pt-16 pb-10 bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">
@@ -407,9 +441,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             onClick={() => {
               setActiveParentId(null);
               setActiveSubcategoryId(null);
+              setShowFavorites(false);
             }}
             className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-              !activeParentId
+              !activeParentId && !showFavorites
                 ? 'bg-gray-900 text-white shadow-lg'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
@@ -418,7 +453,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           </button>
           {parentCategories.map((cat: Category) => {
             const productCount = productsByParentCategory[cat.id]?.length || 0;
-            const isActive = activeParentId === cat.id;
+            const isActive = activeParentId === cat.id && !showFavorites;
             // Use different colors for different parent categories
             const catNameLower = cat.name.toLowerCase();
             const colorClasses = catNameLower === 'merchandise'
@@ -433,6 +468,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 onClick={() => {
                   setActiveParentId(cat.id);
                   setActiveSubcategoryId(null);
+                  setShowFavorites(false);
                 }}
                 className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${colorClasses}`}
               >
@@ -440,6 +476,34 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               </button>
             );
           })}
+          {/* Favorites Button */}
+          <button
+            onClick={() => {
+              setShowFavorites(true);
+              setActiveParentId(null);
+              setActiveSubcategoryId(null);
+            }}
+            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+              showFavorites
+                ? 'bg-pink-600 text-white shadow-lg shadow-pink-100'
+                : 'bg-pink-50 text-pink-700 hover:bg-pink-100'
+            }`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill={showFavorites ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+            Favorites {favorites.length > 0 && `(${favorites.length})`}
+          </button>
         </div>
 
         {/* Subcategory Chips - Only show when parent category is selected AND has children */}
@@ -527,6 +591,93 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">Failed to load products</h3>
             <p className="text-red-500">{error}</p>
           </div>
+        ) : showFavorites ? (
+          // Favorites View
+          <div>
+            <div className="mb-8">
+              <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="#EC4899"
+                  stroke="#EC4899"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                </svg>
+                Your Favorites
+              </h2>
+              <p className="text-gray-500 mt-1">Products you've saved for later</p>
+            </div>
+
+            {favoriteProducts.length > 0 ? (
+              <motion.div
+                layout
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
+              >
+                <AnimatePresence mode="popLayout">
+                  {favoriteProducts.map((product) => {
+                    const rawProduct = rawProducts.find((p: any) => p.id === product.id);
+                    return (
+                      <motion.div
+                        key={product.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <ProductCard
+                          id={product.id}
+                          image={product.image}
+                          name={product.name}
+                          price={product.price}
+                          category={product.category}
+                          inStock={product.stock > 0}
+                          onAddToCart={(qty) => onAddToCart(product, qty)}
+                          onClick={() => setSelectedProduct(rawProduct)}
+                          compareAtPrice={product.compareAtPrice ?? null}
+                          shortDescription={product.shortDescription}
+                          description={product.description}
+                          isFavorited={true}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              <div className="py-16 text-center">
+                <div className="w-20 h-20 bg-pink-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-pink-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">No favorites yet</h3>
+                <p className="text-gray-500 mb-6">
+                  {user ? (
+                    "Browse our products and tap the heart icon to save your favorites!"
+                  ) : (
+                    "Sign in to save your favorites across devices, or browse and tap the heart icon to save locally."
+                  )}
+                </p>
+                <button
+                  onClick={() => {
+                    setShowFavorites(false);
+                    setActiveParentId(null);
+                  }}
+                  className="px-6 py-3 bg-pink-600 text-white rounded-xl font-bold hover:bg-pink-700 transition-colors"
+                >
+                  Browse Products
+                </button>
+              </div>
+            )}
+          </div>
         ) : showSectionedView ? (
           // Sectioned View (All Products - no parent selected)
           <div>
@@ -568,6 +719,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                         rawProducts={rawProducts}
                         onAddToCart={onAddToCart}
                         onProductClick={setSelectedProduct}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={toggleFavorite}
                       />
                     ))}
                   </div>
@@ -585,6 +738,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                   onProductClick={setSelectedProduct}
                   showViewAll
                   accentColor={accentColor}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
                 />
               );
             })}
@@ -605,6 +760,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 rawProducts={rawProducts}
                 onAddToCart={onAddToCart}
                 onProductClick={setSelectedProduct}
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
               />
             ))}
           </div>
@@ -635,7 +792,11 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       inStock={product.stock > 0}
                       onAddToCart={(qty) => onAddToCart(product, qty)}
                       onClick={() => setSelectedProduct(rawProduct)}
-                      compareAtPrice={product.salePrice ?? null}
+                      compareAtPrice={product.compareAtPrice ?? null}
+                      shortDescription={product.shortDescription}
+                      description={product.description}
+                      isFavorited={isFavorite(product.id)}
+                      onToggleFavorite={toggleFavorite}
                     />
                   </motion.div>
                 );
@@ -644,7 +805,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           </motion.div>
         )}
 
-        {!loading && !error && filteredProducts.length === 0 && (
+        {!loading && !error && filteredProducts.length === 0 && !showFavorites && (
           <div className="py-16 text-center">
             <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/><path d="M11 8v3"/><path d="M11 15h.01"/></svg>

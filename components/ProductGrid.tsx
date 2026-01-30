@@ -36,7 +36,7 @@ const mapProduct = (p: any): Product => ({
   name: p.name,
   description: p.description || '',
   price: p.price,
-  salePrice: p.compare_at_price ?? null,
+  compareAtPrice: p.compare_at_price ?? null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
   stock: p.quantity_available || 0
@@ -73,10 +73,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
   };
 
   return (
-    <section className="py-20 px-4 md:px-12 bg-gray-50 border-b border-gray-200">
+    <section className="py-14 px-4 md:px-12 bg-gray-50 border-b border-gray-200">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
-        <div className="flex items-end justify-between mb-10 px-2">
+        <div className="flex items-end justify-between mb-8 px-2">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -137,7 +137,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
                 const displayPrice = promoSalePrice ?? product.price;
                 const displayCompareAtPrice = promoSalePrice
                   ? product.price  // Promotion: original price is the compare price
-                  : product.salePrice;  // No promo: use compare_at_price from DB
+                  : product.compareAtPrice;  // No promo: use compare_at_price from DB
 
                 return (
                   <motion.div
@@ -169,7 +169,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="mt-24 p-12 bg-white rounded-[3rem] border border-emerald-50 shadow-2xl shadow-emerald-100/20 flex flex-col lg:flex-row items-center justify-between gap-10 text-center lg:text-left overflow-hidden relative"
+          className="mt-16 p-10 bg-white rounded-[3rem] border border-emerald-50 shadow-2xl shadow-emerald-100/20 flex flex-col lg:flex-row items-center justify-between gap-8 text-center lg:text-left overflow-hidden relative"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50/50 rounded-full blur-3xl -z-10 -translate-y-1/2 translate-x-1/2" />
           

@@ -69,10 +69,19 @@ export {
   useCancelAlert,
   useAlertStats,
 } from './hooks/useAlerts';
+export {
+  useGiftCards,
+  useGiftCard,
+  useCreateGiftCard,
+  useAdjustGiftCardBalance,
+  useToggleGiftCardStatus,
+  useGiftCardStats,
+} from './hooks/useGiftCards';
 
 // Admin Types
 export * from './types/inventory';
 export * from './types/customer';
+export * from './types/giftCards';
 export type {
   ShippingZone,
   ZoneConditions,

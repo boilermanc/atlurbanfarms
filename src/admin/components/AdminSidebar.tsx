@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Users,
   Tag,
+  Gift,
   Bell,
   Truck,
   Calendar,
@@ -52,6 +53,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'customers', label: 'Customers', icon: Users },
       { id: 'alerts', label: 'Alerts', icon: Bell },
       { id: 'promotions', label: 'Promotions', icon: Tag },
+      { id: 'gift-cards', label: 'Gift Cards', icon: Gift },
     ],
   },
   {

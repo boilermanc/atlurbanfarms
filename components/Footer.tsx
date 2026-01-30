@@ -8,7 +8,7 @@ import { supabase } from '../src/lib/supabase';
 type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar';
 
 interface FooterProps {
-  onNavigate?: (view: FooterViewType, category?: string) => void;
+  onNavigate?: (view: FooterViewType, category?: string, options?: { calendarFilter?: string }) => void;
 }
 
 interface BusinessSettings {
@@ -140,13 +140,13 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   ];
 
   return (
-    <footer className="bg-gray-950 text-white pt-24 pb-12 px-4 md:px-12 overflow-hidden relative border-t border-white/5">
+    <footer className="bg-gray-950 text-white pt-16 pb-10 px-4 md:px-12 overflow-hidden relative border-t border-white/5">
       {/* Decorative background element */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-600/5 rounded-full blur-[120px] -z-0 pointer-events-none" />
       
       <div className="max-w-7xl mx-auto relative z-10">
         {/* Top Section: Brand & Newsletter */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14">
           <div className="lg:col-span-5">
             <div className="flex items-center gap-3 mb-8">
               <button onClick={(e) => handleNav(e, 'home')} className="flex items-center gap-3 group text-left">
@@ -294,7 +294,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         </div>
 
         {/* Link Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-12 border-b border-white/10 pb-16">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 border-b border-white/10 pb-12">
           <div>
             <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Shop</h4>
             <ul className="space-y-4">
@@ -357,7 +357,13 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Get Directions
                 </a>
                 <button
-                  onClick={(e) => handleNav(e, 'calendar')}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onNavigate) {
+                      onNavigate('calendar', undefined, { calendarFilter: 'open_hours' });
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
                   className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors mt-2 ml-4"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
@@ -390,7 +396,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-12 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="pt-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col md:flex-row items-center gap-8">
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-600">
               © 2025 ATL URBAN FARMS. ALL RIGHTS RESERVED.

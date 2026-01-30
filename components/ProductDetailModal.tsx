@@ -1,7 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import { useBackInStockAlert } from '../src/hooks/useSupabase';
+import { useAuth } from '../src/hooks/useAuth';
+
+// Sanitize HTML content from the rich text editor
+const sanitizeHtml = (html: string): string => {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+  });
+};
 
 // Raw Supabase product type with all possible fields
 interface RawProduct {
@@ -48,6 +58,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [showNotifyForm, setShowNotifyForm] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
   const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
+  const { user } = useAuth();
 
   // Reset quantity and notify form when modal opens with new product
   useEffect(() => {
@@ -207,7 +218,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     {product.description && (
                       <div className="mb-8">
                         <h3 className="text-sm font-black uppercase tracking-wider text-gray-400 mb-3">Description</h3>
-                        <p className="text-gray-600 leading-relaxed">{product.description}</p>
+                        <div
+                          className="product-description text-gray-600 leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-strong:font-bold prose-strong:text-gray-800 prose-em:italic prose-a:text-emerald-600 prose-a:underline prose-a:font-medium hover:prose-a:text-emerald-700 prose-ul:list-disc prose-ul:pl-5 prose-ul:my-2 prose-ol:list-decimal prose-ol:pl-5 prose-ol:my-2 prose-li:my-1"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
+                        />
                       </div>
                     )}
 
@@ -398,7 +412,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                             exit={{ opacity: 0, y: -10 }}
                             whileTap={{ scale: 0.98 }}
                             whileHover={{ scale: 1.01 }}
-                            onClick={() => setShowNotifyForm(true)}
+                            onClick={() => {
+                              // Pre-fill email if user is logged in
+                              if (user?.email) {
+                                setNotifyEmail(user.email);
+                              }
+                              setShowNotifyForm(true);
+                            }}
                             className="w-full py-5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
