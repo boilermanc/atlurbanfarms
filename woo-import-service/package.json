@@ -1,0 +1,17 @@
+{
+  "name": "woo-import-service",
+  "version": "1.0.0",
+  "description": "Import customers and orders from WooCommerce MySQL to Supabase",
+  "main": "run-import.js",
+  "scripts": {
+    "stats": "node run-import.js stats",
+    "customers": "node run-import.js customers",
+    "orders": "node run-import.js orders",
+    "full": "node run-import.js full"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "mysql2": "^3.6.0"
+  }
+}

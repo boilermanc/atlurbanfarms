@@ -38,6 +38,7 @@ export { default as ReportsPage } from './pages/ReportsPage';
 export { default as AuditLogPage } from './pages/AuditLogPage';
 export { default as AdminUsersPage } from './pages/AdminUsersPage';
 export { default as AlertsPage } from './pages/AlertsPage';
+export { default as WooImportPage } from './pages/WooImportPage';
 
 // Admin User Components
 export { default as InviteAdminModal } from './components/InviteAdminModal';
@@ -77,6 +78,12 @@ export {
   useToggleGiftCardStatus,
   useGiftCardStats,
 } from './hooks/useGiftCards';
+export {
+  useWooImportLogs,
+  useWooImportStats,
+  useLegacyOrders,
+  useWooCustomerCount,
+} from './hooks/useWooImport';
 
 // Admin Types
 export * from './types/inventory';

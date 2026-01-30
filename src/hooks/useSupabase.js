@@ -154,6 +154,140 @@ export function useOrders(customerId) {
 }
 
 /**
+ * Fetch legacy orders (imported from WooCommerce)
+ */
+export function useLegacyOrders(customerId) {
+  const [legacyOrders, setLegacyOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!customerId) {
+      setLoading(false)
+      return
+    }
+
+    async function fetchLegacyOrders() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const { data, error: supabaseError } = await supabase
+          .from('legacy_orders')
+          .select('*')
+          .eq('customer_id', customerId)
+          .order('order_date', { ascending: false })
+
+        if (supabaseError) throw supabaseError
+        setLegacyOrders(data || [])
+      } catch (err) {
+        // If table doesn't exist yet, just return empty array
+        if (err.code === '42P01') {
+          setLegacyOrders([])
+        } else {
+          setError(err.message)
+          setLegacyOrders([])
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLegacyOrders()
+  }, [customerId])
+
+  return { legacyOrders, loading, error }
+}
+
+/**
+ * Fetch combined orders (new orders + legacy orders from WooCommerce)
+ * Returns a unified list sorted by date with isLegacy flag
+ */
+export function useCombinedOrders(customerId) {
+  const [combinedOrders, setCombinedOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!customerId) {
+      setLoading(false)
+      return
+    }
+
+    async function fetchAllOrders() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Fetch both order types in parallel
+        const [newOrdersResult, legacyOrdersResult] = await Promise.all([
+          supabase
+            .from('orders')
+            .select(`
+              *,
+              order_items:order_items(
+                *,
+                product:products(name, slug, primary_image_url)
+              ),
+              shipments:shipments(
+                id,
+                tracking_number,
+                carrier_code,
+                status,
+                tracking_status,
+                estimated_delivery_date,
+                actual_delivery_date
+              )
+            `)
+            .eq('customer_id', customerId)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('legacy_orders')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('order_date', { ascending: false })
+        ])
+
+        if (newOrdersResult.error) throw newOrdersResult.error
+
+        const newOrders = (newOrdersResult.data || []).map(order => ({
+          ...order,
+          isLegacy: false,
+          orderDate: order.created_at
+        }))
+
+        // Legacy orders may not exist yet - handle gracefully
+        let legacyOrders = []
+        if (!legacyOrdersResult.error || legacyOrdersResult.error.code !== '42P01') {
+          if (legacyOrdersResult.error) throw legacyOrdersResult.error
+          legacyOrders = (legacyOrdersResult.data || []).map(order => ({
+            ...order,
+            isLegacy: true,
+            orderDate: order.order_date
+          }))
+        }
+
+        // Combine and sort by date (newest first)
+        const allOrders = [...newOrders, ...legacyOrders].sort(
+          (a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()
+        )
+
+        setCombinedOrders(allOrders)
+      } catch (err) {
+        setError(err.message)
+        setCombinedOrders([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAllOrders()
+  }, [customerId])
+
+  return { orders: combinedOrders, loading, error }
+}
+
+/**
  * Fetch and manage customer addresses
  */
 export function useAddresses(customerId) {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useOrders } from '../../hooks/useSupabase';
+import { useCombinedOrders } from '../../hooks/useSupabase';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 
 interface OrderHistoryProps {
@@ -42,11 +42,65 @@ interface Order {
   delivery_address: any;
   order_items: OrderItem[];
   shipments?: Shipment[];
+  isLegacy: false;
+  orderDate: string;
 }
 
+interface LegacyOrder {
+  id: string;
+  woo_order_id: number;
+  customer_id: string;
+  order_date: string;
+  status: string;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  total: number;
+  payment_method?: string;
+  billing_email?: string;
+  billing_first_name?: string;
+  billing_last_name?: string;
+  billing_address?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_zip?: string;
+  shipping_first_name?: string;
+  shipping_last_name?: string;
+  shipping_address?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_zip?: string;
+  isLegacy: true;
+  orderDate: string;
+}
+
+type CombinedOrder = Order | LegacyOrder;
+
 const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
-  const { orders, loading, error } = useOrders(userId);
+  const { orders, loading, error } = useCombinedOrders(userId);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  // Helper to get display order number
+  const getOrderNumber = (order: CombinedOrder) => {
+    if (order.isLegacy) {
+      return `WC-${order.woo_order_id}`;
+    }
+    return order.order_number;
+  };
+
+  // Helper to get display status for legacy orders
+  const getLegacyStatusLabel = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'completed': 'Completed',
+      'refunded': 'Refunded',
+      'cancelled': 'Cancelled',
+      'processing': 'Processing',
+      'on-hold': 'On Hold',
+      'pending': 'Pending',
+      'failed': 'Failed'
+    };
+    return statusMap[status?.toLowerCase()] || status || 'Unknown';
+  };
 
   const handleTrackPackage = (trackingNumber: string, carrierCode: string) => {
     // Navigate to tracking page with params
@@ -71,7 +125,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase().replace('-', '_')) {
       case 'completed':
         return 'bg-emerald-50 text-emerald-600';
       case 'processing':
@@ -84,6 +138,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
       case 'failed':
         return 'bg-slate-100 text-slate-600';
       case 'pending_payment':
+      case 'pending':
       default:
         return 'bg-amber-50 text-amber-700';
     }
@@ -172,7 +227,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order: Order) => (
+          {orders.map((order: CombinedOrder) => (
             <motion.div
               key={order.id}
               layout
@@ -185,15 +240,20 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
               >
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span className="font-heading font-bold text-gray-900">
-                        Order #{order.order_number}
+                        Order #{getOrderNumber(order)}
                       </span>
                       <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusColor(order.status)}`}>
-                        {getOrderStatusLabel(order.status)}
+                        {order.isLegacy ? getLegacyStatusLabel(order.status) : getOrderStatusLabel(order.status)}
                       </span>
+                      {order.isLegacy && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                          Historical
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                    <p className="text-sm text-gray-500">{formatDate(order.orderDate)}</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-heading font-bold text-gray-900">
@@ -229,67 +289,95 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                     className="border-t border-gray-100"
                   >
                     <div className="p-6 space-y-6">
-                      {/* Order Items */}
-                      <div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
-                          Items
-                        </h4>
-                        <div className="space-y-3">
-                          {order.order_items?.map((item: OrderItem) => (
-                            <div key={item.id} className="flex items-center gap-4">
-                              <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-                                {item.product?.primary_image_url ? (
-                                  <img
-                                    src={item.product.primary_image_url}
-                                    alt={item.product.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                                      <circle cx="8.5" cy="8.5" r="1.5" />
-                                      <path d="M21 15l-5-5L5 21" />
-                                    </svg>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-gray-900 truncate">
-                                  {item.product?.name || 'Product'}
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                  Qty: {item.quantity} × {formatCurrency(item.unit_price)}
-                                </p>
-                              </div>
-                              <span className="font-medium text-gray-900">
-                                {formatCurrency(item.total_price)}
-                              </span>
-                            </div>
-                          ))}
+                      {/* Legacy Order Notice */}
+                      {order.isLegacy && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                          <div className="flex items-start gap-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 flex-shrink-0 mt-0.5">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="12" y1="16" x2="12" y2="12" />
+                              <line x1="12" y1="8" x2="12.01" y2="8" />
+                            </svg>
+                            <p className="text-sm text-amber-800">
+                              This is a historical order from our previous system. Order item details are not available for historical orders.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Order Items - Only for new orders */}
+                      {!order.isLegacy && (order as Order).order_items?.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Items
+                          </h4>
+                          <div className="space-y-3">
+                            {(order as Order).order_items?.map((item: OrderItem) => (
+                              <div key={item.id} className="flex items-center gap-4">
+                                <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+                                  {item.product?.primary_image_url ? (
+                                    <img
+                                      src={item.product.primary_image_url}
+                                      alt={item.product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" />
+                                        <path d="M21 15l-5-5L5 21" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-900 truncate">
+                                    {item.product?.name || 'Product'}
+                                  </p>
+                                  <p className="text-sm text-gray-500">
+                                    Qty: {item.quantity} × {formatCurrency(item.unit_price)}
+                                  </p>
+                                </div>
+                                <span className="font-medium text-gray-900">
+                                  {formatCurrency(item.total_price)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Order Summary */}
-                      <div className="border-t border-gray-100 pt-4">
+                      <div className={!order.isLegacy && (order as Order).order_items?.length > 0 ? "border-t border-gray-100 pt-4" : ""}>
                         <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
                           Summary
                         </h4>
                         <div className="space-y-2">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Subtotal</span>
-                            <span className="text-gray-900">{formatCurrency(order.subtotal)}</span>
+                            <span className="text-gray-900">{formatCurrency(order.subtotal || 0)}</span>
                           </div>
-                          {order.delivery_fee > 0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-500">Delivery</span>
-                              <span className="text-gray-900">{formatCurrency(order.delivery_fee)}</span>
-                            </div>
+                          {/* Shipping/Delivery fee - handle both order types */}
+                          {order.isLegacy ? (
+                            (order as LegacyOrder).shipping > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Shipping</span>
+                                <span className="text-gray-900">{formatCurrency((order as LegacyOrder).shipping)}</span>
+                              </div>
+                            )
+                          ) : (
+                            (order as Order).delivery_fee > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Delivery</span>
+                                <span className="text-gray-900">{formatCurrency((order as Order).delivery_fee)}</span>
+                              </div>
+                            )
                           )}
-                          {order.tax > 0 && (
+                          {(order.tax || 0) > 0 && (
                             <div className="flex justify-between text-sm">
                               <span className="text-gray-500">Tax</span>
-                              <span className="text-gray-900">{formatCurrency(order.tax)}</span>
+                              <span className="text-gray-900">{formatCurrency(order.tax || 0)}</span>
                             </div>
                           )}
                           <div className="flex justify-between font-bold pt-2 border-t border-gray-100">
@@ -299,30 +387,65 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                         </div>
                       </div>
 
-                      {/* Delivery Address */}
-                      {order.delivery_address && (
+                      {/* Shipping Address - Legacy Orders */}
+                      {order.isLegacy && ((order as LegacyOrder).shipping_address || (order as LegacyOrder).shipping_city) && (
+                        <div className="border-t border-gray-100 pt-4">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Shipping Address
+                          </h4>
+                          <div className="text-sm text-gray-600">
+                            {((order as LegacyOrder).shipping_first_name || (order as LegacyOrder).shipping_last_name) && (
+                              <p className="font-medium text-gray-900">
+                                {(order as LegacyOrder).shipping_first_name} {(order as LegacyOrder).shipping_last_name}
+                              </p>
+                            )}
+                            {(order as LegacyOrder).shipping_address && <p>{(order as LegacyOrder).shipping_address}</p>}
+                            {((order as LegacyOrder).shipping_city || (order as LegacyOrder).shipping_state || (order as LegacyOrder).shipping_zip) && (
+                              <p>
+                                {(order as LegacyOrder).shipping_city}{(order as LegacyOrder).shipping_city && (order as LegacyOrder).shipping_state ? ', ' : ''}
+                                {(order as LegacyOrder).shipping_state} {(order as LegacyOrder).shipping_zip}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delivery Address - New Orders */}
+                      {!order.isLegacy && (order as Order).delivery_address && (
                         <div className="border-t border-gray-100 pt-4">
                           <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
                             Delivery Address
                           </h4>
                           <div className="text-sm text-gray-600">
-                            {order.delivery_address.street && <p>{order.delivery_address.street}</p>}
-                            {order.delivery_address.unit && <p>{order.delivery_address.unit}</p>}
+                            {(order as Order).delivery_address.street && <p>{(order as Order).delivery_address.street}</p>}
+                            {(order as Order).delivery_address.unit && <p>{(order as Order).delivery_address.unit}</p>}
                             <p>
-                              {order.delivery_address.city}, {order.delivery_address.state} {order.delivery_address.zip}
+                              {(order as Order).delivery_address.city}, {(order as Order).delivery_address.state} {(order as Order).delivery_address.zip}
                             </p>
                           </div>
                         </div>
                       )}
 
-                      {/* Tracking Information */}
-                      {order.shipments && order.shipments.length > 0 && order.shipments.some(s => s.tracking_number) && (
+                      {/* Payment Method - Legacy Orders */}
+                      {order.isLegacy && (order as LegacyOrder).payment_method && (
+                        <div className="border-t border-gray-100 pt-4">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Payment Method
+                          </h4>
+                          <p className="text-sm text-gray-600 capitalize">
+                            {(order as LegacyOrder).payment_method?.replace(/_/g, ' ')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Tracking Information - New Orders Only */}
+                      {!order.isLegacy && (order as Order).shipments && (order as Order).shipments!.length > 0 && (order as Order).shipments!.some(s => s.tracking_number) && (
                         <div className="border-t border-gray-100 pt-4">
                           <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
                             Shipping & Tracking
                           </h4>
                           <div className="space-y-3">
-                            {order.shipments.filter(s => s.tracking_number).map((shipment) => (
+                            {(order as Order).shipments!.filter(s => s.tracking_number).map((shipment) => (
                               <div key={shipment.id} className="bg-gray-50 rounded-xl p-4">
                                 <div className="flex items-center justify-between gap-4 mb-2">
                                   <div className="flex items-center gap-2">

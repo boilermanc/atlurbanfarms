@@ -22,6 +22,7 @@ import {
   BarChart3,
   Shield,
   ScrollText,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -79,6 +80,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'feature-flags', label: 'Feature Flags', icon: ToggleLeft },
       { id: 'integrations', label: 'Integrations', icon: Plug },
       { id: 'email-templates', label: 'Email Templates', icon: Mail },
+      { id: 'woo-import', label: 'WooCommerce Import', icon: Download },
     ],
   },
   {
