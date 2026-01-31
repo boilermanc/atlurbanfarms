@@ -327,9 +327,19 @@ export function useOrders(filters: OrderFilters = {}) {
       }
 
       // Execute both queries in parallel
+      // Wrap legacy query in a function to handle errors gracefully
+      const fetchLegacyOrders = async () => {
+        try {
+          return await legacyQuery;
+        } catch {
+          // Return empty result if legacy_orders table doesn't exist
+          return { data: [], error: null };
+        }
+      };
+
       const [dataResult, legacyResult] = await Promise.all([
         dataQuery,
-        legacyQuery.catch(() => ({ data: [], error: null })), // Gracefully handle if legacy table doesn't exist
+        fetchLegacyOrders(),
       ]);
 
       if (dataResult.error) throw dataResult.error;
