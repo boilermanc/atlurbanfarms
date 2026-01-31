@@ -144,7 +144,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         .from('customers')
         .select(`
           *,
-          customer_tag_assignments(
+          customer_tag_assignments!customer_id(
             tag:customer_tags(*)
           )
         `)

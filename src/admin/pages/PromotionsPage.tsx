@@ -217,9 +217,9 @@ const PromotionsPage: React.FC<PromotionsPageProps> = ({ onEditPromotion }) => {
                   <tbody className="divide-y divide-slate-100">
                     {promotions.map((promotion) => {
                       const status = getPromotionStatus(promotion);
-                      const statusConfig = PROMOTION_STATUS_CONFIG[status];
-                      const discountConfig = DISCOUNT_TYPE_CONFIG[promotion.discount_type];
-                      const scopeConfig = SCOPE_CONFIG[promotion.scope];
+                      const statusConfig = PROMOTION_STATUS_CONFIG[status] || { label: status, color: 'bg-slate-100 text-slate-600', borderColor: 'border-slate-200' };
+                      const discountConfig = DISCOUNT_TYPE_CONFIG[promotion.discount_type] || { label: promotion.discount_type, color: 'bg-slate-500', description: '' };
+                      const scopeConfig = SCOPE_CONFIG[promotion.scope] || { label: promotion.scope, color: 'bg-slate-500', description: '' };
 
                       return (
                         <tr
