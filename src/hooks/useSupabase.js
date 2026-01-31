@@ -200,6 +200,57 @@ export function useLegacyOrders(customerId) {
 }
 
 /**
+ * Fetch legacy order items for a specific legacy order
+ * Includes linked product data when available
+ */
+export function useLegacyOrderItems(legacyOrderId) {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!legacyOrderId) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+
+    async function fetchItems() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const { data, error: supabaseError } = await supabase
+          .from('legacy_order_items')
+          .select(`
+            *,
+            product:products(id, name, slug, primary_image_url)
+          `)
+          .eq('legacy_order_id', legacyOrderId)
+          .order('product_name')
+
+        if (supabaseError) throw supabaseError
+        setItems(data || [])
+      } catch (err) {
+        // If table doesn't exist yet, just return empty array
+        if (err.code === '42P01') {
+          setItems([])
+        } else {
+          setError(err.message)
+          setItems([])
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchItems()
+  }, [legacyOrderId])
+
+  return { items, loading, error }
+}
+
+/**
  * Fetch combined orders (new orders + legacy orders from WooCommerce)
  * Returns a unified list sorted by date with isLegacy flag
  */

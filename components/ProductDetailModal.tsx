@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
 import { useBackInStockAlert } from '../src/hooks/useSupabase';
@@ -26,6 +26,11 @@ interface RawProduct {
   days_to_maturity?: number;
   sun_requirements?: string;
   water_requirements?: string;
+  // New growing info fields
+  yield_per_plant?: number | null;
+  harvest_type?: string[] | null;
+  growing_season?: string[] | null;
+  growing_location?: string | null;
   category?: {
     name: string;
   };
@@ -36,6 +41,8 @@ interface RawProduct {
   images?: Array<{
     url: string;
     alt_text?: string;
+    sort_order?: number;
+    is_primary?: boolean;
   }>;
 }
 
@@ -53,6 +60,8 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onAddToCart
 }) => {
   const [quantity, setQuantity] = useState(1);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const thumbnailContainerRef = useRef<HTMLDivElement>(null);
 
   // Back-in-stock notification state
   const [showNotifyForm, setShowNotifyForm] = useState(false);
@@ -60,10 +69,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
   const { user } = useAuth();
 
-  // Reset quantity and notify form when modal opens with new product
+  // Reset quantity, notify form, and selected image when modal opens with new product
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
+      setSelectedImageIndex(0);
       setShowNotifyForm(false);
       setNotifyEmail('');
       resetNotify();
@@ -87,9 +97,38 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   if (!product) return null;
 
-  const imageUrl = product.primary_image?.url || product.images?.[0]?.url || 'https://placehold.co/600x600?text=No+Image';
+  // Build sorted images array - prioritize primary, then sort by sort_order
+  const allImages = (() => {
+    const images = product.images || [];
+    // Sort by sort_order, with primary images first
+    const sorted = [...images].sort((a, b) => {
+      if (a.is_primary && !b.is_primary) return -1;
+      if (!a.is_primary && b.is_primary) return 1;
+      return (a.sort_order ?? 999) - (b.sort_order ?? 999);
+    });
+    // If no images, use primary_image or placeholder
+    if (sorted.length === 0 && product.primary_image) {
+      return [{ url: product.primary_image.url, alt_text: product.primary_image.alt_text }];
+    }
+    return sorted.length > 0 ? sorted : [{ url: 'https://placehold.co/600x600?text=No+Image', alt_text: 'No image available' }];
+  })();
+
+  const currentImage = allImages[selectedImageIndex] || allImages[0];
+  const imageUrl = currentImage?.url || 'https://placehold.co/600x600?text=No+Image';
   const categoryName = product.category?.name || 'Uncategorized';
   const inStock = (product.quantity_available || 0) > 0;
+  const hasMultipleImages = allImages.length > 1;
+
+  // Scroll thumbnails left/right
+  const scrollThumbnails = (direction: 'left' | 'right') => {
+    if (thumbnailContainerRef.current) {
+      const scrollAmount = 100;
+      thumbnailContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Sale pricing logic
   const isOnSale = typeof product.compare_at_price === 'number' && product.compare_at_price > product.price;
@@ -142,18 +181,26 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="flex-1 overflow-y-auto">
               <div className="grid grid-cols-1 lg:grid-cols-2 min-h-full">
                 {/* Image Section */}
-                <div className="relative bg-gray-50 p-6 lg:p-12 flex items-center justify-center">
+                <div className="relative bg-gray-50 p-6 lg:p-12 flex flex-col items-center justify-center">
+                  {/* Main Image */}
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.1, duration: 0.4 }}
                     className="relative w-full max-w-lg aspect-square rounded-[2rem] overflow-hidden shadow-2xl shadow-gray-200/50"
                   >
-                    <img
-                      src={imageUrl}
-                      alt={product.name}
-                      className={`w-full h-full object-cover ${!inStock ? 'grayscale opacity-70' : ''}`}
-                    />
+                    <AnimatePresence mode="wait">
+                      <motion.img
+                        key={imageUrl}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        src={imageUrl}
+                        alt={currentImage?.alt_text || product.name}
+                        className={`w-full h-full object-cover ${!inStock ? 'grayscale opacity-70' : ''}`}
+                      />
+                    </AnimatePresence>
 
                     {/* Category Badge & Sale Badge */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -176,6 +223,63 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       </div>
                     )}
                   </motion.div>
+
+                  {/* Thumbnail Gallery */}
+                  {hasMultipleImages && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2, duration: 0.3 }}
+                      className="relative w-full max-w-lg mt-4"
+                    >
+                      {/* Left Arrow */}
+                      <button
+                        onClick={() => scrollThumbnails('left')}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 w-8 h-8 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-white transition-all"
+                        aria-label="Scroll thumbnails left"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="m15 18-6-6 6-6" transform="scale(0.67) translate(0, 0)"/>
+                        </svg>
+                      </button>
+
+                      {/* Thumbnails Container */}
+                      <div
+                        ref={thumbnailContainerRef}
+                        className="flex gap-2 overflow-x-auto scrollbar-hide px-6 py-2 scroll-smooth"
+                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                      >
+                        {allImages.map((img, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setSelectedImageIndex(index)}
+                            className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                              selectedImageIndex === index
+                                ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-105'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.alt_text || `${product.name} image ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Right Arrow */}
+                      <button
+                        onClick={() => scrollThumbnails('right')}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 w-8 h-8 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-gray-100 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-white transition-all"
+                        aria-label="Scroll thumbnails right"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="m9 18 6-6-6-6" transform="scale(0.67) translate(0, 0)"/>
+                        </svg>
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Details Section */}
@@ -276,21 +380,85 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                           <p className="text-xl font-black text-gray-900">{product.water_requirements}</p>
                         </div>
                       )}
-
-                      {(product.quantity_available !== undefined && product.quantity_available > 0) && (
-                        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>
-                              </svg>
-                            </div>
-                            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Available</span>
-                          </div>
-                          <p className="text-xl font-black text-gray-900">{product.quantity_available} units</p>
-                        </div>
-                      )}
                     </div>
+
+                    {/* Growing Information Section */}
+                    {(product.yield_per_plant || (product.harvest_type && product.harvest_type.length > 0) || (product.growing_season && product.growing_season.length > 0) || product.growing_location) && (
+                      <div className="mb-8">
+                        <h3 className="text-sm font-black uppercase tracking-wider text-gray-400 mb-3">Growing Information</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {product.yield_per_plant && (
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-lime-100 rounded-xl flex items-center justify-center text-lime-600">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/>
+                                  </svg>
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Yield per Plant</span>
+                              </div>
+                              <p className="text-xl font-black text-gray-900">{product.yield_per_plant} oz</p>
+                            </div>
+                          )}
+
+                          {product.harvest_type && product.harvest_type.length > 0 && (
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+                                  </svg>
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Harvest Type</span>
+                              </div>
+                              <p className="text-lg font-black text-gray-900">
+                                {product.harvest_type.map(type =>
+                                  type === 'cut_and_come_again' ? 'Cut & Come Again' :
+                                  type === 'full_head' ? 'Full Head' : type
+                                ).join(', ')}
+                              </p>
+                            </div>
+                          )}
+
+                          {product.growing_season && product.growing_season.length > 0 && (
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center text-teal-600">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+                                  </svg>
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Growing Season</span>
+                              </div>
+                              <p className="text-lg font-black text-gray-900">
+                                {product.growing_season.map(season =>
+                                  season === 'year_round' ? 'Year-round' :
+                                  season.charAt(0).toUpperCase() + season.slice(1)
+                                ).join(', ')}
+                              </p>
+                            </div>
+                          )}
+
+                          {product.growing_location && (
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+                                  </svg>
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Growing Location</span>
+                              </div>
+                              <p className="text-xl font-black text-gray-900">
+                                {product.growing_location === 'indoor' ? 'Indoor' :
+                                 product.growing_location === 'outdoor' ? 'Outdoor' :
+                                 product.growing_location === 'both' ? 'Indoor & Outdoor' : product.growing_location}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
 
                   {/* Action Section - Sticky at bottom */}
@@ -334,7 +502,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         className="w-full py-5 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 bg-gray-900 text-white hover:bg-emerald-600 shadow-xl shadow-gray-200 hover:shadow-emerald-200"
                       >
                         Add {quantity > 1 ? quantity : ''} to Cart
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
                         </svg>
                       </motion.button>

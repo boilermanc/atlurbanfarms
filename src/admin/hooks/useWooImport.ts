@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase';
 
 export interface WooImportLog {
   id: string;
-  import_type: 'customers' | 'orders' | 'full';
+  import_type: 'customers' | 'orders' | 'line_items' | 'full';
   started_at: string;
   completed_at: string | null;
   status: 'running' | 'completed' | 'failed';
@@ -15,6 +15,7 @@ export interface WooImportLog {
   customers_updated: number;
   orders_imported: number;
   orders_skipped: number;
+  line_items_imported: number;
   errors: any[] | null;
   imported_by: string | null;
   notes: string | null;
@@ -24,6 +25,7 @@ export interface WooImportLog {
 export interface WooImportStats {
   totalCustomersImported: number;
   totalOrdersImported: number;
+  totalLineItemsImported: number;
   lastImportDate: string | null;
   lastImportType: string | null;
   lastImportStatus: string | null;
@@ -34,7 +36,7 @@ export interface WooImportFilters {
   page?: number;
   perPage?: number;
   status?: 'all' | 'running' | 'completed' | 'failed';
-  importType?: 'all' | 'customers' | 'orders' | 'full';
+  importType?: 'all' | 'customers' | 'orders' | 'line_items' | 'full';
 }
 
 export interface LegacyOrder {
@@ -136,7 +138,7 @@ export function useWooImportStats() {
       // Get totals from all completed imports
       const { data: completedLogs, error: logsError } = await supabase
         .from('woo_import_log')
-        .select('customers_imported, customers_updated, orders_imported, status, import_type, completed_at')
+        .select('customers_imported, customers_updated, orders_imported, line_items_imported, status, import_type, completed_at')
         .eq('status', 'completed');
 
       if (logsError) throw logsError;
@@ -170,9 +172,15 @@ export function useWooImportStats() {
         0
       ) || 0;
 
+      const totalLineItemsImported = completedLogs?.reduce(
+        (sum, log) => sum + (log.line_items_imported || 0),
+        0
+      ) || 0;
+
       setStats({
         totalCustomersImported,
         totalOrdersImported,
+        totalLineItemsImported,
         lastImportDate: lastImport?.completed_at || lastImport?.started_at || null,
         lastImportType: lastImport?.import_type || null,
         lastImportStatus: lastImport?.status || null,
@@ -287,6 +295,62 @@ export function useWooCustomerCount() {
         });
       } catch (err) {
         console.error('Error fetching customer counts:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCount();
+  }, []);
+
+  return { count, loading };
+}
+
+// ============================================
+// HOOK: Get legacy order items count
+// ============================================
+export function useLegacyOrderItemsCount() {
+  const [count, setCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const { count: itemsCount } = await supabase
+          .from('legacy_order_items')
+          .select('*', { count: 'exact', head: true });
+
+        setCount(itemsCount || 0);
+      } catch (err) {
+        console.error('Error fetching legacy order items count:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCount();
+  }, []);
+
+  return { count, loading };
+}
+
+// ============================================
+// HOOK: Get legacy orders count
+// ============================================
+export function useLegacyOrdersCount() {
+  const [count, setCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const { count: ordersCount } = await supabase
+          .from('legacy_orders')
+          .select('*', { count: 'exact', head: true });
+
+        setCount(ordersCount || 0);
+      } catch (err) {
+        console.error('Error fetching legacy orders count:', err);
       } finally {
         setLoading(false);
       }

@@ -93,9 +93,9 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
 
   // Scroll to top when page mounts, but check for hash to scroll to growers section
   useEffect(() => {
-    if (window.location.hash === '#growers') {
+    if (window.location.hash === '#meet-our-growers') {
       setTimeout(() => {
-        document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById('meet-our-growers')?.scrollIntoView({ behavior: 'smooth' });
         // Clean up hash after scrolling
         window.history.replaceState(null, '', window.location.pathname);
       }, 100);
@@ -265,7 +265,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
       </section>
 
       {/* Meet the Growers Section */}
-      <section id="growers" className="py-12 bg-white scroll-mt-20">
+      <section id="meet-our-growers" className="py-12 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <motion.div
             initial="hidden"

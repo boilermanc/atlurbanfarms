@@ -279,6 +279,14 @@ EOF`}
           </div>
 
           <div>
+            <h4 className="text-sm font-semibold text-slate-700 mb-2">Import Line Items</h4>
+            <CodeBlock code="node run-import.js lineitems" />
+            <p className="text-xs text-slate-500 mt-2">
+              Imports product details for all imported orders (links to current products via woo_id)
+            </p>
+          </div>
+
+          <div>
             <h4 className="text-sm font-semibold text-slate-700 mb-2">Full Sync (All Data)</h4>
             <CodeBlock code="node run-import.js full" />
             <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
@@ -300,6 +308,10 @@ EOF`}
                 <tr>
                   <td className="py-1">Daily</td>
                   <td className="font-mono text-xs">orders [yesterday's date]</td>
+                </tr>
+                <tr>
+                  <td className="py-1">Daily</td>
+                  <td className="font-mono text-xs">lineitems</td>
                 </tr>
                 <tr>
                   <td className="py-1">Weekly</td>
@@ -384,6 +396,14 @@ LIMIT 10;`}
                     <td className="px-4 py-2 font-mono text-xs">PSnjqYbNwc_order_stats</td>
                     <td className="px-4 py-2 text-slate-600">Order summaries</td>
                   </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-mono text-xs">PSnjqYbNwoocommerce_order_items</td>
+                    <td className="px-4 py-2 text-slate-600">Order line items</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-mono text-xs">PSnjqYbNwoocommerce_order_itemmeta</td>
+                    <td className="px-4 py-2 text-slate-600">Line item details (qty, price, product_id)</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -411,6 +431,12 @@ LIMIT 10;`}
                     <td className="px-4 py-2 text-slate-600">Historical orders from WooCommerce</td>
                   </tr>
                   <tr>
+                    <td className="px-4 py-2 font-mono text-xs">legacy_order_items</td>
+                    <td className="px-4 py-2 text-slate-600">
+                      Line items with product links (via <code className="bg-slate-200 px-1 rounded">woo_id</code>)
+                    </td>
+                  </tr>
+                  <tr>
                     <td className="px-4 py-2 font-mono text-xs">woo_import_log</td>
                     <td className="px-4 py-2 text-slate-600">Import history (shown in History tab)</td>
                   </tr>
@@ -435,6 +461,18 @@ LIMIT 10;`}
               <li>If exists, skip (already imported)</li>
               <li>If not, look up customer_id by woo_customer_id</li>
               <li>Insert new legacy order</li>
+            </ol>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 mb-2">Line Items Import Logic</h4>
+            <ol className="list-decimal list-inside text-sm text-slate-600 space-y-1">
+              <li>Query WooCommerce for all line items from completed orders</li>
+              <li>For each item, look up legacy_order_id from legacy_orders</li>
+              <li>If no matching order exists, skip (order wasn't imported yet)</li>
+              <li>Look up product_id from products by woo_product_id</li>
+              <li>Insert into legacy_order_items with product name and linked product_id</li>
+              <li>Duplicates are automatically skipped</li>
             </ol>
           </div>
         </div>

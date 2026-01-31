@@ -10,6 +10,7 @@ import ProductDetailModal from './ProductDetailModal';
 interface ShopPageProps {
   onAddToCart: (product: Product, quantity: number) => void;
   initialCategory?: string;
+  onNavigate?: (view: string) => void;
 }
 
 // Category type with hierarchy
@@ -46,6 +47,8 @@ interface ProductSectionProps {
   accentColor?: string;
   isFavorite?: (productId: string) => boolean;
   onToggleFavorite?: (productId: string) => void;
+  requireLoginToFavorite?: boolean;
+  onRequireLogin?: () => void;
 }
 
 const ProductSection: React.FC<ProductSectionProps> = ({
@@ -59,7 +62,9 @@ const ProductSection: React.FC<ProductSectionProps> = ({
   defaultExpanded = false,
   accentColor = 'emerald',
   isFavorite,
-  onToggleFavorite
+  onToggleFavorite,
+  requireLoginToFavorite,
+  onRequireLogin
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const displayProducts = expanded ? products : products.slice(0, 8);
@@ -118,6 +123,8 @@ const ProductSection: React.FC<ProductSectionProps> = ({
                   description={product.description}
                   isFavorited={isFavorite?.(product.id)}
                   onToggleFavorite={onToggleFavorite}
+                  requireLoginToFavorite={requireLoginToFavorite}
+                  onRequireLogin={onRequireLogin}
                 />
               </motion.div>
             );
@@ -146,6 +153,8 @@ interface CategorySubsectionProps {
   onProductClick: (product: any) => void;
   isFavorite?: (productId: string) => boolean;
   onToggleFavorite?: (productId: string) => void;
+  requireLoginToFavorite?: boolean;
+  onRequireLogin?: () => void;
 }
 
 const CategorySubsection: React.FC<CategorySubsectionProps> = ({
@@ -155,7 +164,9 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
   onAddToCart,
   onProductClick,
   isFavorite,
-  onToggleFavorite
+  onToggleFavorite,
+  requireLoginToFavorite,
+  onRequireLogin
 }) => {
   const [expanded, setExpanded] = useState(false);
   const displayProducts = expanded ? products : products.slice(0, 4);
@@ -207,6 +218,8 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
                   description={product.description}
                   isFavorited={isFavorite?.(product.id)}
                   onToggleFavorite={onToggleFavorite}
+                  requireLoginToFavorite={requireLoginToFavorite}
+                  onRequireLogin={onRequireLogin}
                 />
               </motion.div>
             );
@@ -227,7 +240,7 @@ const isProductInStock = (rawProduct: any): boolean => {
   return (rawProduct.quantity_available || 0) > 0;
 };
 
-const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All' }) => {
+const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All', onNavigate }) => {
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
   const { user } = useAuth();
@@ -418,7 +431,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites;
 
   return (
-    <div className="min-h-screen pt-16 pb-10 bg-white">
+    <div className="min-h-screen pt-20 pb-10 bg-white">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">
@@ -645,6 +658,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                           description={product.description}
                           isFavorited={true}
                           onToggleFavorite={toggleFavorite}
+                          requireLoginToFavorite={true}
+                          onRequireLogin={() => onNavigate?.('login')}
                         />
                       </motion.div>
                     );
@@ -721,6 +736,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                         onProductClick={setSelectedProduct}
                         isFavorite={isFavorite}
                         onToggleFavorite={toggleFavorite}
+                        requireLoginToFavorite={true}
+                        onRequireLogin={() => onNavigate?.('login')}
                       />
                     ))}
                   </div>
@@ -740,6 +757,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                   accentColor={accentColor}
                   isFavorite={isFavorite}
                   onToggleFavorite={toggleFavorite}
+                  requireLoginToFavorite={true}
+                  onRequireLogin={() => onNavigate?.('login')}
                 />
               );
             })}
@@ -762,6 +781,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 onProductClick={setSelectedProduct}
                 isFavorite={isFavorite}
                 onToggleFavorite={toggleFavorite}
+                requireLoginToFavorite={true}
+                onRequireLogin={() => onNavigate?.('login')}
               />
             ))}
           </div>
@@ -797,6 +818,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       description={product.description}
                       isFavorited={isFavorite(product.id)}
                       onToggleFavorite={toggleFavorite}
+                      requireLoginToFavorite={true}
+                      onRequireLogin={() => onNavigate?.('login')}
                     />
                   </motion.div>
                 );

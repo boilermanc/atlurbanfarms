@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWooImportStats, useWooCustomerCount } from '../../hooks/useWooImport';
+import { useWooImportStats, useWooCustomerCount, useLegacyOrderItemsCount, useLegacyOrdersCount } from '../../hooks/useWooImport';
 import {
   Users,
   Package,
@@ -10,6 +10,7 @@ import {
   Terminal,
   Database,
   ArrowRight,
+  ShoppingCart,
 } from 'lucide-react';
 
 interface WooImportDashboardProps {
@@ -19,6 +20,8 @@ interface WooImportDashboardProps {
 const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }) => {
   const { stats, loading: statsLoading, error: statsError, refetch } = useWooImportStats();
   const { count: customerCount, loading: customerLoading } = useWooCustomerCount();
+  const { count: lineItemsCount, loading: lineItemsLoading } = useLegacyOrderItemsCount();
+  const { count: ordersCount, loading: ordersLoading } = useLegacyOrdersCount();
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
@@ -63,7 +66,7 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
     }
   };
 
-  if (statsLoading || customerLoading) {
+  if (statsLoading || customerLoading || lineItemsLoading || ordersLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
@@ -89,7 +92,7 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Total Customers Imported */}
         <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-5 border border-emerald-200/60">
           <div className="flex items-center gap-3">
@@ -99,7 +102,10 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
             <div>
               <p className="text-sm text-emerald-600 font-medium">Customers Synced</p>
               <p className="text-2xl font-bold text-emerald-800">
-                {stats?.totalCustomersImported.toLocaleString() || 0}
+                {customerCount?.withWooId.toLocaleString() || 0}
+              </p>
+              <p className="text-xs text-emerald-600/70 mt-0.5">
+                of {customerCount?.total.toLocaleString() || 0} total
               </p>
             </div>
           </div>
@@ -114,13 +120,32 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
             <div>
               <p className="text-sm text-blue-600 font-medium">Orders Imported</p>
               <p className="text-2xl font-bold text-blue-800">
-                {stats?.totalOrdersImported.toLocaleString() || 0}
+                {ordersCount.toLocaleString()}
               </p>
+              <p className="text-xs text-blue-600/70 mt-0.5">legacy orders</p>
             </div>
           </div>
         </div>
 
-        {/* Last Import */}
+        {/* Total Line Items Imported */}
+        <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-5 border border-amber-200/60">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 rounded-lg">
+              <ShoppingCart size={20} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-amber-600 font-medium">Line Items</p>
+              <p className="text-2xl font-bold text-amber-800">
+                {lineItemsCount.toLocaleString()}
+              </p>
+              <p className="text-xs text-amber-600/70 mt-0.5">order products</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Last Import Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-5 border border-slate-200/60">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-slate-100 rounded-lg">
@@ -135,7 +160,6 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
           </div>
         </div>
 
-        {/* Status */}
         <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-xl p-5 border border-slate-200/60">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-slate-100 rounded-lg">
@@ -150,31 +174,6 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
           </div>
         </div>
       </div>
-
-      {/* Customer Sync Status */}
-      {customerCount && (
-        <div className="bg-white rounded-xl p-5 border border-slate-200/60">
-          <h3 className="text-base font-semibold text-slate-800 mb-3">Customer Sync Status</h3>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-600">Linked to WooCommerce</span>
-                <span className="font-medium text-slate-800">
-                  {customerCount.withWooId} / {customerCount.total} customers
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{
-                    width: `${customerCount.total > 0 ? (customerCount.withWooId / customerCount.total) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Actions */}
       <div className="bg-white rounded-xl p-5 border border-slate-200/60">
@@ -215,6 +214,18 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
                 <p className="text-xs text-slate-500 mb-1">Import orders:</p>
                 <code className="text-sm text-slate-300 font-mono">
                   node run-import.js orders 2026-01-01
+                </code>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Import line items:</p>
+                <code className="text-sm text-slate-300 font-mono">
+                  node run-import.js lineitems
+                </code>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Full sync:</p>
+                <code className="text-sm text-slate-300 font-mono">
+                  node run-import.js full
                 </code>
               </div>
             </div>

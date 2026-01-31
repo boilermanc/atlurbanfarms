@@ -8,11 +8,13 @@ import {
   useAddOrderNote,
   useCancelOrder,
   useOrderRefund,
+  useManualRefund,
   ORDER_STATUSES,
   ORDER_STATUS_CONFIG,
   OrderStatus,
   OrderRefund,
   OrderRefundItem,
+  ManualRefundMethod,
 } from '../hooks/useOrders';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -75,12 +77,20 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [labelError, setLabelError] = useState<string | null>(null);
   const [markingPickedUp, setMarkingPickedUp] = useState(false);
   const { refundOrder, loading: refunding } = useOrderRefund();
+  const { processManualRefund, loading: processingManualRefund } = useManualRefund();
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundMode, setRefundMode] = useState<'items' | 'full'>('items');
   const [itemRefundQuantities, setItemRefundQuantities] = useState<Record<string, number>>({});
   const [manualRefundAmount, setManualRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [refundError, setRefundError] = useState<string | null>(null);
+
+  // Manual refund state
+  const [showManualRefundModal, setShowManualRefundModal] = useState(false);
+  const [manualRefundAmountInput, setManualRefundAmountInput] = useState('');
+  const [manualRefundMethod, setManualRefundMethod] = useState<ManualRefundMethod>('cash');
+  const [manualRefundNotes, setManualRefundNotes] = useState('');
+  const [manualRefundError, setManualRefundError] = useState<string | null>(null);
 
   // Format date - handles null/undefined/invalid dates
   const formatDate = (dateString: string | null | undefined, includeTime = false) => {
@@ -352,6 +362,57 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       refetch();
     } else {
       setRefundError(result.error || 'Failed to process refund');
+    }
+  };
+
+  // Manual refund handlers
+  const resetManualRefundForm = () => {
+    setManualRefundAmountInput('');
+    setManualRefundMethod('cash');
+    setManualRefundNotes('');
+    setManualRefundError(null);
+  };
+
+  const handleOpenManualRefundModal = () => {
+    resetManualRefundForm();
+    setShowManualRefundModal(true);
+  };
+
+  const handleCloseManualRefundModal = () => {
+    resetManualRefundForm();
+    setShowManualRefundModal(false);
+  };
+
+  const handleSubmitManualRefund = async () => {
+    if (!order) return;
+
+    const amount = parseFloat(manualRefundAmountInput);
+
+    if (isNaN(amount) || amount <= 0) {
+      setManualRefundError('Please enter a valid refund amount.');
+      return;
+    }
+
+    if (amount > remainingRefundable) {
+      setManualRefundError('Refund amount cannot exceed the remaining balance.');
+      return;
+    }
+
+    setManualRefundError(null);
+
+    const result = await processManualRefund({
+      orderId: order.id,
+      amount: Math.round(amount * 100) / 100,
+      method: manualRefundMethod,
+      reason: manualRefundNotes.trim() || undefined,
+      adminUserId: adminUser?.id,
+    });
+
+    if (result.success) {
+      handleCloseManualRefundModal();
+      refetch();
+    } else {
+      setManualRefundError(result.error || 'Failed to process manual refund');
     }
   };
 
@@ -879,46 +940,73 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Refund History</h2>
               </div>
               <div className="divide-y divide-slate-100">
-                {refundHistory.map((refund) => (
-                  <div key={refund.id} className="p-6 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-slate-800 font-semibold">
-                          {formatCurrency(refund.amount)}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {formatDate(refund.created_at, true)}
-                        </p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status || '')}`}>
-                        {(refund.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
-                      </span>
-                    </div>
-                    {refund.reason && (
-                      <p className="text-sm text-slate-600">
-                        {refund.reason}
-                      </p>
-                    )}
-                    {refund.created_by_name && (
-                      <p className="text-xs text-slate-400">
-                        Issued by {refund.created_by_name}
-                      </p>
-                    )}
-                    {refund.items && refund.items.length > 0 && (
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-xs uppercase tracking-wider text-slate-400 mb-2">Items</p>
-                        <div className="space-y-1 text-sm text-slate-700">
-                          {refund.items.map((item, idx) => (
-                            <div key={`${refund.id}-${idx}`} className="flex items-center justify-between gap-3">
-                              <span className="truncate">{item.description || 'Line Item'}</span>
-                              <span className="text-slate-500">x{item.quantity}</span>
-                            </div>
-                          ))}
+                {refundHistory.map((refund) => {
+                  const methodLabels: Record<string, string> = {
+                    cash: 'Cash',
+                    check: 'Check',
+                    store_credit: 'Store Credit',
+                    other: 'Other',
+                  };
+                  const isManual = refund.refund_type === 'manual';
+
+                  return (
+                    <div key={refund.id} className="p-6 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div>
+                          <p className="text-slate-800 font-semibold">
+                            {formatCurrency(refund.amount)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {formatDate(refund.created_at, true)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Refund Type Badge */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            isManual
+                              ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                          }`}>
+                            {isManual ? 'Manual' : 'Stripe'}
+                          </span>
+                          {/* Method Badge (for manual refunds) */}
+                          {isManual && refund.refund_method && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                              {methodLabels[refund.refund_method] || refund.refund_method}
+                            </span>
+                          )}
+                          {/* Status Badge */}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status || '')}`}>
+                            {(refund.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
+                          </span>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {refund.reason && (
+                        <p className="text-sm text-slate-600">
+                          {refund.reason}
+                        </p>
+                      )}
+                      {refund.created_by_name && (
+                        <p className="text-xs text-slate-400">
+                          Issued by {refund.created_by_name}
+                        </p>
+                      )}
+                      {refund.items && refund.items.length > 0 && (
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-xs uppercase tracking-wider text-slate-400 mb-2">Items</p>
+                          <div className="space-y-1 text-sm text-slate-700">
+                            {refund.items.map((item, idx) => (
+                              <div key={`${refund.id}-${idx}`} className="flex items-center justify-between gap-3">
+                                <span className="truncate">{item.description || 'Line Item'}</span>
+                                <span className="text-slate-500">x{item.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1237,34 +1325,58 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     </button>
                   )}
 
-                  {/* Refund Button */}
-                  <div className="space-y-1">
+                  {/* Refund Buttons */}
+                  <div className="space-y-2">
                     <p className="text-xs text-slate-400 text-center">
                       Remaining refundable: {formatCurrency(remainingRefundable)}
                     </p>
+
+                    {/* Stripe Refund Button */}
                     {canRefund ? (
                       <button
                         onClick={handleOpenRefundModal}
-                        className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                       >
-                        Issue Refund
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        Stripe Refund
                       </button>
-                    ) : (
+                    ) : order.stripe_payment_intent_id && isPaidOrder && remainingRefundable <= 0 ? null : (
                       <button
                         disabled
-                        className="w-full py-2 bg-slate-100 text-slate-400 rounded-lg cursor-not-allowed"
+                        className="w-full py-2 bg-slate-100 text-slate-400 rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
+                        title={!order.stripe_payment_intent_id ? 'No Stripe payment on file' : 'Order must be in a paid status'}
                       >
-                        Refund Unavailable
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        Stripe Refund
                       </button>
                     )}
-                    {!order.stripe_payment_intent_id && (
+
+                    {/* Manual Refund Button - always available if there's balance remaining */}
+                    {remainingRefundable > 0 && (
+                      <button
+                        onClick={handleOpenManualRefundModal}
+                        className="w-full py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        Manual Refund
+                      </button>
+                    )}
+
+                    {/* Help text */}
+                    {!order.stripe_payment_intent_id && remainingRefundable > 0 && (
                       <p className="text-xs text-slate-400 text-center">
-                        Stripe payment required to issue refunds.
+                        No Stripe payment on file. Use Manual Refund to record cash, check, or other refunds.
                       </p>
                     )}
                     {order.stripe_payment_intent_id && !isPaidOrder && (
                       <p className="text-xs text-slate-400 text-center">
-                        Refunds unlock once the order is marked as paid.
+                        Stripe refunds unlock once the order is marked as paid.
                       </p>
                     )}
                     {remainingRefundable <= 0 && (
@@ -1541,6 +1653,157 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                   >
                     {cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Manual Refund Modal */}
+        <AnimatePresence>
+          {showManualRefundModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+              onClick={handleCloseManualRefundModal}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl p-6 max-w-md w-full space-y-5 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold text-slate-800">Manual Refund</h3>
+                  <button
+                    onClick={handleCloseManualRefundModal}
+                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex gap-2">
+                    <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-amber-800 text-sm">
+                      Manual refunds record the refund in the system but do <strong>not</strong> process any payment.
+                      Use this for cash refunds, checks, or refunds handled outside of Stripe.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <p className="text-slate-400 text-xs">Order Total</p>
+                    <p className="text-slate-800 font-semibold">{formatCurrency(totalPaid)}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-3">
+                    <p className="text-slate-400 text-xs">Remaining</p>
+                    <p className="text-slate-800 font-semibold">{formatCurrency(remainingRefundable)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Refund Amount */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-600">
+                      Refund Amount <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={remainingRefundable}
+                        step="0.01"
+                        value={manualRefundAmountInput}
+                        onChange={(e) => {
+                          setManualRefundAmountInput(e.target.value);
+                          setManualRefundError(null);
+                        }}
+                        placeholder="0.00"
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setManualRefundAmountInput(remainingRefundable.toFixed(2))}
+                      className="text-xs text-amber-600 hover:text-amber-700"
+                    >
+                      Use full remaining amount ({formatCurrency(remainingRefundable)})
+                    </button>
+                  </div>
+
+                  {/* Refund Method */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-600">
+                      Refund Method <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={manualRefundMethod}
+                      onChange={(e) => setManualRefundMethod(e.target.value as ManualRefundMethod)}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="check">Check</option>
+                      <option value="store_credit">Store Credit</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-600">
+                      Notes / Reason
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={manualRefundNotes}
+                      onChange={(e) => setManualRefundNotes(e.target.value)}
+                      placeholder="Customer returned item, refund issued in cash, etc."
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 resize-none"
+                    />
+                  </div>
+                </div>
+
+                {manualRefundError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                    {manualRefundError}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    onClick={handleCloseManualRefundModal}
+                    className="w-full sm:w-auto px-5 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitManualRefund}
+                    disabled={processingManualRefund || !manualRefundAmountInput}
+                    className="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {processingManualRefund ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Recording...
+                      </>
+                    ) : (
+                      'Record Refund'
+                    )}
                   </button>
                 </div>
               </motion.div>

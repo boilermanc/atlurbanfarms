@@ -51,6 +51,8 @@ export interface OrderRefund {
   reason: string | null;
   status: string;
   stripe_refund_id: string | null;
+  refund_type: 'stripe' | 'manual';
+  refund_method: 'cash' | 'check' | 'store_credit' | 'other' | null;
   items: OrderRefundItem[] | null;
   created_at: string;
   created_by: string | null;
@@ -190,6 +192,8 @@ export function useOrders(filters: OrderFilters = {}) {
             items,
             status,
             stripe_refund_id,
+            refund_type,
+            refund_method,
             created_at,
             created_by,
             customers:created_by (
@@ -315,6 +319,8 @@ export function useOrders(filters: OrderFilters = {}) {
           reason: refund.reason,
           status: refund.status,
           stripe_refund_id: refund.stripe_refund_id,
+          refund_type: refund.refund_type || 'stripe',
+          refund_method: refund.refund_method || null,
           items: refund.items || null,
           created_at: refund.created_at,
           created_by: refund.created_by,
@@ -410,6 +416,8 @@ export function useOrder(orderId: string | null) {
             items,
             status,
             stripe_refund_id,
+            refund_type,
+            refund_method,
             created_at,
             created_by,
             customers:created_by (
@@ -740,6 +748,17 @@ interface RefundOrderParams {
   adminUserId?: string;
 }
 
+export type ManualRefundMethod = 'cash' | 'check' | 'store_credit' | 'other';
+
+interface ManualRefundParams {
+  orderId: string;
+  amount: number;
+  method: ManualRefundMethod;
+  reason?: string;
+  items?: OrderRefundItem[];
+  adminUserId?: string;
+}
+
 export function useOrderRefund() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -781,6 +800,148 @@ export function useOrderRefund() {
 
   return {
     refundOrder,
+    loading,
+    error,
+  };
+}
+
+// Hook: Process manual refund (without Stripe)
+export function useManualRefund() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const processManualRefund = useCallback(async ({
+    orderId,
+    amount,
+    method,
+    reason,
+    items,
+    adminUserId,
+  }: ManualRefundParams) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch current order to validate refund amount
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('id, order_number, total, status, refunded_total')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) {
+        throw new Error('Order not found');
+      }
+
+      const totalCents = Math.round(Number(order.total || 0) * 100);
+      const alreadyRefundedCents = Math.round(Number(order.refunded_total || 0) * 100);
+      const amountCents = Math.round(amount * 100);
+      const remainingCents = totalCents - alreadyRefundedCents;
+
+      if (remainingCents <= 0) {
+        throw new Error('Order is already fully refunded');
+      }
+
+      if (amountCents > remainingCents) {
+        throw new Error('Refund amount exceeds remaining balance');
+      }
+
+      const newRefundedTotalCents = alreadyRefundedCents + amountCents;
+      const fullyRefunded = newRefundedTotalCents >= totalCents;
+      const newOrderStatus = fullyRefunded ? 'refunded' : order.status;
+      const paymentStatus = fullyRefunded ? 'refunded' : 'partial';
+
+      // Insert refund record
+      const { error: refundInsertError } = await supabase
+        .from('order_refunds')
+        .insert({
+          order_id: orderId,
+          amount: amount,
+          reason: reason || null,
+          items: items && items.length > 0 ? items : null,
+          refund_type: 'manual',
+          refund_method: method,
+          status: 'succeeded',
+          created_by: adminUserId || null,
+          stripe_refund_id: null,
+        });
+
+      if (refundInsertError) {
+        throw new Error('Failed to record refund: ' + refundInsertError.message);
+      }
+
+      // Update order totals and status
+      const orderUpdatePayload: Record<string, any> = {
+        payment_status: paymentStatus,
+        refunded_total: newRefundedTotalCents / 100,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (fullyRefunded) {
+        orderUpdatePayload.status = 'refunded';
+      }
+
+      const { error: orderUpdateError } = await supabase
+        .from('orders')
+        .update(orderUpdatePayload)
+        .eq('id', orderId);
+
+      if (orderUpdateError) {
+        console.error('Failed to update order with refund totals', orderUpdateError);
+      }
+
+      // Format for history note
+      const formattedAmount = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(amount);
+
+      const methodLabels: Record<ManualRefundMethod, string> = {
+        cash: 'Cash',
+        check: 'Check',
+        store_credit: 'Store Credit',
+        other: 'Other',
+      };
+
+      const noteParts = [`Manual refund: ${formattedAmount} via ${methodLabels[method]}`];
+      if (reason) {
+        noteParts.push(`Reason: ${reason}`);
+      }
+
+      // Add to order status history
+      const { error: historyError } = await supabase
+        .from('order_status_history')
+        .insert({
+          order_id: orderId,
+          status: fullyRefunded ? 'refunded' : order.status,
+          from_status: order.status,
+          note: noteParts.join(' - '),
+          changed_by: adminUserId || null,
+        });
+
+      if (historyError) {
+        console.error('Failed to append order history for manual refund', historyError);
+      }
+
+      return {
+        success: true,
+        data: {
+          order_status: newOrderStatus,
+          payment_status: paymentStatus,
+          refunded_total: newRefundedTotalCents / 100,
+        },
+      };
+    } catch (err: any) {
+      console.error('Error processing manual refund:', err);
+      setError(err.message || 'Failed to process manual refund');
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    processManualRefund,
     loading,
     error,
   };

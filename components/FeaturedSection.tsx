@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
+import { useAuth } from '../src/hooks/useAuth';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -29,6 +30,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const { user } = useAuth();
 
   // Fetch featured products with realtime subscription
   useEffect(() => {
@@ -106,8 +108,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             <div className="h-4 w-32 bg-gray-100 rounded mb-4 animate-pulse" />
             <div className="h-12 w-80 bg-gray-100 rounded animate-pulse" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-white rounded-[2.5rem] p-5 border border-gray-100 animate-pulse">
                 <div className="aspect-square rounded-[2rem] bg-gray-100 mb-6" />
                 <div className="px-1 space-y-4">
@@ -159,8 +161,8 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
               onNavigate?.('about');
               // Set hash after navigation triggers, then scroll to section
               setTimeout(() => {
-                window.location.hash = 'growers';
-                document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' });
+                window.location.hash = 'meet-our-growers';
+                document.getElementById('meet-our-growers')?.scrollIntoView({ behavior: 'smooth' });
               }, 150);
             }}
             className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
@@ -170,7 +172,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
           </motion.button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {featuredProducts.map((product, idx) => {
             const promo = productPromotions.get(product.id);
             const promoSalePrice = promo
@@ -203,10 +205,25 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
                   onClick={() => setSelectedProduct(featuredRawProducts[idx])}
                   compareAtPrice={displayCompareAtPrice}
                   saleBadge={promo?.badge_text}
+                  requireLoginToFavorite={true}
+                  onRequireLogin={() => onNavigate?.('login')}
                 />
               </motion.div>
             );
           })}
+        </div>
+
+        {/* View All Link */}
+        <div className="mt-8 text-center">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onNavigate?.('shop')}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all bg-white border border-gray-200 text-gray-700 hover:border-emerald-500 hover:text-emerald-600"
+          >
+            View All Products
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </motion.button>
         </div>
       </div>
 

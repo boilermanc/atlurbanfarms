@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePickupLocations, PickupLocation, PickupLocationInput } from '../../hooks/usePickupLocations';
-import { usePickupSchedules, PickupSchedule, formatTime, getDayName } from '../../hooks/usePickupSchedules';
-import ShippingPickupCalendar from './ShippingPickupCalendar';
+import { PickupSchedule, formatTime, getDayName } from '../../hooks/usePickupSchedules';
+import { supabase } from '../../../lib/supabase';
 
 // US States for dropdown
 const US_STATES = [
@@ -69,22 +69,74 @@ const ShippingPickupTab: React.FC = () => {
     toggleActive: toggleLocationActive
   } = usePickupLocations();
 
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  // All schedules grouped by location_id
+  const [allSchedules, setAllSchedules] = useState<Record<string, PickupSchedule[]>>({});
+  const [schedulesLoading, setSchedulesLoading] = useState(true);
 
-  // View mode state: 'list' (default) or 'calendar'
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  // Fetch all schedules for all locations
+  const fetchAllSchedules = useCallback(async () => {
+    setSchedulesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('pickup_schedules')
+        .select('*')
+        .order('day_of_week', { ascending: true, nullsFirst: false })
+        .order('specific_date', { ascending: true, nullsFirst: false })
+        .order('start_time', { ascending: true });
 
-  const {
-    schedules,
-    recurringSchedules,
-    oneTimeSchedules,
-    loading: schedulesLoading,
-    createSchedule,
-    updateSchedule,
-    deleteSchedule,
-    toggleActive: toggleScheduleActive,
-    formatScheduleDisplay
-  } = usePickupSchedules(selectedLocationId || undefined);
+      if (error) throw error;
+
+      // Group by location_id
+      const grouped: Record<string, PickupSchedule[]> = {};
+      (data || []).forEach((schedule: PickupSchedule) => {
+        if (!grouped[schedule.location_id]) {
+          grouped[schedule.location_id] = [];
+        }
+        grouped[schedule.location_id].push(schedule);
+      });
+      setAllSchedules(grouped);
+    } catch (err: any) {
+      console.error('Error fetching all schedules:', err);
+    } finally {
+      setSchedulesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllSchedules();
+  }, [fetchAllSchedules]);
+
+  // Helper to format schedule display
+  const formatScheduleDisplay = (schedule: PickupSchedule): string => {
+    const startTime = formatTime(schedule.start_time);
+    const endTime = formatTime(schedule.end_time);
+
+    if (schedule.schedule_type === 'recurring') {
+      const dayName = getDayName(schedule.day_of_week ?? 0);
+      return `${dayName} ${startTime} - ${endTime}`;
+    } else {
+      const date = new Date(schedule.specific_date + 'T00:00:00');
+      const dateStr = date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+      return `${dateStr} ${startTime} - ${endTime}`;
+    }
+  };
+
+  // Get schedule summary for a location
+  const getScheduleSummary = (locationId: string): string => {
+    const schedules = allSchedules[locationId] || [];
+    const activeSchedules = schedules.filter(s => s.is_active);
+    if (activeSchedules.length === 0) return 'No schedule';
+
+    const recurring = activeSchedules.filter(s => s.schedule_type === 'recurring');
+    if (recurring.length > 0) {
+      const days = recurring.map(s => getDayName(s.day_of_week ?? 0).slice(0, 3));
+      return days.join(', ');
+    }
+    return `${activeSchedules.length} time slot${activeSchedules.length > 1 ? 's' : ''}`;
+  };
 
   // Location modal state
   const [locationModalOpen, setLocationModalOpen] = useState(false);
@@ -93,7 +145,11 @@ const ShippingPickupTab: React.FC = () => {
   const [locationFormError, setLocationFormError] = useState<string | null>(null);
   const [savingLocation, setSavingLocation] = useState(false);
 
-  // Schedule modal state
+  // Schedule management modal state (shows all schedules for a location)
+  const [scheduleManageModalOpen, setScheduleManageModalOpen] = useState(false);
+  const [managingLocation, setManagingLocation] = useState<PickupLocation | null>(null);
+
+  // Schedule edit modal state
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<PickupSchedule | null>(null);
   const [scheduleFormData, setScheduleFormData] = useState<ScheduleFormData>(defaultScheduleFormData);
@@ -102,9 +158,6 @@ const ShippingPickupTab: React.FC = () => {
 
   // Drag state for locations
   const [draggedLocation, setDraggedLocation] = useState<PickupLocation | null>(null);
-
-  // Sub-tab state
-  const [activeSubTab, setActiveSubTab] = useState<'locations' | 'schedules'>('locations');
 
   // Location handlers
   const handleOpenLocationModal = (location?: PickupLocation) => {
@@ -188,9 +241,6 @@ const ShippingPickupTab: React.FC = () => {
   const handleDeleteLocation = async (location: PickupLocation) => {
     if (!confirm(`Are you sure you want to delete "${location.name}"? This will also delete all schedules for this location.`)) return;
     await deleteLocation(location.id);
-    if (selectedLocationId === location.id) {
-      setSelectedLocationId(null);
-    }
   };
 
   // Location drag and drop
@@ -222,6 +272,17 @@ const ShippingPickupTab: React.FC = () => {
     setDraggedLocation(null);
   };
 
+  // Schedule management modal
+  const handleOpenScheduleManageModal = (location: PickupLocation) => {
+    setManagingLocation(location);
+    setScheduleManageModalOpen(true);
+  };
+
+  const handleCloseScheduleManageModal = () => {
+    setScheduleManageModalOpen(false);
+    setManagingLocation(null);
+  };
+
   // Schedule handlers
   const handleOpenScheduleModal = (schedule?: PickupSchedule) => {
     if (schedule) {
@@ -251,7 +312,7 @@ const ShippingPickupTab: React.FC = () => {
   };
 
   const handleSaveSchedule = async () => {
-    if (!selectedLocationId) return;
+    if (!managingLocation) return;
 
     setScheduleFormError(null);
 
@@ -272,7 +333,7 @@ const ShippingPickupTab: React.FC = () => {
     setSavingSchedule(true);
     try {
       const scheduleData = {
-        location_id: selectedLocationId,
+        location_id: managingLocation.id,
         schedule_type: scheduleFormData.schedule_type,
         day_of_week: scheduleFormData.schedule_type === 'recurring'
           ? parseInt(scheduleFormData.day_of_week, 10)
@@ -288,15 +349,23 @@ const ShippingPickupTab: React.FC = () => {
         is_active: scheduleFormData.is_active
       };
 
-      const result = editingSchedule
-        ? await updateSchedule(editingSchedule.id, scheduleData)
-        : await createSchedule(scheduleData);
-
-      if (result.success) {
-        handleCloseScheduleModal();
+      if (editingSchedule) {
+        const { error } = await supabase
+          .from('pickup_schedules')
+          .update(scheduleData)
+          .eq('id', editingSchedule.id);
+        if (error) throw error;
       } else {
-        setScheduleFormError(result.error || 'Failed to save schedule');
+        const { error } = await supabase
+          .from('pickup_schedules')
+          .insert(scheduleData);
+        if (error) throw error;
       }
+
+      await fetchAllSchedules();
+      handleCloseScheduleModal();
+    } catch (err: any) {
+      setScheduleFormError(err.message || 'Failed to save schedule');
     } finally {
       setSavingSchedule(false);
     }
@@ -305,43 +374,36 @@ const ShippingPickupTab: React.FC = () => {
   const handleDeleteSchedule = async (schedule: PickupSchedule) => {
     const desc = formatScheduleDisplay(schedule);
     if (!confirm(`Are you sure you want to delete "${desc}"?`)) return;
-    await deleteSchedule(schedule.id);
-  };
 
-  // Calendar callback: add schedule from a specific date
-  const handleCalendarAddSchedule = (date: string, locationId?: string) => {
-    // Switch to list view and schedules tab
-    setViewMode('list');
-    setActiveSubTab('schedules');
-
-    // If a location is provided, select it
-    if (locationId) {
-      setSelectedLocationId(locationId);
-    } else if (locations.length > 0 && !selectedLocationId) {
-      // Auto-select first active location if none selected
-      const firstActive = locations.find(l => l.is_active);
-      if (firstActive) {
-        setSelectedLocationId(firstActive.id);
-      }
+    try {
+      const { error } = await supabase
+        .from('pickup_schedules')
+        .delete()
+        .eq('id', schedule.id);
+      if (error) throw error;
+      await fetchAllSchedules();
+    } catch (err: any) {
+      console.error('Error deleting schedule:', err);
     }
-
-    // Pre-fill the schedule form with the date as a one-time event
-    setScheduleFormData({
-      ...defaultScheduleFormData,
-      schedule_type: 'one_time',
-      specific_date: date
-    });
-    setEditingSchedule(null);
-    setScheduleFormError(null);
-    setScheduleModalOpen(true);
   };
 
-  // Calendar callback: view order details
-  const handleCalendarViewOrder = (orderId: string) => {
-    window.location.href = `/admin/orders/${orderId}`;
+  const handleToggleScheduleActive = async (schedule: PickupSchedule) => {
+    try {
+      const { error } = await supabase
+        .from('pickup_schedules')
+        .update({ is_active: !schedule.is_active })
+        .eq('id', schedule.id);
+      if (error) throw error;
+      await fetchAllSchedules();
+    } catch (err: any) {
+      console.error('Error toggling schedule:', err);
+    }
   };
 
-  const selectedLocation = locations.find(l => l.id === selectedLocationId);
+  // Get schedules for the currently managing location
+  const locationSchedulesList = managingLocation ? (allSchedules[managingLocation.id] || []) : [];
+  const recurringSchedules = locationSchedulesList.filter(s => s.schedule_type === 'recurring');
+  const oneTimeSchedules = locationSchedulesList.filter(s => s.schedule_type === 'one_time');
 
   if (locationsLoading) {
     return (
@@ -361,36 +423,15 @@ const ShippingPickupTab: React.FC = () => {
             Manage pickup locations and schedules for local customers
           </p>
         </div>
-
-        {/* View Toggle */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-          <button
-            onClick={() => setViewMode('list')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-              viewMode === 'list'
-                ? 'bg-emerald-500 text-white'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-            List
-          </button>
-          <button
-            onClick={() => setViewMode('calendar')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-              viewMode === 'calendar'
-                ? 'bg-emerald-500 text-white'
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Calendar
-          </button>
-        </div>
+        <button
+          onClick={() => handleOpenLocationModal()}
+          className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Location
+        </button>
       </div>
 
       {locationsError && (
@@ -399,276 +440,129 @@ const ShippingPickupTab: React.FC = () => {
         </div>
       )}
 
-      {/* Calendar View */}
-      {viewMode === 'calendar' && (
-        <ShippingPickupCalendar
-          locations={locations}
-          onAddSchedule={handleCalendarAddSchedule}
-          onViewOrder={handleCalendarViewOrder}
-        />
-      )}
-
-      {/* List View */}
-      {viewMode === 'list' && (
-        <>
-          {/* Sub-tabs */}
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveSubTab('locations')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeSubTab === 'locations'
-              ? 'bg-white text-slate-800 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Locations
-        </button>
-        <button
-          onClick={() => setActiveSubTab('schedules')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeSubTab === 'schedules'
-              ? 'bg-white text-slate-800 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Schedules
-        </button>
-      </div>
-
-      {/* Locations Tab */}
-      {activeSubTab === 'locations' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => handleOpenLocationModal()}
-              className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Location
-            </button>
+      {/* Locations List */}
+      {locations.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center">
+          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
           </div>
-
-          {locations.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-slate-800 mb-2">No Pickup Locations</h3>
-              <p className="text-slate-500 mb-4">
-                Add pickup locations where customers can collect their orders.
-              </p>
-              <button
-                onClick={() => handleOpenLocationModal()}
-                className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+          <h3 className="text-lg font-medium text-slate-800 mb-2">No Pickup Locations</h3>
+          <p className="text-slate-500 mb-4">
+            Add pickup locations where customers can collect their orders.
+          </p>
+          <button
+            onClick={() => handleOpenLocationModal()}
+            className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+          >
+            Add Your First Location
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm">
+          <div className="divide-y divide-slate-100">
+            {locations.map((location) => (
+              <div
+                key={location.id}
+                draggable
+                onDragStart={(e) => handleLocationDragStart(e, location)}
+                onDragOver={handleLocationDragOver}
+                onDrop={(e) => handleLocationDrop(e, location)}
+                className={`p-4 hover:bg-slate-50 transition-colors ${
+                  draggedLocation?.id === location.id ? 'opacity-50' : ''
+                } ${!location.is_active ? 'opacity-60' : ''}`}
               >
-                Add Your First Location
-              </button>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm">
-              <div className="divide-y divide-slate-100">
-                {locations.map((location) => (
-                  <div
-                    key={location.id}
-                    draggable
-                    onDragStart={(e) => handleLocationDragStart(e, location)}
-                    onDragOver={handleLocationDragOver}
-                    onDrop={(e) => handleLocationDrop(e, location)}
-                    className={`p-4 hover:bg-slate-50 transition-colors ${
-                      draggedLocation?.id === location.id ? 'opacity-50' : ''
-                    } ${!location.is_active ? 'opacity-60' : ''}`}
-                  >
-                    <div className="flex items-start gap-4">
-                      {/* Drag Handle */}
-                      <div className="text-slate-400 cursor-grab active:cursor-grabbing mt-1">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
-                        </svg>
-                      </div>
+                <div className="flex items-start gap-4">
+                  {/* Drag Handle */}
+                  <div className="text-slate-400 cursor-grab active:cursor-grabbing mt-1">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
+                    </svg>
+                  </div>
 
-                      {/* Location Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className="text-slate-800 font-medium">{location.name}</span>
-                          {!location.is_active && (
-                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                              Inactive
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-slate-500">
-                          {location.address_line1}
-                          {location.address_line2 && `, ${location.address_line2}`}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          {location.city}, {location.state} {location.postal_code}
-                        </p>
-                        {location.phone && (
-                          <p className="text-sm text-slate-400 mt-1">{location.phone}</p>
-                        )}
-                      </div>
+                  {/* Location Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-slate-800 font-medium">{location.name}</span>
+                      {!location.is_active && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-500">
+                      {location.address_line1}
+                      {location.address_line2 && `, ${location.address_line2}`}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {location.city}, {location.state} {location.postal_code}
+                    </p>
 
-                      {/* Toggle Active */}
+                    {/* Schedule Summary */}
+                    <div className="mt-2 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {schedulesLoading ? (
+                        <span className="text-sm text-slate-400">Loading...</span>
+                      ) : (
+                        <span className={`text-sm ${
+                          getScheduleSummary(location.id) === 'No schedule'
+                            ? 'text-amber-600'
+                            : 'text-emerald-600'
+                        }`}>
+                          {getScheduleSummary(location.id)}
+                        </span>
+                      )}
                       <button
-                        onClick={() => toggleLocationActive(location.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          location.is_active ? 'bg-emerald-500' : 'bg-slate-300'
-                        }`}
+                        onClick={() => handleOpenScheduleManageModal(location)}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium ml-2"
                       >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            location.is_active ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => handleOpenLocationModal(location)}
-                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDeleteLocation(location)}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        Manage Schedule
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Schedules Tab */}
-      {activeSubTab === 'schedules' && (
-        <div className="space-y-4">
-          {/* Location Selector */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-            <label className="block text-sm font-medium text-slate-600 mb-2">
-              Select Location
-            </label>
-            <select
-              value={selectedLocationId || ''}
-              onChange={(e) => setSelectedLocationId(e.target.value || null)}
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            >
-              <option value="">Choose a location...</option>
-              {locations.filter(l => l.is_active).map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {!selectedLocationId ? (
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-12 text-center">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-slate-800 mb-2">Select a Location</h3>
-              <p className="text-slate-500">
-                Choose a pickup location above to manage its schedules.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-md font-medium text-slate-800">{selectedLocation?.name}</h3>
-                  <p className="text-sm text-slate-500">{selectedLocation?.city}, {selectedLocation?.state}</p>
-                </div>
-                <button
-                  onClick={() => handleOpenScheduleModal()}
-                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Schedule
-                </button>
-              </div>
-
-              {schedulesLoading ? (
-                <div className="flex items-center justify-center h-32">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500"></div>
-                </div>
-              ) : schedules.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-8 text-center">
-                  <p className="text-slate-500 mb-4">
-                    No schedules configured for this location.
-                  </p>
+                  {/* Toggle Active */}
                   <button
-                    onClick={() => handleOpenScheduleModal()}
-                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+                    onClick={() => toggleLocationActive(location.id)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      location.is_active ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
                   >
-                    Add First Schedule
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        location.is_active ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+
+                  {/* Edit */}
+                  <button
+                    onClick={() => handleOpenLocationModal(location)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+
+                  {/* Delete */}
+                  <button
+                    onClick={() => handleDeleteLocation(location)}
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Recurring Schedules */}
-                  {recurringSchedules.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-slate-500 mb-2">Recurring (Weekly)</h4>
-                      <div className="bg-white rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm divide-y divide-slate-100">
-                        {recurringSchedules.map((schedule) => (
-                          <ScheduleRow
-                            key={schedule.id}
-                            schedule={schedule}
-                            onEdit={() => handleOpenScheduleModal(schedule)}
-                            onDelete={() => handleDeleteSchedule(schedule)}
-                            onToggle={() => toggleScheduleActive(schedule.id)}
-                            formatDisplay={formatScheduleDisplay}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* One-time Schedules */}
-                  {oneTimeSchedules.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-slate-500 mb-2">One-Time Events</h4>
-                      <div className="bg-white rounded-2xl overflow-hidden border border-slate-200/60 shadow-sm divide-y divide-slate-100">
-                        {oneTimeSchedules.map((schedule) => (
-                          <ScheduleRow
-                            key={schedule.id}
-                            schedule={schedule}
-                            onEdit={() => handleOpenScheduleModal(schedule)}
-                            onDelete={() => handleDeleteSchedule(schedule)}
-                            onToggle={() => toggleScheduleActive(schedule.id)}
-                            formatDisplay={formatScheduleDisplay}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
-      )}
-        </>
       )}
 
       {/* Location Modal */}
@@ -821,14 +715,123 @@ const ShippingPickupTab: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Schedule Modal */}
+      {/* Schedule Management Modal */}
+      <AnimatePresence>
+        {scheduleManageModalOpen && managingLocation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={handleCloseScheduleManageModal}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-2xl border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-800">
+                    Schedule for {managingLocation.name}
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {managingLocation.city}, {managingLocation.state}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleOpenScheduleModal()}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Time Slot
+                </button>
+              </div>
+
+              {locationSchedulesList.length === 0 ? (
+                <div className="bg-slate-50 rounded-xl p-8 text-center">
+                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-slate-500 mb-4">
+                    No schedules configured for this location.
+                  </p>
+                  <button
+                    onClick={() => handleOpenScheduleModal()}
+                    className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors"
+                  >
+                    Add First Time Slot
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Recurring Schedules */}
+                  {recurringSchedules.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-500 mb-2">Recurring (Weekly)</h4>
+                      <div className="bg-slate-50 rounded-xl overflow-hidden divide-y divide-slate-100">
+                        {recurringSchedules.map((schedule) => (
+                          <ScheduleRow
+                            key={schedule.id}
+                            schedule={schedule}
+                            onEdit={() => handleOpenScheduleModal(schedule)}
+                            onDelete={() => handleDeleteSchedule(schedule)}
+                            onToggle={() => handleToggleScheduleActive(schedule)}
+                            formatDisplay={formatScheduleDisplay}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* One-time Schedules */}
+                  {oneTimeSchedules.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-500 mb-2">One-Time Events</h4>
+                      <div className="bg-slate-50 rounded-xl overflow-hidden divide-y divide-slate-100">
+                        {oneTimeSchedules.map((schedule) => (
+                          <ScheduleRow
+                            key={schedule.id}
+                            schedule={schedule}
+                            onEdit={() => handleOpenScheduleModal(schedule)}
+                            onDelete={() => handleDeleteSchedule(schedule)}
+                            onToggle={() => handleToggleScheduleActive(schedule)}
+                            formatDisplay={formatScheduleDisplay}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={handleCloseScheduleManageModal}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Schedule Edit Modal */}
       <AnimatePresence>
         {scheduleModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
             onClick={handleCloseScheduleModal}
           >
             <motion.div
@@ -839,7 +842,7 @@ const ShippingPickupTab: React.FC = () => {
               onClick={e => e.stopPropagation()}
             >
               <h2 className="text-xl font-semibold text-slate-800 mb-4">
-                {editingSchedule ? 'Edit Schedule' : 'Add Schedule'}
+                {editingSchedule ? 'Edit Time Slot' : 'Add Time Slot'}
               </h2>
 
               {scheduleFormError && (
@@ -858,7 +861,7 @@ const ShippingPickupTab: React.FC = () => {
                         type="radio"
                         value="recurring"
                         checked={scheduleFormData.schedule_type === 'recurring'}
-                        onChange={e => setScheduleFormData(f => ({ ...f, schedule_type: 'recurring' }))}
+                        onChange={() => setScheduleFormData(f => ({ ...f, schedule_type: 'recurring' }))}
                         className="text-emerald-500 focus:ring-emerald-500"
                       />
                       <span className="text-sm text-slate-600">Weekly (Recurring)</span>
@@ -868,7 +871,7 @@ const ShippingPickupTab: React.FC = () => {
                         type="radio"
                         value="one_time"
                         checked={scheduleFormData.schedule_type === 'one_time'}
-                        onChange={e => setScheduleFormData(f => ({ ...f, schedule_type: 'one_time' }))}
+                        onChange={() => setScheduleFormData(f => ({ ...f, schedule_type: 'one_time' }))}
                         className="text-emerald-500 focus:ring-emerald-500"
                       />
                       <span className="text-sm text-slate-600">One-Time Event</span>
@@ -992,13 +995,13 @@ const ScheduleRow: React.FC<ScheduleRowProps> = ({
   onToggle,
   formatDisplay
 }) => (
-  <div className={`p-4 hover:bg-slate-50 transition-colors ${!schedule.is_active ? 'opacity-60' : ''}`}>
+  <div className={`p-4 hover:bg-slate-100 transition-colors ${!schedule.is_active ? 'opacity-60' : ''}`}>
     <div className="flex items-center gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-1">
           <span className="text-slate-800 font-medium">{formatDisplay(schedule)}</span>
           {!schedule.is_active && (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-500">
               Inactive
             </span>
           )}
@@ -1032,7 +1035,7 @@ const ScheduleRow: React.FC<ScheduleRowProps> = ({
 
       <button
         onClick={onEdit}
-        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-colors"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

@@ -1,19 +1,21 @@
 /**
  * WooCommerce Import Service
  *
- * Imports customers and orders from WooCommerce MySQL database to Supabase.
+ * Imports customers, orders, and line items from WooCommerce MySQL database to Supabase.
  * Run this script on the server where the MySQL database is located.
  *
  * Usage:
  *   node run-import.js stats                    - Show current counts
  *   node run-import.js customers [since-date]   - Import customers
  *   node run-import.js orders [since-date]      - Import orders
+ *   node run-import.js lineitems                - Import line items for existing orders
  *   node run-import.js full                     - Full sync (all data)
  *
  * Examples:
  *   node run-import.js stats
  *   node run-import.js customers 2026-01-01
  *   node run-import.js orders 2026-01-15
+ *   node run-import.js lineitems
  *   node run-import.js full
  */
 
@@ -265,6 +267,121 @@ async function importOrders(since = null) {
 }
 
 /**
+ * Import line items from WooCommerce orders
+ */
+async function importLineItems() {
+  console.log('\n📥 Starting line items import...');
+  const stats = { imported: 0, skipped: 0, noOrder: 0, errors: [] };
+
+  try {
+    // Query for all line items from completed orders
+    const query = `
+      SELECT
+        oi.order_id as woo_order_id,
+        oi.order_item_name as product_name,
+        CAST(MAX(CASE WHEN oim.meta_key = '_qty' THEN oim.meta_value END) AS UNSIGNED) as quantity,
+        ROUND(MAX(CASE WHEN oim.meta_key = '_line_total' THEN oim.meta_value END), 2) as line_total,
+        CAST(MAX(CASE WHEN oim.meta_key = '_product_id' THEN oim.meta_value END) AS UNSIGNED) as woo_product_id
+      FROM ${PREFIX}woocommerce_order_items oi
+      JOIN ${PREFIX}woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
+      JOIN ${PREFIX}wc_order_stats os ON oi.order_id = os.order_id
+      WHERE oi.order_item_type = 'line_item'
+        AND os.status = 'wc-completed'
+      GROUP BY oi.order_item_id, oi.order_id, oi.order_item_name
+      ORDER BY oi.order_id
+    `;
+
+    const [items] = await pool.query(query);
+    console.log(`   Found ${items.length} line items in WooCommerce`);
+
+    // Cache lookups for performance
+    const orderCache = new Map();
+    const productCache = new Map();
+
+    for (const item of items) {
+      try {
+        // Look up legacy_order_id (with cache)
+        let legacyOrderId = orderCache.get(item.woo_order_id);
+        if (legacyOrderId === undefined) {
+          const { data: order } = await supabase
+            .from('legacy_orders')
+            .select('id')
+            .eq('woo_order_id', item.woo_order_id)
+            .single();
+
+          legacyOrderId = order?.id || null;
+          orderCache.set(item.woo_order_id, legacyOrderId);
+        }
+
+        if (!legacyOrderId) {
+          stats.noOrder++;
+          continue;
+        }
+
+        // Look up product_id by woo_id (with cache)
+        let productId = productCache.get(item.woo_product_id);
+        if (productId === undefined && item.woo_product_id) {
+          const { data: product } = await supabase
+            .from('products')
+            .select('id')
+            .eq('woo_id', item.woo_product_id)
+            .single();
+
+          productId = product?.id || null;
+          productCache.set(item.woo_product_id, productId);
+        }
+
+        // Insert line item
+        const { error: insertError } = await supabase.from('legacy_order_items').insert({
+          legacy_order_id: legacyOrderId,
+          woo_order_id: item.woo_order_id,
+          woo_product_id: item.woo_product_id || null,
+          product_id: productId || null,
+          product_name: item.product_name,
+          quantity: item.quantity || 1,
+          line_total: item.line_total || 0
+        });
+
+        if (insertError) {
+          if (insertError.message.includes('duplicate') || insertError.code === '23505') {
+            stats.skipped++;
+          } else {
+            stats.errors.push({ woo_order_id: item.woo_order_id, error: insertError.message });
+          }
+        } else {
+          stats.imported++;
+        }
+
+        // Progress indicator
+        const total = stats.imported + stats.skipped + stats.noOrder;
+        if (total % 500 === 0) {
+          console.log(`   Progress: ${total}/${items.length} (${stats.imported} new, ${stats.skipped} skipped, ${stats.noOrder} no order)`);
+        }
+      } catch (err) {
+        stats.errors.push({ woo_order_id: item.woo_order_id, error: err.message });
+      }
+    }
+
+    console.log(`\n✅ Line Items Import Complete:`);
+    console.log(`   Imported: ${stats.imported}`);
+    console.log(`   Skipped (duplicate): ${stats.skipped}`);
+    console.log(`   No matching order: ${stats.noOrder}`);
+    console.log(`   Errors: ${stats.errors.length}`);
+
+    if (stats.errors.length > 0 && stats.errors.length <= 5) {
+      console.log('\n   First few errors:');
+      stats.errors.slice(0, 5).forEach(e => console.log(`   - Order ${e.woo_order_id}: ${e.error}`));
+    }
+
+    return stats;
+  } catch (err) {
+    console.error('❌ Line items import failed:', err.message);
+    stats.errors.push({ error: err.message });
+    return stats;
+  }
+}
+
+/**
  * Show current stats
  */
 async function showStats() {
@@ -277,6 +394,12 @@ async function showStats() {
     );
     const [wooOrders] = await pool.query(
       `SELECT COUNT(*) as count FROM ${PREFIX}wc_order_stats WHERE status = 'wc-completed'`
+    );
+    const [wooLineItems] = await pool.query(
+      `SELECT COUNT(DISTINCT oi.order_item_id) as count
+       FROM ${PREFIX}woocommerce_order_items oi
+       JOIN ${PREFIX}wc_order_stats os ON oi.order_id = os.order_id
+       WHERE oi.order_item_type = 'line_item' AND os.status = 'wc-completed'`
     );
 
     // Supabase counts
@@ -293,18 +416,25 @@ async function showStats() {
       .from('legacy_orders')
       .select('*', { count: 'exact', head: true });
 
+    const { count: sbLineItems } = await supabase
+      .from('legacy_order_items')
+      .select('*', { count: 'exact', head: true });
+
     console.log('╔══════════════════════════════════════════════════╗');
     console.log('║          WooCommerce Import Statistics            ║');
     console.log('╠══════════════════════════════════════════════════╣');
     console.log(`║  WooCommerce Customers:  ${String(wooCustomers[0].count).padStart(8)}              ║`);
     console.log(`║  WooCommerce Orders:     ${String(wooOrders[0].count).padStart(8)}              ║`);
+    console.log(`║  WooCommerce Line Items: ${String(wooLineItems[0].count).padStart(8)}              ║`);
     console.log('╠══════════════════════════════════════════════════╣');
     console.log(`║  Supabase Customers:     ${String(sbCustomers || 0).padStart(8)}              ║`);
     console.log(`║    (with WooCommerce ID) ${String(sbCustomersWithWoo || 0).padStart(8)}              ║`);
     console.log(`║  Supabase Legacy Orders: ${String(sbOrders || 0).padStart(8)}              ║`);
+    console.log(`║  Supabase Line Items:    ${String(sbLineItems || 0).padStart(8)}              ║`);
     console.log('╠══════════════════════════════════════════════════╣');
     console.log(`║  Customers to sync:      ${String(wooCustomers[0].count - (sbCustomersWithWoo || 0)).padStart(8)}              ║`);
     console.log(`║  Orders to sync:         ${String(wooOrders[0].count - (sbOrders || 0)).padStart(8)}              ║`);
+    console.log(`║  Line items to sync:     ${String(wooLineItems[0].count - (sbLineItems || 0)).padStart(8)}              ║`);
     console.log('╚══════════════════════════════════════════════════╝');
   } catch (err) {
     console.error('❌ Error fetching stats:', err.message);
@@ -314,7 +444,7 @@ async function showStats() {
 /**
  * Log import to Supabase
  */
-async function logImport(type, customerStats, orderStats) {
+async function logImport(type, customerStats, orderStats, lineItemStats) {
   try {
     await supabase.from('woo_import_log').insert({
       import_type: type,
@@ -324,9 +454,11 @@ async function logImport(type, customerStats, orderStats) {
       customers_updated: customerStats?.updated || 0,
       orders_imported: orderStats?.imported || 0,
       orders_skipped: orderStats?.skipped || 0,
+      line_items_imported: lineItemStats?.imported || 0,
       errors: [
         ...(customerStats?.errors || []),
-        ...(orderStats?.errors || [])
+        ...(orderStats?.errors || []),
+        ...(lineItemStats?.errors || [])
       ].slice(0, 50) // Limit errors stored
     });
     console.log('\n📝 Import logged to database');
@@ -344,32 +476,40 @@ async function main() {
   const since = process.argv[3] || null;
 
   console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║        WooCommerce Import Tool v1.0              ║');
+  console.log('║        WooCommerce Import Tool v1.1              ║');
   console.log('║        ATL Urban Farms                           ║');
   console.log('╚══════════════════════════════════════════════════╝');
 
   let customerStats = null;
   let orderStats = null;
+  let lineItemStats = null;
 
   switch (command) {
     case 'customers':
       console.log(since ? `\n🗓️  Importing customers since ${since}` : '\n🗓️  Importing ALL customers');
       customerStats = await importCustomers(since);
-      await logImport('customers', customerStats, null);
+      await logImport('customers', customerStats, null, null);
       break;
 
     case 'orders':
       console.log(since ? `\n🗓️  Importing orders since ${since}` : '\n🗓️  Importing ALL orders');
       orderStats = await importOrders(since);
-      await logImport('orders', null, orderStats);
+      await logImport('orders', null, orderStats, null);
+      break;
+
+    case 'lineitems':
+      console.log('\n📦 Importing line items for all imported orders...');
+      lineItemStats = await importLineItems();
+      await logImport('line_items', null, null, lineItemStats);
       break;
 
     case 'full':
-      console.log('\n🔄 Running FULL sync (customers + orders)');
+      console.log('\n🔄 Running FULL sync (customers + orders + line items)');
       console.log('   This may take several minutes...');
       customerStats = await importCustomers();
       orderStats = await importOrders();
-      await logImport('full', customerStats, orderStats);
+      lineItemStats = await importLineItems();
+      await logImport('full', customerStats, orderStats, lineItemStats);
       break;
 
     case 'stats':
@@ -382,12 +522,14 @@ Usage:
   node run-import.js stats                    - Show current counts
   node run-import.js customers [since-date]   - Import customers
   node run-import.js orders [since-date]      - Import orders
-  node run-import.js full                     - Full sync
+  node run-import.js lineitems                - Import line items for existing orders
+  node run-import.js full                     - Full sync (customers + orders + line items)
 
 Examples:
   node run-import.js stats
   node run-import.js customers 2026-01-01
   node run-import.js orders 2026-01-15
+  node run-import.js lineitems
   node run-import.js full
 `);
   }

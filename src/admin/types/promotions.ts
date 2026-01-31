@@ -6,9 +6,9 @@
 
 export type DiscountType = 'percentage' | 'fixed_amount' | 'fixed_price' | 'buy_x_get_y' | 'free_shipping';
 
-export type PromotionScope = 'site' | 'category' | 'product' | 'customer';
+export type PromotionScope = 'site_wide' | 'category' | 'product' | 'customer';
 
-export type ActivationType = 'automatic' | 'coupon' | 'both';
+export type ActivationType = 'automatic' | 'code' | 'both';
 
 export type PromotionStatus = 'active' | 'scheduled' | 'expired' | 'inactive';
 
@@ -39,10 +39,9 @@ export interface Promotion {
   maximum_discount_amount: number | null;
 
   // Usage Limits
-  max_uses: number | null;
-  max_uses_per_customer: number | null;
-  times_used: number;
-  total_discount_given: number;
+  usage_limit_total: number | null;
+  usage_limit_per_customer: number | null;
+  usage_count: number;
 
   // Stacking
   stackable: boolean;
@@ -57,10 +56,10 @@ export interface Promotion {
 
   // Display Settings
   banner_text: string | null;
-  banner_background_color: string;
+  banner_bg_color: string;
   banner_text_color: string;
   badge_text: string;
-  show_banner: boolean;
+  show_on_homepage: boolean;
 
   // Status
   is_active: boolean;
@@ -102,8 +101,8 @@ export interface PromotionFormData {
   maximum_discount_amount: string;
 
   // Usage
-  max_uses: string;
-  max_uses_per_customer: string;
+  usage_limit_total: string;
+  usage_limit_per_customer: string;
 
   // Stacking
   stackable: boolean;
@@ -118,10 +117,10 @@ export interface PromotionFormData {
 
   // Display
   banner_text: string;
-  banner_background_color: string;
+  banner_bg_color: string;
   banner_text_color: string;
   badge_text: string;
-  show_banner: boolean;
+  show_on_homepage: boolean;
 
   // Status
   is_active: boolean;
@@ -248,7 +247,7 @@ export const DISCOUNT_TYPE_CONFIG: Record<DiscountType, { label: string; color: 
 };
 
 export const SCOPE_CONFIG: Record<PromotionScope, { label: string; color: string; description: string }> = {
-  site: {
+  site_wide: {
     label: 'Site-wide',
     color: 'bg-emerald-500',
     description: 'Applies to all products in the store',
@@ -276,7 +275,7 @@ export const ACTIVATION_TYPE_CONFIG: Record<ActivationType, { label: string; col
     color: 'bg-emerald-500',
     description: 'Applies automatically when conditions are met',
   },
-  coupon: {
+  code: {
     label: 'Coupon Code',
     color: 'bg-blue-500',
     description: 'Customer must enter a code at checkout',
@@ -324,7 +323,7 @@ export const DISCOUNT_TYPE_OPTIONS: Array<{ value: DiscountType; label: string }
 ];
 
 export const SCOPE_OPTIONS: Array<{ value: PromotionScope; label: string }> = [
-  { value: 'site', label: 'Site-wide' },
+  { value: 'site_wide', label: 'Site-wide' },
   { value: 'category', label: 'Category' },
   { value: 'product', label: 'Product' },
   { value: 'customer', label: 'Customer' },
@@ -332,7 +331,7 @@ export const SCOPE_OPTIONS: Array<{ value: PromotionScope; label: string }> = [
 
 export const ACTIVATION_TYPE_OPTIONS: Array<{ value: ActivationType; label: string }> = [
   { value: 'automatic', label: 'Automatic' },
-  { value: 'coupon', label: 'Coupon Code Only' },
+  { value: 'code', label: 'Coupon Code Only' },
   { value: 'both', label: 'Both (Auto + Code)' },
 ];
 
@@ -350,25 +349,26 @@ export const DEFAULT_PROMOTION_FORM: PromotionFormData = {
   buy_quantity: '',
   get_quantity: '',
   get_discount_percent: '100',
-  scope: 'site',
+  scope: 'site_wide',
   minimum_order_amount: '',
   minimum_quantity: '',
   maximum_discount_amount: '',
-  max_uses: '',
-  max_uses_per_customer: '1',
+  usage_limit_total: '',
+  usage_limit_per_customer: '1',
   stackable: false,
   priority: '0',
-  activation_type: 'coupon',
+  activation_type: 'code',
   starts_at: new Date().toISOString().slice(0, 16),
   ends_at: '',
   banner_text: '',
-  banner_background_color: '#10b981',
+  banner_bg_color: '#10b981',
   banner_text_color: '#ffffff',
   badge_text: 'SALE',
-  show_banner: false,
+  show_on_homepage: false,
   is_active: true,
   product_ids: [],
   category_ids: [],
+  customer_ids: [],
   customer_emails: [],
 };
 

@@ -286,7 +286,7 @@ const App: React.FC = () => {
           <>
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
-            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} />
+            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} onNavigate={handleNavigate} />
             <Footer onNavigate={handleNavigate} />
           </>
         );
@@ -405,7 +405,7 @@ const App: React.FC = () => {
               <CategorySection onCategoryClick={(cat) => handleNavigate('shop', cat)} />
               
               <section id="shop" className="scroll-mt-32">
-                <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} />
+                <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} onNavigate={handleNavigate} />
               </section>
 
               <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">

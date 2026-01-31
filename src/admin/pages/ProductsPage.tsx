@@ -51,6 +51,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   const [statusFilter, setStatusFilter] = useState('active');
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Save filter state before navigating to product edit
+  const handleEditProduct = useCallback((productId: string) => {
+    if (categoryFilter !== 'all') {
+      sessionStorage.setItem('admin_products_category_filter', categoryFilter);
+    }
+    onEditProduct(productId);
+  }, [categoryFilter, onEditProduct]);
+
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
@@ -103,11 +111,18 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     fetchProducts();
     fetchCategories();
 
-    // Check for category filter passed from CategoriesPage (one-time migration to URL)
-    const storedCategoryFilter = localStorage.getItem('admin_products_category_filter');
-    if (storedCategoryFilter) {
-      setCategoryFilter(storedCategoryFilter);
-      localStorage.removeItem('admin_products_category_filter');
+    // Check for category filter saved from previous visit (e.g., returning from product edit)
+    const sessionCategoryFilter = sessionStorage.getItem('admin_products_category_filter');
+    if (sessionCategoryFilter) {
+      setCategoryFilter(sessionCategoryFilter);
+      sessionStorage.removeItem('admin_products_category_filter');
+    } else {
+      // Check for category filter passed from CategoriesPage (one-time migration to URL)
+      const storedCategoryFilter = localStorage.getItem('admin_products_category_filter');
+      if (storedCategoryFilter) {
+        setCategoryFilter(storedCategoryFilter);
+        localStorage.removeItem('admin_products_category_filter');
+      }
     }
   }, [fetchProducts, fetchCategories, setCategoryFilter]);
 
@@ -175,7 +190,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Products</h1>
             <p className="text-slate-500 text-sm mt-1">Manage your product catalog</p>
           </div>
-          <button onClick={() => onEditProduct('')} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors">
+          <button onClick={() => handleEditProduct('')} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors">
             <Plus size={20} />
             Add Product
           </button>
@@ -227,7 +242,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paginatedProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => onEditProduct(product.id)}>
+                  <tr key={product.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => handleEditProduct(product.id)}>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
@@ -259,7 +274,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => onEditProduct(product.id)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"><Edit2 size={18} /></button>
+                        <button onClick={() => handleEditProduct(product.id)} className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"><Edit2 size={18} /></button>
                         {(product.purchase_count || 0) > 0 ? (
                           <div className="relative group">
                             <button disabled className="p-2 text-slate-300 cursor-not-allowed rounded-xl"><Trash2 size={18} /></button>

@@ -70,6 +70,8 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: 'faqs', label: 'FAQs', icon: HelpCircle },
       { id: 'content-pages', label: 'Content Pages', icon: FileText },
+      { id: 'product-tags', label: 'Product Tags', icon: Tag },
+      { id: 'customer-tags', label: 'Customer Tags', icon: Users },
       { id: 'attribution', label: 'Attribution', icon: Megaphone },
     ],
   },

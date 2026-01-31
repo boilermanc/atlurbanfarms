@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   Package,
+  ShoppingCart,
   RefreshCw,
   Filter,
 } from 'lucide-react';
@@ -16,7 +17,7 @@ import {
 const WooImportHistory: React.FC = () => {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'completed' | 'failed'>('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'customers' | 'orders' | 'full'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'customers' | 'orders' | 'line_items' | 'full'>('all');
 
   const { logs, totalCount, totalPages, loading, error, refetch } = useWooImportLogs({
     page,
@@ -78,12 +79,19 @@ const WooImportHistory: React.FC = () => {
   const getTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
       customers: 'bg-purple-100 text-purple-700',
-      orders: 'bg-amber-100 text-amber-700',
+      orders: 'bg-blue-100 text-blue-700',
+      line_items: 'bg-amber-100 text-amber-700',
       full: 'bg-slate-100 text-slate-700',
     };
+    const labels: Record<string, string> = {
+      customers: 'Customers',
+      orders: 'Orders',
+      line_items: 'Line Items',
+      full: 'Full',
+    };
     return (
-      <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${colors[type] || colors.full}`}>
-        {type}
+      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${colors[type] || colors.full}`}>
+        {labels[type] || type}
       </span>
     );
   };
@@ -135,6 +143,7 @@ const WooImportHistory: React.FC = () => {
           <option value="all">All Types</option>
           <option value="customers">Customers</option>
           <option value="orders">Orders</option>
+          <option value="line_items">Line Items</option>
           <option value="full">Full Sync</option>
         </select>
 
@@ -186,6 +195,12 @@ const WooImportHistory: React.FC = () => {
                     </span>
                   </th>
                   <th className="text-center py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <span className="inline-flex items-center gap-1">
+                      <ShoppingCart size={12} />
+                      Line Items
+                    </span>
+                  </th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Duration
                   </th>
                   <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -217,7 +232,7 @@ const WooImportHistory: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      {log.import_type !== 'customers' ? (
+                      {log.import_type === 'orders' || log.import_type === 'full' ? (
                         <div className="text-sm">
                           <span className="font-medium text-slate-800">
                             {log.orders_imported || 0}
@@ -227,6 +242,17 @@ const WooImportHistory: React.FC = () => {
                               ({log.orders_skipped} skipped)
                             </span>
                           )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {log.import_type === 'line_items' || log.import_type === 'full' ? (
+                        <div className="text-sm">
+                          <span className="font-medium text-slate-800">
+                            {log.line_items_imported || 0}
+                          </span>
                         </div>
                       ) : (
                         <span className="text-slate-400">-</span>

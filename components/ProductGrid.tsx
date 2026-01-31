@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBestSellers } from '../src/hooks/useSupabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
+import { useAuth } from '../src/hooks/useAuth';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -11,6 +12,7 @@ interface ProductGridProps {
   onAddToCart: (product: Product, quantity: number) => void;
   onAboutClick?: () => void;
   onShopClick?: () => void;
+  onNavigate?: (view: string) => void;
 }
 
 const ProductCardSkeleton = () => (
@@ -42,9 +44,10 @@ const mapProduct = (p: any): Product => ({
   stock: p.quantity_available || 0
 });
 
-const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, onShopClick }) => {
+const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, onShopClick, onNavigate }) => {
   const { products: rawProducts, loading, error } = useBestSellers(8);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const { user } = useAuth();
 
   // Map Supabase data to local Product type (already limited to top 8 by sales)
   const products = rawProducts.map(mapProduct);
@@ -156,6 +159,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
                       onClick={() => setSelectedProduct(rawProducts[index])}
                       compareAtPrice={displayCompareAtPrice}
                       saleBadge={promo?.badge_text}
+                      requireLoginToFavorite={true}
+                      onRequireLogin={() => onNavigate?.('login')}
                     />
                   </motion.div>
                 );

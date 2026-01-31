@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useCombinedOrders } from '../../hooks/useSupabase';
+import { useCombinedOrders, useLegacyOrderItems } from '../../hooks/useSupabase';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 
 interface OrderHistoryProps {
@@ -74,7 +74,114 @@ interface LegacyOrder {
   orderDate: string;
 }
 
+interface LegacyOrderItem {
+  id: string;
+  legacy_order_id: string;
+  woo_order_id: number;
+  woo_product_id: number | null;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  line_total: number;
+  product?: {
+    id: string;
+    name: string;
+    slug: string;
+    primary_image_url: string | null;
+  } | null;
+}
+
 type CombinedOrder = Order | LegacyOrder;
+
+// Component to fetch and display legacy order items
+interface LegacyOrderItemsDisplayProps {
+  orderId: string;
+  formatCurrency: (amount: number) => string;
+}
+
+const LegacyOrderItemsDisplay: React.FC<LegacyOrderItemsDisplayProps> = ({ orderId, formatCurrency }) => {
+  const { items, loading, error } = useLegacyOrderItems(orderId);
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-4 animate-pulse">
+            <div className="w-16 h-16 bg-gray-200 rounded-xl flex-shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-32 bg-gray-200 rounded" />
+              <div className="h-3 w-20 bg-gray-100 rounded" />
+            </div>
+            <div className="h-4 w-16 bg-gray-200 rounded" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (error || items.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 flex-shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <p className="text-sm text-amber-800">
+            Order item details are not available for this historical order.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item: LegacyOrderItem) => (
+        <div key={item.id} className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+            {item.product?.primary_image_url ? (
+              <img
+                src={item.product.primary_image_url}
+                alt={item.product_name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            {item.product?.slug ? (
+              <a
+                href={`/shop/${item.product.slug}`}
+                className="font-medium text-gray-900 truncate hover:text-emerald-600 transition-colors block"
+              >
+                {item.product_name}
+              </a>
+            ) : (
+              <p className="font-medium text-gray-900 truncate">
+                {item.product_name}
+              </p>
+            )}
+            <p className="text-sm text-gray-500">
+              Qty: {item.quantity}
+            </p>
+          </div>
+          <span className="font-medium text-gray-900">
+            {formatCurrency(item.line_total || 0)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   const { orders, loading, error } = useCombinedOrders(userId);
@@ -291,21 +398,34 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                     <div className="p-6 space-y-6">
                       {/* Legacy Order Notice */}
                       {order.isLegacy && (
-                        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-4">
                           <div className="flex items-start gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600 flex-shrink-0 mt-0.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 flex-shrink-0 mt-0.5">
                               <circle cx="12" cy="12" r="10" />
                               <line x1="12" y1="16" x2="12" y2="12" />
                               <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
-                            <p className="text-sm text-amber-800">
-                              This is a historical order from our previous system. Order item details are not available for historical orders.
+                            <p className="text-sm text-gray-600">
+                              This is a historical order from our previous system.
                             </p>
                           </div>
                         </div>
                       )}
 
-                      {/* Order Items - Only for new orders */}
+                      {/* Order Items - Legacy Orders */}
+                      {order.isLegacy && (
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Items
+                          </h4>
+                          <LegacyOrderItemsDisplay
+                            orderId={order.id}
+                            formatCurrency={formatCurrency}
+                          />
+                        </div>
+                      )}
+
+                      {/* Order Items - New orders */}
                       {!order.isLegacy && (order as Order).order_items?.length > 0 && (
                         <div>
                           <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">

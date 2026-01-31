@@ -20,6 +20,9 @@ interface ProductCardProps {
   // Favorites support - when provided, these override localStorage behavior
   isFavorited?: boolean;
   onToggleFavorite?: (productId: string) => void;
+  // Auth requirement - when true, requires login to favorite
+  requireLoginToFavorite?: boolean;
+  onRequireLogin?: () => void;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
@@ -37,6 +40,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
   description,
   isFavorited,
   onToggleFavorite,
+  requireLoginToFavorite = false,
+  onRequireLogin,
 }) => {
   // Product is on sale when compare_at_price exists and is greater than current price
   const isOnSale = typeof compareAtPrice === 'number' && compareAtPrice > price;
@@ -65,6 +70,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
     e.preventDefault();
     e.stopPropagation();
 
+    // Check if login is required and user is not logged in
+    if (requireLoginToFavorite && !user) {
+      onRequireLogin?.();
+      return;
+    }
+
     // If callback provided, use it (handles both db and localStorage)
     if (onToggleFavorite) {
       onToggleFavorite(id);
@@ -73,7 +84,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
     // Fallback to localStorage-only behavior
     const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
-    let newWishlist;
+    let newWishlist: string[];
 
     if (isWishlisted) {
       newWishlist = wishlist.filter((itemId: string) => itemId !== id);
@@ -187,7 +198,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </span>
           {isOnSale && (
             <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
-              {saleBadge || (percentOff > 0 ? `${percentOff}% Off` : 'On Sale!')}
+              {saleBadge || 'On Sale!'}
             </span>
           )}
           {!inStock && (
@@ -266,7 +277,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
               className="w-full py-4 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 bg-gray-900 text-white shadow-lg shadow-gray-100 btn-brand-hover"
             >
               Add {quantity > 1 ? quantity : ''} to Cart
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
             </motion.button>
           ) : (
             <AnimatePresence mode="wait">
