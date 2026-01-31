@@ -114,9 +114,19 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
     );
   }
 
-  const customerName = order.billing_first_name || order.billing_last_name
-    ? `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim()
-    : 'Unknown Customer';
+  // Get customer name: prefer billing info, fall back to joined customer data
+  const getCustomerName = () => {
+    // First try billing name from legacy order
+    if (order.billing_first_name || order.billing_last_name) {
+      return `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim();
+    }
+    // Fall back to joined customer data
+    if (order.customers?.first_name || order.customers?.last_name) {
+      return `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim();
+    }
+    return 'Unknown Customer';
+  };
+  const customerName = getCustomerName();
 
   return (
     <AdminPageWrapper>
@@ -253,11 +263,16 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
           </div>
           <div className="divide-y divide-slate-100">
             {items.length > 0 ? (
-              items.map((item: LegacyOrderItem) => (
+              items.map((item: LegacyOrderItem) => {
+                // Get primary image from product images array
+                const primaryImage = item.product?.images?.find(img => img.is_primary)
+                  || item.product?.images?.[0];
+
+                return (
                 <div key={item.id} className="flex items-center gap-4 p-4">
-                  {item.product?.primary_image_url ? (
+                  {primaryImage?.url ? (
                     <img
-                      src={item.product.primary_image_url}
+                      src={primaryImage.url}
                       alt={item.product_name}
                       className="w-16 h-16 object-cover rounded-lg bg-slate-100"
                     />
@@ -282,7 +297,8 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
                     </p>
                   </div>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="p-6 text-center">
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 inline-block">

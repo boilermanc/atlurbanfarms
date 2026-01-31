@@ -162,6 +162,21 @@ export interface LegacyOrder {
   shipping_city?: string;
   shipping_state?: string;
   shipping_zip?: string;
+  // Joined customer data (from customers table via customer_id)
+  customers?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+}
+
+export interface LegacyOrderItemImage {
+  id: string;
+  url: string;
+  is_primary: boolean;
+  sort_order: number;
 }
 
 export interface LegacyOrderItem {
@@ -177,7 +192,7 @@ export interface LegacyOrderItem {
     id: string;
     name: string;
     slug: string;
-    primary_image_url: string | null;
+    images: LegacyOrderItemImage[];
   } | null;
 }
 
@@ -1108,18 +1123,24 @@ export function useLegacyOrder(orderId: string | null) {
 
       setOrder(orderData);
 
-      // Fetch legacy order items
+      // Fetch legacy order items with product images
       const { data: itemsData, error: itemsError } = await supabase
         .from('legacy_order_items')
         .select(`
           *,
-          product:products(id, name, slug, primary_image_url)
+          product:products(
+            id,
+            name,
+            slug,
+            images:product_images(id, url, is_primary, sort_order)
+          )
         `)
         .eq('legacy_order_id', orderId)
         .order('product_name');
 
-      if (itemsError && itemsError.code !== '42P01') {
-        console.warn('Could not fetch legacy order items:', itemsError);
+      if (itemsError) {
+        // Log the actual error for debugging
+        console.error('Error fetching legacy order items:', itemsError);
       }
 
       setItems(itemsData || []);

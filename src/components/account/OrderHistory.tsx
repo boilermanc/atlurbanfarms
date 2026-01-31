@@ -74,6 +74,13 @@ interface LegacyOrder {
   orderDate: string;
 }
 
+interface ProductImage {
+  id: string;
+  url: string;
+  is_primary: boolean;
+  sort_order: number;
+}
+
 interface LegacyOrderItem {
   id: string;
   legacy_order_id: string;
@@ -87,7 +94,7 @@ interface LegacyOrderItem {
     id: string;
     name: string;
     slug: string;
-    primary_image_url: string | null;
+    images: ProductImage[];
   } | null;
 }
 
@@ -138,12 +145,17 @@ const LegacyOrderItemsDisplay: React.FC<LegacyOrderItemsDisplayProps> = ({ order
 
   return (
     <div className="space-y-3">
-      {items.map((item: LegacyOrderItem) => (
+      {items.map((item: LegacyOrderItem) => {
+        // Get primary image from product images array
+        const primaryImage = item.product?.images?.find(img => img.is_primary)
+          || item.product?.images?.[0];
+
+        return (
         <div key={item.id} className="flex items-center gap-4">
           <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-            {item.product?.primary_image_url ? (
+            {primaryImage?.url ? (
               <img
-                src={item.product.primary_image_url}
+                src={primaryImage.url}
                 alt={item.product_name}
                 className="w-full h-full object-cover"
               />
@@ -178,7 +190,8 @@ const LegacyOrderItemsDisplay: React.FC<LegacyOrderItemsDisplayProps> = ({ order
             {formatCurrency(item.line_total || 0)}
           </span>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

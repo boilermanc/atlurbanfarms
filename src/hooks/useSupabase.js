@@ -224,7 +224,12 @@ export function useLegacyOrderItems(legacyOrderId) {
           .from('legacy_order_items')
           .select(`
             *,
-            product:products(id, name, slug, primary_image_url)
+            product:products(
+              id,
+              name,
+              slug,
+              images:product_images(id, url, is_primary, sort_order)
+            )
           `)
           .eq('legacy_order_id', legacyOrderId)
           .order('product_name')
