@@ -56,6 +56,7 @@ const GiftCardCreateModal = lazy(() => import('./GiftCardCreateModal'));
 const WooImportPage = lazy(() => import('../pages/WooImportPage'));
 const ProductTagsPage = lazy(() => import('../pages/ProductTagsPage'));
 const CustomerTagsPage = lazy(() => import('../pages/CustomerTagsPage'));
+const LegacyOrderDetailPage = lazy(() => import('../pages/LegacyOrderDetailPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -73,6 +74,7 @@ const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   orders: 'Orders',
   'order-detail': 'Order Details',
+  'legacy-order-detail': 'Legacy Order Details',
   'order-create': 'Create Order',
   products: 'Products',
   'product-edit': 'Edit Product',
@@ -514,6 +516,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dashboard' }) => {
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isLegacyOrder, setIsLegacyOrder] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
@@ -594,14 +597,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const handleNavigate = (page: string) => {
     setCurrentPage(page);
     // Reset detail selections when navigating to list pages
-    if (page === 'orders') setSelectedOrderId(null);
+    if (page === 'orders') {
+      setSelectedOrderId(null);
+      setIsLegacyOrder(false);
+    }
     if (page === 'customers') setSelectedCustomerId(null);
     if (page === 'products') setSelectedProductId(null);
     if (page === 'content-pages') setSelectedContentId(null);
     if (page === 'inventory') setSelectedBatchId(null);
     if (page === 'promotions') setSelectedPromotionId(null);
     if (page === 'gift-cards') setSelectedGiftCardId(null);
-    if (page !== 'order-detail') setOrderContext(null);
+    if (page !== 'order-detail' && page !== 'legacy-order-detail') setOrderContext(null);
   };
 
   const handleEditBatch = (batchId?: string) => {
@@ -611,6 +617,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
   const handleViewOrder: ViewOrderHandler = (orderId, options) => {
     setSelectedOrderId(orderId);
+    setIsLegacyOrder(options?.isLegacy || false);
     if (options?.fromCustomerId) {
       setOrderContext({
         customerId: options.fromCustomerId,
@@ -619,7 +626,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     } else {
       setOrderContext(null);
     }
-    setCurrentPage('order-detail');
+    setCurrentPage(options?.isLegacy ? 'legacy-order-detail' : 'order-detail');
   };
 
   const handleViewCustomer = (customerId: string) => {
@@ -680,6 +687,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'order-detail':
         return selectedOrderId ? (
           <OrderDetailPage
+            orderId={selectedOrderId}
+            onBack={handleBackToOrders}
+            onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}
+            customerContextName={orderContext?.customerName}
+          />
+        ) : null;
+      case 'legacy-order-detail':
+        return selectedOrderId ? (
+          <LegacyOrderDetailPage
             orderId={selectedOrderId}
             onBack={handleBackToOrders}
             onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}

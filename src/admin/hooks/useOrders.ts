@@ -12,6 +12,7 @@ export type { OrderStatus } from '../../constants/orderStatus';
 export interface ViewOrderOptions {
   fromCustomerId?: string;
   fromCustomerName?: string;
+  isLegacy?: boolean;
 }
 
 export type ViewOrderHandler = (orderId: string, options?: ViewOrderOptions) => void;
@@ -131,6 +132,53 @@ export interface Order {
   pickup_time_start: string | null;
   pickup_time_end: string | null;
   pickup_reservation?: PickupReservation;
+  // Legacy order fields
+  isLegacy?: boolean;
+  woo_order_id?: number;
+}
+
+// Legacy order interface for WooCommerce imported orders
+export interface LegacyOrder {
+  id: string;
+  woo_order_id: number;
+  customer_id: string | null;
+  order_date: string;
+  status: string;
+  subtotal: number;
+  tax: number;
+  shipping: number;
+  total: number;
+  payment_method?: string;
+  billing_email?: string;
+  billing_first_name?: string;
+  billing_last_name?: string;
+  billing_address?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_zip?: string;
+  shipping_first_name?: string;
+  shipping_last_name?: string;
+  shipping_address?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_zip?: string;
+}
+
+export interface LegacyOrderItem {
+  id: string;
+  legacy_order_id: string;
+  woo_order_id: number;
+  woo_product_id: number | null;
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  line_total: number;
+  product?: {
+    id: string;
+    name: string;
+    slug: string;
+    primary_image_url: string | null;
+  } | null;
 }
 
 export interface OrdersResponse {
@@ -140,7 +188,7 @@ export interface OrdersResponse {
   currentPage: number;
 }
 
-// Hook: Fetch orders with filters and pagination
+// Hook: Fetch orders with filters and pagination (includes legacy orders)
 export function useOrders(filters: OrderFilters = {}) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -149,19 +197,13 @@ export function useOrders(filters: OrderFilters = {}) {
 
   const perPage = filters.perPage || 20;
   const page = filters.page || 1;
-  const offset = (page - 1) * perPage;
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Build count query
-      let countQuery = supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true });
-
-      // Build data query with customer info and pickup data
+      // Build data query for regular orders
       let dataQuery = supabase
         .from('orders')
         .select(`
@@ -220,59 +262,79 @@ export function useOrders(filters: OrderFilters = {}) {
             )
           )
         `)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + perPage - 1);
+        .order('created_at', { ascending: false });
+
+      // Build legacy orders query
+      let legacyQuery = supabase
+        .from('legacy_orders')
+        .select(`
+          *,
+          customers (
+            id,
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
+        .order('order_date', { ascending: false });
 
       // Apply status filter (supports both single status and multiple statuses)
       if (filters.statuses && filters.statuses.length > 0) {
-        // Multi-status filter
-        countQuery = countQuery.in('status', filters.statuses);
         dataQuery = dataQuery.in('status', filters.statuses);
+        legacyQuery = legacyQuery.in('status', filters.statuses);
       } else if (filters.status && filters.status !== 'all') {
-        // Single status filter (backwards compatible)
-        countQuery = countQuery.eq('status', filters.status);
         dataQuery = dataQuery.eq('status', filters.status);
+        legacyQuery = legacyQuery.eq('status', filters.status);
       }
 
-      // Apply delivery method filter
+      // Apply delivery method filter (legacy orders are all shipping, no pickup)
       if (filters.deliveryMethod && filters.deliveryMethod !== 'all') {
         const isPickup = filters.deliveryMethod === 'pickup';
-        countQuery = countQuery.eq('is_pickup', isPickup);
         dataQuery = dataQuery.eq('is_pickup', isPickup);
+        // Legacy orders don't have pickup option - exclude them if filtering for pickup only
+        if (isPickup) {
+          legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // Effectively exclude all
+        }
       }
 
       // Apply date range filters
       if (filters.dateFrom) {
-        countQuery = countQuery.gte('created_at', filters.dateFrom);
         dataQuery = dataQuery.gte('created_at', filters.dateFrom);
+        legacyQuery = legacyQuery.gte('order_date', filters.dateFrom);
       }
       if (filters.dateTo) {
-        // Add a day to include the entire end date
         const endDate = new Date(filters.dateTo);
         endDate.setDate(endDate.getDate() + 1);
-        countQuery = countQuery.lt('created_at', endDate.toISOString());
         dataQuery = dataQuery.lt('created_at', endDate.toISOString());
+        legacyQuery = legacyQuery.lt('order_date', endDate.toISOString());
       }
 
-      // Apply search filter (order number or customer email)
+      // Apply search filter
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
-        countQuery = countQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
         dataQuery = dataQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
+        // For legacy orders, search by woo_order_id or billing_email
+        // Check if search term looks like a WC order number
+        const wcMatch = searchTerm.match(/^wc-?(\d+)$/i);
+        if (wcMatch) {
+          legacyQuery = legacyQuery.eq('woo_order_id', parseInt(wcMatch[1]));
+        } else if (/^\d+$/.test(searchTerm)) {
+          legacyQuery = legacyQuery.eq('woo_order_id', parseInt(searchTerm));
+        } else {
+          legacyQuery = legacyQuery.ilike('billing_email', `%${searchTerm}%`);
+        }
       }
 
-      // Execute both queries
-      const [countResult, dataResult] = await Promise.all([
-        countQuery,
+      // Execute both queries in parallel
+      const [dataResult, legacyResult] = await Promise.all([
         dataQuery,
+        legacyQuery.catch(() => ({ data: [], error: null })), // Gracefully handle if legacy table doesn't exist
       ]);
 
-      console.log('Orders query result:', { count: countResult.count, dataCount: dataResult.data?.length, error: dataResult.error, data: dataResult.data });
-
-      if (countResult.error) throw countResult.error;
       if (dataResult.error) throw dataResult.error;
 
-      // Transform data to include customer info
+      // Transform regular orders
       const formattedOrders: Order[] = (dataResult.data || []).map((order: any) => ({
         id: order.id,
         order_number: order.order_number,
@@ -326,7 +388,6 @@ export function useOrders(filters: OrderFilters = {}) {
           created_by: refund.created_by,
           created_by_name: refund.customers?.email || null,
         })),
-        // Pickup fields
         is_pickup: order.is_pickup || false,
         pickup_location_id: order.pickup_location_id,
         pickup_date: order.pickup_date,
@@ -341,17 +402,68 @@ export function useOrders(filters: OrderFilters = {}) {
           status: order.pickup_reservations[0].status,
           notes: order.pickup_reservations[0].notes,
         } : undefined,
-        }));
+        isLegacy: false,
+      }));
 
-      setOrders(formattedOrders);
-      setTotalCount(countResult.count || 0);
+      // Transform legacy orders to Order format
+      const legacyOrders: Order[] = ((legacyResult as any)?.data || []).map((order: any) => ({
+        id: order.id,
+        order_number: `WC-${order.woo_order_id}`,
+        woo_order_id: order.woo_order_id,
+        customer_id: order.customer_id,
+        customer_name: order.customers
+          ? `${order.customers.first_name || ''} ${order.customers.last_name || ''}`.trim() || null
+          : `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || null,
+        customer_email: order.billing_email || order.customers?.email || '',
+        customer_phone: order.customers?.phone || null,
+        status: order.status as OrderStatus,
+        payment_status: order.status === 'completed' ? 'paid' : order.status,
+        stripe_payment_intent_id: null,
+        subtotal: order.subtotal || 0,
+        shipping_cost: order.shipping || 0,
+        tax: order.tax || 0,
+        total: order.total || 0,
+        refunded_total: 0,
+        shipping_address: order.shipping_address ? {
+          name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
+          street: order.shipping_address,
+          street2: null,
+          city: order.shipping_city || '',
+          state: order.shipping_state || '',
+          zip: order.shipping_zip || '',
+        } : null,
+        shipping_method: null,
+        tracking_number: null,
+        estimated_delivery: null,
+        internal_notes: null,
+        created_at: order.order_date,
+        updated_at: order.order_date,
+        items: [], // Items loaded separately via useLegacyOrderItems
+        is_pickup: false,
+        pickup_location_id: null,
+        pickup_date: null,
+        pickup_time_start: null,
+        pickup_time_end: null,
+        isLegacy: true,
+      }));
+
+      // Combine and sort by date (newest first)
+      const allOrders = [...formattedOrders, ...legacyOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      // Apply pagination to combined results
+      const paginatedOrders = allOrders.slice((page - 1) * perPage, page * perPage);
+
+      setOrders(paginatedOrders);
+      setTotalCount(allOrders.length);
     } catch (err: any) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Failed to fetch orders');
     } finally {
       setLoading(false);
     }
-  }, [filters.status, filters.statuses, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage, offset]);
+  }, [filters.status, filters.statuses, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage]);
 
   useEffect(() => {
     fetchOrders();
@@ -944,5 +1056,80 @@ export function useManualRefund() {
     processManualRefund,
     loading,
     error,
+  };
+}
+
+// Hook: Fetch legacy order details with items
+export function useLegacyOrder(orderId: string | null) {
+  const [order, setOrder] = useState<LegacyOrder | null>(null);
+  const [items, setItems] = useState<LegacyOrderItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLegacyOrder = useCallback(async () => {
+    if (!orderId) {
+      setOrder(null);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Fetch legacy order with customer info
+      const { data: orderData, error: orderError } = await supabase
+        .from('legacy_orders')
+        .select(`
+          *,
+          customers (
+            id,
+            first_name,
+            last_name,
+            email,
+            phone
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      setOrder(orderData);
+
+      // Fetch legacy order items
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('legacy_order_items')
+        .select(`
+          *,
+          product:products(id, name, slug, primary_image_url)
+        `)
+        .eq('legacy_order_id', orderId)
+        .order('product_name');
+
+      if (itemsError && itemsError.code !== '42P01') {
+        console.warn('Could not fetch legacy order items:', itemsError);
+      }
+
+      setItems(itemsData || []);
+    } catch (err: any) {
+      console.error('Error fetching legacy order:', err);
+      setError(err.message || 'Failed to fetch legacy order');
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchLegacyOrder();
+  }, [fetchLegacyOrder]);
+
+  return {
+    order,
+    items,
+    loading,
+    error,
+    refetch: fetchLegacyOrder,
   };
 }

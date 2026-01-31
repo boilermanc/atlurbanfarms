@@ -462,8 +462,8 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
   };
 
   // Navigate to order detail
-  const handleRowClick = (orderId: string) => {
-    onViewOrder(orderId);
+  const handleRowClick = (orderId: string, isLegacy?: boolean) => {
+    onViewOrder(orderId, { isLegacy });
   };
 
   // Pagination component
@@ -921,7 +921,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
                       className={`hover:bg-slate-50 cursor-pointer transition-colors ${
                         selectedOrders.has(order.id) ? 'bg-emerald-50' : ''
                       }`}
-                      onClick={() => handleRowClick(order.id)}
+                      onClick={() => handleRowClick(order.id, order.isLegacy)}
                     >
                       <td className="px-2 py-4 text-center">
                         <button
@@ -940,9 +940,16 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
                         </button>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-mono text-slate-800 font-medium">
-                          {order.order_number}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-slate-800 font-medium">
+                            {order.order_number}
+                          </span>
+                          {order.isLegacy && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                              Legacy
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-slate-600">
                         {formatDate(order.created_at)}

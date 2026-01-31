@@ -23,6 +23,7 @@ export { default as CustomersPage } from './pages/CustomersPage';
 export { default as CustomerDetailPage } from './pages/CustomerDetailPage';
 export { default as OrdersPage } from './pages/OrdersPage';
 export { default as OrderDetailPage } from './pages/OrderDetailPage';
+export { default as LegacyOrderDetailPage } from './pages/LegacyOrderDetailPage';
 export { default as FAQPage } from './pages/FAQPage';
 export { default as ContentPagesPage } from './pages/ContentPagesPage';
 export { default as ContentEditPage } from './pages/ContentEditPage';
@@ -50,6 +51,7 @@ export { useAdminAuth } from './hooks/useAdminAuth';
 export {
   useOrders,
   useOrder,
+  useLegacyOrder,
   useUpdateOrderStatus,
   useAddOrderNote,
   useCancelOrder,
@@ -104,7 +106,9 @@ export type {
   OrderRefundItem,
   OrderFilters,
   OrdersResponse,
-  OrderStatus
+  OrderStatus,
+  LegacyOrder,
+  LegacyOrderItem,
 } from './hooks/useOrders';
 export type { ShippingService } from './pages/ShippingServicesPage';
 export type { ConfigSetting, SettingsMap } from './hooks/useSettings';
