@@ -10,6 +10,7 @@ import ProductDetailModal from './ProductDetailModal';
 interface ShopPageProps {
   onAddToCart: (product: Product, quantity: number) => void;
   initialCategory?: string;
+  initialSearchQuery?: string;
   onNavigate?: (view: string) => void;
 }
 
@@ -240,7 +241,7 @@ const isProductInStock = (rawProduct: any): boolean => {
   return (rawProduct.quantity_available || 0) > 0;
 };
 
-const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All', onNavigate }) => {
+const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All', initialSearchQuery = '', onNavigate }) => {
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
   const { user } = useAuth();
@@ -268,6 +269,17 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Sync search query when initialSearchQuery prop changes (e.g., from header search)
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setSearchQuery(initialSearchQuery);
+      // Reset category filters when searching from header
+      setActiveParentId(null);
+      setActiveSubcategoryId(null);
+      setShowFavorites(false);
+    }
+  }, [initialSearchQuery]);
 
   // Sync active parent when initialCategory prop changes (e.g., from header navigation)
   useEffect(() => {
@@ -489,15 +501,22 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               </button>
             );
           })}
-          {/* Favorites Button */}
+          {/* My Favorites Button */}
           <button
             onClick={() => {
+              if (!user) {
+                // Redirect to login if not authenticated
+                onNavigate?.('login');
+                return;
+              }
               setShowFavorites(true);
               setActiveParentId(null);
               setActiveSubcategoryId(null);
             }}
             className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
-              showFavorites
+              !user
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : showFavorites
                 ? 'bg-pink-600 text-white shadow-lg shadow-pink-100'
                 : 'bg-pink-50 text-pink-700 hover:bg-pink-100'
             }`}
@@ -507,7 +526,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               width="16"
               height="16"
               viewBox="0 0 24 24"
-              fill={showFavorites ? "currentColor" : "none"}
+              fill={showFavorites && user ? "currentColor" : "none"}
               stroke="currentColor"
               strokeWidth="2.5"
               strokeLinecap="round"
@@ -515,7 +534,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             >
               <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
             </svg>
-            Favorites {favorites.length > 0 && `(${favorites.length})`}
+            My Favorites {user && favorites.length > 0 && `(${favorites.length})`}
           </button>
         </div>
 
@@ -577,7 +596,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               className="w-full px-6 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
             />
             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { Search, Download, Users, Mail, Filter, Plus, X } from 'lucide-react';
+import { Search, Download, Users, Mail, Filter, Plus, X, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   CustomerWithStats,
   NewsletterSubscriber,
@@ -15,6 +15,8 @@ import {
 import { useCustomerTags } from '../hooks/useCustomerTags';
 
 type TabType = 'customers' | 'newsletter';
+type SortField = 'last_name' | 'first_name' | 'email';
+type SortDirection = 'asc' | 'desc';
 
 interface CustomersPageProps {
   onViewCustomer?: (customerId: string) => void;
@@ -29,6 +31,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerCount, setCustomerCount] = useState(0);
   const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<SortField>('last_name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
@@ -148,7 +152,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             tag:customer_tags(*)
           )
         `)
-        .order('created_at', { ascending: false });
+        .order(sortField, { ascending: sortDirection === 'asc' });
 
       if (customerSearch) {
         query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
@@ -164,7 +168,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         let fallbackQuery = supabase
           .from('customers')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order(sortField, { ascending: sortDirection === 'asc' });
 
         if (customerSearch) {
           fallbackQuery = fallbackQuery.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
@@ -261,7 +265,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     };
 
     loadData();
-  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters]);
+  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters, sortField, sortDirection]);
 
   const handleCustomerClick = (customerId: string) => {
     onViewCustomer?.(customerId);
@@ -316,6 +320,24 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     { id: 'customers', label: 'All Customers' },
     { id: 'newsletter', label: 'Newsletter Subscribers' },
   ];
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIndicator = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <span className="ml-1 text-slate-300">↕</span>;
+    }
+    return sortDirection === 'asc'
+      ? <ChevronUp size={14} className="ml-1 inline" />
+      : <ChevronDown size={14} className="ml-1 inline" />;
+  };
 
   return (
     <AdminPageWrapper>
@@ -387,6 +409,24 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 className="space-y-4"
               >
                 <div className="flex items-center gap-4">
+                  {/* Sort Dropdown */}
+                  <select
+                    value={`${sortField}-${sortDirection}`}
+                    onChange={(e) => {
+                      const [field, direction] = e.target.value.split('-') as [SortField, SortDirection];
+                      setSortField(field);
+                      setSortDirection(direction);
+                    }}
+                    className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                  >
+                    <option value="last_name-asc">Last Name (A-Z)</option>
+                    <option value="last_name-desc">Last Name (Z-A)</option>
+                    <option value="first_name-asc">First Name (A-Z)</option>
+                    <option value="first_name-desc">First Name (Z-A)</option>
+                    <option value="email-asc">Email (A-Z)</option>
+                    <option value="email-desc">Email (Z-A)</option>
+                  </select>
+
                   {/* Tag Filter */}
                   <div className="relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
@@ -450,9 +490,21 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                   <table className="w-full">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                        <th
+                          className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
+                          onClick={() => handleSort('last_name')}
+                        >
+                          Name
+                          <SortIndicator field="last_name" />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tags</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
+                        <th
+                          className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
+                          onClick={() => handleSort('email')}
+                        >
+                          Email
+                          <SortIndicator field="email" />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Spent</th>

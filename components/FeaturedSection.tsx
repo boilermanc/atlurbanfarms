@@ -158,12 +158,9 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
+              // Set hash BEFORE navigation so AboutPage can detect it on mount
+              window.location.hash = 'meet-our-growers';
               onNavigate?.('about');
-              // Set hash after navigation triggers, then scroll to section
-              setTimeout(() => {
-                window.location.hash = 'meet-our-growers';
-                document.getElementById('meet-our-growers')?.scrollIntoView({ behavior: 'smooth' });
-              }, 150);
             }}
             className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
           >

@@ -116,6 +116,7 @@ const App: React.FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState<string | undefined>(undefined);
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
 
@@ -196,12 +197,25 @@ const App: React.FC = () => {
     setCart(prev => prev.filter(item => item.id !== id));
   }, []);
 
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setSelectedCategory('All');
+    setView('shop');
+    window.scrollTo(0, 0);
+    // Update URL to reflect search
+    window.history.pushState({ view: 'shop', search: query }, '', '/');
+  }, []);
+
   const handleNavigate = useCallback((newView: ViewType, category: string = 'All', options?: { calendarFilter?: string }) => {
     // Scroll to top immediately before view change for reliable behavior
     window.scrollTo(0, 0);
 
     setView(newView);
     setSelectedCategory(category);
+    // Clear search when navigating to a new view (except when navigating to shop with search)
+    if (newView !== 'shop') {
+      setSearchQuery('');
+    }
 
     // Set calendar filter if navigating to calendar with a filter
     if (newView === 'calendar' && options?.calendarFilter) {
@@ -285,8 +299,8 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
-            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} onNavigate={handleNavigate} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} initialSearchQuery={searchQuery} onNavigate={handleNavigate} />
             <Footer onNavigate={handleNavigate} />
           </>
         );
@@ -294,7 +308,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <FAQPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
             <SageAssistant />
@@ -304,7 +318,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <AboutPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -313,7 +327,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <SchoolsPage onBack={() => setView('home')} onNavigate={(newView: string) => handleNavigate(newView as ViewType)} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -322,7 +336,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <CalendarPage onBack={() => setView('home')} initialFilter={calendarFilter} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -331,7 +345,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <ContentPage slug="privacy" onBack={() => handleNavigate('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -340,7 +354,7 @@ const App: React.FC = () => {
         return (
           <>
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <ContentPage slug="terms" onBack={() => handleNavigate('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
@@ -395,7 +409,7 @@ const App: React.FC = () => {
         return (
           <div className="min-h-screen bg-[#fafafa] selection:bg-emerald-100 selection:text-emerald-900">
             <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             
             <main>
               <Hero onShopClick={() => handleNavigate('shop')} onAboutClick={() => handleNavigate('about')} />

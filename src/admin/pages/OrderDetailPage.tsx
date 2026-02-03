@@ -799,423 +799,215 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           )}
         </div>
 
-        {/* Order Items Card - Full Width */}
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/60">
-          <div className="px-6 py-4 border-b border-slate-200">
-            <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Items</h2>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {order.items && order.items.length > 0 ? (
-              order.items.map((item) => (
-                <div key={item.id || Math.random()} className="flex items-center gap-4 p-4">
-                  {item.product_image ? (
-                    <img
-                      src={item.product_image}
-                      alt={item.product_name || 'Product'}
-                      className="w-16 h-16 object-cover rounded-lg bg-slate-100"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+        {/* Main Content - Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT COLUMN: Shipping & Tracking, Internal Notes, Actions */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Shipping/Tracking Info Card (for non-pickup orders) */}
+            {!order.is_pickup && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                <div className="px-6 py-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping & Tracking</h2>
+                    {!shipmentError && getLabelStatusBadge()}
+                  </div>
+                </div>
+                <div className="p-6 space-y-3">
+                  {/* Show message if shipment data couldn't be loaded */}
+                  {shipmentError && (
+                    <div className="text-center py-4">
+                      <p className="text-slate-500 text-sm">No shipment created yet</p>
+                      <p className="text-slate-400 text-xs mt-1">Create a shipping label when ready to ship.</p>
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-slate-800 font-medium truncate">
-                      {item.product_name || 'Unknown Product'}
-                    </h3>
-                    <p className="text-slate-500 text-sm">
-                      {formatCurrency(item.unit_price)} x {item.quantity ?? 0}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-slate-800 font-medium">
-                      {formatCurrency(item.line_total)}
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-slate-400">
-                No items found for this order
-              </div>
-            )}
-          </div>
-          <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
-            <div className="flex justify-between text-slate-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(order.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Shipping</span>
-              <span>{formatCurrency(order.shipping_cost)}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>Tax</span>
-              <span>{formatCurrency(order.tax)}</span>
-            </div>
-            <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
-              <span>Total</span>
-              <span>{formatCurrency(order.total)}</span>
-            </div>
-            {refundedTotal > 0 && (
-              <>
-                <div className="flex justify-between text-rose-600 font-medium text-sm">
-                  <span>Refunded</span>
-                  <span>-{formatCurrency(refundedTotal)}</span>
-                </div>
-                <div className="flex justify-between text-slate-700">
-                  <span>Remaining Refundable</span>
-                  <span>{formatCurrency(remainingRefundable)}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Order Timeline - Full Width */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-          <div className="px-6 py-4 border-b border-slate-200">
-            <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Timeline</h2>
-          </div>
-          <div className="p-6">
-            {order.status_history && order.status_history.length > 0 ? (
-              <div className="relative">
-                {/* Timeline line */}
-                <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200" />
-
-                <div className="space-y-6">
-                  {(order.status_history || []).map((history, index) => (
-                    <div key={history.id} className="relative pl-10">
-                      {/* Timeline dot */}
-                      <div className={`absolute left-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                        index === (order.status_history?.length ?? 0) - 1
-                          ? 'bg-emerald-500'
-                          : 'bg-slate-300'
-                      }`}>
-                        <div className="w-2 h-2 rounded-full bg-white" />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {history.from_status ? (
-                            <p className="text-slate-800 text-sm font-medium">
-                              Status changed from <span className="text-slate-500">{getOrderStatusLabel(history.from_status)}</span> to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
-                            </p>
-                          ) : (
-                            <p className="text-slate-800 text-sm font-medium">
-                              Status set to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-slate-500 text-xs block mt-1">
-                          {formatDate(history.created_at, true)}
-                        </span>
-                        {history.note && (
-                          <p className="text-slate-600 text-sm mt-1">
-                            {history.note}
-                          </p>
-                        )}
-                        <p className="text-slate-400 text-xs mt-1">
-                          by {history.changed_by_name || 'System'}
-                        </p>
-                      </div>
+                  {!shipmentError && (
+                    <>
+                  {(shipment?.tracking_number || order.tracking_number) && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Tracking Number</p>
+                      <a
+                        href={getTrackingUrl(shipment?.tracking_number || order.tracking_number || '')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 hover:text-emerald-700 font-mono text-sm"
+                      >
+                        {shipment?.tracking_number || order.tracking_number}
+                        <svg className="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-slate-400 text-center py-4">No status history available</p>
-            )}
-          </div>
-        </div>
+                  )}
+                  {shipment?.tracking_status && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Tracking Status</p>
+                      <p className="text-slate-600">
+                        {shipment.tracking_status_description || shipment.tracking_status}
+                      </p>
+                    </div>
+                  )}
+                  {(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery) && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Estimated Delivery</p>
+                      <p className="text-slate-600">
+                        {formatDate(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery)}
+                      </p>
+                    </div>
+                  )}
+                  {shipment?.shipment_cost && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Label Cost</p>
+                      <p className="text-slate-600">
+                        {formatCurrency(shipment.shipment_cost)}
+                      </p>
+                    </div>
+                  )}
+                  {shipment?.carrier_code && (
+                    <div>
+                      <p className="text-slate-400 text-sm">Carrier</p>
+                      <p className="text-slate-600 capitalize">
+                        {shipment.carrier_code.replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                  )}
 
-        {/* Additional Info - Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Refund History */}
-          {refundHistory.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Refund History</h2>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {refundHistory.map((refund) => {
-                  const methodLabels: Record<string, string> = {
-                    cash: 'Cash',
-                    check: 'Check',
-                    store_credit: 'Store Credit',
-                    other: 'Other',
-                  };
-                  const isManual = refund.refund_type === 'manual';
+                  {/* Label Error */}
+                  {labelError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm print:hidden">
+                      {labelError}
+                    </div>
+                  )}
 
-                  return (
-                    <div key={refund.id} className="p-6 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div>
-                          <p className="text-slate-800 font-semibold">
-                            {formatCurrency(refund.amount)}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatDate(refund.created_at, true)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Refund Type Badge */}
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            isManual
-                              ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                              : 'bg-blue-100 text-blue-700 border border-blue-200'
-                          }`}>
-                            {isManual ? 'Manual' : 'Stripe'}
-                          </span>
-                          {/* Method Badge (for manual refunds) */}
-                          {isManual && refund.refund_method && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                              {methodLabels[refund.refund_method] || refund.refund_method}
-                            </span>
-                          )}
-                          {/* Status Badge */}
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status || '')}`}>
-                            {(refund.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
-                          </span>
-                        </div>
+                  {/* Label Actions */}
+                  <div className="pt-3 space-y-2 print:hidden">
+                    {canCreateLabel && order.status !== 'cancelled' && (
+                      <button
+                        onClick={handleCreateLabel}
+                        disabled={creatingLabel || shipmentLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {creatingLabel ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Creating Label...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            Create Shipping Label
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {shipment?.label_url && !shipment.voided && (
+                      <button
+                        onClick={handleDownloadLabel}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download Label
+                      </button>
+                    )}
+
+                    {canVoidLabel && (
+                      <button
+                        onClick={handleVoidLabel}
+                        disabled={voidingLabel || shipmentLoading}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {voidingLabel ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Voiding Label...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            Void Label
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tracking Timeline */}
+                  {shipment?.tracking_number && (
+                    <div className="pt-4 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-medium text-slate-500">Tracking History</h3>
+                        <button
+                          onClick={() => refetchTrackingEvents()}
+                          disabled={trackingEventsLoading}
+                          className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                        >
+                          {trackingEventsLoading ? 'Loading...' : 'Refresh'}
+                        </button>
                       </div>
-                      {refund.reason && (
-                        <p className="text-sm text-slate-600">
-                          {refund.reason}
-                        </p>
-                      )}
-                      {refund.created_by_name && (
-                        <p className="text-xs text-slate-400">
-                          Issued by {refund.created_by_name}
-                        </p>
-                      )}
-                      {refund.items && refund.items.length > 0 && (
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-xs uppercase tracking-wider text-slate-400 mb-2">Items</p>
-                          <div className="space-y-1 text-sm text-slate-700">
-                            {refund.items.map((item, idx) => (
-                              <div key={`${refund.id}-${idx}`} className="flex items-center justify-between gap-3">
-                                <span className="truncate">{item.description || 'Line Item'}</span>
-                                <span className="text-slate-500">x{item.quantity}</span>
+
+                      {trackingEvents.length > 0 ? (
+                        <div className="relative max-h-64 overflow-y-auto pr-2">
+                          {/* Timeline line */}
+                          <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+
+                          <div className="space-y-3">
+                            {trackingEvents.map((event, index) => (
+                              <div key={index} className="relative pl-6">
+                                {/* Timeline dot */}
+                                <div className={`absolute left-0 w-4 h-4 rounded-full flex items-center justify-center ${
+                                  index === 0 ? 'bg-emerald-500' : 'bg-slate-300'
+                                }`}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+                                </div>
+
+                                <div className="bg-slate-50 rounded-lg p-3">
+                                  <p className={`text-sm font-medium ${index === 0 ? 'text-slate-800' : 'text-slate-600'}`}>
+                                    {event.description}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
+                                    <span>{formatTrackingEventDate(event.occurred_at)}</span>
+                                    {(event.city_locality || event.state_province) && (
+                                      <>
+                                        <span className="text-slate-300">•</span>
+                                        <span>
+                                          {[event.city_locality, event.state_province].filter(Boolean).join(', ')}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Shipping/Tracking Info Card (for non-pickup orders) */}
-          {!order.is_pickup && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping & Tracking</h2>
-                  {!shipmentError && getLabelStatusBadge()}
-                </div>
-              </div>
-              <div className="p-6 space-y-3">
-                {/* Show message if shipment data couldn't be loaded */}
-                {shipmentError && (
-                  <div className="text-center py-4">
-                    <p className="text-slate-500 text-sm">No shipment created yet</p>
-                    <p className="text-slate-400 text-xs mt-1">Create a shipping label when ready to ship.</p>
-                  </div>
-                )}
-                {!shipmentError && (
-                  <>
-                {(shipment?.tracking_number || order.tracking_number) && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Tracking Number</p>
-                    <a
-                      href={getTrackingUrl(shipment?.tracking_number || order.tracking_number || '')}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-600 hover:text-emerald-700 font-mono text-sm"
-                    >
-                      {shipment?.tracking_number || order.tracking_number}
-                      <svg className="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  </div>
-                )}
-                {shipment?.tracking_status && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Tracking Status</p>
-                    <p className="text-slate-600">
-                      {shipment.tracking_status_description || shipment.tracking_status}
-                    </p>
-                  </div>
-                )}
-                {(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery) && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Estimated Delivery</p>
-                    <p className="text-slate-600">
-                      {formatDate(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery)}
-                    </p>
-                  </div>
-                )}
-                {shipment?.shipment_cost && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Label Cost</p>
-                    <p className="text-slate-600">
-                      {formatCurrency(shipment.shipment_cost)}
-                    </p>
-                  </div>
-                )}
-                {shipment?.carrier_code && (
-                  <div>
-                    <p className="text-slate-400 text-sm">Carrier</p>
-                    <p className="text-slate-600 capitalize">
-                      {shipment.carrier_code.replace(/_/g, ' ')}
-                    </p>
-                  </div>
-                )}
-
-                {/* Label Error */}
-                {labelError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm print:hidden">
-                    {labelError}
-                  </div>
-                )}
-
-                {/* Label Actions */}
-                <div className="pt-3 space-y-2 print:hidden">
-                  {canCreateLabel && order.status !== 'cancelled' && (
-                    <button
-                      onClick={handleCreateLabel}
-                      disabled={creatingLabel || shipmentLoading}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {creatingLabel ? (
-                        <>
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Creating Label...
-                        </>
                       ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
-                          Create Shipping Label
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {shipment?.label_url && !shipment.voided && (
-                    <button
-                      onClick={handleDownloadLabel}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Download Label
-                    </button>
-                  )}
-
-                  {canVoidLabel && (
-                    <button
-                      onClick={handleVoidLabel}
-                      disabled={voidingLabel || shipmentLoading}
-                      className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {voidingLabel ? (
-                        <>
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Voiding Label...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                          </svg>
-                          Void Label
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {/* Tracking Timeline */}
-                {shipment?.tracking_number && (
-                  <div className="pt-4 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-medium text-slate-500">Tracking History</h3>
-                      <button
-                        onClick={() => refetchTrackingEvents()}
-                        disabled={trackingEventsLoading}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                      >
-                        {trackingEventsLoading ? 'Loading...' : 'Refresh'}
-                      </button>
-                    </div>
-
-                    {trackingEvents.length > 0 ? (
-                      <div className="relative max-h-64 overflow-y-auto pr-2">
-                        {/* Timeline line */}
-                        <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-slate-200"></div>
-
-                        <div className="space-y-3">
-                          {trackingEvents.map((event, index) => (
-                            <div key={index} className="relative pl-6">
-                              {/* Timeline dot */}
-                              <div className={`absolute left-0 w-4 h-4 rounded-full flex items-center justify-center ${
-                                index === 0 ? 'bg-emerald-500' : 'bg-slate-300'
-                              }`}>
-                                <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                              </div>
-
-                              <div className="bg-slate-50 rounded-lg p-3">
-                                <p className={`text-sm font-medium ${index === 0 ? 'text-slate-800' : 'text-slate-600'}`}>
-                                  {event.description}
-                                </p>
-                                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
-                                  <span>{formatTrackingEventDate(event.occurred_at)}</span>
-                                  {(event.city_locality || event.state_province) && (
-                                    <>
-                                      <span className="text-slate-300">•</span>
-                                      <span>
-                                        {[event.city_locality, event.state_province].filter(Boolean).join(', ')}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="text-center py-4 text-slate-400 text-sm">
+                          <p>No tracking events yet.</p>
+                          <p className="text-xs mt-1">Events will appear here as the carrier updates tracking.</p>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 text-slate-400 text-sm">
-                        <p>No tracking events yet.</p>
-                        <p className="text-xs mt-1">Events will appear here as the carrier updates tracking.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                </>
-                )}
+                      )}
+                    </div>
+                  )}
+                  </>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Internal Notes Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 print:hidden">
+            {/* Internal Notes Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 print:hidden">
               <div className="px-6 py-4 border-b border-slate-200">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Internal Notes</h2>
               </div>
@@ -1389,6 +1181,220 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               </div>
             </div>
           </div>
+
+          {/* RIGHT COLUMN: Order Items, Order Timeline, Refund History */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* Order Items Card */}
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/60">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Items</h2>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {order.items && order.items.length > 0 ? (
+                  order.items.map((item) => (
+                    <div key={item.id || Math.random()} className="flex items-center gap-4 p-4">
+                      {item.product_image ? (
+                        <img
+                          src={item.product_image}
+                          alt={item.product_name || 'Product'}
+                          className="w-16 h-16 object-cover rounded-lg bg-slate-100"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-slate-800 font-medium truncate">
+                          {item.product_name || 'Unknown Product'}
+                        </h3>
+                        <p className="text-slate-500 text-sm">
+                          {formatCurrency(item.unit_price)} x {item.quantity ?? 0}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-slate-800 font-medium">
+                          {formatCurrency(item.line_total)}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-slate-400">
+                    No items found for this order
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(order.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Shipping</span>
+                  <span>{formatCurrency(order.shipping_cost)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Tax</span>
+                  <span>{formatCurrency(order.tax)}</span>
+                </div>
+                <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
+                  <span>Total</span>
+                  <span>{formatCurrency(order.total)}</span>
+                </div>
+                {refundedTotal > 0 && (
+                  <>
+                    <div className="flex justify-between text-rose-600 font-medium text-sm">
+                      <span>Refunded</span>
+                      <span>-{formatCurrency(refundedTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-700">
+                      <span>Remaining Refundable</span>
+                      <span>{formatCurrency(remainingRefundable)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Order Timeline */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+              <div className="px-6 py-4 border-b border-slate-200">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Timeline</h2>
+              </div>
+              <div className="p-6">
+                {order.status_history && order.status_history.length > 0 ? (
+                  <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200" />
+
+                    <div className="space-y-6">
+                      {(order.status_history || []).map((history, index) => (
+                        <div key={history.id} className="relative pl-10">
+                          {/* Timeline dot */}
+                          <div className={`absolute left-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                            index === (order.status_history?.length ?? 0) - 1
+                              ? 'bg-emerald-500'
+                              : 'bg-slate-300'
+                          }`}>
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {history.from_status ? (
+                                <p className="text-slate-800 text-sm font-medium">
+                                  Status changed from <span className="text-slate-500">{getOrderStatusLabel(history.from_status)}</span> to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
+                                </p>
+                              ) : (
+                                <p className="text-slate-800 text-sm font-medium">
+                                  Status set to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-slate-500 text-xs block mt-1">
+                              {formatDate(history.created_at, true)}
+                            </span>
+                            {history.note && (
+                              <p className="text-slate-600 text-sm mt-1">
+                                {history.note}
+                              </p>
+                            )}
+                            <p className="text-slate-400 text-xs mt-1">
+                              by {history.changed_by_name || 'System'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-400 text-center py-4">No status history available</p>
+                )}
+              </div>
+            </div>
+
+            {/* Refund History */}
+            {refundHistory.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                <div className="px-6 py-4 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Refund History</h2>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {refundHistory.map((refund) => {
+                    const methodLabels: Record<string, string> = {
+                      cash: 'Cash',
+                      check: 'Check',
+                      store_credit: 'Store Credit',
+                      other: 'Other',
+                    };
+                    const isManual = refund.refund_type === 'manual';
+
+                    return (
+                      <div key={refund.id} className="p-6 space-y-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <p className="text-slate-800 font-semibold">
+                              {formatCurrency(refund.amount)}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {formatDate(refund.created_at, true)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Refund Type Badge */}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              isManual
+                                ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}>
+                              {isManual ? 'Manual' : 'Stripe'}
+                            </span>
+                            {/* Method Badge (for manual refunds) */}
+                            {isManual && refund.refund_method && (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                {methodLabels[refund.refund_method] || refund.refund_method}
+                              </span>
+                            )}
+                            {/* Status Badge */}
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRefundStatusClasses(refund.status || '')}`}>
+                              {(refund.status || 'unknown').replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                          </div>
+                        </div>
+                        {refund.reason && (
+                          <p className="text-sm text-slate-600">
+                            {refund.reason}
+                          </p>
+                        )}
+                        {refund.created_by_name && (
+                          <p className="text-xs text-slate-400">
+                            Issued by {refund.created_by_name}
+                          </p>
+                        )}
+                        {refund.items && refund.items.length > 0 && (
+                          <div className="bg-slate-50 rounded-lg p-3">
+                            <p className="text-xs uppercase tracking-wider text-slate-400 mb-2">Items</p>
+                            <div className="space-y-1 text-sm text-slate-700">
+                              {refund.items.map((item, idx) => (
+                                <div key={`${refund.id}-${idx}`} className="flex items-center justify-between gap-3">
+                                  <span className="truncate">{item.description || 'Line Item'}</span>
+                                  <span className="text-slate-500">x{item.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Refund Modal */}
         <AnimatePresence>

@@ -672,6 +672,8 @@ export function useOrder(orderId: string | null) {
           reason: refund.reason,
           status: refund.status,
           stripe_refund_id: refund.stripe_refund_id,
+          refund_type: refund.refund_type || 'stripe',
+          refund_method: refund.refund_method || null,
           items: refund.items || null,
           created_at: refund.created_at,
           created_by: refund.created_by,

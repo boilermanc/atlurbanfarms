@@ -124,18 +124,14 @@ const ShippingPickupTab: React.FC = () => {
     }
   };
 
-  // Get schedule summary for a location
-  const getScheduleSummary = (locationId: string): string => {
+  // Get schedule summary for a location - shows full time info
+  const getScheduleSummary = (locationId: string): string[] => {
     const schedules = allSchedules[locationId] || [];
     const activeSchedules = schedules.filter(s => s.is_active);
-    if (activeSchedules.length === 0) return 'No schedule';
+    if (activeSchedules.length === 0) return ['No schedule'];
 
-    const recurring = activeSchedules.filter(s => s.schedule_type === 'recurring');
-    if (recurring.length > 0) {
-      const days = recurring.map(s => getDayName(s.day_of_week ?? 0).slice(0, 3));
-      return days.join(', ');
-    }
-    return `${activeSchedules.length} time slot${activeSchedules.length > 1 ? 's' : ''}`;
+    // Return all schedules formatted with day and time
+    return activeSchedules.map(schedule => formatScheduleDisplay(schedule));
   };
 
   // Location modal state
@@ -501,28 +497,47 @@ const ShippingPickupTab: React.FC = () => {
                     </p>
 
                     {/* Schedule Summary */}
-                    <div className="mt-2 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {schedulesLoading ? (
-                        <span className="text-sm text-slate-400">Loading...</span>
-                      ) : (
-                        <span className={`text-sm ${
-                          getScheduleSummary(location.id) === 'No schedule'
-                            ? 'text-amber-600'
-                            : 'text-emerald-600'
-                        }`}>
-                          {getScheduleSummary(location.id)}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => handleOpenScheduleManageModal(location)}
-                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium ml-2"
-                      >
-                        Manage Schedule
-                      </button>
+                    <div className="mt-2">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {schedulesLoading ? (
+                          <span className="text-sm text-slate-400">Loading...</span>
+                        ) : (
+                          <div className="flex-1">
+                            {getScheduleSummary(location.id).map((schedule, idx) => (
+                              <span
+                                key={idx}
+                                className={`text-sm block ${
+                                  schedule === 'No schedule'
+                                    ? 'text-amber-600'
+                                    : 'text-emerald-600'
+                                }`}
+                              >
+                                {schedule}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleOpenScheduleManageModal(location)}
+                          className="text-sm text-emerald-600 hover:text-emerald-700 font-medium ml-2 flex-shrink-0"
+                        >
+                          Manage Schedule
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Pickup Instructions */}
+                    {location.instructions && (
+                      <div className="mt-2 flex items-start gap-2">
+                        <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm text-slate-500 italic">{location.instructions}</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Toggle Active */}

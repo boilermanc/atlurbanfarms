@@ -306,6 +306,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   }
 
   if (error) {
+    // Log the error for debugging
+    console.error('OrderHistory error:', error);
+
     return (
       <div className="space-y-6">
         <div>
@@ -314,7 +317,12 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
           </h1>
         </div>
         <div className="bg-red-50 rounded-2xl p-6 border border-red-100">
-          <p className="text-red-600">Failed to load orders. Please try again later.</p>
+          <p className="text-red-600 font-medium mb-2">Failed to load orders. Please try again later.</p>
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-red-500 text-sm font-mono bg-red-100 p-2 rounded mt-2">
+              Debug: {error}
+            </p>
+          )}
         </div>
       </div>
     );

@@ -144,7 +144,7 @@ const PromotionsPage: React.FC<PromotionsPageProps> = ({ onEditPromotion }) => {
               className="w-full md:w-40 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
             >
               <option value="all">All Scopes</option>
-              <option value="site_wide">Site-wide</option>
+              <option value="site">Site-wide</option>
               <option value="category">Category</option>
               <option value="product">Product</option>
               <option value="customer">Customer</option>
@@ -231,20 +231,20 @@ const PromotionsPage: React.FC<PromotionsPageProps> = ({ onEditPromotion }) => {
                           <td className="py-4 px-6">
                             <div>
                               <p className="text-slate-800 font-medium">{promotion.name}</p>
-                              {promotion.code && (
+                              {promotion.coupon_code && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <code className="text-xs bg-slate-100 px-2 py-0.5 rounded font-mono text-slate-600">
-                                    {promotion.code}
+                                    {promotion.coupon_code}
                                   </code>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleCopyCode(promotion.code!);
+                                      handleCopyCode(promotion.coupon_code!);
                                     }}
                                     className="text-slate-400 hover:text-slate-600 transition-colors"
                                     title="Copy code"
                                   >
-                                    {copiedCode === promotion.code ? (
+                                    {copiedCode === promotion.coupon_code ? (
                                       <Check size={14} className="text-emerald-500" />
                                     ) : (
                                       <Copy size={14} />
@@ -301,11 +301,11 @@ const PromotionsPage: React.FC<PromotionsPageProps> = ({ onEditPromotion }) => {
                             <div className="flex items-center gap-1.5 text-sm text-slate-600">
                               <Users size={14} className="text-slate-400" />
                               <span>
-                                {promotion.usage_count}
-                                {promotion.usage_limit_total && (
+                                {promotion.times_used || 0}
+                                {promotion.max_uses && (
                                   <span className="text-slate-400">
                                     {' '}
-                                    / {promotion.usage_limit_total}
+                                    / {promotion.max_uses}
                                   </span>
                                 )}
                               </span>
@@ -404,10 +404,10 @@ const PromotionsPage: React.FC<PromotionsPageProps> = ({ onEditPromotion }) => {
             <p className="text-slate-600 mb-6">
               Are you sure you want to delete{' '}
               <strong className="text-slate-800">{deleteModalPromotion.name}</strong>?
-              {deleteModalPromotion.usage_count > 0 && (
+              {(deleteModalPromotion.times_used || 0) > 0 && (
                 <span className="block mt-2 text-amber-600 text-sm">
-                  This promotion has been used {deleteModalPromotion.usage_count} time
-                  {deleteModalPromotion.usage_count === 1 ? '' : 's'}.
+                  This promotion has been used {deleteModalPromotion.times_used} time
+                  {deleteModalPromotion.times_used === 1 ? '' : 's'}.
                 </span>
               )}
             </p>

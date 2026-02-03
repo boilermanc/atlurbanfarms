@@ -4,7 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import CustomerSearchSelector from '../components/CustomerSearchSelector';
 import ProductLineItems, { OrderLineItem } from '../components/ProductLineItems';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Save, Package, MapPin, CreditCard, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Package, MapPin, CreditCard, AlertTriangle, Calculator, Loader2, Truck, Check } from 'lucide-react';
 import {
   usePickupLocations,
   useAvailablePickupSlots,
@@ -22,6 +22,37 @@ interface Customer {
   last_name: string | null;
   phone: string | null;
   created_at: string;
+}
+
+interface CustomerAddress {
+  id: string;
+  customer_id: string;
+  label: string;
+  first_name: string | null;
+  last_name: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone: string | null;
+  is_default: boolean;
+}
+
+interface ShippingRate {
+  rate_id: string;
+  carrier_id: string;
+  carrier_code: string;
+  carrier_friendly_name: string;
+  service_code: string;
+  service_type: string;
+  shipping_amount: number;
+  currency: string;
+  delivery_days: number | null;
+  estimated_delivery_date: string | null;
+  carrier_delivery_days: string | null;
+  guaranteed_service: boolean;
 }
 
 interface OrderCreatePageProps {
@@ -95,6 +126,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   // Delivery method state
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('shipping');
 
+  // Customer addresses state
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | ''>('');
+
   // Shipping state
   const [shippingAddress, setShippingAddress] = useState({
     name: '',
@@ -105,6 +141,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     zip: '',
   });
   const [shippingCost, setShippingCost] = useState<number>(0);
+  const [useManualShipping, setUseManualShipping] = useState<boolean>(false);
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
+  const [fetchingRates, setFetchingRates] = useState<boolean>(false);
+  const [ratesError, setRatesError] = useState<string | null>(null);
 
   // Pickup state
   const { locations: pickupLocations, loading: loadingLocations } = usePickupLocations();
@@ -127,15 +168,108 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Auto-populate shipping name from customer
+  // Fetch customer addresses when customer is selected
   useEffect(() => {
-    if (selectedCustomer && deliveryMethod === 'shipping') {
+    const fetchCustomerAddresses = async () => {
+      if (!selectedCustomer) {
+        setCustomerAddresses([]);
+        setSelectedSavedAddressId('');
+        return;
+      }
+
+      setLoadingAddresses(true);
+      try {
+        const { data, error } = await supabase
+          .from('customer_addresses')
+          .select('*')
+          .eq('customer_id', selectedCustomer.id)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setCustomerAddresses(data || []);
+
+        // Auto-select default address if exists
+        const defaultAddress = data?.find((addr) => addr.is_default);
+        if (defaultAddress && deliveryMethod === 'shipping') {
+          setSelectedSavedAddressId(defaultAddress.id);
+          // Auto-fill the form with default address
+          const fullName = [defaultAddress.first_name, defaultAddress.last_name]
+            .filter(Boolean)
+            .join(' ') || `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim();
+          setShippingAddress({
+            name: fullName,
+            street: defaultAddress.address_line1,
+            street2: defaultAddress.address_line2 || '',
+            city: defaultAddress.city,
+            state: defaultAddress.state,
+            zip: defaultAddress.zip,
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching customer addresses:', err);
+      } finally {
+        setLoadingAddresses(false);
+      }
+    };
+
+    fetchCustomerAddresses();
+  }, [selectedCustomer]);
+
+  // Auto-populate shipping name from customer (only if no saved address selected)
+  useEffect(() => {
+    if (selectedCustomer && deliveryMethod === 'shipping' && !selectedSavedAddressId) {
       setShippingAddress((prev) => ({
         ...prev,
         name: `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim(),
       }));
     }
-  }, [selectedCustomer, deliveryMethod]);
+  }, [selectedCustomer, deliveryMethod, selectedSavedAddressId]);
+
+  // Handle saved address selection
+  const handleSavedAddressSelect = (addressId: string) => {
+    setSelectedSavedAddressId(addressId);
+
+    if (addressId === '') {
+      // User chose to enter new address - clear form but keep customer name
+      setShippingAddress({
+        name: selectedCustomer
+          ? `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim()
+          : '',
+        street: '',
+        street2: '',
+        city: '',
+        state: '',
+        zip: '',
+      });
+      // Reset shipping rates when address changes
+      setShippingRates([]);
+      setSelectedRate(null);
+      setShippingCost(0);
+      return;
+    }
+
+    const address = customerAddresses.find((addr) => addr.id === addressId);
+    if (address) {
+      const fullName = [address.first_name, address.last_name]
+        .filter(Boolean)
+        .join(' ') || (selectedCustomer
+          ? `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim()
+          : '');
+      setShippingAddress({
+        name: fullName,
+        street: address.address_line1,
+        street2: address.address_line2 || '',
+        city: address.city,
+        state: address.state,
+        zip: address.zip,
+      });
+      // Reset shipping rates when address changes
+      setShippingRates([]);
+      setSelectedRate(null);
+      setShippingCost(0);
+    }
+  };
 
   // Calculate totals
   const calculateTotals = () => {
@@ -192,6 +326,87 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
     setValidationErrors(errors);
     return errors.length === 0;
+  };
+
+  // Calculate shipping rates from ShipEngine
+  const calculateShippingRates = async () => {
+    // Validate address fields
+    if (!shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip) {
+      setRatesError('Please fill in all shipping address fields before calculating rates');
+      return;
+    }
+
+    // Validate we have items
+    if (lineItems.length === 0) {
+      setRatesError('Please add products before calculating shipping rates');
+      return;
+    }
+
+    setFetchingRates(true);
+    setRatesError(null);
+    setShippingRates([]);
+    setSelectedRate(null);
+
+    try {
+      const requestBody = {
+        ship_to: {
+          name: shippingAddress.name || 'Customer',
+          address_line1: shippingAddress.street,
+          address_line2: shippingAddress.street2 || '',
+          city_locality: shippingAddress.city,
+          state_province: shippingAddress.state,
+          postal_code: shippingAddress.zip,
+          country_code: 'US'
+        },
+        order_items: lineItems.map(item => ({
+          quantity: item.quantity,
+          weight_per_item: 0.5 // Default weight per plant
+        }))
+      };
+
+      const { data, error } = await supabase.functions.invoke('shipengine-get-rates', {
+        body: requestBody
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error?.message || 'Failed to get shipping rates');
+      }
+
+      if (data.rates.length === 0) {
+        setRatesError('No shipping rates available for this address. You can enter a manual amount.');
+        setUseManualShipping(true);
+        return;
+      }
+
+      setShippingRates(data.rates);
+      // Auto-select the cheapest rate
+      const cheapest = data.rates[0];
+      setSelectedRate(cheapest);
+      setShippingCost(cheapest.shipping_amount);
+      setUseManualShipping(false);
+    } catch (err: any) {
+      console.error('Error fetching shipping rates:', err);
+      setRatesError(err.message || 'Failed to calculate shipping rates');
+      setUseManualShipping(true);
+    } finally {
+      setFetchingRates(false);
+    }
+  };
+
+  // Handle rate selection
+  const handleRateSelect = (rate: ShippingRate) => {
+    setSelectedRate(rate);
+    setShippingCost(rate.shipping_amount);
+    setUseManualShipping(false);
+  };
+
+  // Switch to manual shipping entry
+  const handleUseManualShipping = () => {
+    setUseManualShipping(true);
+    setSelectedRate(null);
+    // Keep existing shipping cost if any, or reset to 0
   };
 
   const handleSubmit = async () => {
@@ -255,7 +470,9 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           shipping_zip: shippingAddress.zip,
           shipping_country: 'US',
           shipping_phone: selectedCustomer!.phone,
-          shipping_method: paymentMethod === 'cash' ? 'Manual Order' : 'Admin Created',
+          shipping_method: selectedRate
+            ? `${selectedRate.carrier_friendly_name} - ${selectedRate.service_type}`
+            : 'Manual Order',
           shipping_cost: shippingCost,
           is_pickup: false,
           pickup_location_id: null,
@@ -307,6 +524,21 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
       if (!result.success) {
         throw new Error(result.message || result.error || 'Failed to create order');
+      }
+
+      // Update order with shipping rate info if a calculated rate was selected
+      if (selectedRate && deliveryMethod === 'shipping') {
+        const shippingMethodName = `${selectedRate.carrier_friendly_name} - ${selectedRate.service_type}`;
+        await supabase
+          .from('orders')
+          .update({
+            shipping_rate_id: selectedRate.rate_id,
+            shipping_carrier_id: selectedRate.carrier_id,
+            shipping_service_code: selectedRate.service_code,
+            shipping_method: shippingMethodName,
+            shipping_method_name: shippingMethodName,
+          })
+          .eq('id', result.order_id);
       }
 
       // Navigate to order detail page
@@ -468,6 +700,100 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             {/* Shipping Form */}
             {deliveryMethod === 'shipping' && (
               <div className="space-y-4">
+                {/* Saved Addresses Selector */}
+                {selectedCustomer && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Saved Addresses
+                    </label>
+                    {loadingAddresses ? (
+                      <div className="flex items-center gap-2 py-2 text-slate-500">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span className="text-sm">Loading saved addresses...</span>
+                      </div>
+                    ) : customerAddresses.length > 0 ? (
+                      <div className="space-y-2">
+                        {customerAddresses.map((address) => (
+                          <button
+                            key={address.id}
+                            type="button"
+                            onClick={() => handleSavedAddressSelect(address.id)}
+                            className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                              selectedSavedAddressId === address.id
+                                ? 'border-emerald-500 bg-emerald-50'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3">
+                                <MapPin
+                                  size={18}
+                                  className={`mt-0.5 ${selectedSavedAddressId === address.id ? 'text-emerald-600' : 'text-slate-400'}`}
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-slate-900">{address.label}</span>
+                                    {address.is_default && (
+                                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full">
+                                        Default
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-slate-600 mt-1">
+                                    {address.address_line1}
+                                    {address.address_line2 && `, ${address.address_line2}`}
+                                  </div>
+                                  <div className="text-sm text-slate-500">
+                                    {address.city}, {address.state} {address.zip}
+                                  </div>
+                                </div>
+                              </div>
+                              {selectedSavedAddressId === address.id && (
+                                <Check size={18} className="text-emerald-600 flex-shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleSavedAddressSelect('')}
+                          className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                            selectedSavedAddressId === ''
+                              ? 'border-emerald-500 bg-emerald-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Package
+                              size={18}
+                              className={selectedSavedAddressId === '' ? 'text-emerald-600' : 'text-slate-400'}
+                            />
+                            <span className={`font-medium ${selectedSavedAddressId === '' ? 'text-emerald-700' : 'text-slate-700'}`}>
+                              Enter a new address
+                            </span>
+                            {selectedSavedAddressId === '' && (
+                              <Check size={18} className="text-emerald-600 ml-auto" />
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 py-2">
+                        No saved addresses for this customer. Enter address below.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Divider when saved addresses exist */}
+                {selectedCustomer && customerAddresses.length > 0 && (
+                  <div className="border-t border-slate-200 pt-4">
+                    <p className="text-sm font-medium text-slate-700 mb-3">
+                      {selectedSavedAddressId ? 'Selected Address Details' : 'New Address Details'}
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Name <span className="text-red-500">*</span>
@@ -553,23 +879,121 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Shipping Cost
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
-                    <input
-                      type="number"
-                      value={shippingCost}
-                      onChange={(e) => setShippingCost(parseFloat(e.target.value) || 0)}
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
-                    />
+                {/* Shipping Cost Section */}
+                <div className="border-t border-slate-200 pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Shipping Cost
+                    </label>
+                    <button
+                      type="button"
+                      onClick={calculateShippingRates}
+                      disabled={fetchingRates || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip || lineItems.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm rounded-lg font-medium transition-colors"
+                    >
+                      {fetchingRates ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          Calculating...
+                        </>
+                      ) : (
+                        <>
+                          <Calculator size={16} />
+                          Calculate Shipping
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Enter the shipping cost for this order</p>
+
+                  {/* Rates Error */}
+                  {ratesError && (
+                    <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                      {ratesError}
+                    </div>
+                  )}
+
+                  {/* Available Rates */}
+                  {shippingRates.length > 0 && !useManualShipping && (
+                    <div className="space-y-2 mb-4">
+                      <p className="text-xs text-slate-500 mb-2">Select a shipping rate:</p>
+                      {shippingRates.slice(0, 6).map((rate) => (
+                        <button
+                          key={rate.rate_id}
+                          type="button"
+                          onClick={() => handleRateSelect(rate)}
+                          className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
+                            selectedRate?.rate_id === rate.rate_id
+                              ? 'border-emerald-500 bg-emerald-50'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Truck size={18} className={selectedRate?.rate_id === rate.rate_id ? 'text-emerald-600' : 'text-slate-400'} />
+                              <div>
+                                <div className="font-medium text-slate-900">
+                                  {rate.carrier_friendly_name} - {rate.service_type}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  {rate.delivery_days ? `${rate.delivery_days} day${rate.delivery_days > 1 ? 's' : ''}` : 'Delivery time varies'}
+                                  {rate.guaranteed_service && ' • Guaranteed'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-900">${rate.shipping_amount.toFixed(2)}</span>
+                              {selectedRate?.rate_id === rate.rate_id && (
+                                <Check size={18} className="text-emerald-600" />
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Option to use manual entry */}
+                      <button
+                        type="button"
+                        onClick={handleUseManualShipping}
+                        className="w-full p-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-50 rounded-lg transition-colors"
+                      >
+                        Or enter a custom amount
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Manual Shipping Entry */}
+                  {(useManualShipping || shippingRates.length === 0) && (
+                    <div>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">$</span>
+                        <input
+                          type="number"
+                          value={shippingCost}
+                          onChange={(e) => {
+                            setShippingCost(parseFloat(e.target.value) || 0);
+                            setSelectedRate(null);
+                          }}
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {shippingRates.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setUseManualShipping(false)}
+                            className="text-blue-600 hover:underline"
+                          >
+                            Use calculated rates instead
+                          </button>
+                        ) : (
+                          'Enter shipping cost or calculate rates above'
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -91,8 +91,11 @@ export function useAvailablePickupSlots(
 
     try {
       // Default to next 14 days if no dates provided
+      // Require 3-day lead time for order preparation (farm needs time to pull orders)
       const today = new Date();
-      const start = startDate || today.toISOString().split('T')[0];
+      const LEAD_TIME_DAYS = 3;
+      const minPickupDate = new Date(today.getTime() + LEAD_TIME_DAYS * 24 * 60 * 60 * 1000);
+      const start = startDate || minPickupDate.toISOString().split('T')[0];
       const end = endDate || new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       const { data, error: rpcError } = await supabase

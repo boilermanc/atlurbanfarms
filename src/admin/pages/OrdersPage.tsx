@@ -462,8 +462,10 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
   };
 
   // Navigate to order detail
-  const handleRowClick = (orderId: string, isLegacy?: boolean) => {
-    onViewOrder(orderId, { isLegacy });
+  // Defensive check: also detect legacy by WC- prefix in case isLegacy flag is missing
+  const handleRowClick = (orderId: string, isLegacy?: boolean, orderNumber?: string) => {
+    const isLegacyOrder = isLegacy === true || orderNumber?.startsWith('WC-');
+    onViewOrder(orderId, { isLegacy: isLegacyOrder });
   };
 
   // Pagination component
@@ -921,7 +923,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
                       className={`hover:bg-slate-50 cursor-pointer transition-colors ${
                         selectedOrders.has(order.id) ? 'bg-emerald-50' : ''
                       }`}
-                      onClick={() => handleRowClick(order.id, order.isLegacy)}
+                      onClick={() => handleRowClick(order.id, order.isLegacy, order.order_number)}
                     >
                       <td className="px-2 py-4 text-center">
                         <button
@@ -940,16 +942,9 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
                         </button>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-slate-800 font-medium">
-                            {order.order_number}
-                          </span>
-                          {order.isLegacy && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                              Legacy
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-mono text-slate-800 font-medium">
+                          {order.order_number}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-slate-600">
                         {formatDate(order.created_at)}

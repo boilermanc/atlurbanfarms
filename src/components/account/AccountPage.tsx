@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
+import { useBrandingSettings } from '../../hooks/useSupabase';
 import OrderHistory from './OrderHistory';
 import AddressBook from './AddressBook';
 import ProfileSettings from './ProfileSettings';
@@ -15,6 +17,8 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
   const { user, loading: authLoading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<AccountTab>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+  const { settings: brandingSettings } = useBrandingSettings();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -105,7 +109,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
       case 'profile':
         return <ProfileSettings userId={user.id} userEmail={user.email || ''} />;
       case 'settings':
-        return <SettingsTab userEmail={user.email || ''} onSignOut={handleSignOut} />;
+        return <SettingsTab userEmail={user.email || ''} />;
       case 'overview':
       default:
         return <OverviewTab user={user} onTabChange={setActiveTab} />;
@@ -123,12 +127,23 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
               onClick={() => onNavigate('home')}
               className="flex items-center gap-2"
             >
-              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                A
-              </div>
-              <span className="font-heading font-extrabold text-xl text-gray-900 hidden sm:block">
-                ATL Urban Farms
-              </span>
+              {brandingSettings.logo_url && !logoError ? (
+                <img
+                  src={brandingSettings.logo_url}
+                  alt="ATL Urban Farms"
+                  className="h-10 w-auto object-contain"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <>
+                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                    A
+                  </div>
+                  <span className="font-heading font-extrabold text-xl text-gray-900 hidden sm:block">
+                    ATL Urban Farms
+                  </span>
+                </>
+              )}
             </button>
 
             {/* Desktop Navigation */}
@@ -312,12 +327,77 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ user, onTabChange }) => {
 // Settings Tab Component
 interface SettingsTabProps {
   userEmail: string;
-  onSignOut: () => void;
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
   const [newsletterEnabled, setNewsletterEnabled] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(false);
+
+  // Password change state
+  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState(false);
+  const [passwordResetError, setPasswordResetError] = useState<string | null>(null);
+
+  const handlePasswordChange = async () => {
+    setPasswordResetLoading(true);
+    setPasswordResetError(null);
+    setPasswordResetSuccess(false);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setPasswordResetSuccess(true);
+    } catch (err: any) {
+      setPasswordResetError(err.message || 'Failed to send reset email. Please try again.');
+    } finally {
+      setPasswordResetLoading(false);
+    }
+  };
+
+  // Email change state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState(false);
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newEmail || newEmail === userEmail) {
+      setEmailChangeError('Please enter a different email address');
+      return;
+    }
+
+    setEmailChangeLoading(true);
+    setEmailChangeError(null);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+
+      if (error) throw error;
+
+      setEmailChangeSuccess(true);
+      setNewEmail('');
+    } catch (err: any) {
+      setEmailChangeError(err.message || 'Failed to update email');
+    } finally {
+      setEmailChangeLoading(false);
+    }
+  };
+
+  const closeEmailModal = () => {
+    setIsEmailModalOpen(false);
+    setNewEmail('');
+    setEmailChangeError(null);
+    setEmailChangeSuccess(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -375,13 +455,61 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
         <h2 className="font-heading font-bold text-gray-900 mb-4">Security</h2>
         <div className="space-y-4">
+          {/* Password Reset Success Message */}
+          {passwordResetSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl"
+            >
+              <div className="flex items-start gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 mt-0.5 shrink-0">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <div>
+                  <p className="font-medium text-emerald-600">Password reset email sent!</p>
+                  <p className="text-sm text-emerald-600 mt-1">
+                    Check your inbox at {userEmail} for a link to reset your password.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Password Reset Error Message */}
+          {passwordResetError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-red-50 border border-red-100 rounded-xl"
+            >
+              <p className="text-sm text-red-600 font-medium">{passwordResetError}</p>
+            </motion.div>
+          )}
+
           <div className="flex items-center justify-between py-3 border-b border-gray-50">
             <div>
               <p className="font-medium text-gray-900">Password</p>
-              <p className="text-sm text-gray-500">Last changed: Unknown</p>
+              <p className="text-sm text-gray-500">Click to receive a password reset email</p>
             </div>
-            <button className="px-4 py-2 text-emerald-600 font-medium hover:bg-emerald-50 rounded-xl transition-colors">
-              Change
+            <button
+              onClick={handlePasswordChange}
+              disabled={passwordResetLoading}
+              className={`px-4 py-2 font-medium rounded-xl transition-colors flex items-center gap-2 ${
+                passwordResetLoading
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'text-emerald-600 hover:bg-emerald-50'
+              }`}
+            >
+              {passwordResetLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Change'
+              )}
             </button>
           </div>
           <div className="flex items-center justify-between py-3">
@@ -389,26 +517,131 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail, onSignOut }) => {
               <p className="font-medium text-gray-900">Connected Email</p>
               <p className="text-sm text-gray-500">{userEmail}</p>
             </div>
+            <button
+              onClick={() => setIsEmailModalOpen(true)}
+              className="px-4 py-2 text-emerald-600 font-medium hover:bg-emerald-50 rounded-xl transition-colors"
+            >
+              Change
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Danger Zone */}
-      <div className="bg-white rounded-2xl p-6 border border-red-100 shadow-sm">
-        <h2 className="font-heading font-bold text-red-600 mb-4">Danger Zone</h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium text-gray-900">Sign Out</p>
-            <p className="text-sm text-gray-500">Sign out of your account on this device</p>
-          </div>
-          <button
-            onClick={onSignOut}
-            className="px-4 py-2 bg-red-50 text-red-600 font-medium hover:bg-red-100 rounded-xl transition-colors"
+      {/* Email Change Modal */}
+      <AnimatePresence>
+        {isEmailModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={closeEmailModal}
           >
-            Sign Out
-          </button>
-        </div>
-      </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl"
+            >
+              <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">
+                Change Email Address
+              </h3>
+
+              {emailChangeSuccess ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 mt-0.5 shrink-0">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-emerald-600">Verification emails sent!</p>
+                        <p className="text-sm text-emerald-600 mt-1">
+                          We've sent verification emails to both your current email ({userEmail}) and your new email address. Please check both inboxes and click the confirmation links to complete the change.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeEmailModal}
+                    className="w-full px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleEmailChange} className="space-y-4">
+                  <p className="text-sm text-gray-500">
+                    Enter your new email address. We'll send verification emails to both your current and new email addresses to confirm the change.
+                  </p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      Current Email
+                    </label>
+                    <input
+                      type="email"
+                      value={userEmail}
+                      disabled
+                      className="w-full px-4 py-3 bg-gray-100 border border-gray-100 rounded-xl text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      New Email
+                    </label>
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="Enter your new email address"
+                      required
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {emailChangeError && (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                      <p className="text-sm text-red-600">{emailChangeError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={closeEmailModal}
+                      className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={emailChangeLoading || !newEmail}
+                      className={`flex-1 px-4 py-3 font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                        emailChangeLoading || !newEmail
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      {emailChangeLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Verification'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

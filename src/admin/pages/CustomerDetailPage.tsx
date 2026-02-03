@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle } from 'lucide-react';
+import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin } from 'lucide-react';
 import {
   Customer,
   CustomerProfile,
@@ -131,6 +131,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
       setAddresses(addressesData || []);
 
+      // Fetch regular orders
       const { data: ordersData } = await supabase
         .from('orders')
         .select('id, order_number, status, total, created_at')
@@ -147,15 +148,58 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           return {
             ...order,
             item_count: count || 0,
+            isLegacy: false,
           };
         })
       );
 
-      setOrders(ordersWithCounts);
+      // Fetch legacy orders for this customer
+      let legacyOrdersList: CustomerOrder[] = [];
+      try {
+        const { data: legacyOrdersData } = await supabase
+          .from('legacy_orders')
+          .select('id, woo_order_id, status, total, order_date')
+          .eq('customer_id', customerId)
+          .order('order_date', { ascending: false });
 
-      const total = ordersWithCounts.reduce((sum, order) => sum + (order.total || 0), 0);
+        if (legacyOrdersData && legacyOrdersData.length > 0) {
+          // Get item counts for legacy orders
+          const legacyWithCounts = await Promise.all(
+            legacyOrdersData.map(async (order) => {
+              const { count } = await supabase
+                .from('legacy_order_items')
+                .select('*', { count: 'exact', head: true })
+                .eq('legacy_order_id', order.id);
+
+              return {
+                id: order.id,
+                order_number: `WC-${order.woo_order_id}`,
+                status: order.status || 'completed',
+                total: order.total || 0,
+                item_count: count || 0,
+                created_at: order.order_date,
+                isLegacy: true,
+              };
+            })
+          );
+          legacyOrdersList = legacyWithCounts;
+        }
+      } catch (err) {
+        // Silently ignore if legacy_orders table doesn't exist
+        console.warn('Could not fetch legacy orders:', err);
+      }
+
+      // Merge and sort all orders by date
+      const allOrders = [...ordersWithCounts, ...legacyOrdersList].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setOrders(allOrders);
+
+      // Calculate totals including legacy orders
+      const total = allOrders.reduce((sum, order) => sum + (order.total || 0), 0);
       setTotalSpent(total);
-      setAverageOrderValue(ordersWithCounts.length > 0 ? total / ordersWithCounts.length : 0);
+      setAverageOrderValue(allOrders.length > 0 ? total / allOrders.length : 0);
 
       const { data: attributionData } = await supabase
         .from('customer_attribution')
@@ -295,11 +339,8 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       if (!address.state.trim()) {
         errors[`address_${index}_state`] = 'State is required';
       }
-      if (!address.postal_code.trim()) {
-        errors[`address_${index}_postal_code`] = 'Postal code is required';
-      }
-      if (!address.country.trim()) {
-        errors[`address_${index}_country`] = 'Country is required';
+      if (!address.zip.trim()) {
+        errors[`address_${index}_zip`] = 'Zip code is required';
       }
     });
 
@@ -354,14 +395,14 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         const { error } = await supabase
           .from('customer_addresses')
           .update({
+            label: address.label || null,
             first_name: address.first_name,
             last_name: address.last_name,
             address_line1: address.address_line1,
             address_line2: address.address_line2 || null,
             city: address.city,
             state: address.state,
-            postal_code: address.postal_code,
-            country: address.country,
+            zip: address.zip,
             phone: address.phone || null,
             updated_at: new Date().toISOString(),
           })
@@ -740,16 +781,42 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
                       Email <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="email"
-                      value={editedCustomer.email}
-                      onChange={(e) =>
-                        setEditedCustomer({ ...editedCustomer, email: e.target.value })
-                      }
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
-                        validationErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200'
-                      }`}
-                    />
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="email"
+                        value={editedCustomer.email}
+                        onChange={(e) =>
+                          setEditedCustomer({ ...editedCustomer, email: e.target.value })
+                        }
+                        className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                          validationErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                        }`}
+                      />
+                      <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={customer?.newsletter_subscribed || false}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            try {
+                              const { error } = await supabase
+                                .from('customers')
+                                .update({ newsletter_subscribed: newValue, updated_at: new Date().toISOString() })
+                                .eq('id', customerId);
+                              if (!error) {
+                                setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
+                                setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
+                              }
+                            } catch (err) {
+                              console.error('Error updating newsletter subscription:', err);
+                              setToast({ message: 'Failed to update subscription', type: 'error' });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">Newsletter</span>
+                      </label>
+                    </div>
                     {validationErrors.email && (
                       <p className="mt-1 text-xs text-red-600">{validationErrors.email}</p>
                     )}
@@ -759,14 +826,40 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
                       Phone
                     </label>
-                    <input
-                      type="tel"
-                      value={editedCustomer.phone}
-                      onChange={(e) =>
-                        setEditedCustomer({ ...editedCustomer, phone: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="tel"
+                        value={editedCustomer.phone}
+                        onChange={(e) =>
+                          setEditedCustomer({ ...editedCustomer, phone: e.target.value })
+                        }
+                        className="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                      <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={customer?.sms_opt_in || false}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            try {
+                              const { error } = await supabase
+                                .from('customers')
+                                .update({ sms_opt_in: newValue, updated_at: new Date().toISOString() })
+                                .eq('id', customerId);
+                              if (!error) {
+                                setCustomer(prev => prev ? { ...prev, sms_opt_in: newValue } : null);
+                                setToast({ message: newValue ? 'SMS notifications enabled' : 'SMS notifications disabled', type: 'success' });
+                              }
+                            } catch (err) {
+                              console.error('Error updating SMS opt-in:', err);
+                              setToast({ message: 'Failed to update SMS preference', type: 'error' });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">SMS Updates</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex gap-2 pt-2">
@@ -800,11 +893,63 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                    <p className="text-slate-800">{customer.email}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-slate-800">{customer.email}</p>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={customer?.newsletter_subscribed || false}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            try {
+                              const { error } = await supabase
+                                .from('customers')
+                                .update({ newsletter_subscribed: newValue, updated_at: new Date().toISOString() })
+                                .eq('id', customerId);
+                              if (!error) {
+                                setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
+                                setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
+                              }
+                            } catch (err) {
+                              console.error('Error updating newsletter subscription:', err);
+                              setToast({ message: 'Failed to update subscription', type: 'error' });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">Newsletter</span>
+                      </label>
+                    </div>
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
-                    <p className="text-slate-800">{customer.phone || '-'}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-slate-800">{customer.phone || '-'}</p>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={customer?.sms_opt_in || false}
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            try {
+                              const { error } = await supabase
+                                .from('customers')
+                                .update({ sms_opt_in: newValue, updated_at: new Date().toISOString() })
+                                .eq('id', customerId);
+                              if (!error) {
+                                setCustomer(prev => prev ? { ...prev, sms_opt_in: newValue } : null);
+                                setToast({ message: newValue ? 'SMS notifications enabled' : 'SMS notifications disabled', type: 'success' });
+                              }
+                            } catch (err) {
+                              console.error('Error updating SMS opt-in:', err);
+                              setToast({ message: 'Failed to update SMS preference', type: 'error' });
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">SMS Updates</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
@@ -833,68 +978,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <option value="customer">Customer</option>
                     <option value="admin">Admin</option>
                   </select>
-                </div>
-
-                {/* Newsletter Subscriber Checkbox */}
-                <div>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={customer?.newsletter_subscribed || false}
-                      onChange={async (e) => {
-                        const newValue = e.target.checked;
-                        try {
-                          const { error } = await supabase
-                            .from('customers')
-                            .update({ newsletter_subscribed: newValue, updated_at: new Date().toISOString() })
-                            .eq('id', customerId);
-                          if (!error) {
-                            setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
-                            setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
-                          }
-                        } catch (err) {
-                          console.error('Error updating newsletter subscription:', err);
-                          setToast({ message: 'Failed to update subscription', type: 'error' });
-                        }
-                      }}
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter Subscriber</span>
-                      <p className="text-xs text-slate-400">Receive newsletters and promotional emails</p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* SMS Opt-in Checkbox */}
-                <div>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={customer?.sms_opt_in || false}
-                      onChange={async (e) => {
-                        const newValue = e.target.checked;
-                        try {
-                          const { error } = await supabase
-                            .from('customers')
-                            .update({ sms_opt_in: newValue, updated_at: new Date().toISOString() })
-                            .eq('id', customerId);
-                          if (!error) {
-                            setCustomer(prev => prev ? { ...prev, sms_opt_in: newValue } : null);
-                            setToast({ message: newValue ? 'SMS notifications enabled' : 'SMS notifications disabled', type: 'success' });
-                          }
-                        } catch (err) {
-                          console.error('Error updating SMS opt-in:', err);
-                          setToast({ message: 'Failed to update SMS preference', type: 'error' });
-                        }
-                      }}
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Updates</span>
-                      <p className="text-xs text-slate-400">Receive text messages about orders</p>
-                    </div>
-                  </label>
                 </div>
 
                 {/* Tags Section */}
@@ -1314,14 +1397,28 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       className="p-4 bg-slate-50 rounded-xl border border-slate-200"
                     >
                       <div className="flex items-center gap-2 mb-4">
-                        <span className="text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                          {address.type}
-                        </span>
                         {address.is_default && (
                           <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">
                             Default
                           </span>
                         )}
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Label
+                        </label>
+                        <input
+                          type="text"
+                          value={address.label || ''}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].label = e.target.value || null;
+                            setEditedAddresses(updated);
+                          }}
+                          placeholder="e.g., Home, Work, Office"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -1469,56 +1566,29 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                            Postal Code <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={address.postal_code}
-                            onChange={(e) => {
-                              const updated = [...editedAddresses];
-                              updated[index].postal_code = e.target.value;
-                              setEditedAddresses(updated);
-                            }}
-                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
-                              validationErrors[`address_${index}_postal_code`]
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-slate-200'
-                            }`}
-                          />
-                          {validationErrors[`address_${index}_postal_code`] && (
-                            <p className="mt-1 text-xs text-red-600">
-                              {validationErrors[`address_${index}_postal_code`]}
-                            </p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                            Country <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={address.country}
-                            onChange={(e) => {
-                              const updated = [...editedAddresses];
-                              updated[index].country = e.target.value;
-                              setEditedAddresses(updated);
-                            }}
-                            className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
-                              validationErrors[`address_${index}_country`]
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-slate-200'
-                            }`}
-                          />
-                          {validationErrors[`address_${index}_country`] && (
-                            <p className="mt-1 text-xs text-red-600">
-                              {validationErrors[`address_${index}_country`]}
-                            </p>
-                          )}
-                        </div>
+                      <div className="mt-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Zip Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={address.zip}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].zip = e.target.value;
+                            setEditedAddresses(updated);
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors[`address_${index}_zip`]
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors[`address_${index}_zip`] && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors[`address_${index}_zip`]}
+                          </p>
+                        )}
                       </div>
 
                       <div className="mt-3">
@@ -1562,37 +1632,58 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                 <>
                   {addresses.length > 0 ? (
                     <div className="space-y-4">
-                      {addresses.map((address) => (
-                        <div
-                          key={address.id}
-                          className="p-4 bg-slate-50 rounded-xl border border-slate-100"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs uppercase tracking-wider text-slate-500">
-                              {address.type}
-                            </span>
-                            {address.is_default && (
-                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">
-                                Default
-                              </span>
+                      {addresses.map((address) => {
+                        const fullAddress = [
+                          address.address_line1,
+                          address.address_line2,
+                          `${address.city}, ${address.state} ${address.zip}`,
+                        ].filter(Boolean).join(', ');
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+
+                        return (
+                          <div
+                            key={address.id}
+                            className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                {address.label && (
+                                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 border border-blue-200 rounded-full text-xs font-semibold">
+                                    {address.label}
+                                  </span>
+                                )}
+                                {address.is_default && (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <a
+                                href={mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1 text-emerald-600 hover:text-emerald-700 text-xs font-medium transition-colors"
+                              >
+                                <MapPin size={12} />
+                                View on Map
+                              </a>
+                            </div>
+                            <p className="text-slate-800 font-medium">
+                              {address.first_name} {address.last_name}
+                            </p>
+                            <p className="text-slate-600 text-sm">{address.address_line1}</p>
+                            {address.address_line2 && (
+                              <p className="text-slate-600 text-sm">{address.address_line2}</p>
+                            )}
+                            <p className="text-slate-600 text-sm">
+                              {address.city}, {address.state} {address.zip}
+                            </p>
+                            {address.phone && (
+                              <p className="text-slate-500 text-sm mt-1">{address.phone}</p>
                             )}
                           </div>
-                          <p className="text-slate-800 font-medium">
-                            {address.first_name} {address.last_name}
-                          </p>
-                          <p className="text-slate-600 text-sm">{address.address_line1}</p>
-                          {address.address_line2 && (
-                            <p className="text-slate-600 text-sm">{address.address_line2}</p>
-                          )}
-                          <p className="text-slate-600 text-sm">
-                            {address.city}, {address.state} {address.postal_code}
-                          </p>
-                          <p className="text-slate-500 text-sm">{address.country}</p>
-                          {address.phone && (
-                            <p className="text-slate-500 text-sm mt-1">{address.phone}</p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-slate-500">No saved addresses</p>
@@ -1801,8 +1892,15 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {orders.map((order) => (
                     <tr key={order.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-slate-800 font-mono text-sm">
-                        {order.order_number}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-800 font-mono text-sm">{order.order_number}</span>
+                          {order.isLegacy && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                              Legacy
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-slate-600 text-sm">
                         {formatDate(order.created_at)}
@@ -1825,6 +1923,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                           onClick={() => onViewOrder?.(order.id, {
                             fromCustomerId: customerId,
                             fromCustomerName: getCustomerName(),
+                            isLegacy: order.isLegacy,
                           })}
                           className="text-emerald-600 hover:text-emerald-700 transition-colors text-sm font-medium"
                         >

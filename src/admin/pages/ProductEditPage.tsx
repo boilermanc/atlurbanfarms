@@ -151,12 +151,11 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
   }, []);
 
   const fetchAvailableProducts = useCallback(async () => {
-    // Build query for simple products (including those with NULL product_type for backwards compatibility)
+    // Fetch all active products with their type
     let query = supabase
       .from('products')
-      .select('id, name, price, quantity_available')
-      .eq('is_active', true)
-      .or('product_type.eq.simple,product_type.is.null'); // Simple products or legacy products without type
+      .select('id, name, price, quantity_available, product_type')
+      .eq('is_active', true);
 
     // Exclude current product when editing
     if (productId) {
@@ -164,7 +163,21 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     }
 
     const { data } = await query.order('name');
-    setAvailableProducts(data || []);
+
+    // Filter client-side to exclude bundle, grouped, and external products
+    // This handles legacy products with null, empty string, or any other product_type values
+    const eligibleProducts = (data || []).filter(p => {
+      const type = p.product_type;
+      // Include if: no type set (null/empty/undefined) OR type is 'simple' OR type is not one of the excluded types
+      return !type || type === 'simple' || !['bundle', 'grouped', 'external'].includes(type);
+    });
+
+    setAvailableProducts(eligibleProducts.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      quantity_available: p.quantity_available
+    })));
   }, [productId]);
 
   const fetchRelationships = useCallback(async () => {
@@ -777,10 +790,10 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           </div>
         </div>
 
-        {/* Inventory - Only for Simple products */}
-        {formData.product_type === 'simple' && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Inventory</h2>
+        {/* Inventory Section */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Inventory</h2>
+          {formData.product_type === 'simple' ? (
             <div className="space-y-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input type="checkbox" name="track_inventory" checked={formData.track_inventory} onChange={handleChange} className="w-5 h-5 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50" />
@@ -813,8 +826,19 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
                 </div>
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="bg-slate-50 rounded-xl p-4">
+              <p className="text-slate-600 text-sm">
+                {formData.product_type === 'grouped' && 'Grouped products inherit inventory from their child products. Manage inventory on individual products within this group.'}
+                {formData.product_type === 'bundle' && 'Bundle inventory is calculated from the included products. Manage inventory on individual products within this bundle.'}
+                {formData.product_type === 'external' && 'External products link to third-party websites and do not track inventory here.'}
+              </p>
+              <p className="text-slate-500 text-xs mt-2">
+                To enable inventory tracking, change the product type to "Simple" above.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* External/Affiliate Product Fields */}
         {formData.product_type === 'external' && (

@@ -6,7 +6,7 @@
 
 export type DiscountType = 'percentage' | 'fixed_amount' | 'fixed_price' | 'buy_x_get_y' | 'free_shipping';
 
-export type PromotionScope = 'site_wide' | 'category' | 'product' | 'customer';
+export type PromotionScope = 'site' | 'category' | 'product' | 'customer';
 
 export type ActivationType = 'automatic' | 'code' | 'both';
 
@@ -19,16 +19,14 @@ export type PromotionStatus = 'active' | 'scheduled' | 'expired' | 'inactive';
 export interface Promotion {
   id: string;
   name: string;
-  code: string | null;
+  coupon_code: string | null;
   description: string | null;
-  internal_notes: string | null;
 
   // Discount Configuration
   discount_type: DiscountType;
-  discount_value: number | null;
+  discount_value: number;
   buy_quantity: number | null;
   get_quantity: number | null;
-  get_discount_percent: number | null;
 
   // Scope
   scope: PromotionScope;
@@ -36,19 +34,20 @@ export interface Promotion {
   // Conditions
   minimum_order_amount: number | null;
   minimum_quantity: number | null;
-  maximum_discount_amount: number | null;
 
   // Usage Limits
-  usage_limit_total: number | null;
-  usage_limit_per_customer: number | null;
-  usage_count: number;
+  max_uses: number | null;
+  max_uses_per_customer: number | null;
+  times_used: number;
+  total_discount_given: number;
 
   // Stacking
   stackable: boolean;
   priority: number;
+  exclusive_group: string | null;
 
   // Activation
-  activation_type: ActivationType;
+  activation_type: string; // 'automatic' | 'coupon' | 'both'
 
   // Schedule
   starts_at: string;
@@ -56,10 +55,10 @@ export interface Promotion {
 
   // Display Settings
   banner_text: string | null;
-  banner_bg_color: string;
+  banner_background_color: string;
   banner_text_color: string;
   badge_text: string;
-  show_on_homepage: boolean;
+  show_banner: boolean;
 
   // Status
   is_active: boolean;
@@ -247,7 +246,7 @@ export const DISCOUNT_TYPE_CONFIG: Record<DiscountType, { label: string; color: 
 };
 
 export const SCOPE_CONFIG: Record<PromotionScope, { label: string; color: string; description: string }> = {
-  site_wide: {
+  site: {
     label: 'Site-wide',
     color: 'bg-emerald-500',
     description: 'Applies to all products in the store',
@@ -323,7 +322,7 @@ export const DISCOUNT_TYPE_OPTIONS: Array<{ value: DiscountType; label: string }
 ];
 
 export const SCOPE_OPTIONS: Array<{ value: PromotionScope; label: string }> = [
-  { value: 'site_wide', label: 'Site-wide' },
+  { value: 'site', label: 'Site-wide' },
   { value: 'category', label: 'Category' },
   { value: 'product', label: 'Product' },
   { value: 'customer', label: 'Customer' },
@@ -349,7 +348,7 @@ export const DEFAULT_PROMOTION_FORM: PromotionFormData = {
   buy_quantity: '',
   get_quantity: '',
   get_discount_percent: '100',
-  scope: 'site_wide',
+  scope: 'site',
   minimum_order_amount: '',
   minimum_quantity: '',
   maximum_discount_amount: '',
@@ -391,6 +390,11 @@ export function getPromotionStatus(promotion: Promotion): PromotionStatus {
     return 'expired';
   }
   return 'active';
+}
+
+// Helper to get display code (maps coupon_code to user-friendly 'code')
+export function getPromotionCode(promotion: Promotion): string | null {
+  return promotion.coupon_code;
 }
 
 export function formatDiscountValue(promotion: Promotion): string {

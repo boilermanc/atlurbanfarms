@@ -52,7 +52,7 @@ export interface CustomerPreferences {
 export interface CustomerAddress {
   id: string;
   customer_id: string;
-  type: 'shipping' | 'billing';
+  label: string | null;
   is_default: boolean;
   first_name: string;
   last_name: string;
@@ -60,7 +60,7 @@ export interface CustomerAddress {
   address_line2: string | null;
   city: string;
   state: string;
-  postal_code: string;
+  zip: string;
   country: string;
   phone: string | null;
   created_at: string;
@@ -86,6 +86,7 @@ export interface CustomerOrder {
   total: number;
   item_count: number;
   created_at: string;
+  isLegacy?: boolean;
 }
 
 export interface CustomerAttribution {

@@ -211,42 +211,36 @@ export function useSavePromotion() {
 
       try {
         // Build promotion data object
+        // Note: Column names must match database schema exactly
         const promotionData = {
           name: formData.name.trim(),
-          code: formData.code?.trim().toUpperCase() || null,
+          coupon_code: formData.code?.trim().toUpperCase() || null,
           description: formData.description?.trim() || null,
-          internal_notes: formData.internal_notes?.trim() || null,
           discount_type: formData.discount_type,
-          discount_value: formData.discount_value ? parseFloat(formData.discount_value) : null,
+          discount_value: formData.discount_value ? parseFloat(formData.discount_value) : 0,
           buy_quantity: formData.buy_quantity ? parseInt(formData.buy_quantity) : null,
           get_quantity: formData.get_quantity ? parseInt(formData.get_quantity) : null,
-          get_discount_percent: formData.get_discount_percent
-            ? parseFloat(formData.get_discount_percent)
-            : null,
           scope: formData.scope,
           minimum_order_amount: formData.minimum_order_amount
             ? parseFloat(formData.minimum_order_amount)
             : null,
           minimum_quantity: formData.minimum_quantity ? parseInt(formData.minimum_quantity) : null,
-          maximum_discount_amount: formData.maximum_discount_amount
-            ? parseFloat(formData.maximum_discount_amount)
-            : null,
-          usage_limit_total: formData.usage_limit_total
+          max_uses: formData.usage_limit_total
             ? parseInt(formData.usage_limit_total)
             : null,
-          usage_limit_per_customer: formData.usage_limit_per_customer
+          max_uses_per_customer: formData.usage_limit_per_customer
             ? parseInt(formData.usage_limit_per_customer)
             : null,
           stackable: formData.stackable,
           priority: formData.priority ? parseInt(formData.priority) : 0,
-          activation_type: formData.activation_type,
+          activation_type: formData.activation_type === 'code' ? 'coupon' : formData.activation_type,
           starts_at: formData.starts_at,
           ends_at: formData.ends_at || null,
           banner_text: formData.banner_text?.trim() || null,
-          banner_bg_color: formData.banner_bg_color,
+          banner_background_color: formData.banner_bg_color,
           banner_text_color: formData.banner_text_color,
           badge_text: formData.badge_text?.trim() || 'SALE',
-          show_on_homepage: formData.show_on_homepage,
+          show_banner: formData.show_on_homepage,
           is_active: formData.is_active,
         };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
+import { useBrandingSettings } from '../../hooks/useSupabase';
 
 interface RegisterPageProps {
   onNavigate: (view: string) => void;
@@ -17,6 +18,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+  const { settings: brandingSettings } = useBrandingSettings();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -75,14 +78,25 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
         <div className="text-center mb-8">
           <button
             onClick={() => onNavigate('home')}
-            className="inline-flex items-center gap-2 mb-6"
+            className="inline-flex items-center justify-center gap-2 mb-6"
           >
-            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-              A
-            </div>
-            <span className="font-heading font-extrabold text-xl text-gray-900">
-              ATL Urban Farms
-            </span>
+            {brandingSettings.logo_url && !logoError ? (
+              <img
+                src={brandingSettings.logo_url}
+                alt="ATL Urban Farms"
+                className="h-12 w-auto object-contain"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <>
+                <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                  A
+                </div>
+                <span className="font-heading font-extrabold text-xl text-gray-900">
+                  ATL Urban Farms
+                </span>
+              </>
+            )}
           </button>
           <h1 className="text-3xl font-heading font-extrabold text-gray-900 mb-2">
             Create Account

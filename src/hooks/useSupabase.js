@@ -55,17 +55,35 @@ export function useCustomerProfile(userId) {
         setLoading(true)
         setError(null)
 
-        const { data, error: supabaseError } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('id', userId)
-          .single()
+        // Fetch customer data and profile data in parallel
+        const [customerResult, profileResult] = await Promise.all([
+          supabase
+            .from('customers')
+            .select('*')
+            .eq('id', userId)
+            .single(),
+          supabase
+            .from('customer_profiles')
+            .select('*')
+            .eq('customer_id', userId)
+            .single()
+        ])
 
-        if (supabaseError && supabaseError.code !== 'PGRST116') {
-          throw supabaseError
+        if (customerResult.error && customerResult.error.code !== 'PGRST116') {
+          throw customerResult.error
         }
 
-        setProfile(data)
+        // Merge customer data with profile data
+        const mergedProfile = {
+          ...customerResult.data,
+          // Profile fields from customer_profiles table (may not exist)
+          growing_environment: profileResult.data?.growing_environment || null,
+          experience_level: profileResult.data?.experience_level || null,
+          growing_systems: profileResult.data?.growing_systems || [],
+          growing_interests: profileResult.data?.growing_interests || []
+        }
+
+        setProfile(mergedProfile)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -80,15 +98,62 @@ export function useCustomerProfile(userId) {
     if (!userId) return { error: 'No user ID' }
 
     try {
-      const { data, error } = await supabase
+      // Update core customer fields in customers table
+      const customerFields = {
+        id: userId,
+        first_name: updates.first_name,
+        last_name: updates.last_name,
+        phone: updates.phone,
+        newsletter_subscribed: updates.newsletter_subscribed,
+        sms_opt_in: updates.sms_opt_in,
+        updated_at: new Date().toISOString()
+      }
+
+      const { data: customerData, error: customerError } = await supabase
         .from('customers')
-        .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() })
+        .upsert(customerFields)
         .select()
         .single()
 
-      if (error) throw error
-      setProfile(data)
-      return { data }
+      if (customerError) throw customerError
+
+      // Update profile fields in customer_profiles table (separate table)
+      const hasProfileFields = updates.growing_environment !== undefined ||
+        updates.experience_level !== undefined ||
+        updates.growing_systems !== undefined ||
+        updates.growing_interests !== undefined
+
+      if (hasProfileFields) {
+        const profileFields = {
+          customer_id: userId,
+          growing_environment: updates.growing_environment || null,
+          experience_level: updates.experience_level || null,
+          growing_systems: updates.growing_systems?.length > 0 ? updates.growing_systems : null,
+          growing_interests: updates.growing_interests?.length > 0 ? updates.growing_interests : null,
+          updated_at: new Date().toISOString()
+        }
+
+        const { error: profileError } = await supabase
+          .from('customer_profiles')
+          .upsert(profileFields, { onConflict: 'customer_id' })
+
+        if (profileError) {
+          console.error('Error updating customer profile:', profileError)
+          // Don't fail the whole update if profile update fails
+        }
+      }
+
+      // Merge customer data with profile fields for local state
+      const mergedData = {
+        ...customerData,
+        growing_environment: updates.growing_environment,
+        experience_level: updates.experience_level,
+        growing_systems: updates.growing_systems,
+        growing_interests: updates.growing_interests
+      }
+
+      setProfile(mergedData)
+      return { data: mergedData }
     } catch (err) {
       return { error: err.message }
     }
@@ -275,36 +340,50 @@ export function useCombinedOrders(customerId) {
         setLoading(true)
         setError(null)
 
-        // Fetch both order types in parallel
-        const [newOrdersResult, legacyOrdersResult] = await Promise.all([
-          supabase
-            .from('orders')
-            .select(`
+        // Fetch new orders with related data
+        const newOrdersResult = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items:order_items(
               *,
-              order_items:order_items(
-                *,
-                product:products(name, slug, primary_image_url)
-              ),
-              shipments:shipments(
-                id,
-                tracking_number,
-                carrier_code,
-                status,
-                tracking_status,
-                estimated_delivery_date,
-                actual_delivery_date
-              )
-            `)
-            .eq('customer_id', customerId)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('legacy_orders')
-            .select('*')
-            .eq('customer_id', customerId)
-            .order('order_date', { ascending: false })
-        ])
+              product:products(name, slug, primary_image_url)
+            ),
+            shipments:shipments(
+              id,
+              tracking_number,
+              carrier_code,
+              status,
+              tracking_status,
+              estimated_delivery_date,
+              actual_delivery_date
+            )
+          `)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: false })
 
-        if (newOrdersResult.error) throw newOrdersResult.error
+        if (newOrdersResult.error) {
+          console.error('Error fetching orders:', newOrdersResult.error)
+          // If it's a relationship error, try a simpler query without joins
+          if (newOrdersResult.error.code === 'PGRST200' ||
+              newOrdersResult.error.message?.includes('relationship')) {
+            console.warn('Retrying orders query without joins...')
+            const simpleResult = await supabase
+              .from('orders')
+              .select('*')
+              .eq('customer_id', customerId)
+              .order('created_at', { ascending: false })
+
+            if (simpleResult.error) {
+              console.error('Simple orders query also failed:', simpleResult.error)
+              throw simpleResult.error
+            }
+            newOrdersResult.data = simpleResult.data
+            newOrdersResult.error = null
+          } else {
+            throw newOrdersResult.error
+          }
+        }
 
         const newOrders = (newOrdersResult.data || []).map(order => ({
           ...order,
@@ -312,15 +391,29 @@ export function useCombinedOrders(customerId) {
           orderDate: order.created_at
         }))
 
-        // Legacy orders may not exist yet - handle gracefully
+        // Fetch legacy orders separately - don't let this fail the whole request
         let legacyOrders = []
-        if (!legacyOrdersResult.error || legacyOrdersResult.error.code !== '42P01') {
-          if (legacyOrdersResult.error) throw legacyOrdersResult.error
-          legacyOrders = (legacyOrdersResult.data || []).map(order => ({
-            ...order,
-            isLegacy: true,
-            orderDate: order.order_date
-          }))
+        try {
+          const legacyOrdersResult = await supabase
+            .from('legacy_orders')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('order_date', { ascending: false })
+
+          // Table doesn't exist (42P01) is not an error - just means no legacy orders
+          if (legacyOrdersResult.error && legacyOrdersResult.error.code !== '42P01') {
+            console.error('Error fetching legacy orders:', legacyOrdersResult.error)
+            // Don't throw - just log and continue with empty legacy orders
+          } else if (!legacyOrdersResult.error) {
+            legacyOrders = (legacyOrdersResult.data || []).map(order => ({
+              ...order,
+              isLegacy: true,
+              orderDate: order.order_date
+            }))
+          }
+        } catch (legacyErr) {
+          console.error('Exception fetching legacy orders:', legacyErr)
+          // Continue without legacy orders
         }
 
         // Combine and sort by date (newest first)
@@ -330,6 +423,7 @@ export function useCombinedOrders(customerId) {
 
         setCombinedOrders(allOrders)
       } catch (err) {
+        console.error('Error in useCombinedOrders:', err)
         setError(err.message)
         setCombinedOrders([])
       } finally {
