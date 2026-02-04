@@ -23,6 +23,8 @@ import {
   Shield,
   ScrollText,
   Download,
+  Globe,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -68,6 +70,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'CONTENT',
     items: [
+      { id: 'site-content', label: 'Site Content', icon: Globe },
+      { id: 'growers', label: 'Team Members', icon: UsersRound },
       { id: 'faqs', label: 'FAQs', icon: HelpCircle },
       { id: 'content-pages', label: 'Content Pages', icon: FileText },
       { id: 'product-tags', label: 'Product Tags', icon: Tag },

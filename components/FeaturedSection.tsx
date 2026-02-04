@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { useAuth } from '../src/hooks/useAuth';
+import { usePageContent } from '../src/hooks/useSiteContent';
 import { Product } from '../types';
 import ProductCard from './ProductCard';
 import ProductDetailModal from './ProductDetailModal';
@@ -31,6 +32,13 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   const [error, setError] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const { user } = useAuth();
+  const { get } = usePageContent('home');
+
+  // Get content from CMS
+  const sectionLabel = get('featured', 'label', 'Weekly Spotlight');
+  const headline = get('featured', 'headline', 'Nursery <span class="sage-text-gradient">Favorites</span>');
+  const description = get('featured', 'description', 'Hand-picked by our lead growers for their exceptional vitality and flavor profiles.');
+  const ctaText = get('featured', 'cta_text', 'Meet Our Growers');
 
   // Fetch featured products with realtime subscription
   useEffect(() => {
@@ -145,15 +153,16 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             viewport={{ once: true }}
             className="max-w-2xl"
           >
-            <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Weekly Spotlight</span>
-            <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight">
-              Nursery <span className="sage-text-gradient">Favorites</span>
-            </h2>
+            <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">{sectionLabel}</span>
+            <h2
+              className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight"
+              dangerouslySetInnerHTML={{ __html: headline }}
+            />
             <p className="text-gray-500 mt-4 text-lg font-medium">
-              Hand-picked by our lead growers for their exceptional vitality and flavor profiles.
+              {description}
             </p>
           </motion.div>
-          
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -164,7 +173,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             }}
             className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
           >
-            Meet Our Growers
+            {ctaText}
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
           </motion.button>
         </div>

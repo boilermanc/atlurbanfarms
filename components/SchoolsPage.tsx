@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface SchoolsPageProps {
   onBack: () => void;
@@ -17,6 +18,12 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
     message: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const { get, getSection } = usePageContent('schools');
+
+  // Get CMS content
+  const heroContent = getSection('hero');
+  const contactContent = getSection('contact');
+  const testimonialContent = getSection('testimonial');
 
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
@@ -115,12 +122,16 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           variants={staggerContainer}
           className="text-center max-w-4xl mx-auto"
         >
-          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">School Partnership Program</motion.span>
-          <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]">
-            Growing the Next Generation of <span className="text-emerald-600">Urban Farmers.</span>
-          </motion.h1>
+          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+            {heroContent.tagline || 'School Partnership Program'}
+          </motion.span>
+          <motion.h1
+            variants={fadeIn}
+            className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+            dangerouslySetInnerHTML={{ __html: heroContent.headline || 'Growing the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
+          />
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
-            Bring hands-on agriculture education to your school with our School Seedling Program. Discounted plants, curriculum support, and everything you need to cultivate young minds.
+            {heroContent.description || 'Bring hands-on agriculture education to your school with our School Seedling Program. Discounted plants, curriculum support, and everything you need to cultivate young minds.'}
           </motion.p>
         </motion.div>
       </section>
@@ -133,11 +144,11 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           transition={{ duration: 1, delay: 0.4 }}
           className="relative rounded-[3rem] overflow-hidden aspect-[21/9] shadow-2xl border-8 border-white"
         >
-          <img src="https://images.unsplash.com/photo-1588075592446-265fd1e6e76f?auto=format&fit=crop&q=80&w=1600" alt="Students in school garden" className="w-full h-full object-cover" />
+          <img src={heroContent.image_url || 'https://images.unsplash.com/photo-1588075592446-265fd1e6e76f?auto=format&fit=crop&q=80&w=1600'} alt="Students in school garden" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
           <div className="absolute bottom-10 left-10 text-white">
-            <p className="text-sm font-black uppercase tracking-widest mb-2">Education First Initiative</p>
-            <h3 className="text-2xl font-bold">Empowering K-12 Schools Across Georgia</h3>
+            <p className="text-sm font-black uppercase tracking-widest mb-2">{heroContent.image_label || 'Education First Initiative'}</p>
+            <h3 className="text-2xl font-bold">{heroContent.image_caption || 'Empowering K-12 Schools Across Georgia'}</h3>
           </div>
         </motion.div>
       </section>

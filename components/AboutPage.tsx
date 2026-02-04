@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { SparkleIcon } from '../constants';
 import { useGrowers } from '../src/hooks/useSupabase';
+import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface Grower {
   id: string;
@@ -78,9 +79,20 @@ interface AboutPageProps {
 
 const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
   const { growers: supabaseGrowers, loading: growersLoading } = useGrowers();
+  const { get, getSection } = usePageContent('about');
 
   // Use Supabase data if available, otherwise use placeholders
   const growers: Grower[] = supabaseGrowers.length > 0 ? supabaseGrowers : PLACEHOLDER_GROWERS;
+
+  // Get CMS content for each section
+  const heroContent = getSection('hero');
+  const storyContent = getSection('story');
+  const seedlingsContent = getSection('seedlings');
+  const technologyContent = getSection('technology');
+  const statsContent = getSection('stats');
+  const growersHeaderContent = getSection('growers');
+  const valuesContent = getSection('values');
+  const ctaContent = getSection('cta');
 
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
@@ -108,32 +120,36 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
     <div className="min-h-screen pt-20 pb-12 bg-white selection:bg-purple-100 selection:text-purple-900">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 md:px-12 mb-14">
-        <motion.div 
+        <motion.div
           initial="hidden"
           animate="visible"
           variants={staggerContainer}
           className="text-center max-w-4xl mx-auto"
         >
-          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">About Us</motion.span>
-          <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]">
-            Growing the Future of Food, <span className="sage-text-gradient">Right Here in Atlanta.</span>
-          </motion.h1>
+          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+            {heroContent.tagline || 'About Us'}
+          </motion.span>
+          <motion.h1
+            variants={fadeIn}
+            className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+            dangerouslySetInnerHTML={{ __html: heroContent.headline || 'Growing the Future of Food, <span class="sage-text-gradient">Right Here in Atlanta.</span>' }}
+          />
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed mb-12">
-            ATL Urban Farms isn't just a nursery. We are a technology company dedicated to shortening the distance between the farm and your fork.
+            {heroContent.subheadline || "ATL Urban Farms isn't just a nursery. We are a technology company dedicated to shortening the distance between the farm and your fork."}
           </motion.p>
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 0.4 }}
           className="relative rounded-[3rem] overflow-hidden aspect-[21/9] shadow-2xl border-8 border-white"
         >
-          <img src="https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=1600" alt="Inside our high-tech nursery" className="w-full h-full object-cover" />
+          <img src={heroContent.image_url || 'https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=1600'} alt="Inside our high-tech nursery" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           <div className="absolute bottom-10 left-10 text-white">
-            <p className="text-sm font-black uppercase tracking-widest mb-2">Facility 01 // Atlanta, GA</p>
-            <h3 className="text-2xl font-bold">Climate-Controlled Nursery Operations</h3>
+            <p className="text-sm font-black uppercase tracking-widest mb-2">{heroContent.image_caption_label || 'Facility 01 // Atlanta, GA'}</p>
+            <h3 className="text-2xl font-bold">{heroContent.image_caption_text || 'Climate-Controlled Nursery Operations'}</h3>
           </div>
         </motion.div>
       </section>
@@ -274,12 +290,16 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
             variants={staggerContainer}
             className="text-center max-w-4xl mx-auto mb-8"
           >
-            <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Team</motion.span>
-            <motion.h2 variants={fadeIn} className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-[1.1]">
-              Meet the <span className="sage-text-gradient">Growers</span>
-            </motion.h2>
+            <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+              {growersHeaderContent.tagline || 'Our Team'}
+            </motion.span>
+            <motion.h2
+              variants={fadeIn}
+              className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+              dangerouslySetInnerHTML={{ __html: growersHeaderContent.headline || 'Meet the <span class="sage-text-gradient">Growers</span>' }}
+            />
             <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
-              The passionate experts behind every seedling. Our team combines decades of horticultural experience with cutting-edge technology to bring you the healthiest plants possible.
+              {growersHeaderContent.description || 'The passionate experts behind every seedling. Our team combines decades of horticultural experience with cutting-edge technology to bring you the healthiest plants possible.'}
             </motion.p>
           </motion.div>
 
@@ -291,10 +311,10 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
             className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8"
           >
             {[
-              { value: '50+', label: 'Years Combined Experience' },
-              { value: '15K', label: 'Sq. Ft. Nursery' },
-              { value: '100K+', label: 'Plants Grown Annually' },
-              { value: '500+', label: 'Schools Partnered' },
+              { value: statsContent.stat_1_value || '50+', label: statsContent.stat_1_label || 'Years Combined Experience' },
+              { value: statsContent.stat_2_value || '15K', label: statsContent.stat_2_label || 'Sq. Ft. Nursery' },
+              { value: statsContent.stat_3_value || '100K+', label: statsContent.stat_3_label || 'Plants Grown Annually' },
+              { value: statsContent.stat_4_value || '500+', label: statsContent.stat_4_label || 'Schools Partnered' },
             ].map((stat, idx) => (
               <div key={idx} className="bg-gray-50 rounded-3xl p-8 text-center border border-gray-100">
                 <p className="text-4xl md:text-5xl font-heading font-black text-emerald-600 mb-2">{stat.value}</p>
@@ -423,15 +443,18 @@ const AboutPage: React.FC<AboutPageProps> = ({ onBack }) => {
             viewport={{ once: true }}
             className="relative z-10"
           >
-            <h2 className="text-4xl md:text-6xl font-heading font-black text-white mb-8">Ready to grow <span className="text-emerald-400">smarter?</span></h2>
+            <h2
+              className="text-4xl md:text-6xl font-heading font-black text-white mb-8"
+              dangerouslySetInnerHTML={{ __html: ctaContent.headline || 'Ready to grow <span class="text-emerald-400">smarter?</span>' }}
+            />
             <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-12 font-medium">
-              Join thousands of Atlanta residents and schools who are bringing their gardens into the future.
+              {ctaContent.description || 'Join thousands of Atlanta residents and schools who are bringing their gardens into the future.'}
             </p>
-            <button 
+            <button
               onClick={() => onBack()}
               className="px-12 py-5 bg-emerald-600 text-white rounded-2xl font-black text-lg hover:bg-emerald-500 transition-all shadow-2xl shadow-emerald-900/40"
             >
-              Start Your Urban Farm
+              {ctaContent.button_text || 'Start Your Urban Farm'}
             </button>
           </motion.div>
         </div>

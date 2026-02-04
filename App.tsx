@@ -24,6 +24,7 @@ import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
 import { AccountPage } from './src/components/account';
 import { WelcomePage } from './src/pages';
 import { AuthProvider } from './src/context/AuthContext';
+import { SiteContentProvider, usePageContent } from './src/hooks/useSiteContent';
 import { AdminLayout } from './src/admin';
 import AdminLogin from './src/admin/pages/AdminLogin';
 import { useBrandingSettings } from './src/hooks/useSupabase';
@@ -102,6 +103,49 @@ const getPathForView = (view: ViewType): string => {
 };
 
 const CART_STORAGE_KEY = 'atl-urban-farms-cart';
+
+// Schools Promo Section Component - uses CMS content
+interface SchoolsPromoSectionProps {
+  onNavigate: (view: string) => void;
+}
+
+const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate }) => {
+  const { getSection } = usePageContent('home');
+  const content = getSection('schools_promo');
+
+  return (
+    <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
+      <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
+        <svg className="w-96 h-96 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      </div>
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+        <div className="relative">
+          <img src={content.image_url || 'https://picsum.photos/seed/school/800/600'} alt="School garden program" className="rounded-[3rem] shadow-2xl relative z-10" />
+          <div className="absolute -bottom-8 -right-8 w-48 h-48 sage-gradient rounded-full blur-3xl opacity-30"></div>
+        </div>
+        <div>
+          <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
+            {content.label || 'Education First'}
+          </span>
+          <h2
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
+            dangerouslySetInnerHTML={{ __html: content.headline || 'Empowering the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
+          />
+          <p className="text-lg text-gray-500 mb-10 leading-relaxed">
+            {content.description || "Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let's grow together."}
+          </p>
+          <button
+            onClick={() => onNavigate('schools')}
+            className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all flex items-center gap-3"
+          >
+            {content.cta_text || 'Partner with Schools'}
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+};
 
 const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -422,33 +466,7 @@ const App: React.FC = () => {
                 <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} onNavigate={handleNavigate} />
               </section>
 
-              <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
-                <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
-                  <svg className="w-96 h-96 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                </div>
-                <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-                  <div className="relative">
-                    <img src="https://picsum.photos/seed/school/800/600" alt="School garden program" className="rounded-[3rem] shadow-2xl relative z-10" />
-                    <div className="absolute -bottom-8 -right-8 w-48 h-48 sage-gradient rounded-full blur-3xl opacity-30"></div>
-                  </div>
-                  <div>
-                    <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">Education First</span>
-                    <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight">
-                      Empowering the Next Generation of <span className="text-emerald-600">Urban Farmers.</span>
-                    </h2>
-                    <p className="text-lg text-gray-500 mb-10 leading-relaxed">
-                      Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let's grow together.
-                    </p>
-                    <button
-                      onClick={() => handleNavigate('schools')}
-                      className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all flex items-center gap-3"
-                    >
-                      Partner with Schools
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </section>
+              <SchoolsPromoSection onNavigate={handleNavigate} />
             </main>
 
             <Footer onNavigate={handleNavigate} />
@@ -459,17 +477,19 @@ const App: React.FC = () => {
   };
 
   return (
-    <AuthProvider>
-      {renderContent()}
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        items={cart}
-        onRemove={handleRemoveFromCart}
-        onUpdateQuantity={handleUpdateQuantity}
-        onCheckout={handleProceedToCheckout}
-      />
-    </AuthProvider>
+    <SiteContentProvider>
+      <AuthProvider>
+        {renderContent()}
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          items={cart}
+          onRemove={handleRemoveFromCart}
+          onUpdateQuantity={handleUpdateQuantity}
+          onCheckout={handleProceedToCheckout}
+        />
+      </AuthProvider>
+    </SiteContentProvider>
   );
 };
 

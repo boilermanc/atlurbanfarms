@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { SparkleIcon } from '../constants';
 import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
+import { usePageContent } from '../src/hooks/useSiteContent';
 
 type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar';
 
@@ -47,6 +48,11 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [message, setMessage] = useState<string | null>(null);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
   const [brandingSettings, setBrandingSettings] = useState<BrandingSettings | null>(null);
+  const { getSection } = usePageContent('footer');
+
+  // Get CMS content
+  const mainContent = getSection('main');
+  const newsletterContent = getSection('newsletter');
 
   // Fetch business and branding settings on mount
   useEffect(() => {
@@ -169,7 +175,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </button>
             </div>
             <p className="text-gray-400 text-lg leading-relaxed max-w-md mb-10">
-              Transforming urban spaces with premium, nursery-grown seedlings. High-tech growing for the modern gardener.
+              {mainContent.tagline || 'Transforming urban spaces with premium, nursery-grown seedlings. High-tech growing for the modern gardener.'}
             </p>
             <div className="flex gap-4">
               {brandingSettings?.social_facebook && (
@@ -240,8 +246,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <SparkleIcon className="w-24 h-24 text-emerald-500" />
               </div>
-              <h3 className="text-3xl font-heading font-extrabold mb-4">Join the Garden</h3>
-              <p className="text-gray-400 mb-8 max-w-sm">Get growing tips, nursery updates, and early access to rare seasonal seedlings.</p>
+              <h3 className="text-3xl font-heading font-extrabold mb-4">{newsletterContent.headline || 'Join the Garden'}</h3>
+              <p className="text-gray-400 mb-8 max-w-sm">{newsletterContent.description || 'Get growing tips, nursery updates, and early access to rare seasonal seedlings.'}</p>
               
               <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4">
                 <input 

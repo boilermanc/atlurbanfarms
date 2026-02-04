@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
+import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface Event {
   id: string;
@@ -65,6 +66,10 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
     social_tiktok: '',
     secondary_brand_color: '#10b981', // Default emerald-500
   });
+  const { getSection } = usePageContent('calendar');
+
+  // Get CMS content for header
+  const headerContent = getSection('header');
 
   useEffect(() => {
     fetchEvents();
@@ -263,13 +268,13 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
           className="text-center mb-12"
         >
           <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
-            What's Happening
+            {headerContent.tagline || "What's Happening"}
           </span>
           <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4">
-            Events Calendar
+            {headerContent.headline || 'Events Calendar'}
           </h1>
           <p className="text-lg text-gray-500 max-w-2xl mx-auto">
-            Workshops, farm visits, shipping days, and more. Join us for hands-on learning and community growing!
+            {headerContent.description || 'Workshops, farm visits, shipping days, and more. Join us for hands-on learning and community growing!'}
           </p>
         </motion.div>
 

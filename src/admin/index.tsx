@@ -40,6 +40,8 @@ export { default as AuditLogPage } from './pages/AuditLogPage';
 export { default as AdminUsersPage } from './pages/AdminUsersPage';
 export { default as AlertsPage } from './pages/AlertsPage';
 export { default as WooImportPage } from './pages/WooImportPage';
+export { default as SiteContentPage } from './pages/SiteContentPage';
+export { default as GrowersPage } from './pages/GrowersPage';
 
 // Admin User Components
 export { default as InviteAdminModal } from './components/InviteAdminModal';

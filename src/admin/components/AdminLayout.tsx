@@ -57,6 +57,8 @@ const WooImportPage = lazy(() => import('../pages/WooImportPage'));
 const ProductTagsPage = lazy(() => import('../pages/ProductTagsPage'));
 const CustomerTagsPage = lazy(() => import('../pages/CustomerTagsPage'));
 const LegacyOrderDetailPage = lazy(() => import('../pages/LegacyOrderDetailPage'));
+const SiteContentPage = lazy(() => import('../pages/SiteContentPage'));
+const GrowersPage = lazy(() => import('../pages/GrowersPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -107,6 +109,8 @@ const PAGE_TITLES: Record<string, string> = {
   'woo-import': 'WooCommerce Import',
   'product-tags': 'Product Tags',
   'customer-tags': 'Customer Tags',
+  'site-content': 'Site Content',
+  'growers': 'Team Members',
 };
 
 // Dashboard Stats Interface
@@ -800,6 +804,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <ProductTagsPage />;
       case 'customer-tags':
         return <CustomerTagsPage />;
+      case 'site-content':
+        return <SiteContentPage />;
+      case 'growers':
+        return <GrowersPage />;
       case 'dashboard':
       default:
         return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} />;

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
 import { useBrandingSettings } from '../src/hooks/useSupabase';
+import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface FAQ {
   id: string;
@@ -80,6 +81,11 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { settings: brandingSettings } = useBrandingSettings();
+  const { getSection } = usePageContent('faq');
+
+  // Get CMS content for header
+  const headerContent = getSection('header');
+  const ctaContent = getSection('cta');
 
   useEffect(() => {
     const fetchFaqs = async () => {
@@ -168,12 +174,15 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">How can we help?</span>
-          <h1 className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6">
-            Help <span className="text-emerald-600">Center</span>
-          </h1>
+          <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+            {headerContent.tagline || 'How can we help?'}
+          </span>
+          <h1
+            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
+            dangerouslySetInnerHTML={{ __html: headerContent.headline || 'Help <span class="text-emerald-600">Center</span>' }}
+          />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            Everything you need to know about our seedlings, our shipping process, and our high-tech growing mission.
+            {headerContent.description || 'Everything you need to know about our seedlings, our shipping process, and our high-tech growing mission.'}
           </p>
         </motion.div>
 
