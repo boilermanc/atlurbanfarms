@@ -115,8 +115,8 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
 
   return (
     <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
-      <div className="absolute top-0 right-0 p-32 opacity-10 pointer-events-none">
-        <svg className="w-96 h-96 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+      <div className="absolute top-0 right-0 p-16 opacity-[0.04] pointer-events-none">
+        <svg className="w-64 h-64 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
       </div>
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
         <div className="relative">
