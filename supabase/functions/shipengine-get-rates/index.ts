@@ -145,6 +145,29 @@ async function getShippingSettings(supabaseClient: any, keys: string[]): Promise
   return settings
 }
 
+/**
+ * Get business config settings (ship-from address fields) from config_settings table.
+ * The admin ShippingSettingsTab saves ship-from address as individual fields
+ * under the 'business' category rather than as a JSON object.
+ */
+async function getBusinessSettings(supabaseClient: any): Promise<Record<string, any>> {
+  const { data, error } = await supabaseClient
+    .from('config_settings')
+    .select('key, value, data_type')
+    .eq('category', 'business')
+    .like('key', 'ship_from_%')
+
+  if (error || !data) {
+    return {}
+  }
+
+  const settings: Record<string, any> = {}
+  for (const row of data) {
+    settings[row.key] = parseValue(row.value, row.data_type)
+  }
+  return settings
+}
+
 function parseValue(value: string, dataType: string): any {
   switch (dataType) {
     case 'number':
@@ -487,63 +510,102 @@ serve(async (req) => {
     ])
 
     if (!integrationSettings.shipstation_enabled) {
+      console.error('INTEGRATION_DISABLED: shipstation_enabled is not true in integrations settings')
       return new Response(
         JSON.stringify({
           success: false,
           error: {
             code: 'INTEGRATION_DISABLED',
-            message: 'ShipEngine integration is not enabled'
+            message: 'ShipEngine integration is not enabled. Enable it in Admin > Settings > Integrations.'
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
 
     if (!integrationSettings.shipengine_api_key) {
+      console.error('MISSING_API_KEY: shipengine_api_key not found in integrations settings')
       return new Response(
         JSON.stringify({
           success: false,
           error: {
             code: 'MISSING_API_KEY',
-            message: 'ShipEngine API key is not configured'
+            message: 'ShipEngine API key is not configured. Set it in Admin > Settings > Integrations.'
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     }
 
-    // Get shipping config settings
+    // Get shipping config settings (includes composite JSON keys and individual field keys)
     const shippingSettings = await getShippingSettings(supabaseClient, [
       'warehouse_address',
       'default_package',
+      'default_package_length',
+      'default_package_width',
+      'default_package_height',
+      'default_package_weight',
       'shipping_rate_markup_type',
       'shipping_rate_markup_percent',
       'shipping_rate_markup_dollars'
     ])
 
-    const warehouseAddress = shippingSettings.warehouse_address
-    const defaultPackage = shippingSettings.default_package
+    // Try composite JSON key first, then fall back to individual business category fields
+    let warehouseAddress = shippingSettings.warehouse_address
+    if (!warehouseAddress || !warehouseAddress.address_line1) {
+      console.log('warehouse_address JSON not found in shipping settings, trying individual business fields...')
+      const businessSettings = await getBusinessSettings(supabaseClient)
+      if (businessSettings.ship_from_address_line1) {
+        warehouseAddress = {
+          name: 'ATL Urban Farms',
+          company_name: 'ATL Urban Farms',
+          address_line1: businessSettings.ship_from_address_line1,
+          address_line2: businessSettings.ship_from_address_line2 || '',
+          city_locality: businessSettings.ship_from_city || '',
+          state_province: businessSettings.ship_from_state || '',
+          postal_code: businessSettings.ship_from_zip || '',
+          country_code: businessSettings.ship_from_country || 'US',
+        }
+        console.log('Composed warehouse address from business fields:', JSON.stringify(warehouseAddress))
+      }
+    }
+
+    // Try composite JSON key first, then fall back to individual shipping dimension fields
+    let defaultPackage = shippingSettings.default_package
+    if (!defaultPackage || !defaultPackage.weight) {
+      const pkgLength = shippingSettings.default_package_length || 12
+      const pkgWidth = shippingSettings.default_package_width || 9
+      const pkgHeight = shippingSettings.default_package_height || 6
+      const pkgWeight = shippingSettings.default_package_weight || 1
+      defaultPackage = {
+        weight: { value: pkgWeight, unit: 'pound' },
+        dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
+      }
+      console.log('Composed default package from individual fields:', JSON.stringify(defaultPackage))
+    }
+
     const markupType = shippingSettings.shipping_rate_markup_type || 'percentage'
     const markupPercent = shippingSettings.shipping_rate_markup_percent || 0
     const markupDollars = shippingSettings.shipping_rate_markup_dollars || 0
 
     if (!warehouseAddress || !warehouseAddress.address_line1) {
+      console.error('MISSING_CONFIG: No warehouse address found in shipping.warehouse_address or business.ship_from_* fields')
       return new Response(
         JSON.stringify({
           success: false,
           error: {
             code: 'MISSING_CONFIG',
-            message: 'Warehouse address is not configured. Please configure shipping settings in admin.'
+            message: 'Warehouse address is not configured. Please configure shipping settings in Admin > Settings > Shipping.'
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -554,6 +616,7 @@ serve(async (req) => {
 
     if (!ship_to || !ship_to.address_line1 || !ship_to.city_locality ||
         !ship_to.state_province || !ship_to.postal_code) {
+      console.error('INVALID_REQUEST: Missing ship_to fields:', JSON.stringify(ship_to))
       return new Response(
         JSON.stringify({
           success: false,
@@ -563,7 +626,7 @@ serve(async (req) => {
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -586,7 +649,7 @@ serve(async (req) => {
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -605,7 +668,7 @@ serve(async (req) => {
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -688,7 +751,8 @@ serve(async (req) => {
 
     if (!shipEngineResponse.ok) {
       const errorBody = await shipEngineResponse.text()
-      console.error('ShipEngine API error:', errorBody)
+      console.error('ShipEngine API error:', shipEngineResponse.status, errorBody)
+      console.error('ShipEngine request payload:', JSON.stringify(rateRequest))
 
       return new Response(
         JSON.stringify({
@@ -700,7 +764,7 @@ serve(async (req) => {
           }
         }),
         {
-          status: shipEngineResponse.status,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -828,7 +892,7 @@ serve(async (req) => {
         }
       }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )

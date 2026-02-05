@@ -118,7 +118,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) 
       if (authError) throw authError;
 
       // Update customer profile
-      const result = await updateProfile(formData);
+      const result = await updateProfile({ ...formData, email: userEmail });
       if (result.error) throw new Error(result.error);
 
       if (userEmail) {

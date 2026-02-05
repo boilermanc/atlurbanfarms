@@ -69,6 +69,19 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   });
 
   const [editedAddresses, setEditedAddresses] = useState<CustomerAddress[]>([]);
+  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [newAddress, setNewAddress] = useState({
+    label: '',
+    first_name: '',
+    last_name: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    state: '',
+    zip: '',
+    phone: '',
+    is_default: false,
+  });
   const [editedProfile, setEditedProfile] = useState<Partial<CustomerProfile>>({});
   const [editedPreferences, setEditedPreferences] = useState<Partial<CustomerPreferences>>({});
   const [editedAttribution, setEditedAttribution] = useState<Partial<CustomerAttribution>>({});
@@ -243,6 +256,111 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const cancelEditingAddresses = () => {
     setIsEditingAddresses(false);
     setValidationErrors({});
+  };
+
+  const startAddingAddress = () => {
+    setNewAddress({
+      label: '',
+      first_name: customer?.first_name || '',
+      last_name: customer?.last_name || '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state: '',
+      zip: '',
+      phone: customer?.phone || '',
+      is_default: addresses.length === 0,
+    });
+    setIsAddingAddress(true);
+    setValidationErrors({});
+  };
+
+  const cancelAddingAddress = () => {
+    setIsAddingAddress(false);
+    setValidationErrors({});
+  };
+
+  const validateNewAddressForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!newAddress.first_name.trim()) {
+      errors.new_address_first_name = 'First name is required';
+    }
+    if (!newAddress.last_name.trim()) {
+      errors.new_address_last_name = 'Last name is required';
+    }
+    if (!newAddress.address_line1.trim()) {
+      errors.new_address_address_line1 = 'Address is required';
+    }
+    if (!newAddress.city.trim()) {
+      errors.new_address_city = 'City is required';
+    }
+    if (!newAddress.state.trim()) {
+      errors.new_address_state = 'State is required';
+    }
+    if (!newAddress.zip.trim()) {
+      errors.new_address_zip = 'Zip code is required';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const saveNewAddress = async () => {
+    if (!validateNewAddressForm()) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // If setting as default, unset other defaults first
+      if (newAddress.is_default && addresses.length > 0) {
+        const { error: unsetError } = await supabase
+          .from('customer_addresses')
+          .update({ is_default: false, updated_at: new Date().toISOString() })
+          .eq('customer_id', customerId)
+          .eq('is_default', true);
+
+        if (unsetError) throw unsetError;
+      }
+
+      const { data, error } = await supabase
+        .from('customer_addresses')
+        .insert({
+          customer_id: customerId,
+          label: newAddress.label || null,
+          first_name: newAddress.first_name,
+          last_name: newAddress.last_name,
+          address_line1: newAddress.address_line1,
+          address_line2: newAddress.address_line2 || null,
+          city: newAddress.city,
+          state: newAddress.state,
+          zip: newAddress.zip,
+          country: 'US',
+          phone: newAddress.phone || null,
+          is_default: newAddress.is_default,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local state
+      if (newAddress.is_default) {
+        setAddresses([data, ...addresses.map(a => ({ ...a, is_default: false }))]);
+      } else {
+        setAddresses([...addresses, data]);
+      }
+
+      setIsAddingAddress(false);
+      setValidationErrors({});
+      setToast({ message: 'Address added successfully', type: 'success' });
+    } catch (err) {
+      console.error('Error adding address:', err);
+      setToast({ message: 'Failed to add address', type: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const startEditingProfile = () => {
@@ -1378,18 +1496,231 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Addresses</h2>
-                {!isEditingAddresses && addresses.length > 0 && (
-                  <button
-                    onClick={startEditingAddresses}
-                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
+                {!isEditingAddresses && !isAddingAddress && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={startAddingAddress}
+                      className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                    >
+                      <Plus size={14} />
+                      Add
+                    </button>
+                    {addresses.length > 0 && (
+                      <button
+                        onClick={startEditingAddresses}
+                        className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                      >
+                        <Edit2 size={14} />
+                        Edit
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {isEditingAddresses ? (
+              {isAddingAddress ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 rounded-xl border border-emerald-200">
+                    <div className="mb-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Label
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.label}
+                        onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                        placeholder="e.g., Home, Work, Office"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          First Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newAddress.first_name}
+                          onChange={(e) => setNewAddress({ ...newAddress, first_name: e.target.value })}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors.new_address_first_name
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors.new_address_first_name && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors.new_address_first_name}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Last Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newAddress.last_name}
+                          onChange={(e) => setNewAddress({ ...newAddress, last_name: e.target.value })}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors.new_address_last_name
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors.new_address_last_name && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors.new_address_last_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Address Line 1 <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.address_line1}
+                        onChange={(e) => setNewAddress({ ...newAddress, address_line1: e.target.value })}
+                        className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                          validationErrors.new_address_address_line1
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-slate-200'
+                        }`}
+                      />
+                      {validationErrors.new_address_address_line1 && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {validationErrors.new_address_address_line1}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Address Line 2
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.address_line2}
+                        onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          City <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newAddress.city}
+                          onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors.new_address_city
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors.new_address_city && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors.new_address_city}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          State <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newAddress.state}
+                          onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
+                          className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            validationErrors.new_address_state
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-slate-200'
+                          }`}
+                        />
+                        {validationErrors.new_address_state && (
+                          <p className="mt-1 text-xs text-red-600">
+                            {validationErrors.new_address_state}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Zip Code <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.zip}
+                        onChange={(e) => setNewAddress({ ...newAddress, zip: e.target.value })}
+                        className={`w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                          validationErrors.new_address_zip
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-slate-200'
+                        }`}
+                      />
+                      {validationErrors.new_address_zip && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {validationErrors.new_address_zip}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={newAddress.phone}
+                        onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAddress.is_default}
+                          onChange={(e) => setNewAddress({ ...newAddress, is_default: e.target.checked })}
+                          className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                        />
+                        <span className="text-sm text-slate-700">Set as default address</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveNewAddress}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save Address'}
+                    </button>
+                    <button
+                      onClick={cancelAddingAddress}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : isEditingAddresses ? (
                 <div className="space-y-4">
                   {editedAddresses.map((address, index) => (
                     <div

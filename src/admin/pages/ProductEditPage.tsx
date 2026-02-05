@@ -108,8 +108,6 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
   const [uploading, setUploading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [showTagDropdown, setShowTagDropdown] = useState(false);
-
   const { tags: allTags } = useProductTags();
   const { tags: assignedTags, assignTag, unassignTag } = useProductTagAssignments(productId);
 
@@ -713,7 +711,11 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-600 mb-1">Growing Instructions</label>
-              <textarea name="growing_instructions" value={formData.growing_instructions} onChange={handleChange} rows={4} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
+              <RichTextEditor
+                value={formData.growing_instructions}
+                onChange={(html) => setFormData(prev => ({ ...prev, growing_instructions: html }))}
+                placeholder="Enter growing instructions with formatting..."
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Days to Harvest after Planting</label>
@@ -1066,66 +1068,46 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         {/* Tags */}
         {isEditMode && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Tags</h2>
-              <button
-                type="button"
-                onClick={() => setShowTagDropdown(!showTagDropdown)}
-                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center gap-1 transition-colors"
-              >
-                <Plus size={14} />
-                Add Tag
-              </button>
-            </div>
+            <h2 className="text-lg font-semibold text-slate-800 font-admin-display mb-4">Tags</h2>
 
-            {/* Assigned Tags */}
-            {assignedTags.length > 0 ? (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {assignedTags.map(tag => (
-                  <span
-                    key={tag.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"
-                  >
-                    {tag.name}
-                    <button
-                      type="button"
-                      onClick={() => unassignTag(tag.id)}
-                      className="hover:opacity-70 transition-opacity"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-500 text-sm mb-2">No tags assigned</p>
-            )}
+            {(() => {
+              const grouped = allTags.reduce<Record<string, typeof allTags>>((acc, tag) => {
+                const group = tag.tag_type || 'Other';
+                if (!acc[group]) acc[group] = [];
+                acc[group].push(tag);
+                return acc;
+              }, {});
+              const groupOrder = Object.keys(grouped).sort((a, b) => {
+                if (a === 'Other') return 1;
+                if (b === 'Other') return -1;
+                return a.localeCompare(b);
+              });
 
-            {/* Tag Dropdown */}
-            {showTagDropdown && (
-              <div className="mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                {allTags
-                  .filter(tag => !assignedTags.find(at => at.id === tag.id))
-                  .map(tag => (
-                    <button
-                      type="button"
-                      key={tag.id}
-                      onClick={async () => {
-                        await assignTag(tag.id);
-                        setShowTagDropdown(false);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg transition-colors"
-                    >
-                      <span className="text-slate-800 text-sm font-medium">{tag.name}</span>
-                      {tag.tag_type && (
-                        <span className="ml-2 text-xs text-slate-400">({tag.tag_type})</span>
-                      )}
-                    </button>
-                  ))}
-                {allTags.filter(tag => !assignedTags.find(at => at.id === tag.id)).length === 0 && (
-                  <p className="text-slate-500 text-sm p-2">All tags assigned</p>
-                )}
-              </div>
+              return groupOrder.map(group => (
+                <div key={group} className="mb-4 last:mb-0">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{group}</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {grouped[group].map(tag => {
+                      const isChecked = assignedTags.some(at => at.id === tag.id);
+                      return (
+                        <label key={tag.id} className="flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => isChecked ? unassignTag(tag.id) : assignTag(tag.id)}
+                            className="w-4 h-4 rounded border-slate-300 bg-white text-emerald-500 focus:ring-emerald-500/50"
+                          />
+                          <span className="text-sm text-slate-700">{tag.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()}
+
+            {allTags.length === 0 && (
+              <p className="text-slate-500 text-sm">No tags available</p>
             )}
           </div>
         )}

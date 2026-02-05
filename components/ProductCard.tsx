@@ -46,7 +46,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
   // Product is on sale when compare_at_price exists and is greater than current price
   const isOnSale = typeof compareAtPrice === 'number' && compareAtPrice > price;
   const percentOff = isOnSale ? Math.round((1 - price / compareAtPrice!) * 100) : 0;
-  const [localWishlisted, setLocalWishlisted] = useState(false);
   const [quantity, setQuantity] = useState(1);
 
   // Back-in-stock notification state
@@ -55,45 +54,24 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
   const { user } = useAuth();
 
-  // Use prop value if provided, otherwise fallback to local state
-  const isWishlisted = isFavorited !== undefined ? isFavorited : localWishlisted;
-
-  // Initialize wishlist state from localStorage (only when not using prop)
-  useEffect(() => {
-    if (isFavorited === undefined) {
-      const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
-      setLocalWishlisted(wishlist.includes(id));
-    }
-  }, [id, isFavorited]);
+  // Use prop value if provided, default to not favorited
+  const isWishlisted = isFavorited ?? false;
 
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Check if login is required and user is not logged in
-    if (requireLoginToFavorite && !user) {
+    // Require login to favorite
+    if (!user) {
       onRequireLogin?.();
       return;
     }
 
-    // If callback provided, use it (handles both db and localStorage)
+    // Use callback from parent (handles DB persistence)
     if (onToggleFavorite) {
       onToggleFavorite(id);
       return;
     }
-
-    // Fallback to localStorage-only behavior
-    const wishlist = JSON.parse(localStorage.getItem('atl_wishlist') || '[]');
-    let newWishlist: string[];
-
-    if (isWishlisted) {
-      newWishlist = wishlist.filter((itemId: string) => itemId !== id);
-    } else {
-      newWishlist = [...wishlist, id];
-    }
-
-    localStorage.setItem('atl_wishlist', JSON.stringify(newWishlist));
-    setLocalWishlisted(!localWishlisted);
   };
 
   const incrementQty = (e: React.MouseEvent) => {

@@ -318,6 +318,10 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     } else if (deliveryMethod === 'pickup') {
       if (!selectedPickupLocation) errors.push('Please select a pickup location');
       if (!selectedPickupSlot) errors.push('Please select a pickup date and time');
+      // Customer name is required for pickup orders (used as shipping name in DB)
+      if (selectedCustomer && !selectedCustomer.first_name && !selectedCustomer.last_name) {
+        errors.push('Customer must have a name for pickup orders');
+      }
     }
 
     // Payment validation
@@ -481,17 +485,17 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           pickup_time_end: null,
         });
       } else {
-        // Pickup
+        // Pickup — still populate shipping name from customer (NOT NULL in DB)
         Object.assign(orderData, {
-          shipping_first_name: null,
-          shipping_last_name: null,
+          shipping_first_name: selectedCustomer!.first_name || '',
+          shipping_last_name: selectedCustomer!.last_name || '',
           shipping_address_line1: null,
           shipping_address_line2: null,
           shipping_city: null,
           shipping_state: null,
           shipping_zip: null,
           shipping_country: null,
-          shipping_phone: null,
+          shipping_phone: selectedCustomer!.phone,
           shipping_method: null,
           shipping_cost: 0,
           is_pickup: true,

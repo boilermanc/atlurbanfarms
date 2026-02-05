@@ -334,30 +334,50 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
   const [smsOptIn, setSmsOptIn] = useState(false);
 
   // Password change state
-  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
-  const [passwordResetSuccess, setPasswordResetSuccess] = useState(false);
-  const [passwordResetError, setPasswordResetError] = useState<string | null>(null);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
+  const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
 
-  const handlePasswordChange = async () => {
-    setPasswordResetLoading(true);
-    setPasswordResetError(null);
-    setPasswordResetSuccess(false);
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newPassword.length < 8) {
+      setPasswordChangeError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeError('Passwords do not match');
+      return;
+    }
+
+    setPasswordChangeLoading(true);
+    setPasswordChangeError(null);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      setPasswordResetSuccess(true);
+      setPasswordChangeSuccess(true);
+      setNewPassword('');
+      setConfirmPassword('');
     } catch (err: any) {
-      setPasswordResetError(err.message || 'Failed to send reset email. Please try again.');
+      setPasswordChangeError(err.message || 'Failed to update password. Please try again.');
     } finally {
-      setPasswordResetLoading(false);
+      setPasswordChangeLoading(false);
     }
+  };
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordChangeError(null);
+    setPasswordChangeSuccess(false);
   };
 
   // Email change state
@@ -455,61 +475,16 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
         <h2 className="font-heading font-bold text-gray-900 mb-4">Security</h2>
         <div className="space-y-4">
-          {/* Password Reset Success Message */}
-          {passwordResetSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl"
-            >
-              <div className="flex items-start gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 mt-0.5 shrink-0">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-                <div>
-                  <p className="font-medium text-emerald-600">Password reset email sent!</p>
-                  <p className="text-sm text-emerald-600 mt-1">
-                    Check your inbox at {userEmail} for a link to reset your password.
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Password Reset Error Message */}
-          {passwordResetError && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-red-50 border border-red-100 rounded-xl"
-            >
-              <p className="text-sm text-red-600 font-medium">{passwordResetError}</p>
-            </motion.div>
-          )}
-
           <div className="flex items-center justify-between py-3 border-b border-gray-50">
             <div>
               <p className="font-medium text-gray-900">Password</p>
-              <p className="text-sm text-gray-500">Click to receive a password reset email</p>
+              <p className="text-sm text-gray-500">Update your account password</p>
             </div>
             <button
-              onClick={handlePasswordChange}
-              disabled={passwordResetLoading}
-              className={`px-4 py-2 font-medium rounded-xl transition-colors flex items-center gap-2 ${
-                passwordResetLoading
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'text-emerald-600 hover:bg-emerald-50'
-              }`}
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="px-4 py-2 text-emerald-600 font-medium hover:bg-emerald-50 rounded-xl transition-colors"
             >
-              {passwordResetLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                'Change'
-              )}
+              Change
             </button>
           </div>
           <div className="flex items-center justify-between py-3">
@@ -633,6 +608,126 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
                         </>
                       ) : (
                         'Send Verification'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Password Change Modal */}
+      <AnimatePresence>
+        {isPasswordModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={closePasswordModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl"
+            >
+              <h3 className="font-heading font-bold text-xl text-gray-900 mb-2">
+                Change Password
+              </h3>
+
+              {passwordChangeSuccess ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 mt-0.5 shrink-0">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-emerald-600">Password updated!</p>
+                        <p className="text-sm text-emerald-600 mt-1">
+                          Your password has been changed successfully.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={closePasswordModal}
+                    className="w-full px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <p className="text-sm text-gray-500">
+                    Enter your new password. It must be at least 8 characters long.
+                  </p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      required
+                      minLength={8}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      required
+                      minLength={8}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {passwordChangeError && (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                      <p className="text-sm text-red-600">{passwordChangeError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={closePasswordModal}
+                      className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={passwordChangeLoading || !newPassword || !confirmPassword}
+                      className={`flex-1 px-4 py-3 font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                        passwordChangeLoading || !newPassword || !confirmPassword
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      }`}
+                    >
+                      {passwordChangeLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        'Update Password'
                       )}
                     </button>
                   </div>

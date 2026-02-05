@@ -103,6 +103,45 @@ const ShippingSettingsTab: React.FC = () => {
       await bulkUpdate(category, settingsToSave);
     }
 
+    // Also save composite JSON objects for the edge functions to consume directly.
+    // The edge function expects shipping.warehouse_address (JSON) and shipping.default_package (JSON)
+    // but this UI saves individual fields. Save both formats for compatibility.
+    const biz = formData.business || {};
+    const ship = formData.shipping || {};
+
+    const compositeSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+
+    if (biz.ship_from_address_line1) {
+      compositeSettings.warehouse_address = {
+        value: {
+          name: 'ATL Urban Farms',
+          company_name: 'ATL Urban Farms',
+          address_line1: biz.ship_from_address_line1,
+          address_line2: biz.ship_from_address_line2 || '',
+          city_locality: biz.ship_from_city || '',
+          state_province: biz.ship_from_state || '',
+          postal_code: biz.ship_from_zip || '',
+          country_code: biz.ship_from_country || 'US',
+        },
+        dataType: 'json',
+      };
+    }
+
+    compositeSettings.default_package = {
+      value: {
+        weight: { value: ship.default_package_weight || 1, unit: 'pound' },
+        dimensions: {
+          length: ship.default_package_length || 12,
+          width: ship.default_package_width || 9,
+          height: ship.default_package_height || 6,
+          unit: 'inch',
+        },
+      },
+      dataType: 'json',
+    };
+
+    await bulkUpdate('shipping', compositeSettings);
+
     setSaveMessage('Settings saved!');
     setTimeout(() => setSaveMessage(null), 3000);
     refetch();

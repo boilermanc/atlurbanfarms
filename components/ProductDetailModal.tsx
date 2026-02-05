@@ -181,7 +181,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             <div className="flex-1 overflow-y-auto">
               <div className="grid grid-cols-1 lg:grid-cols-2 min-h-full">
                 {/* Image Section */}
-                <div className="relative bg-gray-50 p-6 lg:p-12 flex flex-col items-center justify-center">
+                <div className="relative bg-gray-50 p-6 lg:p-12 flex flex-col items-center justify-start">
                   {/* Main Image */}
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -333,7 +333,10 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     {product.growing_instructions && (
                       <div className="mb-8">
                         <h3 className="text-sm font-black uppercase tracking-wider text-gray-400 mb-3">Growing Instructions</h3>
-                        <p className="text-gray-600 leading-relaxed">{product.growing_instructions}</p>
+                        <div
+                          className="product-description text-gray-600 leading-relaxed prose prose-sm max-w-none prose-p:my-2 prose-strong:font-bold prose-strong:text-gray-800 prose-em:italic prose-a:text-emerald-600 prose-a:underline prose-a:font-medium hover:prose-a:text-emerald-700 prose-ul:list-disc prose-ul:pl-5 prose-ul:my-2 prose-ol:list-decimal prose-ol:pl-5 prose-ol:my-2 prose-li:my-1"
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.growing_instructions) }}
+                        />
                       </div>
                     )}
 

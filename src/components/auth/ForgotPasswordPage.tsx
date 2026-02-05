@@ -13,7 +13,8 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) =
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const { settings: brandingSettings } = useBrandingSettings();
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,16 +50,17 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) =
         <div className="text-center mb-8">
           <button
             onClick={() => onNavigate('home')}
-            className="inline-flex items-center justify-center gap-2 mb-6"
+            className="inline-flex items-center justify-center gap-2 mb-6 min-h-[6rem]"
           >
             {brandingSettings.logo_url && !logoError ? (
               <img
                 src={brandingSettings.logo_url}
                 alt="ATL Urban Farms"
-                className="h-12 w-auto object-contain"
+                className={`h-24 w-auto object-contain transition-opacity duration-300 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                onLoad={() => setLogoLoaded(true)}
                 onError={() => setLogoError(true)}
               />
-            ) : (
+            ) : !brandingLoading ? (
               <>
                 <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
                   A
@@ -67,7 +69,7 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) =
                   ATL Urban Farms
                 </span>
               </>
-            )}
+            ) : null}
           </button>
           <h1 className="text-3xl font-heading font-extrabold text-gray-900 mb-2">
             Reset Password

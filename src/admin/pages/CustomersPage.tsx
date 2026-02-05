@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
@@ -28,8 +28,25 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [error, setError] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
+  const [searchInput, setSearchInput] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerCount, setCustomerCount] = useState(0);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce: update the query value 300ms after the user stops typing
+  useEffect(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setCustomerSearch(searchInput);
+    }, 300);
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
+  }, [searchInput]);
   const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([]);
   const [sortField, setSortField] = useState<SortField>('last_name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -250,9 +267,14 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     }
   };
 
+  const initialLoadRef = useRef(true);
+
   useEffect(() => {
     const loadData = async () => {
-      setLoading(true);
+      // Only show full-page spinner on initial load, not on search/filter changes
+      if (initialLoadRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
       if (activeTab === 'customers') {
@@ -262,6 +284,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
       }
 
       setLoading(false);
+      initialLoadRef.current = false;
     };
 
     loadData();
@@ -478,8 +501,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                       type="text"
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
                       placeholder="Search by name or email..."
                       className="w-full pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 transition-all"
                     />

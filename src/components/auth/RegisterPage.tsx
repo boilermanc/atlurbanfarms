@@ -19,7 +19,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const { settings: brandingSettings } = useBrandingSettings();
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -78,16 +79,17 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
         <div className="text-center mb-8">
           <button
             onClick={() => onNavigate('home')}
-            className="inline-flex items-center justify-center gap-2 mb-6"
+            className="inline-flex items-center justify-center gap-2 mb-6 min-h-[6rem]"
           >
             {brandingSettings.logo_url && !logoError ? (
               <img
                 src={brandingSettings.logo_url}
                 alt="ATL Urban Farms"
-                className="h-12 w-auto object-contain"
+                className={`h-24 w-auto object-contain transition-opacity duration-300 ${logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                onLoad={() => setLogoLoaded(true)}
                 onError={() => setLogoError(true)}
               />
-            ) : (
+            ) : !brandingLoading ? (
               <>
                 <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
                   A
@@ -96,7 +98,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
                   ATL Urban Farms
                 </span>
               </>
-            )}
+            ) : null}
           </button>
           <h1 className="text-3xl font-heading font-extrabold text-gray-900 mb-2">
             Create Account

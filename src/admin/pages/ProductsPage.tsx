@@ -56,8 +56,11 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     if (categoryFilter !== 'all') {
       sessionStorage.setItem('admin_products_category_filter', categoryFilter);
     }
+    if (statusFilter !== 'active') {
+      sessionStorage.setItem('admin_products_status_filter', statusFilter);
+    }
     onEditProduct(productId);
-  }, [categoryFilter, onEditProduct]);
+  }, [categoryFilter, statusFilter, onEditProduct]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -110,6 +113,13 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+
+    // Check for status filter saved from previous visit (e.g., returning from product edit)
+    const sessionStatusFilter = sessionStorage.getItem('admin_products_status_filter');
+    if (sessionStatusFilter) {
+      setStatusFilter(sessionStatusFilter);
+      sessionStorage.removeItem('admin_products_status_filter');
+    }
 
     // Check for category filter saved from previous visit (e.g., returning from product edit)
     const sessionCategoryFilter = sessionStorage.getItem('admin_products_category_filter');

@@ -337,6 +337,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   }, [activeParentId, getChildCategories]);
 
   // Filter products based on search, category hierarchy, and stock status
+  // Uses product_category_assignments junction table so products in multiple categories show correctly
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Search filter
@@ -354,61 +355,108 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       // If no parent selected, show all (that passed above filters)
       if (!activeParentId) return true;
 
-      // Find the product's category
-      const productCategoryId = rawProduct?.category?.id;
-      const productParentId = rawProduct?.category?.parent_id;
+      // Get all assigned category IDs and their details from the junction table
+      const assignments = rawProduct?.category_assignments || [];
+      const assignedCategoryIds = assignments.map((a: any) => a.category_id);
+      const assignedCategories = assignments.map((a: any) => a.category).filter(Boolean);
 
-      // If subcategory selected, only show products in that subcategory
+      // If subcategory selected, check if product is assigned to that subcategory
       if (activeSubcategoryId) {
-        return productCategoryId === activeSubcategoryId;
+        return assignedCategoryIds.includes(activeSubcategoryId);
       }
 
-      // Show products in the parent category itself OR any of its subcategories
+      // Show products assigned to the parent category itself OR any of its subcategories
       const subcategoryIds = getChildCategories(activeParentId).map(c => c.id);
-      return productCategoryId === activeParentId || subcategoryIds.includes(productCategoryId) || productParentId === activeParentId;
+      return assignedCategoryIds.some((catId: string) =>
+        catId === activeParentId ||
+        subcategoryIds.includes(catId) ||
+        assignedCategories.find((c: any) => c?.id === catId)?.parent_id === activeParentId
+      );
     });
   }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly]);
 
   // Group products by parent category for the "All Products" view
+  // Products with multiple category assignments appear under each relevant parent
   const productsByParentCategory = useMemo(() => {
     const grouped: Record<string, Product[]> = {};
+    const seen = new Set<string>(); // Track product-parent pairs to avoid duplicates
 
     filteredProducts.forEach(product => {
       const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
-      const productCategoryId = rawProduct?.category?.id;
-      const productParentId = rawProduct?.category?.parent_id;
+      const assignments = rawProduct?.category_assignments || [];
 
-      // Determine which parent this product belongs to
-      let parentId = productParentId || productCategoryId;
-
-      if (!grouped[parentId]) {
-        grouped[parentId] = [];
+      if (assignments.length === 0) {
+        // Fallback to primary category_id
+        const productCategoryId = rawProduct?.category?.id;
+        const productParentId = rawProduct?.category?.parent_id;
+        const parentId = productParentId || productCategoryId;
+        if (parentId) {
+          if (!grouped[parentId]) grouped[parentId] = [];
+          grouped[parentId].push(product);
+        }
+        return;
       }
-      grouped[parentId].push(product);
+
+      assignments.forEach((assignment: any) => {
+        const cat = assignment.category;
+        if (!cat) return;
+        const parentId = cat.parent_id || cat.id;
+        const key = `${product.id}-${parentId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        if (!grouped[parentId]) grouped[parentId] = [];
+        grouped[parentId].push(product);
+      });
     });
 
     return grouped;
   }, [filteredProducts, rawProducts]);
 
   // Group products by subcategory when viewing a parent category
+  // Uses category_assignments so products in multiple subcategories appear under each
   const productsBySubcategory = useMemo(() => {
     if (!activeParentId) return {};
 
     const grouped: Record<string, Product[]> = {};
     const subcategories = getChildCategories(activeParentId);
+    const seen = new Set<string>();
 
     filteredProducts.forEach(product => {
       const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
-      const productCategoryId = rawProduct?.category?.id;
+      const assignments = rawProduct?.category_assignments || [];
+      let placed = false;
 
-      // Find the subcategory name
-      const subcat = subcategories.find(c => c.id === productCategoryId);
-      const categoryName = subcat?.name || rawProduct?.category?.name || 'Other';
+      assignments.forEach((assignment: any) => {
+        const cat = assignment.category;
+        if (!cat) return;
+        // Only group under subcategories of the active parent
+        const subcat = subcategories.find(c => c.id === cat.id);
+        if (subcat) {
+          const key = `${product.id}-${subcat.name}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            if (!grouped[subcat.name]) grouped[subcat.name] = [];
+            grouped[subcat.name].push(product);
+            placed = true;
+          }
+        } else if (cat.id === activeParentId) {
+          // Product assigned directly to the parent category
+          const key = `${product.id}-Other`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            if (!grouped['Other']) grouped['Other'] = [];
+            grouped['Other'].push(product);
+            placed = true;
+          }
+        }
+      });
 
-      if (!grouped[categoryName]) {
-        grouped[categoryName] = [];
+      // Fallback for products without assignments
+      if (!placed && assignments.length === 0) {
+        const categoryName = rawProduct?.category?.name || 'Other';
+        if (!grouped[categoryName]) grouped[categoryName] = [];
+        grouped[categoryName].push(product);
       }
-      grouped[categoryName].push(product);
     });
 
     // Sort by subcategory order

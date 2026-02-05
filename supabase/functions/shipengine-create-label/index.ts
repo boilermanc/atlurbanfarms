@@ -47,6 +47,28 @@ async function getShippingSettings(supabaseClient: any, keys: string[]): Promise
   return settings
 }
 
+/**
+ * Get business config settings (ship-from address fields) from config_settings table.
+ * Fallback for when warehouse_address JSON object is not saved.
+ */
+async function getBusinessSettings(supabaseClient: any): Promise<Record<string, any>> {
+  const { data, error } = await supabaseClient
+    .from('config_settings')
+    .select('key, value, data_type')
+    .eq('category', 'business')
+    .like('key', 'ship_from_%')
+
+  if (error || !data) {
+    return {}
+  }
+
+  const settings: Record<string, any> = {}
+  for (const row of data) {
+    settings[row.key] = parseValue(row.value, row.data_type)
+  }
+  return settings
+}
+
 function parseValue(value: string, dataType: string): any {
   switch (dataType) {
     case 'number':
@@ -181,14 +203,46 @@ serve(async (req) => {
       )
     }
 
-    // Get shipping config
+    // Get shipping config (includes composite JSON keys and individual field keys)
     const shippingSettings = await getShippingSettings(supabaseClient, [
       'warehouse_address',
-      'default_package'
+      'default_package',
+      'default_package_length',
+      'default_package_width',
+      'default_package_height',
+      'default_package_weight',
     ])
 
-    const warehouseAddress = shippingSettings.warehouse_address
-    const defaultPackage = shippingSettings.default_package
+    // Try composite JSON key first, then fall back to individual business category fields
+    let warehouseAddress = shippingSettings.warehouse_address
+    if (!warehouseAddress || !warehouseAddress.address_line1) {
+      const businessSettings = await getBusinessSettings(supabaseClient)
+      if (businessSettings.ship_from_address_line1) {
+        warehouseAddress = {
+          name: 'ATL Urban Farms',
+          company_name: 'ATL Urban Farms',
+          address_line1: businessSettings.ship_from_address_line1,
+          address_line2: businessSettings.ship_from_address_line2 || '',
+          city_locality: businessSettings.ship_from_city || '',
+          state_province: businessSettings.ship_from_state || '',
+          postal_code: businessSettings.ship_from_zip || '',
+          country_code: businessSettings.ship_from_country || 'US',
+        }
+      }
+    }
+
+    // Try composite JSON key first, then fall back to individual shipping dimension fields
+    let defaultPackage = shippingSettings.default_package
+    if (!defaultPackage || !defaultPackage.weight) {
+      const pkgLength = shippingSettings.default_package_length || 12
+      const pkgWidth = shippingSettings.default_package_width || 9
+      const pkgHeight = shippingSettings.default_package_height || 6
+      const pkgWeight = shippingSettings.default_package_weight || 1
+      defaultPackage = {
+        weight: { value: pkgWeight, unit: 'pound' },
+        dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
+      }
+    }
 
     if (!warehouseAddress || !warehouseAddress.address_line1) {
       return new Response(
@@ -196,11 +250,11 @@ serve(async (req) => {
           success: false,
           error: {
             code: 'MISSING_CONFIG',
-            message: 'Warehouse address is not configured'
+            message: 'Warehouse address is not configured. Please configure in Admin > Settings > Shipping.'
           }
         }),
         {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )

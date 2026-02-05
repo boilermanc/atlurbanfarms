@@ -305,8 +305,9 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
     );
   }
 
-  if (error) {
-    // Log the error for debugging
+  if (error && orders.length > 0) {
+    // Only show error state if we had orders but something went wrong
+    // (e.g., partial load failure). For zero orders, fall through to the empty state.
     console.error('OrderHistory error:', error);
 
     return (

@@ -109,6 +109,11 @@ export function useCustomerProfile(userId) {
         updated_at: new Date().toISOString()
       }
 
+      // Include email if provided (required for upsert when customer row doesn't exist yet)
+      if (updates.email) {
+        customerFields.email = updates.email
+      }
+
       const { data: customerData, error: customerError } = await supabase
         .from('customers')
         .upsert(customerFields)
@@ -364,25 +369,20 @@ export function useCombinedOrders(customerId) {
 
         if (newOrdersResult.error) {
           console.error('Error fetching orders:', newOrdersResult.error)
-          // If it's a relationship error, try a simpler query without joins
-          if (newOrdersResult.error.code === 'PGRST200' ||
-              newOrdersResult.error.message?.includes('relationship')) {
-            console.warn('Retrying orders query without joins...')
-            const simpleResult = await supabase
-              .from('orders')
-              .select('*')
-              .eq('customer_id', customerId)
-              .order('created_at', { ascending: false })
+          // Retry with a simpler query without joins
+          console.warn('Retrying orders query without joins...')
+          const simpleResult = await supabase
+            .from('orders')
+            .select('*')
+            .eq('customer_id', customerId)
+            .order('created_at', { ascending: false })
 
-            if (simpleResult.error) {
-              console.error('Simple orders query also failed:', simpleResult.error)
-              throw simpleResult.error
-            }
-            newOrdersResult.data = simpleResult.data
-            newOrdersResult.error = null
-          } else {
-            throw newOrdersResult.error
+          if (simpleResult.error) {
+            console.error('Simple orders query also failed:', simpleResult.error)
+            throw simpleResult.error
           }
+          newOrdersResult.data = simpleResult.data
+          newOrdersResult.error = null
         }
 
         const newOrders = (newOrdersResult.data || []).map(order => ({
@@ -590,7 +590,8 @@ export function useProducts() {
         .select(`
           *,
           category:product_categories(*),
-          images:product_images(*)
+          images:product_images(*),
+          category_assignments:product_category_assignments(category_id, category:product_categories(*))
         `)
         .eq('is_active', true)
         .order('name')
@@ -625,7 +626,22 @@ export function useProducts() {
           table: 'products'
         },
         () => {
-          // Refetch products when any change occurs
+          fetchProducts()
+        }
+      )
+      .subscribe()
+
+    // Subscribe to category assignment changes (many-to-many)
+    const assignmentsChannel = supabase
+      .channel('product-category-assignments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'product_category_assignments'
+        },
+        () => {
           fetchProducts()
         }
       )
@@ -633,6 +649,7 @@ export function useProducts() {
 
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(assignmentsChannel)
     }
   }, [fetchProducts])
 
@@ -1380,14 +1397,15 @@ export function useBackInStockAlert() {
 
 /**
  * Manage customer favorites (wishlist) with database persistence
- * Falls back to localStorage for non-logged-in users
+ * Requires authentication - anonymous users see no favorites
+ * localStorage is only used to sync favorites to DB on login
  */
 export function useFavorites(userId) {
   const [favorites, setFavorites] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Fetch favorites from database or localStorage
+  // Fetch favorites from database (requires auth)
   const fetchFavorites = useCallback(async () => {
     try {
       setLoading(true)
@@ -1404,16 +1422,13 @@ export function useFavorites(userId) {
         if (supabaseError) throw supabaseError
         setFavorites((data || []).map(f => f.product_id))
       } else {
-        // Not logged in - use localStorage
-        const localFavorites = JSON.parse(localStorage.getItem('atl_wishlist') || '[]')
-        setFavorites(localFavorites)
+        // Not logged in - no favorites
+        setFavorites([])
       }
     } catch (err) {
       console.error('Error fetching favorites:', err)
       setError(err.message)
-      // Fallback to localStorage on error
-      const localFavorites = JSON.parse(localStorage.getItem('atl_wishlist') || '[]')
-      setFavorites(localFavorites)
+      setFavorites([])
     } finally {
       setLoading(false)
     }
@@ -1428,37 +1443,37 @@ export function useFavorites(userId) {
     return favorites.includes(productId)
   }, [favorites])
 
-  // Toggle favorite status for a product
+  // Toggle favorite status for a product (requires auth)
   const toggleFavorite = useCallback(async (productId) => {
+    if (!userId) {
+      return { success: false, error: 'Login required to save favorites' }
+    }
+
     const isCurrentlyFavorited = favorites.includes(productId)
 
     try {
-      if (userId) {
-        // Logged in - update database
-        if (isCurrentlyFavorited) {
-          const { error: deleteError } = await supabase
-            .from('customer_favorites')
-            .delete()
-            .eq('customer_id', userId)
-            .eq('product_id', productId)
+      if (isCurrentlyFavorited) {
+        const { error: deleteError } = await supabase
+          .from('customer_favorites')
+          .delete()
+          .eq('customer_id', userId)
+          .eq('product_id', productId)
 
-          if (deleteError) throw deleteError
-        } else {
-          const { error: insertError } = await supabase
-            .from('customer_favorites')
-            .insert({ customer_id: userId, product_id: productId })
+        if (deleteError) throw deleteError
+      } else {
+        const { error: insertError } = await supabase
+          .from('customer_favorites')
+          .insert({ customer_id: userId, product_id: productId })
 
-          if (insertError) throw insertError
-        }
+        if (insertError) throw insertError
       }
 
-      // Update local state and localStorage
+      // Update local state
       const newFavorites = isCurrentlyFavorited
         ? favorites.filter(id => id !== productId)
         : [...favorites, productId]
 
       setFavorites(newFavorites)
-      localStorage.setItem('atl_wishlist', JSON.stringify(newFavorites))
 
       return { success: true, isFavorited: !isCurrentlyFavorited }
     } catch (err) {
@@ -1499,6 +1514,9 @@ export function useFavorites(userId) {
           console.error('Error syncing favorites:', insertError)
         }
       }
+
+      // Clear localStorage after successful sync
+      localStorage.removeItem('atl_wishlist')
 
       // Refetch to get merged list
       await fetchFavorites()
