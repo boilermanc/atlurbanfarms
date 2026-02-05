@@ -1280,7 +1280,10 @@ export function useBrandingSettings() {
     homepage_announcement: '',
     logo_url: '',
     primary_brand_color: '#10b981',
-    secondary_brand_color: '#047857'
+    secondary_brand_color: '#047857',
+    heading_font: 'Plus Jakarta Sans',
+    body_font: 'Inter',
+    background_color: '#fafafa'
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

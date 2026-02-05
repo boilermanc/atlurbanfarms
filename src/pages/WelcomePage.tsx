@@ -123,14 +123,14 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
   // Show nothing while checking localStorage (prevents flash)
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-site">
         <div className="brand-text text-xl font-semibold animate-pulse">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-site">
       {/* Background decoration */}
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-[rgba(var(--brand-primary-rgb),0.05)] rounded-full blur-3xl -z-10" />
       <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[400px] h-[400px] bg-[rgba(var(--brand-primary-rgb),0.03)] rounded-full blur-3xl -z-10" />
@@ -228,7 +228,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="mb-16"
         >
-          <div className="bg-gray-50 rounded-2xl p-6 md:p-8">
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100">
             <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12">
               {trustPoints.map((point, index) => (
                 <motion.div
@@ -260,7 +260,7 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleBrowseAll}
-            className="px-10 py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 inline-flex items-center gap-3"
+            className="px-10 py-4 btn-brand rounded-2xl font-bold text-lg transition-all brand-shadow inline-flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98]"
           >
             Browse All Plants
             <ArrowRightIcon className="w-5 h-5" />
@@ -269,6 +269,34 @@ const WelcomePage: React.FC<WelcomePageProps> = ({ onNavigate }) => {
             Every seedling is raised with love right here in Atlanta
           </p>
         </motion.section>
+
+        {/* ============ BACK TO HOME ============ */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.8 }}
+          className="text-center mt-12"
+        >
+          <button
+            onClick={() => onNavigate('home')}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-2 mx-auto"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="19" x2="5" y1="12" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            Return to Home Page
+          </button>
+        </motion.div>
       </div>
     </div>
   );

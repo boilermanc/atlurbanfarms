@@ -11,17 +11,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-      /* FOUC prevention - hide until styles load */
-      html { visibility: hidden; }
-      html.styles-loaded { visibility: visible; }
+      /* FOUC prevention - hide until React app renders and brand settings load */
+      html { opacity: 0; }
+      html.app-ready { opacity: 1; transition: opacity 0.15s ease-in; }
 
       body {
-        font-family: 'Inter', sans-serif;
-        background-color: #fafafa;
+        font-family: var(--font-body, 'Inter', sans-serif);
+        background-color: var(--bg-color, #fafafa);
         scroll-behavior: smooth;
       }
       h1, h2, h3, h4, .font-heading {
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: var(--font-heading, 'Plus Jakarta Sans', sans-serif);
       }
       .font-handwriting {
         font-family: 'Caveat', cursive;
@@ -44,14 +44,63 @@
       }
     </style>
     <script>
-      // Reveal content once DOM is ready (styles will have loaded by then)
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-          document.documentElement.classList.add('styles-loaded');
-        });
-      } else {
-        document.documentElement.classList.add('styles-loaded');
-      }
+      // Apply cached brand settings immediately to prevent FOUC on reload
+      (function() {
+        try {
+          var cached = localStorage.getItem('atluf_brand_colors');
+          if (cached) {
+            var c = JSON.parse(cached);
+            var root = document.documentElement;
+            if (c.primary) {
+              root.style.setProperty('--brand-primary', c.primary);
+              root.style.setProperty('--brand-primary-rgb', c.primaryRgb);
+            }
+            if (c.secondary) {
+              root.style.setProperty('--brand-secondary', c.secondary);
+              root.style.setProperty('--brand-secondary-rgb', c.secondaryRgb);
+            }
+            // Apply cached background color
+            if (c.backgroundColor) {
+              root.style.setProperty('--bg-color', c.backgroundColor);
+              document.addEventListener('DOMContentLoaded', function() {
+                document.body.style.backgroundColor = c.backgroundColor;
+              });
+            }
+            // Apply cached fonts
+            if (c.headingFont) {
+              root.style.setProperty('--font-heading', "'" + c.headingFont + "', sans-serif");
+              // Inject heading font override immediately
+              var s = document.createElement('style');
+              s.id = 'cached-heading-font-style';
+              s.textContent = "h1,h2,h3,h4,.font-heading{font-family:'" + c.headingFont + "',sans-serif!important}";
+              document.head.appendChild(s);
+              // Load the font from Google Fonts if not preloaded
+              var preloaded = ['Inter','Plus Jakarta Sans','DM Sans','Space Grotesk','Caveat','Patrick Hand'];
+              var fontsToLoad = [];
+              if (preloaded.indexOf(c.headingFont) === -1) fontsToLoad.push(c.headingFont);
+              if (c.bodyFont && preloaded.indexOf(c.bodyFont) === -1 && c.bodyFont !== c.headingFont) fontsToLoad.push(c.bodyFont);
+              if (fontsToLoad.length > 0) {
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?' + fontsToLoad.map(function(f) {
+                  return 'family=' + f.replace(/ /g, '+') + ':wght@300;400;500;600;700;800';
+                }).join('&') + '&display=swap';
+                document.head.appendChild(link);
+              }
+            }
+            if (c.bodyFont) {
+              root.style.setProperty('--font-body', "'" + c.bodyFont + "', sans-serif");
+              document.addEventListener('DOMContentLoaded', function() {
+                document.body.style.fontFamily = "'" + c.bodyFont + "', sans-serif";
+              });
+            }
+          }
+        } catch(e) {}
+        // Failsafe: reveal page after 4s even if JS fails to load
+        window.__fouc_timeout = setTimeout(function() {
+          document.documentElement.classList.add('app-ready');
+        }, 4000);
+      })();
     </script>
   <script type="importmap">
 {

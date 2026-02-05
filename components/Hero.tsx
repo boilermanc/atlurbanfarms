@@ -27,8 +27,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
 
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-16">
         <div className="flex-1 text-center md:text-left">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-6 brand-bg-light brand-text">
-            <span className="w-2 h-2 rounded-full animate-pulse brand-bg" />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-6 brand-bg-light brand-text">
             {badgeText}
           </motion.div>
 
@@ -40,9 +39,9 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
             dangerouslySetInnerHTML={{ __html: headline }}
           />
 
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="text-xl text-gray-500 max-w-xl mb-10 leading-relaxed">
-            {subheadline}
-          </motion.p>
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="text-xl text-gray-500 max-w-xl mb-10 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: subheadline }}
+          />
 
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="flex flex-col sm:flex-row items-center gap-4 justify-center md:justify-start">
             <button

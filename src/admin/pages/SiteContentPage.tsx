@@ -35,9 +35,9 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
     hero: {
       label: 'Hero Section',
       keys: [
-        { key: 'badge_text', label: 'Badge Text', type: 'text' },
+        { key: 'badge_text', label: 'Section Label', type: 'text' },
         { key: 'headline', label: 'Headline', type: 'rich_text' },
-        { key: 'subheadline', label: 'Subheadline', type: 'text' },
+        { key: 'subheadline', label: 'Subheadline', type: 'rich_text' },
         { key: 'primary_cta_text', label: 'Primary Button Text', type: 'text' },
         { key: 'secondary_cta_text', label: 'Secondary Button Text', type: 'text' },
         { key: 'guarantee_label', label: 'Guarantee Label', type: 'text' },
@@ -50,7 +50,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
       keys: [
         { key: 'label', label: 'Section Label', type: 'text' },
         { key: 'headline', label: 'Headline', type: 'rich_text' },
-        { key: 'description', label: 'Description', type: 'text' },
+        { key: 'description', label: 'Description', type: 'rich_text' },
         { key: 'cta_text', label: 'Button Text', type: 'text' },
       ],
     },
@@ -59,7 +59,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
       keys: [
         { key: 'label', label: 'Section Label', type: 'text' },
         { key: 'headline', label: 'Headline', type: 'rich_text' },
-        { key: 'description', label: 'Description', type: 'text' },
+        { key: 'description', label: 'Description', type: 'rich_text' },
         { key: 'cta_text', label: 'Button Text', type: 'text' },
         { key: 'image_url', label: 'Section Image', type: 'image_url' },
       ],
@@ -83,8 +83,8 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'tagline', label: 'Tagline', type: 'text' },
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'paragraph_1', label: 'Paragraph 1', type: 'rich_text' },
-        { key: 'paragraph_2', label: 'Paragraph 2', type: 'text' },
-        { key: 'paragraph_3', label: 'Paragraph 3', type: 'text' },
+        { key: 'paragraph_2', label: 'Paragraph 2', type: 'rich_text' },
+        { key: 'paragraph_3', label: 'Paragraph 3', type: 'rich_text' },
         { key: 'image_url', label: 'Story Image', type: 'image_url' },
         { key: 'founder_name', label: 'Founder Name', type: 'text' },
         { key: 'founder_title', label: 'Founder Title', type: 'text' },
@@ -111,10 +111,13 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'card_1_title', label: 'Card 1 Title', type: 'text' },
         { key: 'card_1_description', label: 'Card 1 Description', type: 'text' },
+        { key: 'card_1_link', label: 'Card 1 Link URL', type: 'text' },
         { key: 'card_2_title', label: 'Card 2 Title', type: 'text' },
         { key: 'card_2_description', label: 'Card 2 Description', type: 'text' },
+        { key: 'card_2_link', label: 'Card 2 Link URL', type: 'text' },
         { key: 'card_3_title', label: 'Card 3 Title', type: 'text' },
         { key: 'card_3_description', label: 'Card 3 Description', type: 'text' },
+        { key: 'card_3_link', label: 'Card 3 Link URL', type: 'text' },
       ],
     },
     stats: {
@@ -138,6 +141,42 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'description', label: 'Description', type: 'text' },
       ],
     },
+    grower_1: {
+      label: 'Grower Profile 1',
+      keys: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'title', label: 'Title / Role', type: 'text' },
+        { key: 'image', label: 'Photo', type: 'image_url' },
+        { key: 'bio', label: 'Bio', type: 'rich_text' },
+      ],
+    },
+    grower_2: {
+      label: 'Grower Profile 2',
+      keys: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'title', label: 'Title / Role', type: 'text' },
+        { key: 'image', label: 'Photo', type: 'image_url' },
+        { key: 'bio', label: 'Bio', type: 'rich_text' },
+      ],
+    },
+    grower_3: {
+      label: 'Grower Profile 3',
+      keys: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'title', label: 'Title / Role', type: 'text' },
+        { key: 'image', label: 'Photo', type: 'image_url' },
+        { key: 'bio', label: 'Bio', type: 'rich_text' },
+      ],
+    },
+    grower_4: {
+      label: 'Grower Profile 4 (Optional)',
+      keys: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'title', label: 'Title / Role', type: 'text' },
+        { key: 'image', label: 'Photo', type: 'image_url' },
+        { key: 'bio', label: 'Bio', type: 'rich_text' },
+      ],
+    },
     values: {
       label: 'Values Section',
       keys: [
@@ -157,6 +196,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'description', label: 'Description', type: 'text' },
         { key: 'button_text', label: 'Button Text', type: 'text' },
+        { key: 'button_link', label: 'Button Link URL', type: 'text' },
       ],
     },
   },

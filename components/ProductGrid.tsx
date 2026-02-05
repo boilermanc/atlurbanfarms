@@ -85,7 +85,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
           >
-            <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Curated Collection</span>
+            <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">Curated Collection</span>
             <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight">
               Best <span className="text-emerald-600">Sellers</span>
             </h2>
@@ -179,7 +179,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50/50 rounded-full blur-3xl -z-10 -translate-y-1/2 translate-x-1/2" />
           
           <div className="max-w-2xl">
-            <h3 className="text-3xl font-heading font-extrabold text-gray-900 mb-4">The ATL Urban Nursery Standard</h3>
+            <h3 className="text-3xl font-heading font-extrabold text-gray-900 mb-4">The ATL Urban Farms Standard</h3>
             <p className="text-gray-500 font-medium leading-relaxed">
               Every seedling is grown in a climate-controlled, pest-free environment. We use proprietary nutrient mapping to ensure your plants are at peak vitality when they ship.
             </p>

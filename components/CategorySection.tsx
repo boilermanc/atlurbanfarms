@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useCategories } from '../src/hooks/useSupabase';
+import { useCategories, useProducts } from '../src/hooks/useSupabase';
 
 // Icon and style mapping for known categories
 const categoryStyles: Record<string, { icon: React.ReactNode; description: string; color: string }> = {
@@ -68,6 +68,7 @@ interface CategorySectionProps {
 
 const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) => {
   const { categories: dbCategories, loading } = useCategories();
+  const { products: dbProducts, loading: productsLoading } = useProducts();
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -79,6 +80,21 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
+  // Build set of category IDs that have at least one active product
+  const categoryIdsWithProducts = useMemo(() => {
+    const ids = new Set<string>();
+    dbProducts?.forEach((p: any) => {
+      const assignments = p.category_assignments || [];
+      assignments.forEach((a: any) => {
+        if (a.category_id) ids.add(a.category_id);
+      });
+      if (assignments.length === 0 && p.category?.id) {
+        ids.add(p.category.id);
+      }
+    });
+    return ids;
+  }, [dbProducts]);
+
   // Find the Seedlings parent category
   const seedlingsParent = dbCategories?.find((c: any) =>
     c.name.toLowerCase() === 'seedlings' && !c.parent_id
@@ -86,20 +102,21 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
 
   // Get seedling subcategories, or fall back to all subcategories (those with a parent),
   // or finally all categories if no hierarchy exists yet
+  // Only include categories that have at least one active product
   const seedlingCategories = (() => {
     if (seedlingsParent) {
-      // Ideal case: show children of the "Seedlings" parent
-      return dbCategories?.filter((c: any) => c.parent_id === seedlingsParent.id) || [];
+      // Ideal case: show children of the "Seedlings" parent that have products
+      return dbCategories?.filter((c: any) => c.parent_id === seedlingsParent.id && categoryIdsWithProducts.has(c.id)) || [];
     }
-    // Fallback: show categories that have a parent (i.e., subcategories)
-    const subcategories = dbCategories?.filter((c: any) => c.parent_id) || [];
+    // Fallback: show subcategories that have products
+    const subcategories = dbCategories?.filter((c: any) => c.parent_id && categoryIdsWithProducts.has(c.id)) || [];
     if (subcategories.length > 0) return subcategories;
-    // Final fallback: show all active categories
-    return dbCategories || [];
+    // Final fallback: show all active categories that have products
+    return dbCategories?.filter((c: any) => categoryIdsWithProducts.has(c.id)) || [];
   })();
 
   // Don't render section if no categories at all
-  if (loading || seedlingCategories.length === 0) {
+  if (loading || productsLoading || seedlingCategories.length === 0) {
     return null;
   }
 
@@ -107,7 +124,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
     <section className="py-12 px-4 md:px-12 bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-8">
-          <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>
+          <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>
           <motion.h2 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-3xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight">Shop by <span className="sage-text-gradient">Garden Type</span></motion.h2>
         </div>
 

@@ -50,6 +50,9 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     logo_url: { value: '', dataType: 'string' },
     primary_brand_color: { value: '#10b981', dataType: 'string' },
     secondary_brand_color: { value: '#047857', dataType: 'string' },
+    heading_font: { value: 'Plus Jakarta Sans', dataType: 'string' },
+    body_font: { value: 'Inter', dataType: 'string' },
+    background_color: { value: '#fafafa', dataType: 'string' },
     announcement_bar_enabled: { value: false, dataType: 'boolean' },
     announcement_bar_text: { value: '', dataType: 'string' },
     social_facebook: { value: '', dataType: 'string' },
@@ -877,6 +880,92 @@ const SettingsPage: React.FC = () => {
           />
         </div>
         <p className="text-xs text-slate-500">Used for hover states, accents, and secondary buttons</p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-700">Website Background Color</label>
+        <div className="flex items-center gap-4">
+          <input
+            type="color"
+            value={formData.branding?.background_color || '#fafafa'}
+            onChange={(e) => updateField('branding', 'background_color', e.target.value)}
+            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
+          />
+          <input
+            type="text"
+            value={formData.branding?.background_color || '#fafafa'}
+            onChange={(e) => updateField('branding', 'background_color', e.target.value)}
+            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            placeholder="#fafafa"
+          />
+        </div>
+        <p className="text-xs text-slate-500">Background color for the main website pages</p>
+      </div>
+
+      <div className="border-t border-slate-200 pt-6">
+        <h3 className="text-lg font-medium text-slate-800 mb-4">Typography</h3>
+        <p className="text-sm text-slate-500 mb-6">Choose fonts for headings and body text. Fonts are loaded from Google Fonts.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Heading Font</label>
+            <select
+              value={formData.branding?.heading_font || 'Plus Jakarta Sans'}
+              onChange={(e) => updateField('branding', 'heading_font', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            >
+              <option value="Plus Jakarta Sans">Plus Jakarta Sans (Default)</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Playfair Display">Playfair Display</option>
+              <option value="Poppins">Poppins</option>
+              <option value="Raleway">Raleway</option>
+              <option value="Open Sans">Open Sans</option>
+              <option value="Lato">Lato</option>
+              <option value="Inter">Inter</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Oswald">Oswald</option>
+              <option value="Merriweather">Merriweather</option>
+              <option value="Nunito">Nunito</option>
+              <option value="Space Grotesk">Space Grotesk</option>
+            </select>
+            <p className="text-xs text-slate-500">Used for h1, h2, h3, h4, and .font-heading elements</p>
+            <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+              <p className="text-sm text-slate-500 mb-1">Preview:</p>
+              <p className="text-xl font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif` }}>
+                The Quick Brown Fox
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Body Font</label>
+            <select
+              value={formData.branding?.body_font || 'Inter'}
+              onChange={(e) => updateField('branding', 'body_font', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            >
+              <option value="Inter">Inter (Default)</option>
+              <option value="DM Sans">DM Sans</option>
+              <option value="Open Sans">Open Sans</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Lato">Lato</option>
+              <option value="Poppins">Poppins</option>
+              <option value="Nunito">Nunito</option>
+              <option value="Source Sans Pro">Source Sans Pro</option>
+              <option value="Raleway">Raleway</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+              <option value="Space Grotesk">Space Grotesk</option>
+            </select>
+            <p className="text-xs text-slate-500">Used for body text, paragraphs, and general content</p>
+            <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+              <p className="text-sm text-slate-500 mb-1">Preview:</p>
+              <p className="text-base text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif` }}>
+                Fresh seedlings delivered to your doorstep every week.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="border-t border-slate-200 pt-6">

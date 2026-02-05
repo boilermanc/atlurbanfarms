@@ -38,7 +38,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
   const sectionLabel = get('featured', 'label', 'Weekly Spotlight');
   const headline = get('featured', 'headline', 'Nursery <span class="sage-text-gradient">Favorites</span>');
   const description = get('featured', 'description', 'Hand-picked by our lead growers for their exceptional vitality and flavor profiles.');
-  const ctaText = get('featured', 'cta_text', 'Meet Our Growers');
+
 
   // Fetch featured products with realtime subscription
   useEffect(() => {
@@ -146,7 +146,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
       </div>
 
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-5">
+        <div className="mb-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -158,24 +158,10 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
               className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight"
               dangerouslySetInnerHTML={{ __html: headline }}
             />
-            <p className="text-gray-500 mt-4 text-lg font-medium">
-              {description}
-            </p>
+            <p className="text-gray-500 mt-4 text-lg font-medium"
+              dangerouslySetInnerHTML={{ __html: description }}
+            />
           </motion.div>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => {
-              // Set hash BEFORE navigation so AboutPage can detect it on mount
-              window.location.hash = 'meet-our-growers';
-              onNavigate?.('about');
-            }}
-            className="px-8 py-4 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 brand-bg-light brand-text"
-          >
-            {ctaText}
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
-          </motion.button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">

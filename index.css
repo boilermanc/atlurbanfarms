@@ -24,6 +24,11 @@
   /* Default secondary brand color (emerald-700) - overridden by JS */
   --brand-secondary: #047857;
   --brand-secondary-rgb: 4, 120, 87;
+  /* Default fonts - overridden by JS from branding settings */
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  /* Default background color - overridden by JS */
+  --bg-color: #fafafa;
 }
 
 /* Brand color utility classes for customer-facing site */
@@ -95,6 +100,11 @@
 
 .btn-brand-hover:hover {
   background-color: var(--brand-primary);
+}
+
+/* Site background color utility */
+.bg-site {
+  background-color: var(--bg-color, #fafafa);
 }
 
 /* Admin-specific font families */

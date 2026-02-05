@@ -3,7 +3,9 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Unlink } from 'lucide-react';
+import Color from '@tiptap/extension-color';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Unlink, Palette } from 'lucide-react';
 
 interface RichTextEditorProps {
   value: string;
@@ -36,6 +38,7 @@ const MenuButton: React.FC<{
 const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder }) => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -50,6 +53,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
         },
       }),
       Underline,
+      TextStyle,
+      Color,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -169,6 +174,70 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
             <Unlink size={18} />
           </MenuButton>
         )}
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <div className="relative">
+          <MenuButton
+            onClick={() => setShowColorPicker(!showColorPicker)}
+            isActive={!!editor.getAttributes('textStyle').color}
+            title="Text Color"
+          >
+            <Palette size={18} />
+            {editor.getAttributes('textStyle').color && (
+              <span
+                className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full"
+                style={{ backgroundColor: editor.getAttributes('textStyle').color }}
+              />
+            )}
+          </MenuButton>
+
+          {showColorPicker && (
+            <div className="absolute top-full left-0 mt-1 p-3 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-52">
+              <div className="grid grid-cols-6 gap-1.5 mb-2">
+                {[
+                  '#000000', '#374151', '#6B7280', '#EF4444', '#F97316', '#F59E0B',
+                  '#10B981', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899',
+                  '#991B1B', '#9A3412', '#92400E', '#065F46', '#155E75', '#1E3A8A',
+                ].map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().setColor(color).run();
+                      setShowColorPicker(false);
+                    }}
+                    className="w-6 h-6 rounded-md border border-slate-200 hover:scale-110 transition-transform"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <input
+                  type="color"
+                  onChange={(e) => {
+                    editor.chain().focus().setColor(e.target.value).run();
+                    setShowColorPicker(false);
+                  }}
+                  className="w-6 h-6 rounded cursor-pointer border-0 p-0"
+                  title="Custom color"
+                />
+                <span className="text-xs text-slate-400">Custom</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.chain().focus().unsetColor().run();
+                    setShowColorPicker(false);
+                  }}
+                  className="ml-auto text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {showLinkInput && (
           <div className="flex items-center gap-2 ml-2">

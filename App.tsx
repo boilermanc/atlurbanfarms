@@ -131,9 +131,9 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
             className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
             dangerouslySetInnerHTML={{ __html: content.headline || 'Empowering the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
           />
-          <p className="text-lg text-gray-500 mb-10 leading-relaxed">
-            {content.description || "Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let's grow together."}
-          </p>
+          <p className="text-lg text-gray-500 mb-10 leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: content.description || "Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let's grow together." }}
+          />
           <button
             onClick={() => onNavigate('schools')}
             className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all flex items-center gap-3"
@@ -165,7 +165,7 @@ const App: React.FC = () => {
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
 
   // Fetch branding settings and apply primary brand color
-  const { settings: brandingSettings } = useBrandingSettings();
+  const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
   // Apply brand colors as CSS custom properties
   useEffect(() => {
@@ -178,7 +178,79 @@ const App: React.FC = () => {
     const secondaryColor = brandingSettings?.secondary_brand_color || '#047857';
     document.documentElement.style.setProperty('--brand-secondary', secondaryColor);
     document.documentElement.style.setProperty('--brand-secondary-rgb', hexToRgb(secondaryColor));
-  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color]);
+
+    // Apply background color
+    const bgColor = brandingSettings?.background_color || '#fafafa';
+    document.documentElement.style.setProperty('--bg-color', bgColor);
+    document.body.style.backgroundColor = bgColor;
+
+    // Cache brand settings in localStorage for instant apply on next page load
+    try {
+      localStorage.setItem('atluf_brand_colors', JSON.stringify({
+        primary: brandingSettings?.primary_brand_color || '#10b981',
+        primaryRgb: hexToRgb(brandingSettings?.primary_brand_color || '#10b981'),
+        secondary: secondaryColor,
+        secondaryRgb: hexToRgb(secondaryColor),
+        headingFont: brandingSettings?.heading_font || 'Plus Jakarta Sans',
+        bodyFont: brandingSettings?.body_font || 'Inter',
+        backgroundColor: bgColor,
+      }));
+    } catch {}
+  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.heading_font, brandingSettings?.body_font]);
+
+  // Dynamically load Google Fonts and apply font CSS variables
+  useEffect(() => {
+    const headingFont = brandingSettings?.heading_font || 'Plus Jakarta Sans';
+    const bodyFont = brandingSettings?.body_font || 'Inter';
+
+    // Build Google Fonts URL for the selected fonts
+    const fontsToLoad = new Set([headingFont, bodyFont]);
+    // These fonts are already loaded in index.html; skip them
+    const preloadedFonts = new Set(['Inter', 'Plus Jakarta Sans', 'DM Sans', 'Space Grotesk', 'Caveat', 'Patrick Hand']);
+
+    const fontsNeedingLoad = [...fontsToLoad].filter(f => !preloadedFonts.has(f));
+
+    if (fontsNeedingLoad.length > 0) {
+      // Remove any previously injected dynamic font link
+      const existingLink = document.getElementById('dynamic-google-fonts');
+      if (existingLink) existingLink.remove();
+
+      const families = fontsNeedingLoad.map(f => `family=${f.replace(/ /g, '+')}:wght@300;400;500;600;700;800`).join('&');
+      const link = document.createElement('link');
+      link.id = 'dynamic-google-fonts';
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+      document.head.appendChild(link);
+    }
+
+    // Apply font CSS variables
+    document.documentElement.style.setProperty('--font-heading', `'${headingFont}', sans-serif`);
+    document.documentElement.style.setProperty('--font-body', `'${bodyFont}', sans-serif`);
+    // Also apply directly so existing CSS rules pick them up
+    document.body.style.fontFamily = `'${bodyFont}', sans-serif`;
+
+    // Apply heading font to heading elements via a style tag
+    let headingStyle = document.getElementById('dynamic-heading-font-style') as HTMLStyleElement | null;
+    if (!headingStyle) {
+      headingStyle = document.createElement('style');
+      headingStyle.id = 'dynamic-heading-font-style';
+      document.head.appendChild(headingStyle);
+    }
+    headingStyle.textContent = `h1, h2, h3, h4, .font-heading { font-family: '${headingFont}', sans-serif !important; }`;
+  }, [brandingSettings?.heading_font, brandingSettings?.body_font]);
+
+  // Reveal page once brand settings have loaded (prevents FOUC)
+  useEffect(() => {
+    if (!brandingLoading) {
+      requestAnimationFrame(() => {
+        document.documentElement.classList.add('app-ready');
+        // Clear the failsafe timeout from index.html
+        if ((window as any).__fouc_timeout) {
+          clearTimeout((window as any).__fouc_timeout);
+        }
+      });
+    }
+  }, [brandingLoading]);
 
   const [trackingParams, setTrackingParams] = useState<{ trackingNumber?: string; carrierCode?: string }>(() => {
     // Parse tracking params from URL on load
@@ -363,7 +435,7 @@ const App: React.FC = () => {
           <>
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
-            <AboutPage onBack={() => setView('home')} />
+            <AboutPage />
             <Footer onNavigate={handleNavigate} />
           </>
         );
@@ -451,7 +523,7 @@ const App: React.FC = () => {
       case 'home':
       default:
         return (
-          <div className="min-h-screen bg-[#fafafa] selection:bg-emerald-100 selection:text-emerald-900">
+          <div className="min-h-screen bg-site selection:bg-emerald-100 selection:text-emerald-900">
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             

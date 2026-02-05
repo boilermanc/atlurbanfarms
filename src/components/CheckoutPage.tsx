@@ -756,7 +756,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
+      <div className="min-h-screen bg-site flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-4">Your cart is empty</h2>
           <p className="text-gray-500 mb-8">Add some items to your cart before checking out.</p>
@@ -772,7 +772,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-site">
       {/* Header */}
       <div className="border-b border-gray-100 py-6 px-4 md:px-12 bg-white/80 backdrop-blur-md sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

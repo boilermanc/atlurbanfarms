@@ -86,10 +86,13 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       headline: 'The Technology Behind the <span class="sage-text-gradient">Green</span>',
       card_1_title: 'Climate AI',
       card_1_description: 'Our nursery adjusts light spectrums and humidity in real-time using localized sensor data.',
+      card_1_link: '',
       card_2_title: 'Sustainable Roots',
       card_2_description: 'We use 85% less water than traditional soil-based nurseries through advanced recirculation.',
+      card_2_link: '',
       card_3_title: 'School Support',
       card_3_description: 'Our \'Education First\' dashboard helps teachers track seedling growth in the classroom.',
+      card_3_link: '',
     },
     stats: {
       stat_1_value: '50+',
@@ -106,6 +109,30 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       headline: 'Meet the <span class="sage-text-gradient">Growers</span>',
       description: 'The passionate experts behind every seedling. Our team combines decades of horticultural experience with cutting-edge technology to bring you the healthiest plants possible.',
     },
+    grower_1: {
+      name: '',
+      title: '',
+      image: '',
+      bio: '',
+    },
+    grower_2: {
+      name: '',
+      title: '',
+      image: '',
+      bio: '',
+    },
+    grower_3: {
+      name: '',
+      title: '',
+      image: '',
+      bio: '',
+    },
+    grower_4: {
+      name: '',
+      title: '',
+      image: '',
+      bio: '',
+    },
     values: {
       tagline: 'Our Philosophy',
       headline: 'What Drives <span class="sage-text-gradient">Our Team</span>',
@@ -120,6 +147,7 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       headline: 'Ready to grow <span class="text-emerald-400">smarter?</span>',
       description: 'Join thousands of Atlanta residents and schools who are bringing their gardens into the future.',
       button_text: 'Start Your Urban Farm',
+      button_link: '/shop',
     },
   },
   schools: {

@@ -307,15 +307,30 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const products = rawProducts.map(mapProduct);
 
   // Separate categories into parent categories and get children helper
+  // Only include categories that have at least one active product
   const { parentCategories, getChildCategories, getCategoryById } = useMemo(() => {
     const categories = rawCategories as Category[];
 
-    // Parent categories have no parent_id
-    const parents = categories.filter(c => !c.parent_id);
+    // Build set of category IDs (and their parent IDs) that have at least one active product
+    const categoryIdsWithProducts = new Set<string>();
+    rawProducts.forEach((rp: any) => {
+      const assignments = rp.category_assignments || [];
+      assignments.forEach((a: any) => {
+        if (a.category_id) categoryIdsWithProducts.add(a.category_id);
+        if (a.category?.parent_id) categoryIdsWithProducts.add(a.category.parent_id);
+      });
+      if (assignments.length === 0 && rp.category) {
+        categoryIdsWithProducts.add(rp.category.id);
+        if (rp.category.parent_id) categoryIdsWithProducts.add(rp.category.parent_id);
+      }
+    });
 
-    // Helper to get children for a parent
+    // Parent categories: no parent_id AND have at least one active product
+    const parents = categories.filter(c => !c.parent_id && categoryIdsWithProducts.has(c.id));
+
+    // Helper to get children for a parent (only those with active products)
     const getChildren = (parentId: string): Category[] => {
-      return categories.filter(c => c.parent_id === parentId);
+      return categories.filter(c => c.parent_id === parentId && categoryIdsWithProducts.has(c.id));
     };
 
     // Helper to get category by id
@@ -328,7 +343,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       getChildCategories: getChildren,
       getCategoryById: getById
     };
-  }, [rawCategories]);
+  }, [rawCategories, rawProducts]);
 
   // Get subcategories for the currently active parent
   const activeSubcategories = useMemo(() => {
@@ -689,7 +704,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 >
                   <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
                 </svg>
-                Your Favorites
+                My Favorites
               </h2>
               <p className="text-gray-500 mt-1">Products you've saved for later</p>
             </div>
