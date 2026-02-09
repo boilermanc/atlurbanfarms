@@ -66,7 +66,7 @@ export function useCustomerProfile(userId) {
             .from('customer_profiles')
             .select('*')
             .eq('customer_id', userId)
-            .single()
+            .maybeSingle()
         ])
 
         if (customerResult.error && customerResult.error.code !== 'PGRST116') {

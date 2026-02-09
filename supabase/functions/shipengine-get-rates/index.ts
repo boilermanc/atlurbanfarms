@@ -72,6 +72,11 @@ interface RatesResponse {
     }>
     summary: string
   }
+  carrier_errors?: Array<{
+    carrier_id: string
+    carrier_friendly_name: string
+    message: string
+  }>
 }
 
 interface ShippingZone {
@@ -772,10 +777,17 @@ serve(async (req) => {
 
     const rateResponse = await shipEngineResponse.json()
 
-    // Check for errors in rate response
+    // Capture carrier-level errors for debugging
+    const carrierErrors: RatesResponse['carrier_errors'] = []
     if (rateResponse.rate_response?.errors?.length > 0) {
-      const errors = rateResponse.rate_response.errors.map((e: any) => e.message).join(', ')
-      console.warn('Rate calculation warnings:', errors)
+      for (const e of rateResponse.rate_response.errors) {
+        console.warn('Rate calculation warning:', e.carrier_friendly_name || e.carrier_id, '-', e.message)
+        carrierErrors.push({
+          carrier_id: e.carrier_id || 'unknown',
+          carrier_friendly_name: e.carrier_friendly_name || 'Unknown Carrier',
+          message: e.message || 'Unknown error'
+        })
+      }
     }
 
     // Transform rates to our format, applying zone restrictions
@@ -870,7 +882,8 @@ serve(async (req) => {
         total_packages: packageBreakdown.packages.length,
         packages: packageBreakdown.breakdown,
         summary: packageBreakdown.summary
-      } : undefined
+      } : undefined,
+      carrier_errors: carrierErrors.length > 0 ? carrierErrors : undefined
     }
 
     return new Response(

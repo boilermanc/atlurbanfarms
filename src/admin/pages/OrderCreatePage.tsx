@@ -372,7 +372,22 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         body: requestBody
       });
 
-      if (error) throw error;
+      if (error) {
+        // Extract actual error details from the response body
+        let errorMessage = 'Failed to calculate shipping rates';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const errorBody = await error.context.json();
+            errorMessage = errorBody?.error?.message || errorBody?.message || errorMessage;
+          } else if (error.message && error.message !== 'Edge Function returned a non-2xx status code') {
+            errorMessage = error.message;
+          }
+        } catch {
+          // If we can't parse the response, use the original error
+          console.error('Could not parse edge function error response:', error);
+        }
+        throw new Error(errorMessage);
+      }
 
       if (!data.success) {
         throw new Error(data.error?.message || 'Failed to get shipping rates');
@@ -382,6 +397,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         setRatesError('No shipping rates available for this address. You can enter a manual amount.');
         setUseManualShipping(true);
         return;
+      }
+
+      // Log carrier errors if any carriers failed to return rates
+      if (data.carrier_errors?.length > 0) {
+        console.warn('Some carriers did not return rates:', data.carrier_errors);
       }
 
       setShippingRates(data.rates);
