@@ -1115,6 +1115,7 @@ export function useCreateOrder() {
       }))
 
       // Call atomic RPC function that checks stock and creates order
+      // NOTE: Admin order creation (OrderCreatePage.tsx) uses the same RPC directly — keep order data shape in sync
       const { data: result, error: rpcError } = await supabase.rpc(
         'create_order_with_inventory_check',
         {

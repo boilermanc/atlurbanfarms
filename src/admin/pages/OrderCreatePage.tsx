@@ -14,6 +14,7 @@ import {
   PickupLocation,
   PickupSlot,
 } from '../../hooks/usePickup';
+import { useEmailService } from '../../hooks/useIntegrations';
 
 interface Customer {
   id: string;
@@ -162,6 +163,9 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
   // Inventory override state
   const [overrideInventory, setOverrideInventory] = useState<boolean>(false);
+
+  // Email service
+  const { sendOrderConfirmation } = useEmailService();
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
@@ -536,6 +540,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
       }));
 
       // Call RPC function to create order with inventory check
+      // NOTE: Customer checkout uses the same RPC via useCreateOrder hook (useSupabase.js) — keep order data shape in sync
       const { data: result, error: rpcError } = await supabase.rpc(
         'create_order_with_inventory_check',
         {
@@ -563,6 +568,34 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             shipping_method_name: shippingMethodName,
           })
           .eq('id', result.order_id);
+      }
+
+      // Send order confirmation email (non-blocking)
+      // NOTE: Customer checkout (CheckoutPage.tsx) has a parallel email flow — keep both in sync
+      try {
+        await sendOrderConfirmation(selectedCustomer!.email, {
+          orderNumber: result.order_number,
+          customerName: selectedCustomer!.first_name || 'Customer',
+          items: lineItems.map(item => ({
+            name: item.product_name,
+            quantity: item.quantity,
+            price: item.product_price,
+          })),
+          subtotal,
+          shipping: shippingCost,
+          tax,
+          total,
+          shippingAddress: deliveryMethod === 'shipping' ? {
+            name: shippingAddress.name,
+            address: `${shippingAddress.street}${shippingAddress.street2 ? ', ' + shippingAddress.street2 : ''}`,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            zip: shippingAddress.zip,
+          } : undefined,
+        });
+      } catch (emailError) {
+        console.error('Failed to send confirmation email:', emailError);
+        // Don't block order creation if email fails
       }
 
       // Navigate to order detail page

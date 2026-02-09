@@ -703,6 +703,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     };
 
     // Send order confirmation email
+    // NOTE: Admin order creation (OrderCreatePage.tsx) has a parallel email flow — keep both in sync
     try {
       await sendOrderConfirmation(formData.email, {
         orderNumber: order.order_number,
