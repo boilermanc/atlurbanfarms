@@ -16,10 +16,16 @@ const ProductTagsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [filterType, setFilterType] = useState<string>('');
+
+  // Known tag types from the database
+  const TAG_TYPES = ['attribute', 'difficulty', 'growing', 'system', 'type', 'use'];
+
   // Form state
   const [formName, setFormName] = useState('');
   const [formSlug, setFormSlug] = useState('');
   const [formDescription, setFormDescription] = useState('');
+  const [formTagType, setFormTagType] = useState('');
 
   // Generate slug from name
   const generateSlug = (name: string) => {
@@ -76,6 +82,7 @@ const ProductTagsPage: React.FC = () => {
     setFormName('');
     setFormSlug('');
     setFormDescription('');
+    setFormTagType('');
     setShowAddForm(false);
     setEditingTag(null);
   };
@@ -85,6 +92,7 @@ const ProductTagsPage: React.FC = () => {
     setFormName(tag.name);
     setFormSlug(tag.slug);
     setFormDescription(tag.description || '');
+    setFormTagType(tag.tag_type || '');
     setShowAddForm(true);
   };
 
@@ -97,7 +105,8 @@ const ProductTagsPage: React.FC = () => {
         const result = await updateTag(editingTag.id, {
           name: formName.trim(),
           slug: formSlug.trim(),
-          description: formDescription.trim() || null
+          description: formDescription.trim() || null,
+          tag_type: formTagType || null
         });
         if (!result.success) {
           alert(result.error || 'Failed to update tag');
@@ -107,7 +116,8 @@ const ProductTagsPage: React.FC = () => {
         const result = await createTag(
           formName.trim(),
           formSlug.trim(),
-          formDescription.trim() || undefined
+          formDescription.trim() || undefined,
+          formTagType || undefined
         );
         if (!result.success) {
           alert(result.error || 'Failed to create tag');
@@ -137,10 +147,13 @@ const ProductTagsPage: React.FC = () => {
     }
   };
 
-  const filteredTags = tagsWithCounts.filter(tag =>
-    tag.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tag.slug.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTags = tagsWithCounts.filter(tag => {
+    const matchesSearch = !searchQuery ||
+      tag.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tag.slug.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = !filterType || tag.tag_type === filterType;
+    return matchesSearch && matchesType;
+  });
 
   if (loading) {
     return (
@@ -224,17 +237,38 @@ const ProductTagsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Description
-              </label>
-              <textarea
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Optional description for this tag..."
-                rows={2}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors resize-none"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Tag Type
+                </label>
+                <select
+                  value={formTagType}
+                  onChange={(e) => setFormTagType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                >
+                  <option value="">No type</option>
+                  {TAG_TYPES.map(type => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Groups tags on the product detail page</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Description
+                </label>
+                <textarea
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Optional description for this tag..."
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors resize-none"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-3 mt-6">
@@ -260,17 +294,31 @@ const ProductTagsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Search */}
+        {/* Search & Filter */}
         {tagsWithCounts.length > 0 && (
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tags..."
-              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
-            />
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tags..."
+                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+              />
+            </div>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+            >
+              <option value="">All Types</option>
+              {TAG_TYPES.map(type => (
+                <option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -310,6 +358,9 @@ const ProductTagsPage: React.FC = () => {
                       Slug
                     </th>
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Type
+                    </th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Description
                     </th>
                     <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -333,6 +384,15 @@ const ProductTagsPage: React.FC = () => {
                         <code className="text-sm text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
                           {tag.slug}
                         </code>
+                      </td>
+                      <td className="py-4 px-4">
+                        {tag.tag_type ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {tag.tag_type.charAt(0).toUpperCase() + tag.tag_type.slice(1)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-sm">-</span>
+                        )}
                       </td>
                       <td className="py-4 px-4">
                         <span className="text-slate-500 text-sm">

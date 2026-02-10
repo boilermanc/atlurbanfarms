@@ -430,7 +430,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         compare_at_price: formData.compare_at_price ? parseFloat(formData.compare_at_price) : null,
         growing_instructions: formData.growing_instructions || null,
         days_to_maturity: formData.days_to_maturity ? parseInt(formData.days_to_maturity) : null,
-        yield_per_plant: formData.yield_per_plant ? parseFloat(formData.yield_per_plant) : null,
+        yield_per_plant: formData.yield_per_plant || null,
         harvest_type: formData.harvest_type.length > 0 ? formData.harvest_type : null,
         growing_season: formData.growing_season.length > 0 ? formData.growing_season : null,
         growing_location: formData.growing_location || null,
@@ -723,7 +723,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-1">Yield per Plant</label>
-              <input type="number" name="yield_per_plant" value={formData.yield_per_plant} onChange={handleChange} min="0" step="0.01" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+              <input type="text" name="yield_per_plant" value={formData.yield_per_plant} onChange={handleChange} placeholder='e.g. "1-2 lbs" or "6-8 heads"' className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-600 mb-2">Recommended Harvest Type</label>

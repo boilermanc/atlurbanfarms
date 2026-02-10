@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin, Trash2, AlertTriangle } from 'lucide-react';
 import {
   Customer,
   CustomerProfile,
@@ -17,6 +17,7 @@ import {
   INTEREST_OPTIONS,
 } from '../types/customer';
 import { useCustomerRole } from '../hooks/useCustomerRole';
+import { useDeleteCustomer } from '../hooks/useDeleteCustomer';
 import { useCustomerTagAssignments } from '../hooks/useCustomerTagAssignments';
 import { useCustomerTags } from '../hooks/useCustomerTags';
 import { ORDER_STATUS_CONFIG, ViewOrderHandler } from '../hooks/useOrders';
@@ -89,6 +90,12 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Delete customer
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [canDelete, setCanDelete] = useState<boolean | null>(null);
+  const [orderCount, setOrderCount] = useState(0);
+  const { deleteCustomer, checkCanDelete, deleting: isDeleting } = useDeleteCustomer();
 
   // Auto-dismiss toast after 3 seconds
   useEffect(() => {
@@ -226,6 +233,24 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       setError('Failed to load customer data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    const result = await checkCanDelete(customerId);
+    setCanDelete(result.canDelete);
+    setOrderCount(result.orderCount);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    const result = await deleteCustomer(customerId);
+    if (result.success) {
+      setShowDeleteConfirm(false);
+      onBack?.();
+    } else {
+      setToast({ message: result.error || 'Failed to delete customer', type: 'error' });
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -2275,6 +2300,85 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             </div>
           )}
         </div>
+
+        {/* Danger Zone */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-red-200/60">
+          <h2 className="text-lg font-semibold text-red-700 mb-2 font-admin-display flex items-center gap-2">
+            <AlertTriangle size={20} />
+            Danger Zone
+          </h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Permanently delete this customer and all associated data. This action cannot be undone.
+          </p>
+          <button
+            onClick={handleDeleteClick}
+            disabled={isDeleting}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+          >
+            <Trash2 size={16} />
+            {isDeleting ? 'Deleting...' : 'Delete Customer'}
+          </button>
+        </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+              {canDelete ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                      <AlertTriangle size={20} className="text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800">Delete Customer</h3>
+                  </div>
+                  <p className="text-slate-600 mb-2">
+                    Are you sure you want to delete <strong>{getCustomerName()}</strong>?
+                  </p>
+                  <p className="text-sm text-slate-500 mb-6">
+                    This will permanently remove the customer record and all associated data (addresses, preferences, tags, etc.). This cannot be undone.
+                  </p>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeleting}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 font-medium text-sm"
+                    >
+                      {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                      <AlertTriangle size={20} className="text-amber-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800">Cannot Delete Customer</h3>
+                  </div>
+                  <p className="text-slate-600 mb-6">
+                    <strong>{getCustomerName()}</strong> has {orderCount} existing order{orderCount !== 1 ? 's' : ''} and cannot be deleted. Remove or reassign all orders first.
+                  </p>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </AdminPageWrapper>
   );

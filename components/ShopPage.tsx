@@ -506,7 +506,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites;
 
   return (
-    <div className="min-h-screen pt-20 pb-10 bg-white">
+    <div className="min-h-screen pt-20 pb-10 bg-site">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">

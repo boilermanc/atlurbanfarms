@@ -568,6 +568,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           state: formData.state,
           zip: formData.zip,
           country: formData.country
+        } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
+          // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          address1: selectedPickupLocation.address_line1,
+          address2: selectedPickupLocation.address_line2 || '',
+          city: selectedPickupLocation.city,
+          state: selectedPickupLocation.state,
+          zip: selectedPickupLocation.postal_code,
+          country: 'US'
         } : null,
         shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
         shippingCost: shippingCost,
@@ -648,6 +658,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         state: formData.state,
         zip: formData.zip,
         country: formData.country
+      } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
+        // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        address1: selectedPickupLocation.address_line1,
+        address2: selectedPickupLocation.address_line2 || '',
+        city: selectedPickupLocation.city,
+        state: selectedPickupLocation.state,
+        zip: selectedPickupLocation.postal_code,
+        country: 'US'
       } : null,
       shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
       shippingCost: shippingCost,

@@ -27,7 +27,7 @@ interface RawProduct {
   sun_requirements?: string;
   water_requirements?: string;
   // New growing info fields
-  yield_per_plant?: number | null;
+  yield_per_plant?: string | null;
   harvest_type?: string[] | null;
   growing_season?: string[] | null;
   growing_location?: string | null;
@@ -400,7 +400,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                                 </div>
                                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Yield per Plant</span>
                               </div>
-                              <p className="text-xl font-black text-gray-900">{product.yield_per_plant} oz</p>
+                              <p className="text-xl font-black text-gray-900">{product.yield_per_plant}</p>
                             </div>
                           )}
 

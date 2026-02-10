@@ -177,7 +177,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden pb-24">
+    <div className="min-h-screen bg-site relative overflow-hidden pb-24">
       {/* Confetti Animation */}
       <AnimatePresence>
         {showConfetti && (

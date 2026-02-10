@@ -87,6 +87,9 @@ const ALLOCATION_STRATEGIES = [
   { value: 'fefo', label: 'FEFO (First Expired, First Out)' },
 ];
 
+// Fonts already loaded via index.html <link> tag
+const PRELOADED_FONTS = ['Inter', 'Plus Jakarta Sans', 'DM Sans', 'Space Grotesk', 'Caveat', 'Patrick Hand'];
+
 const DAYS_OF_WEEK = [
   { value: '0', label: 'Sunday' },
   { value: '1', label: 'Monday' },
@@ -138,6 +141,36 @@ const SettingsPage: React.FC = () => {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamically load Google Fonts for typography preview
+  useEffect(() => {
+    const headingFont = formData.branding?.heading_font;
+    const bodyFont = formData.branding?.body_font;
+    const fontsToLoad = new Set<string>();
+    if (headingFont && !PRELOADED_FONTS.includes(headingFont)) fontsToLoad.add(headingFont);
+    if (bodyFont && !PRELOADED_FONTS.includes(bodyFont)) fontsToLoad.add(bodyFont);
+
+    const linkId = 'settings-preview-google-fonts';
+    const existing = document.getElementById(linkId) as HTMLLinkElement | null;
+
+    if (fontsToLoad.size === 0) {
+      existing?.remove();
+      return;
+    }
+
+    const families = Array.from(fontsToLoad)
+      .map(f => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700;800`)
+      .join('&');
+    const link = existing ?? document.createElement('link');
+    if (!existing) {
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+    }
+    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+
+    return () => { link.remove(); };
+  }, [formData.branding?.heading_font, formData.branding?.body_font]);
 
   // Initialize form data with defaults and loaded settings
   useEffect(() => {

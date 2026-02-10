@@ -132,7 +132,7 @@ const AboutPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen pt-20 pb-12 bg-white selection:bg-purple-100 selection:text-purple-900">
+    <div className="min-h-screen pt-20 pb-12 bg-site selection:bg-purple-100 selection:text-purple-900">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 md:px-12 mb-14">
         <motion.div

@@ -130,19 +130,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
           className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${!inStock ? 'grayscale opacity-60' : ''}`}
         />
         
-        {/* Out of Stock Prominent Overlay */}
-        {!inStock && (
-          <div className="absolute inset-0 bg-black/10 backdrop-blur-[2px] flex items-center justify-center z-10 p-4">
-            <motion.div 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white/95 px-4 py-2 rounded-xl shadow-xl border border-white"
-            >
-              <span className="text-gray-900 text-xs font-black uppercase tracking-widest">Unavailable</span>
-            </motion.div>
-          </div>
-        )}
-        
         {/* Wishlist Button - Appears on hover */}
         <motion.button
           initial={{ opacity: 0, scale: 0.8 }}
