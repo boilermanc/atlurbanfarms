@@ -18,6 +18,7 @@ import AboutPage from './components/AboutPage';
 import SchoolsPage from './components/SchoolsPage';
 import ContentPage from './components/ContentPage';
 import CalendarPage from './components/CalendarPage';
+import ToolsPage from './components/ToolsPage';
 import LoginPage from './src/components/auth/LoginPage';
 import RegisterPage from './src/components/auth/RegisterPage';
 import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
@@ -72,7 +73,7 @@ interface OrderData {
   isGuest: boolean;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -84,6 +85,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/terms') return 'terms';
   if (pathname === '/schools') return 'schools';
   if (pathname === '/calendar') return 'calendar';
+  if (pathname === '/tools') return 'tools';
   return 'home';
 };
 
@@ -98,6 +100,7 @@ const getPathForView = (view: ViewType): string => {
     case 'terms': return '/terms';
     case 'schools': return '/schools';
     case 'calendar': return '/calendar';
+    case 'tools': return '/tools';
     default: return '/';
   }
 };
@@ -160,6 +163,7 @@ const App: React.FC = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [categoryNavKey, setCategoryNavKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState<string | undefined>(undefined);
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
@@ -328,8 +332,9 @@ const App: React.FC = () => {
 
     setView(newView);
     setSelectedCategory(category);
-    // Clear search when navigating to a new view (except when navigating to shop with search)
-    if (newView !== 'shop') {
+    setCategoryNavKey(prev => prev + 1);
+    // Clear search when navigating away from shop, or when navigating to shop with a specific category
+    if (newView !== 'shop' || category !== 'All') {
       setSearchQuery('');
     }
 
@@ -416,7 +421,7 @@ const App: React.FC = () => {
           <>
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
-            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} initialSearchQuery={searchQuery} onNavigate={handleNavigate} />
+            <ShopPage onAddToCart={handleAddToCart} initialCategory={selectedCategory} initialSearchQuery={searchQuery} onNavigate={handleNavigate} categoryNavKey={categoryNavKey} />
             <Footer onNavigate={handleNavigate} />
           </>
         );
@@ -454,6 +459,15 @@ const App: React.FC = () => {
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <CalendarPage onBack={() => setView('home')} initialFilter={calendarFilter} />
+            <Footer onNavigate={handleNavigate} />
+          </>
+        );
+      case 'tools':
+        return (
+          <>
+            <PromotionalBanner />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            <ToolsPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
         );

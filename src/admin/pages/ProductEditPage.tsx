@@ -12,6 +12,7 @@ interface Category {
   id: string;
   name: string;
   slug: string;
+  parent_id: string | null;
 }
 
 interface ProductImage {
@@ -139,12 +140,13 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
 
   // State for product relationships (grouped/bundle)
   const [availableProducts, setAvailableProducts] = useState<SimpleProduct[]>([]);
+  const [seedlingProductIds, setSeedlingProductIds] = useState<Set<string>>(new Set());
   const [relationships, setRelationships] = useState<ProductRelationship[]>([]);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
 
   const fetchCategories = useCallback(async () => {
-    const { data } = await supabase.from('product_categories').select('*').eq('is_active', true).order('sort_order');
+    const { data } = await supabase.from('product_categories').select('id, name, slug, parent_id').eq('is_active', true).order('sort_order');
     setCategories(data || []);
   }, []);
 
@@ -177,6 +179,38 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
       quantity_available: p.quantity_available
     })));
   }, [productId]);
+
+  const fetchSeedlingProductIds = useCallback(async () => {
+    // Find the "Seedlings" parent category
+    const { data: seedlingsCat } = await supabase
+      .from('product_categories')
+      .select('id')
+      .ilike('name', 'Seedlings')
+      .is('parent_id', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!seedlingsCat) {
+      setSeedlingProductIds(new Set());
+      return;
+    }
+
+    // Get all subcategories under Seedlings
+    const { data: subCats } = await supabase
+      .from('product_categories')
+      .select('id')
+      .eq('parent_id', seedlingsCat.id);
+
+    const categoryIds = [seedlingsCat.id, ...(subCats || []).map(c => c.id)];
+
+    // Get all product IDs assigned to seedling categories
+    const { data: assignments } = await supabase
+      .from('product_category_assignments')
+      .select('product_id')
+      .in('category_id', categoryIds);
+
+    setSeedlingProductIds(new Set((assignments || []).map(a => a.product_id)));
+  }, []);
 
   const fetchRelationships = useCallback(async () => {
     if (!productId) return;
@@ -229,13 +263,14 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         .single();
       if (err) throw err;
       if (data) {
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           name: data.name || '',
           slug: data.slug || '',
           short_description: data.short_description || '',
           description: data.description || '',
           category_id: data.category_id || '',
-          category_ids: data.category_id ? [data.category_id] : [], // Will be overwritten by fetchCategoryAssignments
+          // category_ids is managed by fetchCategoryAssignments — don't overwrite here
           price: data.price?.toString() || '',
           compare_at_price: data.compare_at_price?.toString() || '',
           growing_instructions: data.growing_instructions || '',
@@ -253,7 +288,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           product_type: data.product_type || 'simple',
           external_url: data.external_url || '',
           external_button_text: data.external_button_text || 'Buy Now',
-        });
+        }));
         setImages(data.images?.sort((a: ProductImage, b: ProductImage) => a.sort_order - b.sort_order) || []);
       }
     } catch (err) {
@@ -266,12 +301,13 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
   useEffect(() => {
     fetchCategories();
     fetchAvailableProducts();
+    fetchSeedlingProductIds();
     if (isEditMode) {
       fetchProduct();
       fetchRelationships();
       fetchCategoryAssignments();
     }
-  }, [fetchCategories, fetchAvailableProducts, fetchProduct, fetchRelationships, fetchCategoryAssignments, isEditMode]);
+  }, [fetchCategories, fetchAvailableProducts, fetchSeedlingProductIds, fetchProduct, fetchRelationships, fetchCategoryAssignments, isEditMode]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -577,10 +613,15 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     ));
   };
 
-  const filteredAvailableProducts = availableProducts.filter(p =>
-    !relationships.some(r => r.child_product_id === p.id) &&
-    p.name.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredAvailableProducts = availableProducts.filter(p => {
+    // Exclude products already in the relationship list
+    if (relationships.some(r => r.child_product_id === p.id)) return false;
+    // Apply search filter
+    if (!p.name.toLowerCase().includes(productSearch.toLowerCase())) return false;
+    // For bundles, only show Seedling products
+    if (formData.product_type === 'bundle' && seedlingProductIds.size > 0 && !seedlingProductIds.has(p.id)) return false;
+    return true;
+  });
 
   if (loading) {
     return (
@@ -662,31 +703,47 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-600 mb-2">Categories</label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map(cat => {
-                  const isSelected = formData.category_ids.includes(cat.id);
-                  return (
-                    <button
-                      type="button"
-                      key={cat.id}
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          category_ids: isSelected
-                            ? prev.category_ids.filter(id => id !== cat.id)
-                            : [...prev.category_ids, cat.id],
-                        }));
-                      }}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        isSelected
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
+              <div className="space-y-3">
+                {(() => {
+                  const parents = categories.filter(c => !c.parent_id);
+                  const childrenOf = (parentId: string) => categories.filter(c => c.parent_id === parentId);
+                  const toggleCategory = (catId: string) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      category_ids: prev.category_ids.includes(catId)
+                        ? prev.category_ids.filter(id => id !== catId)
+                        : [...prev.category_ids, catId],
+                    }));
+                  };
+                  const pillClass = (selected: boolean) =>
+                    `px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      selected ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`;
+
+                  return parents.map(parent => {
+                    const children = childrenOf(parent.id);
+                    const parentSelected = formData.category_ids.includes(parent.id);
+                    return (
+                      <div key={parent.id}>
+                        <button type="button" onClick={() => toggleCategory(parent.id)} className={pillClass(parentSelected)}>
+                          {parent.name}
+                        </button>
+                        {children.length > 0 && (
+                          <div className="ml-4 mt-1.5 flex flex-wrap gap-2">
+                            {children.map(child => {
+                              const childSelected = formData.category_ids.includes(child.id);
+                              return (
+                                <button type="button" key={child.id} onClick={() => toggleCategory(child.id)} className={pillClass(childSelected)}>
+                                  {child.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
               {formData.category_ids.length === 0 && (
                 <p className="text-slate-400 text-sm mt-2">Click to select one or more categories</p>
@@ -828,12 +885,30 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
                 </div>
               )}
             </div>
+          ) : formData.product_type === 'external' ? (
+            <div className="space-y-4">
+              <p className="text-slate-600 text-sm">
+                External products link to third-party websites. Set the stock status below.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Stock Status</label>
+                <select
+                  name="stock_status"
+                  value={formData.stock_status}
+                  onChange={handleChange}
+                  className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="in_stock">In Stock</option>
+                  <option value="out_of_stock">Out of Stock</option>
+                </select>
+                <p className="text-slate-500 text-sm mt-1">Set whether this external product is currently available</p>
+              </div>
+            </div>
           ) : (
             <div className="bg-slate-50 rounded-xl p-4">
               <p className="text-slate-600 text-sm">
                 {formData.product_type === 'grouped' && 'Grouped products inherit inventory from their child products. Manage inventory on individual products within this group.'}
                 {formData.product_type === 'bundle' && 'Bundle inventory is calculated from the included products. Manage inventory on individual products within this bundle.'}
-                {formData.product_type === 'external' && 'External products link to third-party websites and do not track inventory here.'}
               </p>
               <p className="text-slate-500 text-xs mt-2">
                 To enable inventory tracking, change the product type to "Simple" above.
@@ -975,10 +1050,16 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
                     </div>
                   </div>
                 ))}
-                <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="mt-4 pt-4 border-t border-slate-200 space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Bundle total value:</span>
+                    <span className="text-slate-600">Items in bundle:</span>
                     <span className="font-semibold text-slate-800">
+                      {relationships.reduce((sum, rel) => sum + rel.quantity, 0)} item{relationships.reduce((sum, rel) => sum + rel.quantity, 0) !== 1 ? 's' : ''} ({relationships.length} product{relationships.length !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Bundle Total Value:</span>
+                    <span className="font-semibold text-emerald-600">
                       ${relationships.reduce((sum, rel) => sum + (rel.product?.price || 0) * rel.quantity, 0).toFixed(2)}
                     </span>
                   </div>
@@ -1146,7 +1227,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-800">Select Product</h3>
+              <h3 className="text-lg font-semibold text-slate-800">{formData.product_type === 'bundle' ? 'Select Seedling Product' : 'Select Product'}</h3>
               <button
                 type="button"
                 onClick={() => { setShowProductPicker(false); setProductSearch(''); }}
@@ -1159,14 +1240,14 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               type="text"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              placeholder="Search products..."
+              placeholder={formData.product_type === 'bundle' ? 'Search seedling products...' : 'Search products...'}
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all mb-4"
             />
             <div className="flex-1 overflow-y-auto space-y-2">
               {filteredAvailableProducts.length === 0 ? (
                 <div className="text-center py-8 text-slate-500">
                   <p>No products found</p>
-                  <p className="text-sm">Only simple, active products can be added</p>
+                  <p className="text-sm">{formData.product_type === 'bundle' ? 'Only active Seedling products can be added to bundles' : 'Only simple, active products can be added'}</p>
                 </div>
               ) : (
                 filteredAvailableProducts.map((product) => (

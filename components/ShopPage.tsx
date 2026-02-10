@@ -12,6 +12,7 @@ interface ShopPageProps {
   initialCategory?: string;
   initialSearchQuery?: string;
   onNavigate?: (view: string) => void;
+  categoryNavKey?: number;
 }
 
 // Category type with hierarchy
@@ -116,7 +117,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
                   name={product.name}
                   price={product.price}
                   category={product.category}
-                  inStock={product.stock > 0}
+                  inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => onProductClick(rawProduct)}
                   compareAtPrice={product.compareAtPrice ?? null}
@@ -211,7 +212,7 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
                   name={product.name}
                   price={product.price}
                   category={product.category}
-                  inStock={product.stock > 0}
+                  inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => onProductClick(rawProduct)}
                   compareAtPrice={product.compareAtPrice ?? null}
@@ -241,7 +242,7 @@ const isProductInStock = (rawProduct: any): boolean => {
   return (rawProduct.quantity_available || 0) > 0;
 };
 
-const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All', initialSearchQuery = '', onNavigate }) => {
+const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All', initialSearchQuery = '', onNavigate, categoryNavKey }) => {
   const { products: rawProducts, loading: productsLoading, error: productsError } = useProducts();
   const { categories: rawCategories, loading: categoriesLoading } = useCategories();
   const { user } = useAuth();
@@ -282,6 +283,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   }, [initialSearchQuery]);
 
   // Sync active parent when initialCategory prop changes (e.g., from header navigation)
+  // categoryNavKey ensures this fires even when re-selecting the same category
   useEffect(() => {
     if (initialCategory === 'All') {
       setActiveParentId(null);
@@ -301,7 +303,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         }
       }
     }
-  }, [initialCategory, rawCategories]);
+    // Clear search and favorites when navigating via header/dropdown
+    setSearchQuery('');
+    setShowFavorites(false);
+  }, [initialCategory, rawCategories, categoryNavKey]);
 
   // Map Supabase data to local types
   const products = rawProducts.map(mapProduct);
@@ -515,11 +520,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-4"
           >
-            The <span className="text-emerald-600">Nursery</span> Shop
+            The <span className="text-emerald-600">Aeroponic</span> Shop
           </motion.h1>
           <p className="text-gray-500 text-lg max-w-2xl">
-            Browse our current inventory of premium, climate-controlled seedlings,
-            quality merchandise, and growing supplies.
+            Premium seedlings, growing supplies, and everything you need for your aeroponic garden needs.
           </p>
         </div>
 
@@ -732,7 +736,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                           name={product.name}
                           price={product.price}
                           category={product.category}
-                          inStock={product.stock > 0}
+                          inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                           onAddToCart={(qty) => onAddToCart(product, qty)}
                           onClick={() => setSelectedProduct(rawProduct)}
                           compareAtPrice={product.compareAtPrice ?? null}
@@ -892,7 +896,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       name={product.name}
                       price={product.price}
                       category={product.category}
-                      inStock={product.stock > 0}
+                      inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                       onAddToCart={(qty) => onAddToCart(product, qty)}
                       onClick={() => setSelectedProduct(rawProduct)}
                       compareAtPrice={product.compareAtPrice ?? null}

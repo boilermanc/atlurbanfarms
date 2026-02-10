@@ -166,11 +166,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
               {saleBadge || 'On Sale!'}
             </span>
           )}
-          {!inStock && (
-            <span className="px-3 py-1.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-lg shadow-red-200">
-              Out of Stock
-            </span>
-          )}
         </div>
       </div>
 
@@ -183,15 +178,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex flex-col items-end text-right leading-tight">
             {isOnSale ? (
               <>
-                <span className="text-sm font-semibold text-gray-400 line-through tracking-tight">
+                <span className="text-xl font-semibold text-gray-400 line-through tracking-tight">
                   ${compareAtPrice!.toFixed(2)}
                 </span>
-                <span className="text-2xl font-black text-red-500">
+                <span className="text-xl font-black text-red-500">
                   ${price.toFixed(2)}
                 </span>
               </>
             ) : (
-              <span className="text-2xl font-black brand-text">
+              <span className="text-xl font-black brand-text">
                 ${price.toFixed(2)}
               </span>
             )}
@@ -199,7 +194,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         </div>
         
         {(shortDescription || description) && (
-          <p className="text-gray-400 text-sm mb-6 line-clamp-2 leading-relaxed font-medium">
+          <p className="text-gray-400 text-sm mb-6 line-clamp-3 leading-relaxed font-medium">
             {shortDescription || description}
           </p>
         )}
@@ -313,7 +308,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                   onClick={handleNotifyClick}
                   className="w-full py-4 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                   Notify When Available
                 </motion.button>
               )}

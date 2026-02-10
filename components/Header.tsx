@@ -8,7 +8,7 @@ import { useAuth } from '../src/hooks/useAuth';
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'login' | 'account', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'login' | 'account', category?: string) => void;
   currentView?: string;
   onSearch?: (query: string) => void;
 }
@@ -394,17 +394,24 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                   </AnimatePresence>
                 </div>
 
-                {/* Support */}
-                <button
-                  onClick={() => onNavigate('faq')}
-                  className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
-                    currentView === 'faq'
-                      ? 'brand-text brand-bg-light'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  Support
-                </button>
+                {/* Other Nav Items */}
+                {[
+                  { key: 'faq', label: 'Guides' },
+                  { key: 'schools', label: 'Schools' },
+                  { key: 'calendar', label: 'Calendar' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => onNavigate(item.key as any)}
+                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                      currentView === item.key
+                        ? 'brand-text brand-bg-light'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
 
                 {/* About Dropdown */}
                 <div
@@ -459,23 +466,17 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                   </AnimatePresence>
                 </div>
 
-                {/* Other Nav Items */}
-                {[
-                  { key: 'schools', label: 'Schools' },
-                  { key: 'calendar', label: 'Calendar' },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => onNavigate(item.key as any)}
-                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
-                      currentView === item.key
-                        ? 'brand-text brand-bg-light'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                {/* Tools */}
+                <button
+                  onClick={() => onNavigate('tools')}
+                  className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                    currentView === 'tools'
+                      ? 'brand-text brand-bg-light'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Tools
+                </button>
               </nav>
             </div>
 
@@ -772,7 +773,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 <div className="px-5 py-4 border-t border-gray-100">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Menu</h3>
                   <div className="space-y-1">
-                    {/* Support */}
+                    {/* Guides */}
                     <button
                       onClick={() => {
                         onNavigate('faq');
@@ -785,39 +786,10 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       }`}
                     >
                       <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
-                      Support
+                      Guides
                     </button>
-
-                    {/* About Us + sub-items */}
-                    <button
-                      onClick={() => handleAboutNavigate('')}
-                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
-                        currentView === 'about'
-                          ? 'brand-bg-light brand-text font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50 font-semibold'
-                      }`}
-                    >
-                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      About Us
-                    </button>
-                    {[
-                      { label: 'Our History', hash: 'our-history' },
-                      { label: 'Our Philosophy', hash: 'our-philosophy' },
-                      { label: 'Our Team', hash: 'our-team' },
-                    ].map((item) => (
-                      <button
-                        key={item.hash}
-                        onClick={() => handleAboutNavigate(item.hash)}
-                        className="w-full text-left flex items-center gap-2 py-2.5 px-3 pl-11 rounded-lg transition-colors text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium"
-                      >
-                        <span className="text-gray-300 text-sm">›</span>
-                        {item.label}
-                      </button>
-                    ))}
 
                     {/* Schools */}
                     <button
@@ -853,6 +825,53 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                         <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                       Calendar
+                    </button>
+
+                    {/* About Us + sub-items */}
+                    <button
+                      onClick={() => handleAboutNavigate('')}
+                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
+                        currentView === 'about'
+                          ? 'brand-bg-light brand-text font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50 font-semibold'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      About Us
+                    </button>
+                    {[
+                      { label: 'Our History', hash: 'our-history' },
+                      { label: 'Our Philosophy', hash: 'our-philosophy' },
+                      { label: 'Our Team', hash: 'our-team' },
+                    ].map((item) => (
+                      <button
+                        key={item.hash}
+                        onClick={() => handleAboutNavigate(item.hash)}
+                        className="w-full text-left flex items-center gap-2 py-2.5 px-3 pl-11 rounded-lg transition-colors text-gray-500 hover:bg-gray-50 hover:text-gray-700 font-medium"
+                      >
+                        <span className="text-gray-300 text-sm">›</span>
+                        {item.label}
+                      </button>
+                    ))}
+
+                    {/* Tools */}
+                    <button
+                      onClick={() => {
+                        onNavigate('tools');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
+                        currentView === 'tools'
+                          ? 'brand-bg-light brand-text font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50 font-medium'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+                      </svg>
+                      Tools
                     </button>
                   </div>
                 </div>

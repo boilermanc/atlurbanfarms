@@ -31,6 +31,9 @@ interface Product {
   primary_image: ProductImage | null;
   created_at: string;
   purchase_count?: number;
+  product_type?: string;
+  stock_status?: string;
+  track_inventory?: boolean;
 }
 
 interface ProductsPageProps {
@@ -144,6 +147,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'active' && product.is_active) ||
         (statusFilter === 'inactive' && !product.is_active);
+      // Hide out-of-stock external products by default (unless searching for them specifically)
+      const isOosExternal = product.product_type === 'external' && product.stock_status === 'out_of_stock';
+      if (isOosExternal && !searchQuery) return false;
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [products, searchQuery, categoryFilter, statusFilter]);
@@ -272,7 +278,15 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                         <span className="text-slate-800 font-semibold">${product.price.toFixed(2)}</span>
                       )}
                     </td>
-                    <td className="py-4 px-6"><span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span></td>
+                    <td className="py-4 px-6">
+                      {product.product_type === 'external' ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${product.stock_status === 'in_stock' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                          {product.stock_status === 'in_stock' ? 'In Stock' : 'Out of Stock'}
+                        </span>
+                      ) : (
+                        <span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span>
+                      )}
+                    </td>
                     <td className="py-4 px-6"><span className="text-slate-600 font-medium">{product.purchase_count || 0}</span></td>
                     <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
                       <button

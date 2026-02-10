@@ -166,14 +166,13 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
           <LinkIcon size={18} />
         </MenuButton>
 
-        {editor.isActive('link') && (
-          <MenuButton
-            onClick={() => editor.chain().focus().unsetLink().run()}
-            title="Remove Link"
-          >
-            <Unlink size={18} />
-          </MenuButton>
-        )}
+        <MenuButton
+          onClick={() => editor.chain().focus().unsetLink().run()}
+          disabled={!editor.isActive('link')}
+          title="Remove Link"
+        >
+          <Unlink size={18} />
+        </MenuButton>
 
         <div className="w-px h-6 bg-slate-200 mx-1" />
 

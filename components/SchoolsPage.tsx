@@ -22,8 +22,11 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
 
   // Get CMS content
   const heroContent = getSection('hero');
+  const benefitsContent = getSection('benefits');
+  const featuresContent = getSection('features');
   const contactContent = getSection('contact');
   const testimonialContent = getSection('testimonial');
+  const ctaContent = getSection('cta');
 
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
@@ -162,12 +165,13 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
             viewport={{ once: true }}
             className="text-center mb-10"
           >
-            <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Why Partner With Us</span>
-            <h2 className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6">
-              Benefits for Your <span className="text-emerald-600">School</span>
-            </h2>
+            <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{benefitsContent.tagline || 'Why Partner With Us'}</span>
+            <h2
+              className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6"
+              dangerouslySetInnerHTML={{ __html: benefitsContent.headline || 'Benefits for Your <span class="text-emerald-600">School</span>' }}
+            />
             <p className="text-lg text-gray-500 max-w-2xl mx-auto">
-              Our program goes beyond just providing plants. We're committed to supporting comprehensive agricultural education.
+              {benefitsContent.description || 'Our program goes beyond just providing plants. We\'re committed to supporting comprehensive agricultural education.'}
             </p>
           </motion.div>
 
@@ -185,8 +189,8 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                 <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 text-emerald-600">
                   {benefit.icon}
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{benefit.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{benefit.description}</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">{benefitsContent[`benefit_${idx + 1}_title`] || benefit.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{benefitsContent[`benefit_${idx + 1}_description`] || benefit.description}</p>
               </motion.div>
             ))}
           </div>
@@ -202,10 +206,11 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">What's Included</span>
-              <h2 className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-tight">
-                Everything You Need to <span className="text-emerald-600">Get Growing.</span>
-              </h2>
+              <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{featuresContent.tagline || 'What\'s Included'}</span>
+              <h2
+                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-tight"
+                dangerouslySetInnerHTML={{ __html: featuresContent.headline || 'Everything You Need to <span class="text-emerald-600">Get Growing.</span>' }}
+              />
               <div className="space-y-8">
                 {programFeatures.map((feature, idx) => (
                   <div key={idx} className="flex gap-6">
@@ -213,8 +218,8 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                       {idx + 1}
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 mb-2">{feature.title}</h4>
-                      <p className="text-gray-500 text-sm leading-relaxed">{feature.description}</p>
+                      <h4 className="font-bold text-gray-900 mb-2">{featuresContent[`feature_${idx + 1}_title`] || feature.title}</h4>
+                      <p className="text-gray-500 text-sm leading-relaxed">{featuresContent[`feature_${idx + 1}_description`] || feature.description}</p>
                     </div>
                   </div>
                 ))}
@@ -229,14 +234,14 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
             >
               <div className="absolute -inset-4 bg-gradient-to-br from-emerald-400 to-purple-500 rounded-[3.5rem] blur-2xl opacity-10" />
               <img
-                src="https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&q=80&w=800"
+                src={featuresContent.image_url || 'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&q=80&w=800'}
                 alt="School garden program"
                 className="relative rounded-[3rem] shadow-2xl border-4 border-white aspect-[4/5] object-cover"
               />
               <div className="absolute -bottom-6 -left-6 bg-white p-6 rounded-3xl shadow-xl border border-gray-100">
                 <p className="text-[10px] font-black uppercase text-emerald-600 mb-1">Schools Served</p>
-                <p className="text-3xl font-black text-gray-900">150+</p>
-                <p className="text-xs text-gray-400 font-medium">across Georgia</p>
+                <p className="text-3xl font-black text-gray-900">{featuresContent.schools_served_value || '150+'}</p>
+                <p className="text-xs text-gray-400 font-medium">{featuresContent.schools_served_label || 'across Georgia'}</p>
               </div>
             </motion.div>
           </div>
@@ -252,12 +257,13 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Get Started</span>
-              <h2 className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6 leading-tight">
-                Ready to Bring Urban Farming to Your <span className="text-emerald-600">School?</span>
-              </h2>
+              <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{contactContent.tagline || 'Get Started'}</span>
+              <h2
+                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6 leading-tight"
+                dangerouslySetInnerHTML={{ __html: contactContent.headline || 'Ready to Bring Urban Farming to Your <span class="text-emerald-600">School?</span>' }}
+              />
               <p className="text-lg text-gray-500 mb-8 leading-relaxed">
-                Fill out the form and our Education Team will reach out within 2 business days to discuss your school's needs and how we can help you get growing.
+                {contactContent.description || 'Fill out the form and our Education Team will reach out within 2 business days to discuss your school\'s needs and how we can help you get growing.'}
               </p>
 
               <div className="space-y-6">
@@ -269,8 +275,8 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-gray-900">Email Us Directly</p>
-                    <a href="mailto:schools@atlurbanfarms.com" className="text-emerald-600 font-medium hover:underline">schools@atlurbanfarms.com</a>
+                    <p className="text-sm font-bold text-gray-900">{contactContent.email_label || 'Email Us Directly'}</p>
+                    <a href={`mailto:${contactContent.email || 'schools@atlurbanfarms.com'}`} className="text-emerald-600 font-medium hover:underline">{contactContent.email || 'schools@atlurbanfarms.com'}</a>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -280,8 +286,8 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-gray-900">Call Our Education Team</p>
-                    <a href="tel:+14045551234" className="text-emerald-600 font-medium hover:underline">(404) 555-1234</a>
+                    <p className="text-sm font-bold text-gray-900">{contactContent.phone_label || 'Call Our Education Team'}</p>
+                    <a href={`tel:${contactContent.phone || '(404) 555-1234'}`} className="text-emerald-600 font-medium hover:underline">{contactContent.phone || '(404) 555-1234'}</a>
                   </div>
                 </div>
               </div>
@@ -423,15 +429,15 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                 <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
               <p className="text-2xl md:text-3xl text-white font-medium leading-relaxed mb-8">
-                "ATL Urban Farms transformed our science curriculum. Our students are now excited to come to class and check on their plants every day. The curriculum resources made it easy for our teachers to integrate gardening into multiple subjects."
+                "{testimonialContent.quote || 'ATL Urban Farms transformed our science curriculum. Our students are now excited to come to class and check on their plants every day. The curriculum resources made it easy for our teachers to integrate gardening into multiple subjects.'}"
               </p>
               <div className="flex items-center justify-center gap-4">
                 <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-emerald-400">
-                  <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100" alt="Principal" className="w-full h-full object-cover" />
+                  <img src={testimonialContent.author_image || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100'} alt="Principal" className="w-full h-full object-cover" />
                 </div>
                 <div className="text-left">
-                  <p className="font-bold text-white">Dr. Lisa Mitchell</p>
-                  <p className="text-sm text-gray-400">Principal, Westside Academy</p>
+                  <p className="font-bold text-white">{testimonialContent.author_name || 'Dr. Lisa Mitchell'}</p>
+                  <p className="text-sm text-gray-400">{testimonialContent.author_title || 'Principal, Westside Academy'}</p>
                 </div>
               </div>
             </div>
@@ -443,27 +449,27 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       <section className="px-4 md:px-12 py-16">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mb-6">
-            Questions? We're Here to Help.
+            {ctaContent.headline || 'Questions? We\'re Here to Help.'}
           </h2>
           <p className="text-lg text-gray-500 mb-8">
-            Not sure if the program is right for your school? Our Education Team is happy to answer any questions.
+            {ctaContent.description || 'Not sure if the program is right for your school? Our Education Team is happy to answer any questions.'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:schools@atlurbanfarms.com"
+              href={`mailto:${contactContent.email || 'schools@atlurbanfarms.com'}`}
               className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-colors inline-flex items-center justify-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              Email Our Team
+              {ctaContent.primary_button_text || 'Email Our Team'}
             </a>
             <button
               onClick={() => onNavigate('faq')}
               className="px-8 py-4 bg-gray-100 text-gray-900 rounded-2xl font-bold hover:bg-gray-200 transition-colors"
             >
-              View FAQ
+              {ctaContent.secondary_button_text || 'View FAQ'}
             </button>
           </div>
         </div>
