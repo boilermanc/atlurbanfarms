@@ -408,9 +408,22 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         console.warn('Some carriers did not return rates:', data.carrier_errors);
       }
 
-      setShippingRates(data.rates);
+      // Deduplicate rates: keep cheapest per carrier+service to ensure
+      // all carriers (UPS, USPS, etc.) are visible, not just the cheapest carrier
+      const bestByService = new Map<string, ShippingRate>();
+      for (const rate of data.rates) {
+        const key = `${rate.carrier_code}::${rate.service_code}`;
+        const existing = bestByService.get(key);
+        if (!existing || rate.shipping_amount < existing.shipping_amount) {
+          bestByService.set(key, rate);
+        }
+      }
+      const deduped = Array.from(bestByService.values())
+        .sort((a, b) => a.shipping_amount - b.shipping_amount);
+
+      setShippingRates(deduped);
       // Auto-select the cheapest rate
-      const cheapest = data.rates[0];
+      const cheapest = deduped[0];
       setSelectedRate(cheapest);
       setShippingCost(cheapest.shipping_amount);
       setUseManualShipping(false);
@@ -509,18 +522,50 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           pickup_time_end: null,
         });
       } else {
-        // Pickup — still populate shipping name from customer (NOT NULL in DB)
+        // Pickup — shipping address fields are NOT NULL in DB, so populate them:
+        // 1. Use customer's default saved address if available
+        // 2. Fall back to the pickup location address
+        const defaultAddr = customerAddresses.find((addr) => addr.is_default);
+        const pickupLoc = pickupLocations.find((loc) => loc.id === selectedPickupLocation);
+
+        let pickupShippingLine1: string;
+        let pickupShippingLine2: string | null;
+        let pickupShippingCity: string;
+        let pickupShippingState: string;
+        let pickupShippingZip: string;
+
+        if (defaultAddr) {
+          pickupShippingLine1 = defaultAddr.address_line1;
+          pickupShippingLine2 = defaultAddr.address_line2 || null;
+          pickupShippingCity = defaultAddr.city;
+          pickupShippingState = defaultAddr.state;
+          pickupShippingZip = defaultAddr.zip;
+        } else if (pickupLoc) {
+          pickupShippingLine1 = pickupLoc.address_line1;
+          pickupShippingLine2 = pickupLoc.address_line2 || null;
+          pickupShippingCity = pickupLoc.city;
+          pickupShippingState = pickupLoc.state;
+          pickupShippingZip = pickupLoc.postal_code;
+        } else {
+          // Shouldn't happen (validation requires a pickup location), but safe fallback
+          pickupShippingLine1 = 'Pickup Order';
+          pickupShippingLine2 = null;
+          pickupShippingCity = 'Atlanta';
+          pickupShippingState = 'GA';
+          pickupShippingZip = '30301';
+        }
+
         Object.assign(orderData, {
           shipping_first_name: selectedCustomer!.first_name || '',
           shipping_last_name: selectedCustomer!.last_name || '',
-          shipping_address_line1: null,
-          shipping_address_line2: null,
-          shipping_city: null,
-          shipping_state: null,
-          shipping_zip: null,
-          shipping_country: null,
+          shipping_address_line1: pickupShippingLine1,
+          shipping_address_line2: pickupShippingLine2,
+          shipping_city: pickupShippingCity,
+          shipping_state: pickupShippingState,
+          shipping_zip: pickupShippingZip,
+          shipping_country: 'US',
           shipping_phone: selectedCustomer!.phone,
-          shipping_method: null,
+          shipping_method: 'Local Pickup',
           shipping_cost: 0,
           is_pickup: true,
           pickup_location_id: selectedPickupLocation,
@@ -591,6 +636,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             city: shippingAddress.city,
             state: shippingAddress.state,
             zip: shippingAddress.zip,
+          } : undefined,
+          pickupInfo: deliveryMethod === 'pickup' ? {
+            locationName: pickupLocations.find(l => l.id === selectedPickupLocation)?.name || 'Pickup Location',
+            date: selectedPickupSlot!.slot_date,
+            time: `${formatPickupTime(selectedPickupSlot!.start_time)} - ${formatPickupTime(selectedPickupSlot!.end_time)}`,
           } : undefined,
         });
       } catch (emailError) {
@@ -973,7 +1023,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                   {shippingRates.length > 0 && !useManualShipping && (
                     <div className="space-y-2 mb-4">
                       <p className="text-xs text-slate-500 mb-2">Select a shipping rate:</p>
-                      {shippingRates.slice(0, 6).map((rate) => (
+                      {shippingRates.map((rate) => (
                         <button
                           key={rate.rate_id}
                           type="button"
