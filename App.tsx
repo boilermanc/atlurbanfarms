@@ -117,7 +117,7 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
   const content = getSection('schools_promo');
 
   return (
-    <section className="py-16 px-4 md:px-12 bg-white overflow-hidden relative border-b border-gray-200">
+    <section className="py-16 px-4 md:px-12 bg-site-secondary overflow-hidden relative border-b border-gray-200">
       <div className="absolute top-0 right-0 p-16 opacity-[0.04] pointer-events-none">
         <svg className="w-64 h-64 text-emerald-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>
       </div>
@@ -188,6 +188,10 @@ const App: React.FC = () => {
     document.documentElement.style.setProperty('--bg-color', bgColor);
     document.body.style.backgroundColor = bgColor;
 
+    // Apply secondary background color (alternating sections)
+    const bgSecondary = brandingSettings?.secondary_background_color || '#ffffff';
+    document.documentElement.style.setProperty('--bg-secondary', bgSecondary);
+
     // Cache brand settings in localStorage for instant apply on next page load
     try {
       localStorage.setItem('atluf_brand_colors', JSON.stringify({
@@ -198,9 +202,10 @@ const App: React.FC = () => {
         headingFont: brandingSettings?.heading_font || 'Plus Jakarta Sans',
         bodyFont: brandingSettings?.body_font || 'Inter',
         backgroundColor: bgColor,
+        secondaryBackgroundColor: bgSecondary,
       }));
     } catch {}
-  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.heading_font, brandingSettings?.body_font]);
+  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.secondary_background_color, brandingSettings?.heading_font, brandingSettings?.body_font]);
 
   // Dynamically load Google Fonts and apply font CSS variables
   useEffect(() => {

@@ -355,9 +355,34 @@ async function checkShippingZone(
 }
 
 /**
- * Get enabled carrier IDs from ShipEngine account
+ * Get enabled carrier IDs.
+ * First checks carrier_configurations table for synced carriers with ShipEngine carrier IDs.
+ * Falls back to fetching all active carriers from ShipEngine API if none configured in DB.
  */
-async function getCarrierIds(apiKey: string): Promise<string[]> {
+async function getCarrierIds(supabaseClient: any, apiKey: string): Promise<string[]> {
+  // Try DB-configured carriers first
+  const { data: dbCarriers, error: dbError } = await supabaseClient
+    .from('carrier_configurations')
+    .select('carrier_name, api_credentials, is_enabled')
+    .eq('is_enabled', true)
+
+  if (!dbError && dbCarriers && dbCarriers.length > 0) {
+    const dbIds = dbCarriers
+      .filter((c: any) => c.api_credentials?.shipengine_carrier_id)
+      .map((c: any) => c.api_credentials.shipengine_carrier_id as string)
+
+    if (dbIds.length > 0) {
+      console.log(`Using ${dbIds.length} carrier(s) from carrier_configurations:`,
+        dbCarriers
+          .filter((c: any) => c.is_enabled && c.api_credentials?.shipengine_carrier_id)
+          .map((c: any) => `${c.carrier_name} (${c.api_credentials.shipengine_carrier_id})`)
+      )
+      return dbIds
+    }
+  }
+
+  // Fallback: fetch all active carriers from ShipEngine API
+  console.log('No enabled carriers in carrier_configurations with ShipEngine IDs, falling back to ShipEngine API discovery')
   const response = await fetch('https://api.shipengine.com/v1/carriers', {
     method: 'GET',
     headers: {
@@ -372,10 +397,11 @@ async function getCarrierIds(apiKey: string): Promise<string[]> {
   }
 
   const data = await response.json()
-  // Return IDs of all active carriers
-  return (data.carriers || [])
-    .filter((c: any) => !c.disabled)
-    .map((c: any) => c.carrier_id)
+  const carriers = (data.carriers || []).filter((c: any) => !c.disabled)
+  console.log(`ShipEngine API returned ${carriers.length} active carrier(s):`,
+    carriers.map((c: any) => `${c.friendly_name || c.carrier_code} (${c.carrier_id})`)
+  )
+  return carriers.map((c: any) => c.carrier_id)
 }
 
 /**
@@ -660,8 +686,8 @@ serve(async (req) => {
       )
     }
 
-    // Get enabled carrier IDs
-    const carrierIds = await getCarrierIds(integrationSettings.shipengine_api_key)
+    // Get enabled carrier IDs (from DB first, then ShipEngine API fallback)
+    const carrierIds = await getCarrierIds(supabaseClient, integrationSettings.shipengine_api_key)
 
     if (carrierIds.length === 0) {
       return new Response(
@@ -669,7 +695,7 @@ serve(async (req) => {
           success: false,
           error: {
             code: 'NO_CARRIERS',
-            message: 'No active carriers configured in ShipEngine account'
+            message: 'No active carriers found. Sync carriers in Admin > Shipping > Carriers, or check ShipEngine account.'
           }
         }),
         {
@@ -868,7 +894,7 @@ serve(async (req) => {
       }
     }
 
-    const response: RatesResponse = {
+    const response: RatesResponse & { carrier_ids_used?: string[] } = {
       success: true,
       rates,
       ship_from: warehouseAddress,
@@ -883,7 +909,8 @@ serve(async (req) => {
         packages: packageBreakdown.breakdown,
         summary: packageBreakdown.summary
       } : undefined,
-      carrier_errors: carrierErrors.length > 0 ? carrierErrors : undefined
+      carrier_errors: carrierErrors.length > 0 ? carrierErrors : undefined,
+      carrier_ids_used: carrierIds,
     }
 
     return new Response(

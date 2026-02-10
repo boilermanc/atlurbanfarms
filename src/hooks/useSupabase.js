@@ -1284,7 +1284,8 @@ export function useBrandingSettings() {
     secondary_brand_color: '#047857',
     heading_font: 'Plus Jakarta Sans',
     body_font: 'Inter',
-    background_color: '#fafafa'
+    background_color: '#fafafa',
+    secondary_background_color: '#ffffff'
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

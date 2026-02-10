@@ -403,16 +403,20 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         return;
       }
 
-      // Log carrier errors if any carriers failed to return rates
+      // Log carrier IDs and errors for debugging
+      if (data.carrier_ids_used) {
+        console.log('Carrier IDs used for rate request:', data.carrier_ids_used);
+      }
       if (data.carrier_errors?.length > 0) {
         console.warn('Some carriers did not return rates:', data.carrier_errors);
       }
 
-      // Deduplicate rates: keep cheapest per carrier+service to ensure
-      // all carriers (UPS, USPS, etc.) are visible, not just the cheapest carrier
+      // Deduplicate rates: keep cheapest per carrier_id + service_code.
+      // Using carrier_id (not carrier_code) so rates from different accounts
+      // for the same carrier (e.g., ShipStation UPS vs Direct UPS) both appear.
       const bestByService = new Map<string, ShippingRate>();
       for (const rate of data.rates) {
-        const key = `${rate.carrier_code}::${rate.service_code}`;
+        const key = `${rate.carrier_id}::${rate.service_code}`;
         const existing = bestByService.get(key);
         if (!existing || rate.shipping_amount < existing.shipping_amount) {
           bestByService.set(key, rate);
@@ -569,6 +573,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           shipping_cost: 0,
           is_pickup: true,
           pickup_location_id: selectedPickupLocation,
+          pickup_schedule_id: selectedPickupSlot!.schedule_id,
           pickup_date: selectedPickupSlot!.slot_date,
           pickup_time_start: selectedPickupSlot!.start_time,
           pickup_time_end: selectedPickupSlot!.end_time,

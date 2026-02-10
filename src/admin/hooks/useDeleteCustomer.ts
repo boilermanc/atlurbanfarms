@@ -67,13 +67,20 @@ export function useDeleteCustomer() {
         }
       }
 
-      // Delete the customer record itself
-      const { error: customerDeleteError } = await supabase
+      // Delete the customer record itself.
+      // Use .select() to return the deleted row — if nothing comes back,
+      // the delete was silently blocked (e.g. by RLS).
+      const { data: deleted, error: customerDeleteError } = await supabase
         .from('customers')
         .delete()
-        .eq('id', customerId);
+        .eq('id', customerId)
+        .select('id');
 
       if (customerDeleteError) throw customerDeleteError;
+
+      if (!deleted || deleted.length === 0) {
+        throw new Error('Delete was blocked — you may not have permission to remove this customer');
+      }
 
       return { success: true };
     } catch (err: any) {

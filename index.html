@@ -26,12 +26,15 @@
               root.style.setProperty('--brand-secondary', c.secondary);
               root.style.setProperty('--brand-secondary-rgb', c.secondaryRgb);
             }
-            // Apply cached background color
+            // Apply cached background colors
             if (c.backgroundColor) {
               root.style.setProperty('--bg-color', c.backgroundColor);
               document.addEventListener('DOMContentLoaded', function() {
                 document.body.style.backgroundColor = c.backgroundColor;
               });
+            }
+            if (c.secondaryBackgroundColor) {
+              root.style.setProperty('--bg-secondary', c.secondaryBackgroundColor);
             }
             // Apply cached fonts
             if (c.headingFont) {

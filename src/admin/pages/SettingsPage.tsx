@@ -53,6 +53,7 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     heading_font: { value: 'Plus Jakarta Sans', dataType: 'string' },
     body_font: { value: 'Inter', dataType: 'string' },
     background_color: { value: '#fafafa', dataType: 'string' },
+    secondary_background_color: { value: '#ffffff', dataType: 'string' },
     announcement_bar_enabled: { value: false, dataType: 'boolean' },
     announcement_bar_text: { value: '', dataType: 'string' },
     social_facebook: { value: '', dataType: 'string' },
@@ -142,6 +143,9 @@ const SettingsPage: React.FC = () => {
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Track when dynamically-loaded fonts become available so previews re-render
+  const [fontLoadKey, setFontLoadKey] = useState(0);
+
   // Dynamically load Google Fonts for typography preview
   useEffect(() => {
     const headingFont = formData.branding?.heading_font;
@@ -151,26 +155,39 @@ const SettingsPage: React.FC = () => {
     if (bodyFont && !PRELOADED_FONTS.includes(bodyFont)) fontsToLoad.add(bodyFont);
 
     const linkId = 'settings-preview-google-fonts';
-    const existing = document.getElementById(linkId) as HTMLLinkElement | null;
+    let link = document.getElementById(linkId) as HTMLLinkElement | null;
 
     if (fontsToLoad.size === 0) {
-      existing?.remove();
+      link?.remove();
       return;
     }
 
     const families = Array.from(fontsToLoad)
       .map(f => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700;800`)
       .join('&');
-    const link = existing ?? document.createElement('link');
-    if (!existing) {
+    const newHref = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+
+    if (!link) {
+      link = document.createElement('link');
       link.id = linkId;
       link.rel = 'stylesheet';
       document.head.appendChild(link);
     }
-    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
 
-    return () => { link.remove(); };
+    // Update href in-place (keeps previously loaded fonts available during load)
+    if (link.href !== newHref) {
+      link.onload = () => {
+        // After stylesheet loads, wait for font files to finish loading then re-render
+        document.fonts.ready.then(() => setFontLoadKey(k => k + 1));
+      };
+      link.href = newHref;
+    }
   }, [formData.branding?.heading_font, formData.branding?.body_font]);
+
+  // Cleanup the dynamic font link on unmount only
+  useEffect(() => {
+    return () => { document.getElementById('settings-preview-google-fonts')?.remove(); };
+  }, []);
 
   // Initialize form data with defaults and loaded settings
   useEffect(() => {
@@ -935,6 +952,26 @@ const SettingsPage: React.FC = () => {
         <p className="text-xs text-slate-500">Background color for the main website pages</p>
       </div>
 
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-slate-700">Secondary Background Color</label>
+        <div className="flex items-center gap-4">
+          <input
+            type="color"
+            value={formData.branding?.secondary_background_color || '#ffffff'}
+            onChange={(e) => updateField('branding', 'secondary_background_color', e.target.value)}
+            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
+          />
+          <input
+            type="text"
+            value={formData.branding?.secondary_background_color || '#ffffff'}
+            onChange={(e) => updateField('branding', 'secondary_background_color', e.target.value)}
+            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            placeholder="#ffffff"
+          />
+        </div>
+        <p className="text-xs text-slate-500">Used for alternating sections (hero, categories, etc.) to create visual contrast</p>
+      </div>
+
       <div className="border-t border-slate-200 pt-6">
         <h3 className="text-lg font-medium text-slate-800 mb-4">Typography</h3>
         <p className="text-sm text-slate-500 mb-6">Choose fonts for headings and body text. Fonts are loaded from Google Fonts.</p>
@@ -964,7 +1001,7 @@ const SettingsPage: React.FC = () => {
             <p className="text-xs text-slate-500">Used for h1, h2, h3, h4, and .font-heading elements</p>
             <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
               <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p className="text-xl font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif` }}>
+              <p key={`heading-${formData.branding?.heading_font}-${fontLoadKey}`} className="text-xl font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif` }}>
                 The Quick Brown Fox
               </p>
             </div>
@@ -993,7 +1030,7 @@ const SettingsPage: React.FC = () => {
             <p className="text-xs text-slate-500">Used for body text, paragraphs, and general content</p>
             <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
               <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p className="text-base text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif` }}>
+              <p key={`body-${formData.branding?.body_font}-${fontLoadKey}`} className="text-base text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif` }}>
                 Fresh seedlings delivered to your doorstep every week.
               </p>
             </div>

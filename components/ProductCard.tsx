@@ -127,7 +127,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         <motion.img 
           src={image} 
           alt={name}
-          className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${!inStock ? 'grayscale opacity-60' : ''}`}
+          className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
         />
         
         {/* Wishlist Button - Appears on hover */}

@@ -76,7 +76,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ onAddToCart, onAboutClick, on
   };
 
   return (
-    <section className="py-14 px-4 md:px-12 bg-gray-50 border-b border-gray-200">
+    <section className="py-14 px-4 md:px-12 bg-site border-b border-gray-200">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="flex items-end justify-between mb-8 px-2">

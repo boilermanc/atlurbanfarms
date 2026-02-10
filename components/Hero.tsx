@@ -21,7 +21,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
   const imageUrl = get('hero', 'image_url', 'https://picsum.photos/seed/urbanfarm/800/1000');
 
   return (
-    <section className="relative pt-16 pb-8 md:pt-20 md:pb-14 px-4 md:px-12 overflow-hidden bg-white border-b border-gray-200">
+    <section className="relative pt-16 pb-8 md:pt-20 md:pb-14 px-4 md:px-12 overflow-hidden bg-site-secondary border-b border-gray-200">
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-emerald-100/50 rounded-full blur-3xl -z-10" />
       <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[400px] h-[400px] bg-emerald-50/50 rounded-full blur-3xl -z-10" />
 

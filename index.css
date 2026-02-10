@@ -63,6 +63,8 @@ h1, h2, h3, h4, .font-heading {
   --font-body: 'Inter', sans-serif;
   /* Default background color - overridden by JS */
   --bg-color: #fafafa;
+  /* Default secondary background (alternating sections) - overridden by JS */
+  --bg-secondary: #ffffff;
 }
 
 /* Brand color utility classes for customer-facing site */
@@ -136,9 +138,13 @@ h1, h2, h3, h4, .font-heading {
   background-color: var(--brand-primary);
 }
 
-/* Site background color utility */
+/* Site background color utilities */
 .bg-site {
   background-color: var(--bg-color, #fafafa);
+}
+
+.bg-site-secondary {
+  background-color: var(--bg-secondary, #ffffff);
 }
 
 /* Admin-specific font families */
