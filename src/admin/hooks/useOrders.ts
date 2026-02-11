@@ -18,9 +18,12 @@ export interface ViewOrderOptions {
 export type ViewOrderHandler = (orderId: string, options?: ViewOrderOptions) => void;
 
 // Types
+export type ShippingStatus = 'pickup' | 'no_label' | 'label_created' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'voided';
+
 export interface OrderFilters {
   status?: string;
   statuses?: string[];  // Support multiple statuses for multi-select filtering
+  shippingStatus?: ShippingStatus | 'all';
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -132,6 +135,11 @@ export interface Order {
   pickup_time_start: string | null;
   pickup_time_end: string | null;
   pickup_reservation?: PickupReservation;
+  // Shipment fields (for list view)
+  shipment_status?: string | null;
+  shipment_tracking_status?: string | null;
+  shipment_tracking_number?: string | null;
+  shipment_voided?: boolean;
   // Legacy order fields
   isLegacy?: boolean;
   woo_order_id?: number;
@@ -203,6 +211,20 @@ export interface OrdersResponse {
   currentPage: number;
 }
 
+// Derive a normalized shipping status from order + shipment data
+export function getShippingStatus(order: Order): ShippingStatus {
+  if (order.is_pickup) return 'pickup';
+  if (!order.shipment_status) return 'no_label';
+  if (order.shipment_voided) return 'voided';
+
+  const ts = order.shipment_tracking_status?.toUpperCase();
+  if (ts === 'DELIVERED' || ts === 'DE') return 'delivered';
+  if (ts === 'OUT_FOR_DELIVERY' || ts === 'OT') return 'out_for_delivery';
+  if (ts === 'IN_TRANSIT' || ts === 'IT') return 'in_transit';
+
+  return 'label_created';
+}
+
 // Hook: Fetch orders with filters and pagination (includes legacy orders)
 export function useOrders(filters: OrderFilters = {}) {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -218,6 +240,15 @@ export function useOrders(filters: OrderFilters = {}) {
     setError(null);
 
     try {
+      // Determine shipping status filter for query optimization
+      const shippingFilter = (filters.shippingStatus && filters.shippingStatus !== 'all')
+        ? filters.shippingStatus : null;
+      const useInnerShipmentJoin = shippingFilter &&
+        ['label_created', 'in_transit', 'out_for_delivery', 'delivered', 'voided'].includes(shippingFilter);
+      const shipmentsJoin = useInnerShipmentJoin
+        ? 'shipments!inner(id, status, tracking_status, tracking_number, voided, created_at)'
+        : 'shipments(id, status, tracking_status, tracking_number, voided, created_at)';
+
       // Build data query for regular orders
       let dataQuery = supabase
         .from('orders')
@@ -275,9 +306,39 @@ export function useOrders(filters: OrderFilters = {}) {
               phone,
               instructions
             )
-          )
+          ),
+          ${shipmentsJoin}
         `)
         .order('created_at', { ascending: false });
+
+      // Apply shipping status filter at query level
+      if (shippingFilter) {
+        switch (shippingFilter) {
+          case 'pickup':
+            dataQuery = dataQuery.eq('is_pickup', true);
+            break;
+          case 'no_label':
+            dataQuery = dataQuery.eq('is_pickup', false);
+            break;
+          case 'label_created':
+            dataQuery = dataQuery
+              .eq('shipments.status', 'label_created')
+              .eq('shipments.voided', false);
+            break;
+          case 'in_transit':
+            dataQuery = dataQuery.in('shipments.tracking_status', ['IN_TRANSIT', 'IT']);
+            break;
+          case 'out_for_delivery':
+            dataQuery = dataQuery.in('shipments.tracking_status', ['OUT_FOR_DELIVERY', 'OT']);
+            break;
+          case 'delivered':
+            dataQuery = dataQuery.in('shipments.tracking_status', ['DELIVERED', 'DE']);
+            break;
+          case 'voided':
+            dataQuery = dataQuery.eq('shipments.voided', true);
+            break;
+        }
+      }
 
       // Build legacy orders query
       let legacyQuery = supabase
@@ -311,6 +372,11 @@ export function useOrders(filters: OrderFilters = {}) {
         if (isPickup) {
           legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // Effectively exclude all
         }
+      }
+
+      // Legacy orders never have shipments — exclude for filters that require shipment data
+      if (shippingFilter && shippingFilter !== 'no_label') {
+        legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
       }
 
       // Apply date range filters
@@ -427,6 +493,18 @@ export function useOrders(filters: OrderFilters = {}) {
           status: order.pickup_reservations[0].status,
           notes: order.pickup_reservations[0].notes,
         } : undefined,
+        // Pick the active (non-voided) shipment, falling back to the latest one
+        ...(() => {
+          const shipments = order.shipments || [];
+          const activeShipment = shipments.find((s: any) => !s.voided) || shipments[0];
+          if (!activeShipment) return {};
+          return {
+            shipment_status: activeShipment.status,
+            shipment_tracking_status: activeShipment.tracking_status,
+            shipment_tracking_number: activeShipment.tracking_number,
+            shipment_voided: activeShipment.voided,
+          };
+        })(),
         isLegacy: false,
       }));
 
@@ -473,9 +551,15 @@ export function useOrders(filters: OrderFilters = {}) {
       }));
 
       // Combine and sort by date (newest first)
-      const allOrders = [...formattedOrders, ...legacyOrders].sort(
+      let allOrders = [...formattedOrders, ...legacyOrders].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
+
+      // Client-side safety net for shipping status (handles no_label "no shipment" check
+      // and edge cases with multi-shipment orders from !inner join)
+      if (shippingFilter) {
+        allOrders = allOrders.filter(order => getShippingStatus(order) === shippingFilter);
+      }
 
       // Apply pagination to combined results
       const paginatedOrders = allOrders.slice((page - 1) * perPage, page * perPage);
@@ -488,7 +572,7 @@ export function useOrders(filters: OrderFilters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [filters.status, filters.statuses, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage]);
+  }, [filters.status, filters.statuses, filters.shippingStatus, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage]);
 
   useEffect(() => {
     fetchOrders();

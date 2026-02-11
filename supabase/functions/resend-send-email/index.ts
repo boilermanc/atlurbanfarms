@@ -106,6 +106,8 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
           <div class="content">
             <p>Hi ${data.customerName || data.customer_first_name || 'there'},</p>
             <p>We've received your order and are getting it ready. We'll notify you when it ships!</p>
+            ${data.shippingMethodName ? `<p style="margin-top: 20px;"><strong>Ships via:</strong> ${data.shippingMethodName}</p>` : ''}
+            ${data.estimatedDeliveryDate ? `<p><strong>Estimated delivery:</strong> ${new Date(data.estimatedDeliveryDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>` : ''}
             <p style="margin-top: 30px; color: #6b7280; font-size: 0.875rem;">
               Remember: We ship live plants Monday through Wednesday only to ensure they arrive fresh!
             </p>

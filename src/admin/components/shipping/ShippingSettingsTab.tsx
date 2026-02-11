@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle, AlertTriangle, XCircle, Loader2, MapPin } from 'lucide-react';
 import { useSettings, useBulkUpdateSettings, ConfigSetting } from '../../hooks/useSettings';
+import { supabase } from '../../../lib/supabase';
 
 const US_STATES = [
   { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
@@ -30,122 +32,313 @@ const US_STATES = [
   { value: 'WI', label: 'Wisconsin' }, { value: 'WY', label: 'Wyoming' },
 ];
 
-const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: ConfigSetting['data_type'] }>> = {
-  business: {
-    ship_from_address_line1: { value: '', dataType: 'string' },
-    ship_from_address_line2: { value: '', dataType: 'string' },
-    ship_from_city: { value: '', dataType: 'string' },
-    ship_from_state: { value: '', dataType: 'string' },
-    ship_from_zip: { value: '', dataType: 'string' },
-    ship_from_country: { value: 'US', dataType: 'string' },
-  },
-  shipping: {
-    free_shipping_enabled: { value: false, dataType: 'boolean' },
-    free_shipping_threshold: { value: 50, dataType: 'number' },
-    shipping_rate_markup_type: { value: 'percentage', dataType: 'string' },
-    shipping_rate_markup_percent: { value: 0, dataType: 'number' },
-    shipping_rate_markup_dollars: { value: 0, dataType: 'number' },
-    default_package_length: { value: 12, dataType: 'number' },
-    default_package_width: { value: 9, dataType: 'number' },
-    default_package_height: { value: 6, dataType: 'number' },
-    default_package_weight: { value: 1, dataType: 'number' },
-  },
+// Defaults for each section
+const ADDRESS_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+  ship_from_name: { value: '', dataType: 'string' },
+  ship_from_address_line1: { value: '', dataType: 'string' },
+  ship_from_address_line2: { value: '', dataType: 'string' },
+  ship_from_city: { value: '', dataType: 'string' },
+  ship_from_state: { value: '', dataType: 'string' },
+  ship_from_zip: { value: '', dataType: 'string' },
+  ship_from_country: { value: 'US', dataType: 'string' },
+  ship_from_phone: { value: '', dataType: 'string' },
 };
+
+const PACKAGE_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+  default_package_length: { value: 12, dataType: 'number' },
+  default_package_width: { value: 9, dataType: 'number' },
+  default_package_height: { value: 6, dataType: 'number' },
+  default_package_weight: { value: 1, dataType: 'number' },
+};
+
+const RULES_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+  free_shipping_enabled: { value: false, dataType: 'boolean' },
+  free_shipping_threshold: { value: 50, dataType: 'number' },
+  shipping_rate_markup_type: { value: 'percentage', dataType: 'string' },
+  shipping_rate_markup_percent: { value: 0, dataType: 'number' },
+  shipping_rate_markup_dollars: { value: 0, dataType: 'number' },
+};
+
+type SectionKey = 'address' | 'package' | 'rules';
+type SaveStatus = { message: string; type: 'success' | 'error' } | null;
+type ValidationStatus = { status: 'verified' | 'warning' | 'unverified' | 'error'; messages: string[] } | null;
+
+const inputClass = 'w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all';
+
+// Save button for each section
+const SectionSaveButton: React.FC<{
+  saving: boolean;
+  status: SaveStatus;
+  onClick: () => void;
+}> = ({ saving, status, onClick }) => (
+  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+    <AnimatePresence>
+      {status && (
+        <motion.span
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 10 }}
+          className={`text-sm font-medium ${status.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}
+        >
+          {status.message}
+        </motion.span>
+      )}
+    </AnimatePresence>
+    <button
+      onClick={onClick}
+      disabled={saving}
+      className="px-5 py-2 bg-emerald-500 text-white rounded-xl text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+    >
+      {saving ? (
+        <>
+          <Loader2 size={16} className="animate-spin" />
+          Saving...
+        </>
+      ) : (
+        'Save'
+      )}
+    </button>
+  </div>
+);
 
 const ShippingSettingsTab: React.FC = () => {
   const { settings, loading, refetch } = useSettings();
-  const { bulkUpdate, loading: saving } = useBulkUpdateSettings();
+  const { bulkUpdate } = useBulkUpdateSettings();
 
-  const [formData, setFormData] = useState<Record<string, Record<string, any>>>({});
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  // Form state - split by category for independent saving
+  const [addressData, setAddressData] = useState<Record<string, any>>({});
+  const [packageData, setPackageData] = useState<Record<string, any>>({});
+  const [rulesData, setRulesData] = useState<Record<string, any>>({});
 
-  useEffect(() => {
-    const newFormData: Record<string, Record<string, any>> = {};
+  // Per-section save status
+  const [savingSections, setSavingSections] = useState<Set<SectionKey>>(new Set());
+  const [saveStatuses, setSaveStatuses] = useState<Record<SectionKey, SaveStatus>>({
+    address: null,
+    package: null,
+    rules: null,
+  });
 
-    Object.entries(DEFAULT_SETTINGS).forEach(([category, fields]) => {
-      newFormData[category] = {};
-      Object.entries(fields).forEach(([key, config]) => {
-        newFormData[category][key] = settings[category]?.[key] ?? config.value;
-      });
+  const startSaving = (section: SectionKey) => {
+    setSavingSections(prev => new Set(prev).add(section));
+  };
+  const stopSaving = (section: SectionKey) => {
+    setSavingSections(prev => {
+      const next = new Set(prev);
+      next.delete(section);
+      return next;
     });
+  };
 
-    setFormData(newFormData);
-  }, [settings]);
+  // Address validation
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationStatus>(null);
 
-  const updateField = useCallback((category: string, key: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [key]: value,
-      },
-    }));
-    setSaveMessage(null);
+  // Per-section timeout refs for save status auto-clear
+  const saveStatusTimeouts = useRef<Record<SectionKey, ReturnType<typeof setTimeout> | null>>({
+    address: null,
+    package: null,
+    rules: null,
+  });
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(saveStatusTimeouts.current).forEach(t => { if (t) clearTimeout(t); });
+    };
   }, []);
 
-  const handleSave = useCallback(async () => {
-    // Save both business and shipping categories
-    for (const category of ['business', 'shipping']) {
-      const categoryData = formData[category];
-      const categoryDefaults = DEFAULT_SETTINGS[category];
+  // Clear validation result when address fields change
+  useEffect(() => {
+    setValidationResult(null);
+  }, [
+    addressData.ship_from_name,
+    addressData.ship_from_address_line1,
+    addressData.ship_from_address_line2,
+    addressData.ship_from_city,
+    addressData.ship_from_state,
+    addressData.ship_from_zip,
+    addressData.ship_from_phone,
+  ]);
 
-      if (!categoryData || !categoryDefaults) continue;
+  // Initialize form data from settings
+  useEffect(() => {
+    const addr: Record<string, any> = {};
+    Object.entries(ADDRESS_DEFAULTS).forEach(([key, config]) => {
+      addr[key] = settings.business?.[key] ?? config.value;
+    });
+    setAddressData(addr);
 
-      const settingsToSave: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+    const pkg: Record<string, any> = {};
+    Object.entries(PACKAGE_DEFAULTS).forEach(([key, config]) => {
+      pkg[key] = settings.shipping?.[key] ?? config.value;
+    });
+    setPackageData(pkg);
 
-      Object.entries(categoryDefaults).forEach(([key, config]) => {
-        settingsToSave[key] = {
-          value: categoryData[key],
-          dataType: config.dataType,
-        };
+    const rules: Record<string, any> = {};
+    Object.entries(RULES_DEFAULTS).forEach(([key, config]) => {
+      rules[key] = settings.shipping?.[key] ?? config.value;
+    });
+    setRulesData(rules);
+  }, [settings]);
+
+  const clearSaveStatus = useCallback((section: SectionKey) => {
+    if (saveStatusTimeouts.current[section]) clearTimeout(saveStatusTimeouts.current[section]!);
+    saveStatusTimeouts.current[section] = setTimeout(() => {
+      setSaveStatuses(prev => ({ ...prev, [section]: null }));
+    }, 3000);
+  }, []);
+
+  // Save warehouse address
+  const handleSaveAddress = useCallback(async () => {
+    startSaving('address');
+    setSaveStatuses(prev => ({ ...prev, address: null }));
+
+    try {
+      // Save individual fields to business category
+      const businessSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+      Object.entries(ADDRESS_DEFAULTS).forEach(([key, config]) => {
+        businessSettings[key] = { value: addressData[key], dataType: config.dataType };
+      });
+      const bizSuccess = await bulkUpdate('business', businessSettings);
+
+      // Also save composite JSON for edge functions
+      const compositeSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+        warehouse_address: {
+          value: {
+            name: addressData.ship_from_name || 'ATL Urban Farms',
+            company_name: addressData.ship_from_name || 'ATL Urban Farms',
+            address_line1: addressData.ship_from_address_line1 || '',
+            address_line2: addressData.ship_from_address_line2 || '',
+            city_locality: addressData.ship_from_city || '',
+            state_province: addressData.ship_from_state || '',
+            postal_code: addressData.ship_from_zip || '',
+            country_code: addressData.ship_from_country || 'US',
+            phone: addressData.ship_from_phone || '',
+          },
+          dataType: 'json',
+        },
+      };
+      const jsonSuccess = await bulkUpdate('shipping', compositeSettings);
+
+      if (bizSuccess && jsonSuccess) {
+        setSaveStatuses(prev => ({ ...prev, address: { message: 'Address saved!', type: 'success' } }));
+        refetch();
+      } else {
+        setSaveStatuses(prev => ({ ...prev, address: { message: 'Failed to save address', type: 'error' } }));
+      }
+    } catch {
+      setSaveStatuses(prev => ({ ...prev, address: { message: 'Failed to save address', type: 'error' } }));
+    } finally {
+      stopSaving('address');
+      clearSaveStatus('address');
+    }
+  }, [addressData, bulkUpdate, refetch, clearSaveStatus]);
+
+  // Save default package
+  const handleSavePackage = useCallback(async () => {
+    startSaving('package');
+    setSaveStatuses(prev => ({ ...prev, package: null }));
+
+    try {
+      const packageSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+      Object.entries(PACKAGE_DEFAULTS).forEach(([key, config]) => {
+        packageSettings[key] = { value: packageData[key], dataType: config.dataType };
       });
 
-      await bulkUpdate(category, settingsToSave);
-    }
-
-    // Also save composite JSON objects for the edge functions to consume directly.
-    // The edge function expects shipping.warehouse_address (JSON) and shipping.default_package (JSON)
-    // but this UI saves individual fields. Save both formats for compatibility.
-    const biz = formData.business || {};
-    const ship = formData.shipping || {};
-
-    const compositeSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
-
-    if (biz.ship_from_address_line1) {
-      compositeSettings.warehouse_address = {
+      // Also save composite JSON for edge functions
+      packageSettings.default_package = {
         value: {
-          name: 'ATL Urban Farms',
-          company_name: 'ATL Urban Farms',
-          address_line1: biz.ship_from_address_line1,
-          address_line2: biz.ship_from_address_line2 || '',
-          city_locality: biz.ship_from_city || '',
-          state_province: biz.ship_from_state || '',
-          postal_code: biz.ship_from_zip || '',
-          country_code: biz.ship_from_country || 'US',
+          weight: { value: packageData.default_package_weight || 1, unit: 'pound' },
+          dimensions: {
+            length: packageData.default_package_length || 12,
+            width: packageData.default_package_width || 9,
+            height: packageData.default_package_height || 6,
+            unit: 'inch',
+          },
         },
         dataType: 'json',
       };
+
+      const success = await bulkUpdate('shipping', packageSettings);
+
+      if (success) {
+        setSaveStatuses(prev => ({ ...prev, package: { message: 'Package defaults saved!', type: 'success' } }));
+        refetch();
+      } else {
+        setSaveStatuses(prev => ({ ...prev, package: { message: 'Failed to save package defaults', type: 'error' } }));
+      }
+    } catch {
+      setSaveStatuses(prev => ({ ...prev, package: { message: 'Failed to save package defaults', type: 'error' } }));
+    } finally {
+      stopSaving('package');
+      clearSaveStatus('package');
     }
+  }, [packageData, bulkUpdate, refetch, clearSaveStatus]);
 
-    compositeSettings.default_package = {
-      value: {
-        weight: { value: ship.default_package_weight || 1, unit: 'pound' },
-        dimensions: {
-          length: ship.default_package_length || 12,
-          width: ship.default_package_width || 9,
-          height: ship.default_package_height || 6,
-          unit: 'inch',
+  // Save shipping rules
+  const handleSaveRules = useCallback(async () => {
+    startSaving('rules');
+    setSaveStatuses(prev => ({ ...prev, rules: null }));
+
+    try {
+      const rulesSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+      Object.entries(RULES_DEFAULTS).forEach(([key, config]) => {
+        rulesSettings[key] = { value: rulesData[key], dataType: config.dataType };
+      });
+
+      const success = await bulkUpdate('shipping', rulesSettings);
+
+      if (success) {
+        setSaveStatuses(prev => ({ ...prev, rules: { message: 'Shipping rules saved!', type: 'success' } }));
+        refetch();
+      } else {
+        setSaveStatuses(prev => ({ ...prev, rules: { message: 'Failed to save shipping rules', type: 'error' } }));
+      }
+    } catch {
+      setSaveStatuses(prev => ({ ...prev, rules: { message: 'Failed to save shipping rules', type: 'error' } }));
+    } finally {
+      stopSaving('rules');
+      clearSaveStatus('rules');
+    }
+  }, [rulesData, bulkUpdate, refetch, clearSaveStatus]);
+
+  // Validate address via ShipEngine
+  const handleValidateAddress = useCallback(async () => {
+    setValidating(true);
+    setValidationResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('shipengine-validate-address', {
+        body: {
+          address: {
+            name: addressData.ship_from_name || 'ATL Urban Farms',
+            company_name: addressData.ship_from_name || 'ATL Urban Farms',
+            phone: addressData.ship_from_phone || '',
+            address_line1: addressData.ship_from_address_line1,
+            address_line2: addressData.ship_from_address_line2 || '',
+            city_locality: addressData.ship_from_city,
+            state_province: addressData.ship_from_state,
+            postal_code: addressData.ship_from_zip,
+            country_code: addressData.ship_from_country || 'US',
+          },
         },
-      },
-      dataType: 'json',
-    };
+      });
 
-    await bulkUpdate('shipping', compositeSettings);
+      if (error) {
+        setValidationResult({ status: 'error', messages: ['Failed to validate address. Please try again.'] });
+        return;
+      }
 
-    setSaveMessage('Settings saved!');
-    setTimeout(() => setSaveMessage(null), 3000);
-    refetch();
-  }, [formData, bulkUpdate, refetch]);
+      setValidationResult({
+        status: data.status,
+        messages: data.messages || [],
+      });
+    } catch {
+      setValidationResult({ status: 'error', messages: ['Failed to validate address. Please try again.'] });
+    } finally {
+      setValidating(false);
+    }
+  }, [addressData]);
 
   if (loading) {
     return (
@@ -157,20 +350,32 @@ const ShippingSettingsTab: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Warehouse Address Section */}
+      {/* Warehouse / Ship-From Address Section */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-2">Ship-From Address</h3>
+        <h3 className="text-lg font-medium text-slate-800 mb-2">Warehouse / Ship-From Address</h3>
         <p className="text-sm text-slate-500 mb-6">
           This address is used as the origin for shipping rate calculations and labels.
         </p>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <label className="block text-sm font-medium text-slate-600">Business Name</label>
+            <input
+              type="text"
+              value={addressData.ship_from_name || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_name: e.target.value }))}
+              className={inputClass}
+              placeholder="ATL Urban Farms"
+            />
+          </div>
+
           <div className="space-y-2 md:col-span-2">
             <label className="block text-sm font-medium text-slate-600">Address Line 1</label>
             <input
               type="text"
-              value={formData.business?.ship_from_address_line1 || ''}
-              onChange={(e) => updateField('business', 'ship_from_address_line1', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={addressData.ship_from_address_line1 || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_address_line1: e.target.value }))}
+              className={inputClass}
               placeholder="123 Farm Street"
             />
           </div>
@@ -179,9 +384,9 @@ const ShippingSettingsTab: React.FC = () => {
             <label className="block text-sm font-medium text-slate-600">Address Line 2</label>
             <input
               type="text"
-              value={formData.business?.ship_from_address_line2 || ''}
-              onChange={(e) => updateField('business', 'ship_from_address_line2', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={addressData.ship_from_address_line2 || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_address_line2: e.target.value }))}
+              className={inputClass}
               placeholder="Suite 100"
             />
           </div>
@@ -190,9 +395,9 @@ const ShippingSettingsTab: React.FC = () => {
             <label className="block text-sm font-medium text-slate-600">City</label>
             <input
               type="text"
-              value={formData.business?.ship_from_city || ''}
-              onChange={(e) => updateField('business', 'ship_from_city', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={addressData.ship_from_city || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_city: e.target.value }))}
+              className={inputClass}
               placeholder="Atlanta"
             />
           </div>
@@ -200,9 +405,9 @@ const ShippingSettingsTab: React.FC = () => {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-600">State</label>
             <select
-              value={formData.business?.ship_from_state || ''}
-              onChange={(e) => updateField('business', 'ship_from_state', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={addressData.ship_from_state || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_state: e.target.value }))}
+              className={inputClass}
             >
               <option value="">Select state</option>
               {US_STATES.map((state) => (
@@ -215,160 +420,124 @@ const ShippingSettingsTab: React.FC = () => {
             <label className="block text-sm font-medium text-slate-600">ZIP Code</label>
             <input
               type="text"
-              value={formData.business?.ship_from_zip || ''}
-              onChange={(e) => updateField('business', 'ship_from_zip', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={addressData.ship_from_zip || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_zip: e.target.value }))}
+              className={inputClass}
               placeholder="30301"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-600">Country</label>
-            <select
-              value={formData.business?.ship_from_country || 'US'}
-              onChange={(e) => updateField('business', 'ship_from_country', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            >
-              <option value="US">United States</option>
-            </select>
+            <label className="block text-sm font-medium text-slate-600">Phone</label>
+            <input
+              type="tel"
+              value={addressData.ship_from_phone || ''}
+              onChange={(e) => setAddressData(prev => ({ ...prev, ship_from_phone: e.target.value }))}
+              className={inputClass}
+              placeholder="(404) 555-0123"
+            />
           </div>
         </div>
-      </div>
 
-      {/* Free Shipping Section */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Free Shipping</h3>
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-              <input
-                type="checkbox"
-                checked={formData.shipping?.free_shipping_enabled ?? false}
-                onChange={(e) => updateField('shipping', 'free_shipping_enabled', e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
-            <div>
-              <h4 className="text-slate-800 font-medium">Enable Free Shipping</h4>
-              <p className="text-sm text-slate-500">Offer free shipping for orders above a threshold</p>
-            </div>
-          </div>
+        {/* Address Validation */}
+        <div className="mt-6 space-y-3">
+          <button
+            onClick={handleValidateAddress}
+            disabled={validating || !addressData.ship_from_address_line1 || !addressData.ship_from_city || !addressData.ship_from_state || !addressData.ship_from_zip}
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {validating ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Validating...
+              </>
+            ) : (
+              <>
+                <MapPin size={16} />
+                Validate Address
+              </>
+            )}
+          </button>
 
           <AnimatePresence>
-            {formData.shipping?.free_shipping_enabled && (
+            {validationResult && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="space-y-2"
+                className={`flex items-start gap-3 p-4 rounded-xl border ${
+                  validationResult.status === 'verified'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : validationResult.status === 'warning'
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-red-50 border-red-200'
+                }`}
               >
-                <label className="block text-sm font-medium text-slate-600">Free Shipping Threshold ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.shipping?.free_shipping_threshold ?? 50}
-                  onChange={(e) => updateField('shipping', 'free_shipping_threshold', parseFloat(e.target.value) || 0)}
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-                <p className="text-xs text-slate-500">Orders above this amount qualify for free shipping</p>
+                {validationResult.status === 'verified' && <CheckCircle size={20} className="text-emerald-600 flex-shrink-0 mt-0.5" />}
+                {validationResult.status === 'warning' && <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />}
+                {(validationResult.status === 'unverified' || validationResult.status === 'error') && (
+                  <XCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <p className={`text-sm font-medium ${
+                    validationResult.status === 'verified' ? 'text-emerald-700'
+                    : validationResult.status === 'warning' ? 'text-amber-700'
+                    : 'text-red-700'
+                  }`}>
+                    {validationResult.status === 'verified' && 'Address verified'}
+                    {validationResult.status === 'warning' && 'Address verified with warnings'}
+                    {validationResult.status === 'unverified' && 'Address could not be verified'}
+                    {validationResult.status === 'error' && 'Validation failed'}
+                  </p>
+                  {validationResult.messages.length > 0 && (
+                    <ul className="mt-1 space-y-0.5">
+                      {validationResult.messages.map((msg, i) => (
+                        <li key={i} className="text-xs text-slate-600">{msg}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-      </div>
 
-      {/* Rate Markup Section */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Rate Markup</h3>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-600">Markup Type</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => updateField('shipping', 'shipping_rate_markup_type', 'percentage')}
-                className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${
-                  formData.shipping?.shipping_rate_markup_type === 'percentage' || !formData.shipping?.shipping_rate_markup_type
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Percentage (%)
-              </button>
-              <button
-                type="button"
-                onClick={() => updateField('shipping', 'shipping_rate_markup_type', 'fixed')}
-                className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${
-                  formData.shipping?.shipping_rate_markup_type === 'fixed'
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Fixed Amount ($)
-              </button>
-            </div>
-          </div>
-
-          {(formData.shipping?.shipping_rate_markup_type === 'percentage' || !formData.shipping?.shipping_rate_markup_type) && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-600">Markup Percentage (%)</label>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.1"
-                value={formData.shipping?.shipping_rate_markup_percent ?? 0}
-                onChange={(e) => updateField('shipping', 'shipping_rate_markup_percent', parseFloat(e.target.value) || 0)}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-              />
-              <p className="text-xs text-slate-500">Add a percentage markup to all carrier shipping rates (e.g., 10 = 10% markup)</p>
-            </div>
-          )}
-
-          {formData.shipping?.shipping_rate_markup_type === 'fixed' && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-600">Markup Amount ($)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.shipping?.shipping_rate_markup_dollars ?? 0}
-                  onChange={(e) => updateField('shipping', 'shipping_rate_markup_dollars', parseFloat(e.target.value) || 0)}
-                  className="w-full pl-8 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-              </div>
-              <p className="text-xs text-slate-500">Add a fixed dollar amount to all carrier shipping rates (e.g., 2.50 = $2.50 added)</p>
-            </div>
-          )}
-
-          <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
-            <strong>How it works:</strong> {formData.shipping?.shipping_rate_markup_type === 'fixed'
-              ? 'The fixed amount is added to each carrier rate. Example: $8.99 rate + $2.50 markup = $11.49 shown to customer.'
-              : 'The percentage is applied to each carrier rate. Example: $10.00 rate × 10% markup = $11.00 shown to customer.'}
-          </p>
-        </div>
+        <SectionSaveButton
+          saving={savingSections.has('address')}
+          status={saveStatuses.address}
+          onClick={handleSaveAddress}
+        />
       </div>
 
       {/* Default Package Dimensions Section */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
         <h3 className="text-lg font-medium text-slate-800 mb-2">Default Package Dimensions</h3>
         <p className="text-sm text-slate-500 mb-6">
-          These dimensions are used when calculating shipping rates if product dimensions are not specified.
+          Used when calculating shipping rates if no product-specific weight is set.
         </p>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Weight (lbs)</label>
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={packageData.default_package_weight ?? 1}
+              onChange={(e) => setPackageData(prev => ({ ...prev, default_package_weight: parseFloat(e.target.value) || 1 }))}
+              className={inputClass}
+            />
+          </div>
+
           <div className="space-y-2">
             <label className="block text-sm font-medium text-slate-600">Length (in)</label>
             <input
               type="number"
               min="1"
               step="0.1"
-              value={formData.shipping?.default_package_length ?? 12}
-              onChange={(e) => updateField('shipping', 'default_package_length', parseFloat(e.target.value) || 12)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={packageData.default_package_length ?? 12}
+              onChange={(e) => setPackageData(prev => ({ ...prev, default_package_length: parseFloat(e.target.value) || 12 }))}
+              className={inputClass}
             />
           </div>
 
@@ -378,9 +547,9 @@ const ShippingSettingsTab: React.FC = () => {
               type="number"
               min="1"
               step="0.1"
-              value={formData.shipping?.default_package_width ?? 9}
-              onChange={(e) => updateField('shipping', 'default_package_width', parseFloat(e.target.value) || 9)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={packageData.default_package_width ?? 9}
+              onChange={(e) => setPackageData(prev => ({ ...prev, default_package_width: parseFloat(e.target.value) || 9 }))}
+              className={inputClass}
             />
           </div>
 
@@ -390,59 +559,146 @@ const ShippingSettingsTab: React.FC = () => {
               type="number"
               min="1"
               step="0.1"
-              value={formData.shipping?.default_package_height ?? 6}
-              onChange={(e) => updateField('shipping', 'default_package_height', parseFloat(e.target.value) || 6)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-600">Weight (lbs)</label>
-            <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={formData.shipping?.default_package_weight ?? 1}
-              onChange={(e) => updateField('shipping', 'default_package_weight', parseFloat(e.target.value) || 1)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              value={packageData.default_package_height ?? 6}
+              onChange={(e) => setPackageData(prev => ({ ...prev, default_package_height: parseFloat(e.target.value) || 6 }))}
+              className={inputClass}
             />
           </div>
         </div>
+
+        <SectionSaveButton
+          saving={savingSections.has('package')}
+          status={saveStatuses.package}
+          onClick={handleSavePackage}
+        />
       </div>
 
-      {/* Save Button */}
-      <div className="flex items-center justify-end gap-4 pt-4">
-        <AnimatePresence>
-          {saveMessage && (
-            <motion.span
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              className="text-emerald-600 font-medium"
-            >
-              {saveMessage}
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Save Changes
-            </>
-          )}
-        </button>
+      {/* Shipping Rules Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+        <h3 className="text-lg font-medium text-slate-800 mb-2">Shipping Rules</h3>
+        <p className="text-sm text-slate-500 mb-6">
+          Configure free shipping thresholds and rate adjustments.
+        </p>
+
+        <div className="space-y-6">
+          {/* Free Shipping */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                <input
+                  type="checkbox"
+                  checked={rulesData.free_shipping_enabled ?? false}
+                  onChange={(e) => setRulesData(prev => ({ ...prev, free_shipping_enabled: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+              </label>
+              <div>
+                <h4 className="text-slate-800 font-medium">Free Shipping Threshold</h4>
+                <p className="text-sm text-slate-500">Offer free shipping for orders above a certain amount</p>
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {rulesData.free_shipping_enabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <label className="block text-sm font-medium text-slate-600">Minimum Order Amount</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={rulesData.free_shipping_threshold ?? 50}
+                      onChange={(e) => setRulesData(prev => ({ ...prev, free_shipping_threshold: parseFloat(e.target.value) || 0 }))}
+                      className={`${inputClass} pl-8`}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">Set to 0 to disable. Orders above this amount qualify for free shipping.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Rate Markup */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Shipping Rate Markup</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRulesData(prev => ({ ...prev, shipping_rate_markup_type: 'percentage' }))}
+                  className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    rulesData.shipping_rate_markup_type === 'percentage' || !rulesData.shipping_rate_markup_type
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Percentage (%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRulesData(prev => ({ ...prev, shipping_rate_markup_type: 'fixed' }))}
+                  className={`flex-1 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    rulesData.shipping_rate_markup_type === 'fixed'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Fixed Amount ($)
+                </button>
+              </div>
+            </div>
+
+            {(rulesData.shipping_rate_markup_type === 'percentage' || !rulesData.shipping_rate_markup_type) && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">Markup Percentage</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={rulesData.shipping_rate_markup_percent ?? 0}
+                    onChange={(e) => setRulesData(prev => ({ ...prev, shipping_rate_markup_percent: parseFloat(e.target.value) || 0 }))}
+                    className={`${inputClass} pr-10`}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">%</span>
+                </div>
+                <p className="text-xs text-slate-500">Added to carrier rates. Example: $10.00 rate + 10% = $11.00 shown to customer.</p>
+              </div>
+            )}
+
+            {rulesData.shipping_rate_markup_type === 'fixed' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">Markup Amount</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={rulesData.shipping_rate_markup_dollars ?? 0}
+                    onChange={(e) => setRulesData(prev => ({ ...prev, shipping_rate_markup_dollars: parseFloat(e.target.value) || 0 }))}
+                    className={`${inputClass} pl-8`}
+                  />
+                </div>
+                <p className="text-xs text-slate-500">Added to carrier rates. Example: $8.99 rate + $2.50 = $11.49 shown to customer.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <SectionSaveButton
+          saving={savingSections.has('rules')}
+          status={saveStatuses.rules}
+          onClick={handleSaveRules}
+        />
       </div>
     </div>
   );

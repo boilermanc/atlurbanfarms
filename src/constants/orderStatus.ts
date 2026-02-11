@@ -1,6 +1,7 @@
 export const ORDER_STATUSES = [
   'pending_payment',
   'processing',
+  'shipped',
   'on_hold',
   'completed',
   'cancelled',
@@ -16,6 +17,7 @@ export const ORDER_STATUS_CONFIG: Record<
 > = {
   pending_payment: { label: 'Pending Payment', color: 'bg-amber-500' },
   processing: { label: 'Processing', color: 'bg-blue-500' },
+  shipped: { label: 'Shipped', color: 'bg-indigo-500' },
   on_hold: { label: 'On Hold', color: 'bg-purple-500' },
   completed: { label: 'Completed', color: 'bg-emerald-500' },
   cancelled: { label: 'Cancelled', color: 'bg-red-500' },

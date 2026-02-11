@@ -226,12 +226,12 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
             {/* Status Card */}
             <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
               {/* Status Header */}
-              <div className={`p-6 ${getStatusColor(trackingInfo.status_code).bg} border-b ${getStatusColor(trackingInfo.status_code).border}`}>
+              <div className={`p-6 ${getStatusColor(trackingInfo.status).bg} border-b ${getStatusColor(trackingInfo.status).border}`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full ${getStatusColor(trackingInfo.status_code).dot}`}></div>
-                    <span className={`text-lg font-bold ${getStatusColor(trackingInfo.status_code).text}`}>
-                      {STATUS_LABELS[trackingInfo.status_code] || trackingInfo.status_description}
+                    <div className={`w-4 h-4 rounded-full ${getStatusColor(trackingInfo.status).dot}`}></div>
+                    <span className={`text-lg font-bold ${getStatusColor(trackingInfo.status).text}`}>
+                      {STATUS_LABELS[trackingInfo.status] || trackingInfo.status_description}
                     </span>
                   </div>
                   <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
@@ -258,29 +258,20 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
-                  {trackingInfo.ship_date && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Shipped</p>
-                      <p className="font-medium text-gray-900">
-                        {formatTrackingDate(trackingInfo.ship_date, false)}
-                      </p>
-                    </div>
-                  )}
-
-                  {trackingInfo.estimated_delivery_date && trackingInfo.status_code !== 'DE' && (
+                  {trackingInfo.estimated_delivery && trackingInfo.status !== 'DE' && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Estimated Delivery</p>
                       <p className="font-medium text-emerald-600">
-                        {formatTrackingDate(trackingInfo.estimated_delivery_date, false)}
+                        {formatTrackingDate(trackingInfo.estimated_delivery, false)}
                       </p>
                     </div>
                   )}
 
-                  {trackingInfo.actual_delivery_date && (
+                  {trackingInfo.actual_delivery && (
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Delivered</p>
                       <p className="font-medium text-emerald-600">
-                        {formatTrackingDate(trackingInfo.actual_delivery_date)}
+                        {formatTrackingDate(trackingInfo.actual_delivery)}
                       </p>
                     </div>
                   )}

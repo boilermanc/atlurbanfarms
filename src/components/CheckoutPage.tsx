@@ -59,6 +59,8 @@ interface OrderData {
   };
   isGuest: boolean;
   isPickup: boolean;
+  shippingMethodName?: string;
+  estimatedDeliveryDate?: string | null;
 }
 
 interface CheckoutPageProps {
@@ -202,6 +204,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [addressValidated, setAddressValidated] = useState(false);
   const [normalizedAddress, setNormalizedAddress] = useState<ShippingAddress | null>(null);
   const [showAddressSuggestion, setShowAddressSuggestion] = useState(false);
+  const [addressWarningAcknowledged, setAddressWarningAcknowledged] = useState(false);
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
@@ -359,6 +362,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     // Clear validation state when address fields change
     if (['address1', 'address2', 'city', 'state', 'zip'].includes(name)) {
       setAddressValidated(false);
+      setAddressWarningAcknowledged(false);
       clearValidation();
       clearRates();
       setSelectedShippingRate(null);
@@ -374,6 +378,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       });
     }
   }, [formErrors, clearValidation, clearRates]);
+
+  // Auto-validate address when ZIP field loses focus and all required fields are filled
+  const handleZipBlur = useCallback(() => {
+    if (
+      shipEngineEnabled &&
+      !addressValidated &&
+      !validatingAddress &&
+      formData.address1.trim() &&
+      formData.city.trim() &&
+      formData.state.trim() &&
+      formData.zip.trim() &&
+      /^\d{5}(-\d{4})?$/.test(formData.zip.trim())
+    ) {
+      handleValidateAddress();
+    }
+  }, [shipEngineEnabled, addressValidated, validatingAddress, formData.address1, formData.city, formData.state, formData.zip, handleValidateAddress]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name } = e.target;
@@ -413,6 +433,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
     // Clear validation state for new address
     setAddressValidated(false);
+    setAddressWarningAcknowledged(false);
     clearValidation();
     clearRates();
     setSelectedShippingRate(null);
@@ -516,15 +537,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
     } else {
       // For shipping orders, validate shipping requirements
-      // Check if address needs validation (ShipEngine enabled but not validated)
-      if (shipEngineEnabled && !addressValidated) {
-        setOrderError('Please validate your shipping address before proceeding.');
-        return;
-      }
-
       // Check if zone is blocked
       if (isZoneBlocked) {
         setOrderError('We cannot ship to this location. Please use a different shipping address.');
+        return;
+      }
+
+      // If address not validated and warning not acknowledged, show soft warning
+      if (shipEngineEnabled && !addressValidated && !addressWarningAcknowledged) {
+        setOrderError('Your address has not been verified. Click "Place Order" again to proceed anyway, or validate your address first.');
+        setAddressWarningAcknowledged(true);
         return;
       }
 
@@ -761,7 +783,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         total
       },
       isGuest: !user,
-      isPickup: deliveryMethod === 'pickup'
+      isPickup: deliveryMethod === 'pickup',
+      shippingMethodName: selectedShippingRate
+        ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
+        : undefined,
+      estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date || null
     };
 
     // Send order confirmation email
@@ -776,7 +802,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         tax,
         total,
         shippingAddress: orderData.shippingAddress,
-        pickupInfo: orderData.pickupInfo
+        pickupInfo: orderData.pickupInfo,
+        shippingMethodName: selectedShippingRate
+          ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
+          : undefined,
+        estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date
       });
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
@@ -1335,6 +1365,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       name="zip"
                       value={formData.zip}
                       onChange={handleInputChange}
+                      onBlur={handleZipBlur}
                       type="text"
                       placeholder="30318"
                       className={getInputClassName('zip')}
@@ -1454,43 +1485,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       </div>
                     )}
 
-                    {/* Address Suggestion */}
-                    {showAddressSuggestion && normalizedAddress && (
-                      <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
-                        <p className="text-sm font-bold text-blue-800 mb-2">Suggested Address Correction</p>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* Address Suggestion - handled by modal below */}
+
+                    {/* Unverified address soft warning - allows checkout to proceed */}
+                    {validationResult && !validatingAddress &&
+                      (validationResult.status === 'unverified' || validationResult.status === 'error') && (
+                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
                           <div>
-                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">You Entered</p>
-                            <p className="text-gray-700">
-                              {formData.address1}<br />
-                              {formData.address2 && <>{formData.address2}<br /></>}
-                              {formData.city}, {formData.state} {formData.zip}
+                            <p className="text-sm font-bold text-amber-800">Address could not be verified</p>
+                            <p className="text-sm text-amber-700 mt-1">
+                              Please double-check your address. You can still proceed with checkout, but delivery issues may occur with an unverified address.
                             </p>
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-blue-600 uppercase mb-1">Suggested</p>
-                            <p className="text-blue-800 font-medium">
-                              {normalizedAddress.address_line1}<br />
-                              {normalizedAddress.address_line2 && <>{normalizedAddress.address_line2}<br /></>}
-                              {normalizedAddress.city_locality}, {normalizedAddress.state_province} {normalizedAddress.postal_code}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-3 mt-4">
-                          <button
-                            type="button"
-                            onClick={handleAcceptSuggestedAddress}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            Use Suggested Address
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowAddressSuggestion(false)}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
-                          >
-                            Keep Original
-                          </button>
                         </div>
                       </div>
                     )}
@@ -1623,18 +1633,42 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                           </svg>
-                          <div>
+                          <div className="flex-1">
                             <p className="font-bold">Unable to fetch shipping rates</p>
                             <p>{ratesError}</p>
+                            <button
+                              type="button"
+                              onClick={handleValidateAddress}
+                              disabled={fetchingRates}
+                              className="mt-3 px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                              {fetchingRates ? 'Retrying...' : 'Retry'}
+                            </button>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {/* Show rates */}
-                    {addressValidated && !fetchingRates && shippingRates.length > 0 && (
+                    {addressValidated && !fetchingRates && shippingRates.length > 0 && (() => {
+                      // Determine cheapest and fastest rates for badges
+                      const cheapestId = shippingRates[0]?.rate_id; // Already sorted cheapest-first
+                      const fastestRate = shippingRates.reduce<ShippingRate | null>((fastest, rate) => {
+                        if (rate.delivery_days == null) return fastest;
+                        if (!fastest || fastest.delivery_days == null) return rate;
+                        return rate.delivery_days < fastest.delivery_days ? rate : fastest;
+                      }, null);
+                      const fastestId = fastestRate?.rate_id;
+                      // Only show "Fastest" badge if it's a different rate than cheapest
+                      const showFastestBadge = fastestId && fastestId !== cheapestId;
+
+                      return (
                       <div className="grid grid-cols-1 gap-3">
-                        {shippingRates.map((rate) => (
+                        {shippingRates.map((rate) => {
+                          const isCheapest = rate.rate_id === cheapestId;
+                          const isFastest = showFastestBadge && rate.rate_id === fastestId;
+
+                          return (
                           <button
                             key={rate.rate_id}
                             type="button"
@@ -1666,10 +1700,20 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                                   )}
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                                     <span className="font-bold text-gray-900">{rate.carrier_friendly_name}</span>
                                     <span className="text-gray-400">•</span>
                                     <span className="text-gray-700">{rate.service_type}</span>
+                                    {isCheapest && (
+                                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
+                                        Cheapest
+                                      </span>
+                                    )}
+                                    {isFastest && (
+                                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">
+                                        Fastest
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-sm text-gray-500">
                                     {formatDeliveryEstimate(rate)}
@@ -1686,7 +1730,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                               </span>
                             </div>
                           </button>
-                        ))}
+                          );
+                        })}
 
                         {/* Package breakdown info */}
                         {packageBreakdown && (
@@ -1710,7 +1755,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           </div>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* No rates available (not due to zone block) */}
                     {addressValidated && !fetchingRates && shippingRates.length === 0 && !ratesError && !isZoneBlocked && (
@@ -2018,6 +2064,67 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           </div>
         </div>
       </div>
+
+      {/* Address Suggestion Modal */}
+      {showAddressSuggestion && normalizedAddress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowAddressSuggestion(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 z-10"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-heading font-extrabold text-gray-900">Did you mean this address?</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">You Entered</p>
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {formData.address1}<br />
+                  {formData.address2 && <>{formData.address2}<br /></>}
+                  {formData.city}, {formData.state} {formData.zip}
+                </p>
+              </div>
+              <div className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200">
+                <p className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2">Suggested</p>
+                <p className="text-sm text-blue-800 font-medium leading-relaxed">
+                  {normalizedAddress.address_line1}<br />
+                  {normalizedAddress.address_line2 && <>{normalizedAddress.address_line2}<br /></>}
+                  {normalizedAddress.city_locality}, {normalizedAddress.state_province} {normalizedAddress.postal_code}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleAcceptSuggestedAddress}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                Accept Suggestion
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddressSuggestion(false)}
+                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Keep Original
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

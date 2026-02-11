@@ -124,7 +124,16 @@ export function useEmailService() {
         city: string
         state: string
         zip: string
+      } | null
+      pickupInfo?: {
+        locationName: string
+        address: string
+        date: string
+        timeRange: string
+        instructions?: string
       }
+      shippingMethodName?: string
+      estimatedDeliveryDate?: string | null
     }
   ) => {
     return sendEmail({

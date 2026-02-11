@@ -98,6 +98,39 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Verify caller is an admin
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authorization required' } }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const { data: adminRole } = await supabaseClient
+      .from('admin_user_roles')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    if (!adminRole) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get ShipEngine API key from settings
     const integrationSettings = await getIntegrationSettings(supabaseClient, [
       'shipstation_enabled',
@@ -272,7 +305,9 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          rate_id: order.shipping_rate_id
+          rate_id: order.shipping_rate_id,
+          label_format: 'pdf',
+          label_layout: '4x6'
         })
       })
     } else {
@@ -418,12 +453,13 @@ serve(async (req) => {
       // Don't fail the request, label was created successfully
     }
 
-    // Update order status if needed
+    // Update order with tracking info (status stays 'processing' until carrier picks up)
+    const trackingUrl = generateTrackingUrl(labelData.tracking_number, labelData.carrier_code)
     await supabaseClient
       .from('orders')
       .update({
-        status: 'processing',
         tracking_number: labelData.tracking_number,
+        tracking_url: trackingUrl,
         updated_at: new Date().toISOString()
       })
       .eq('id', order_id)

@@ -202,19 +202,37 @@ serve(async (req) => {
       }
     }
 
-    // Optionally update order status if delivered
-    if (trackingData.status_code === 'DE' && shipment.order_id) {
-      const { error: orderError } = await supabaseClient
-        .from('orders')
-        .update({
-          status: 'completed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', shipment.order_id)
-        .in('status', ['processing', 'on_hold'])
+    // Update order status based on tracking status
+    if (shipment.order_id) {
+      if (trackingData.status_code === 'IT' || trackingData.status_code === 'AC') {
+        // In transit or accepted by carrier → mark as shipped
+        const { error: orderError } = await supabaseClient
+          .from('orders')
+          .update({
+            status: 'shipped',
+            shipped_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', shipment.order_id)
+          .in('status', ['processing', 'on_hold'])
 
-      if (orderError) {
-        console.error('Failed to update order status:', orderError)
+        if (orderError) {
+          console.error('Failed to update order status to shipped:', orderError)
+        }
+      } else if (trackingData.status_code === 'DE') {
+        // Delivered → mark as completed
+        const { error: orderError } = await supabaseClient
+          .from('orders')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', shipment.order_id)
+          .in('status', ['processing', 'on_hold', 'shipped'])
+
+        if (orderError) {
+          console.error('Failed to update order status to completed:', orderError)
+        }
       }
     }
 

@@ -13,11 +13,10 @@ export interface TrackingEvent {
 export interface TrackingInfo {
   tracking_number: string;
   carrier_code: string;
-  status_code: string;
+  status: string;
   status_description: string;
-  estimated_delivery_date: string | null;
-  actual_delivery_date: string | null;
-  ship_date: string | null;
+  estimated_delivery: string | null;
+  actual_delivery: string | null;
   events: TrackingEvent[];
 }
 
@@ -160,8 +159,14 @@ export function useTracking(initialTrackingNumber?: string, initialCarrierCode?:
         throw new Error(data.error?.message || 'Failed to get tracking info');
       }
 
-      setTrackingInfo(data);
-      return data;
+      // Normalize response: include carrier_code from input since the edge function
+      // no longer returns it, and map new field names to the TrackingInfo interface
+      const info: TrackingInfo = {
+        ...data,
+        carrier_code: carrierCode,
+      };
+      setTrackingInfo(info);
+      return info;
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to fetch tracking info';
       setError(errorMessage);

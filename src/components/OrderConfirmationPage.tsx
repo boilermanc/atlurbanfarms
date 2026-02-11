@@ -48,6 +48,8 @@ interface OrderConfirmationPageProps {
   orderNumber?: string;
   isGuest?: boolean;
   isPickup?: boolean;
+  shippingMethodName?: string;
+  estimatedDeliveryDate?: string | null;
   onContinueShopping: () => void;
   onCreateAccount?: () => void;
 }
@@ -63,6 +65,8 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   orderNumber: providedOrderNumber,
   isGuest = true,
   isPickup = false,
+  shippingMethodName,
+  estimatedDeliveryDate,
   onContinueShopping,
   onCreateAccount
 }) => {
@@ -80,13 +84,18 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
     return providedOrderNumber || `ATL-${Math.floor(10000 + Math.random() * 90000)}`;
   }, [providedOrderNumber]);
 
-  // Calculate estimated arrival date (5-7 business days from now)
+  // Use real delivery estimate from ShipEngine when available, fallback to 5-7 business days
   const estimatedArrival = useMemo(() => {
+    if (estimatedDeliveryDate) {
+      const date = new Date(estimatedDeliveryDate);
+      return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    // Fallback: 5-7 business days
     const today = new Date();
     const startDate = new Date(today);
     const endDate = new Date(today);
 
-    // Add 5 business days for start
     let daysAdded = 0;
     while (daysAdded < 5) {
       startDate.setDate(startDate.getDate() + 1);
@@ -95,7 +104,6 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
       }
     }
 
-    // Add 7 business days for end
     daysAdded = 0;
     while (daysAdded < 7) {
       endDate.setDate(endDate.getDate() + 1);
@@ -109,7 +117,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
     };
 
     return `${formatDate(startDate)} - ${formatDate(endDate)}`;
-  }, []);
+  }, [estimatedDeliveryDate]);
 
   // Stop confetti after 5 seconds
   useEffect(() => {
@@ -355,20 +363,37 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                   </p>
                 </div>
 
-                <div className="mt-6 flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="1" y="3" width="15" height="13" rx="2" ry="2"/>
-                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                      <circle cx="5.5" cy="18.5" r="2.5"/>
-                      <circle cx="18.5" cy="18.5" r="2.5"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      Estimated Arrival
-                    </p>
-                    <p className="text-sm font-bold text-gray-900">{estimatedArrival}</p>
+                <div className="mt-6 space-y-3">
+                  {shippingMethodName && (
+                    <div className="flex items-center gap-4 bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="1" y="3" width="15" height="13" rx="2" ry="2"/>
+                          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                          <circle cx="5.5" cy="18.5" r="2.5"/>
+                          <circle cx="18.5" cy="18.5" r="2.5"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                          Ships Via
+                        </p>
+                        <p className="text-sm font-bold text-gray-900">{shippingMethodName}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 flex-shrink-0">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        {estimatedDeliveryDate ? 'Estimated Delivery' : 'Estimated Arrival'}
+                      </p>
+                      <p className="text-sm font-bold text-gray-900">{estimatedArrival}</p>
+                    </div>
                   </div>
                 </div>
               </div>

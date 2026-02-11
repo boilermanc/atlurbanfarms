@@ -63,6 +63,13 @@ interface OrderData {
     city: string;
     state: string;
     zip: string;
+  } | null;
+  pickupInfo?: {
+    locationName: string;
+    address: string;
+    date: string;
+    timeRange: string;
+    instructions?: string;
   };
   totals: {
     subtotal: number;
@@ -71,6 +78,9 @@ interface OrderData {
     total: number;
   };
   isGuest: boolean;
+  isPickup: boolean;
+  shippingMethodName?: string;
+  estimatedDeliveryDate?: string | null;
 }
 
 type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
@@ -405,9 +415,13 @@ const App: React.FC = () => {
             customerFirstName={completedOrder.customerFirstName}
             customerEmail={completedOrder.customerEmail}
             shippingAddress={completedOrder.shippingAddress}
+            pickupInfo={completedOrder.pickupInfo}
             totals={completedOrder.totals}
             orderNumber={completedOrder.order_number}
             isGuest={completedOrder.isGuest}
+            isPickup={completedOrder.isPickup}
+            shippingMethodName={completedOrder.shippingMethodName}
+            estimatedDeliveryDate={completedOrder.estimatedDeliveryDate}
             onContinueShopping={() => handleNavigate('shop')}
             onCreateAccount={() => handleNavigate('register')}
           />
