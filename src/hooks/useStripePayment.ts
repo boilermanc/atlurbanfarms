@@ -73,6 +73,9 @@ interface CreatePaymentIntentParams {
   customerEmail: string
   orderId?: string
   metadata?: Record<string, string>
+  discountAmount?: number // Sproutify credit in dollars (for server-side verification)
+  discountDescription?: string
+  lifetimeDiscount?: number // Lifetime member 10% discount in dollars
 }
 
 interface PaymentIntentResult {
@@ -109,7 +112,10 @@ export function useStripePayment() {
           amount: amountInCents,
           customerEmail: params.customerEmail,
           orderId: params.orderId,
-          metadata: params.metadata
+          metadata: params.metadata,
+          discountAmount: params.discountAmount ? Math.round(params.discountAmount * 100) : undefined,
+          discountDescription: params.discountDescription,
+          lifetimeDiscountAmount: params.lifetimeDiscount ? Math.round(params.lifetimeDiscount * 100) : undefined
         })
       })
 

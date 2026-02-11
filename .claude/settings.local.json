@@ -51,7 +51,8 @@
       "Bash(git status:*)",
       "Bash(git show:*)",
       "Bash(supabase link:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(Select-String \"useDeleteCustomer\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"

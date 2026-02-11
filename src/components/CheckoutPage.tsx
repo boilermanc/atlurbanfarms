@@ -7,6 +7,7 @@ import { useAddressValidation, useShippingRates, formatDeliveryEstimate, Shippin
 import { usePickupLocations, useAvailablePickupSlots, formatPickupTime, formatPickupDate, groupSlotsByDate, PickupLocation, PickupSlot } from '../hooks/usePickup';
 import { useSetting } from '../admin/hooks/useSettings';
 import { useStripePayment } from '../hooks/useStripePayment';
+import { useSeedlingCredit } from '../hooks/useSeedlingCredit';
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
 import { supabase } from '../lib/supabase';
@@ -151,6 +152,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
 
+  // Sproutify seedling credit
+  const { hasCredit, creditAmount, isLifetime, redeemCredit, loading: creditLoading } = useSeedlingCredit(
+    user?.email || null
+  );
+
   // ShipEngine address validation and rates
   const {
     validateAddress,
@@ -267,8 +273,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const shippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const lifetimeDiscount = isLifetime ? Math.round(subtotal * 0.10 * 100) / 100 : 0;
   const tax = subtotal * TAX_RATE;
-  const total = subtotal + shippingCost + tax;
+  const totalBeforeCredit = subtotal - lifetimeDiscount + shippingCost + tax;
+  const appliedCredit = hasCredit ? Math.min(creditAmount, totalBeforeCredit) : 0;
+  const total = totalBeforeCredit - appliedCredit;
 
   // Build shipping address for validation/rates
   const buildShippingAddress = useCallback((): ShippingAddress => ({
@@ -584,6 +593,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         customerId: user?.id || null,
         paymentStatus: 'pending',
         saveAddress: deliveryMethod === 'shipping' && saveAddress,
+        discountAmount: appliedCredit + lifetimeDiscount,
+        discountDescription: [
+          lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
+          appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+        ].filter(Boolean).join(', ') || undefined,
         ...shippingDetails,
         ...pickupDetails
       });
@@ -593,14 +607,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         return;
       }
 
-      // Create payment intent
+      // Create payment intent with pre-discount total — the edge function
+      // verifies the credit and lifetime discount server-side before charging Stripe
       const paymentResult = await createPaymentIntent({
-        amount: total,
+        amount: subtotal + shippingCost + tax,
         customerEmail: formData.email,
         orderId: result.order.id,
         metadata: {
           orderNumber: result.order.order_number
-        }
+        },
+        discountAmount: appliedCredit > 0 ? appliedCredit : undefined,
+        discountDescription: appliedCredit > 0 ? 'Sproutify Seedling Credit' : undefined,
+        lifetimeDiscount: lifetimeDiscount > 0 ? lifetimeDiscount : undefined
       });
 
       if (!paymentResult) {
@@ -673,6 +691,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingCost: shippingCost,
       customerId: user?.id || null,
       saveAddress: deliveryMethod === 'shipping' && saveAddress,
+      discountAmount: appliedCredit + lifetimeDiscount,
+      discountDescription: [
+        lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
+        appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+      ].filter(Boolean).join(', ') || undefined,
       ...shippingDetails,
       ...pickupDetails
     });
@@ -689,6 +712,25 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     localStorage.removeItem('atl-urban-farms-cart');
     localStorage.removeItem('cart');
     orderCompletedRef.current = true;
+
+    // Redeem seedling credit if applied
+    if (appliedCredit > 0) {
+      try {
+        const redeemed = await redeemCredit(order.id || order.order_id || pendingOrderId);
+        // Log redemption to seedling_credit_log for admin visibility
+        await supabase.from('seedling_credit_log').insert({
+          action: 'redeem',
+          customer_email: formData.email,
+          credit_amount: appliedCredit,
+          order_id: order.id || order.order_id || pendingOrderId,
+          order_number: order.order_number,
+          status: redeemed ? 'success' : 'failed',
+        });
+      } catch (e) {
+        console.error('Failed to redeem seedling credit:', e);
+        // Don't block order flow
+      }
+    }
 
     // Prepare order data for confirmation page
     const orderData: OrderData = {
@@ -1896,6 +1938,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     <span>Tax (8%)</span>
                     <span className="font-bold">${tax.toFixed(2)}</span>
                   </div>
+                  {lifetimeDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-600 text-sm">
+                      <span>Lifetime Member 10% Off</span>
+                      <span className="font-bold">-${lifetimeDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {appliedCredit > 0 && (
+                    <div className="flex justify-between text-emerald-600 text-sm">
+                      <span>Sproutify Credit</span>
+                      <span className="font-bold">-${appliedCredit.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                     <span className="text-lg font-heading font-extrabold text-gray-900">Total</span>
                     <span className="text-2xl font-black text-emerald-600">${total.toFixed(2)}</span>

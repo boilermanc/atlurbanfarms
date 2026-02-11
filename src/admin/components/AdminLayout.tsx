@@ -59,6 +59,7 @@ const CustomerTagsPage = lazy(() => import('../pages/CustomerTagsPage'));
 const LegacyOrderDetailPage = lazy(() => import('../pages/LegacyOrderDetailPage'));
 const SiteContentPage = lazy(() => import('../pages/SiteContentPage'));
 const GrowersPage = lazy(() => import('../pages/GrowersPage'));
+const SproutifyCreditsPage = lazy(() => import('../pages/SproutifyCreditsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -111,6 +112,7 @@ const PAGE_TITLES: Record<string, string> = {
   'customer-tags': 'Customer Tags',
   'site-content': 'Site Content',
   'growers': 'Team Members',
+  'sproutify-credits': 'Sproutify Credits',
 };
 
 // Dashboard Stats Interface
@@ -808,6 +810,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <SiteContentPage />;
       case 'growers':
         return <GrowersPage />;
+      case 'sproutify-credits':
+        return <SproutifyCreditsPage />;
       case 'dashboard':
       default:
         return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} />;

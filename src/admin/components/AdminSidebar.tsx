@@ -57,6 +57,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'alerts', label: 'Alerts', icon: Bell },
       { id: 'promotions', label: 'Promotions', icon: Tag },
       { id: 'gift-cards', label: 'Gift Cards', icon: Gift },
+      { id: 'sproutify-credits', label: 'Sproutify Credits', icon: Leaf },
     ],
   },
   {
