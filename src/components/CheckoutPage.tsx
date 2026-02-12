@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
 import { useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
-import { useAddressValidation, useShippingRates, formatDeliveryEstimate, ShippingRate, ShippingAddress, ZoneInfo } from '../hooks/useShipping';
+import { useAddressValidation, useShippingRates, ShippingRate, ShippingAddress, ZoneInfo } from '../hooks/useShipping';
 import { usePickupLocations, useAvailablePickupSlots, formatPickupTime, formatPickupDate, groupSlotsByDate, PickupLocation, PickupSlot } from '../hooks/usePickup';
 import { useSetting } from '../admin/hooks/useSettings';
 import { useStripePayment } from '../hooks/useStripePayment';
@@ -144,6 +144,48 @@ const US_STATES = [
 
 const TAX_RATE = 0.08; // 8% tax rate
 
+/**
+ * Calculate the next ship date based on current time, cutoff, and ship day settings.
+ * All times evaluated in America/New_York timezone.
+ * - cutoffDay: 0=Sun, 1=Mon, ... 6=Sat
+ * - cutoffTime: "HH:MM" in 24h format
+ * - shipDay: 0=Sun, 1=Mon, ... 6=Sat
+ *
+ * Logic: If we're before this week's cutoff, we ship on the next shipDay after the cutoff.
+ * If we're past the cutoff, we ship on the shipDay after *next* week's cutoff.
+ */
+function getNextShipDate(cutoffDay: number, cutoffTime: string, shipDay: number): Date {
+  // Get current time in ET
+  const nowET = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const currentDay = nowET.getDay(); // 0=Sun
+  const [cutoffH, cutoffM] = cutoffTime.split(':').map(Number);
+
+  // How many days until the cutoff day from today?
+  let daysToCutoff = (cutoffDay - currentDay + 7) % 7;
+
+  // Build cutoff datetime for this week
+  const cutoffDate = new Date(nowET);
+  cutoffDate.setDate(cutoffDate.getDate() + daysToCutoff);
+  cutoffDate.setHours(cutoffH, cutoffM, 0, 0);
+
+  // If the cutoff is today but already passed, jump to next week
+  let pastCutoff = nowET > cutoffDate;
+
+  // Days from cutoff day to ship day (ship day is always after cutoff in the cycle)
+  let cutoffToShip = (shipDay - cutoffDay + 7) % 7;
+  if (cutoffToShip === 0) cutoffToShip = 7; // ship day same as cutoff day means next week
+
+  const shipDate = new Date(cutoffDate);
+  if (pastCutoff) {
+    // Missed this week's cutoff — next cutoff is 7 days later
+    shipDate.setDate(shipDate.getDate() + 7 + cutoffToShip);
+  } else {
+    shipDate.setDate(shipDate.getDate() + cutoffToShip);
+  }
+
+  return shipDate;
+}
+
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete }) => {
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
@@ -151,6 +193,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { addresses } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
   const { value: shipEngineEnabled } = useSetting('integrations', 'shipstation_enabled');
+  const { value: defaultShipDay } = useSetting('shipping', 'default_ship_day');
+  const { value: weeklyCutoffDay } = useSetting('shipping', 'weekly_cutoff_day');
+  const { value: weeklyCutoffTime } = useSetting('shipping', 'weekly_cutoff_time');
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
 
@@ -1690,6 +1735,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           >
                             <div className="flex justify-between items-start">
                               <div className="flex items-start gap-3">
+                                {shippingRates.length > 1 && (
                                 <div className={`w-5 h-5 mt-0.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                   selectedShippingRate?.rate_id === rate.rate_id
                                     ? 'border-emerald-600'
@@ -1699,30 +1745,37 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                                     <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
                                   )}
                                 </div>
+                                )}
                                 <div>
                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                                     <span className="font-bold text-gray-900">{rate.carrier_friendly_name}</span>
                                     <span className="text-gray-400">•</span>
                                     <span className="text-gray-700">{rate.service_type}</span>
-                                    {isCheapest && (
+                                    {shippingRates.length > 1 && isCheapest && (
                                       <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
                                         Cheapest
                                       </span>
                                     )}
-                                    {isFastest && (
+                                    {shippingRates.length > 1 && isFastest && (
                                       <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">
                                         Fastest
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-sm text-gray-500">
-                                    {formatDeliveryEstimate(rate)}
-                                    {rate.guaranteed_service && (
-                                      <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">
-                                        Guaranteed
+                                  {defaultShipDay != null && weeklyCutoffDay != null && weeklyCutoffTime && (
+                                    <p className="mt-1.5">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-semibold shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-pulse">
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        Ships {getNextShipDate(
+                                          Number(weeklyCutoffDay),
+                                          String(weeklyCutoffTime),
+                                          Number(defaultShipDay)
+                                        ).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                       </span>
-                                    )}
-                                  </p>
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <span className="text-emerald-600 font-black text-lg">

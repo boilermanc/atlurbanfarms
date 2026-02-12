@@ -59,7 +59,20 @@ const RULES_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data
   shipping_rate_markup_dollars: { value: 0, dataType: 'number' },
 };
 
-type SectionKey = 'address' | 'package' | 'rules';
+const SERVICE_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+  forced_service_default: { value: 'ups_ground', dataType: 'string' },
+  forced_service_overrides: { value: { service_code: 'ups_3_day_select', states: [] }, dataType: 'json' },
+};
+
+const UPS_SERVICES = [
+  { value: 'ups_ground', label: 'UPS Ground' },
+  { value: 'ups_3_day_select', label: 'UPS 3 Day Select' },
+  { value: 'ups_2nd_day_air', label: 'UPS 2nd Day Air' },
+  { value: 'ups_next_day_air_saver', label: 'UPS Next Day Air Saver' },
+  { value: 'ups_next_day_air', label: 'UPS Next Day Air' },
+];
+
+type SectionKey = 'address' | 'package' | 'rules' | 'service';
 type SaveStatus = { message: string; type: 'success' | 'error' } | null;
 type ValidationStatus = { status: 'verified' | 'warning' | 'unverified' | 'error'; messages: string[] } | null;
 
@@ -111,11 +124,13 @@ const ShippingSettingsTab: React.FC = () => {
   const [rulesData, setRulesData] = useState<Record<string, any>>({});
 
   // Per-section save status
+  const [serviceData, setServiceData] = useState<Record<string, any>>({});
   const [savingSections, setSavingSections] = useState<Set<SectionKey>>(new Set());
   const [saveStatuses, setSaveStatuses] = useState<Record<SectionKey, SaveStatus>>({
     address: null,
     package: null,
     rules: null,
+    service: null,
   });
 
   const startSaving = (section: SectionKey) => {
@@ -138,6 +153,7 @@ const ShippingSettingsTab: React.FC = () => {
     address: null,
     package: null,
     rules: null,
+    service: null,
   });
 
   // Cleanup timeouts on unmount
@@ -179,6 +195,12 @@ const ShippingSettingsTab: React.FC = () => {
       rules[key] = settings.shipping?.[key] ?? config.value;
     });
     setRulesData(rules);
+
+    const svc: Record<string, any> = {};
+    Object.entries(SERVICE_DEFAULTS).forEach(([key, config]) => {
+      svc[key] = settings.shipping?.[key] ?? config.value;
+    });
+    setServiceData(svc);
   }, [settings]);
 
   const clearSaveStatus = useCallback((section: SectionKey) => {
@@ -301,6 +323,33 @@ const ShippingSettingsTab: React.FC = () => {
       clearSaveStatus('rules');
     }
   }, [rulesData, bulkUpdate, refetch, clearSaveStatus]);
+
+  // Save service assignment
+  const handleSaveService = useCallback(async () => {
+    startSaving('service');
+    setSaveStatuses(prev => ({ ...prev, service: null }));
+
+    try {
+      const serviceSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+      Object.entries(SERVICE_DEFAULTS).forEach(([key, config]) => {
+        serviceSettings[key] = { value: serviceData[key], dataType: config.dataType };
+      });
+
+      const success = await bulkUpdate('shipping', serviceSettings);
+
+      if (success) {
+        setSaveStatuses(prev => ({ ...prev, service: { message: 'Service assignment saved!', type: 'success' } }));
+        refetch();
+      } else {
+        setSaveStatuses(prev => ({ ...prev, service: { message: 'Failed to save service assignment', type: 'error' } }));
+      }
+    } catch {
+      setSaveStatuses(prev => ({ ...prev, service: { message: 'Failed to save service assignment', type: 'error' } }));
+    } finally {
+      stopSaving('service');
+      clearSaveStatus('service');
+    }
+  }, [serviceData, bulkUpdate, refetch, clearSaveStatus]);
 
   // Validate address via ShipEngine
   const handleValidateAddress = useCallback(async () => {
@@ -698,6 +747,99 @@ const ShippingSettingsTab: React.FC = () => {
           saving={savingSections.has('rules')}
           status={saveStatuses.rules}
           onClick={handleSaveRules}
+        />
+      </div>
+
+      {/* Service Assignment Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+        <h3 className="text-lg font-medium text-slate-800 mb-2">Service Assignment</h3>
+        <p className="text-sm text-slate-500 mb-6">
+          Assign a single shipping service per state. Customers won't choose — they see one option based on their state.
+        </p>
+
+        <div className="space-y-6">
+          {/* Default Service */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Default Service (all states)</label>
+            <select
+              value={serviceData.forced_service_default || 'ups_ground'}
+              onChange={(e) => setServiceData(prev => ({ ...prev, forced_service_default: e.target.value }))}
+              className={inputClass}
+            >
+              {UPS_SERVICES.map((svc) => (
+                <option key={svc.value} value={svc.value}>{svc.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">This service is used for all states unless overridden below.</p>
+          </div>
+
+          {/* Override Service */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Override Service</label>
+            <select
+              value={serviceData.forced_service_overrides?.service_code || 'ups_3_day_select'}
+              onChange={(e) => setServiceData(prev => ({
+                ...prev,
+                forced_service_overrides: {
+                  ...prev.forced_service_overrides,
+                  service_code: e.target.value,
+                },
+              }))}
+              className={inputClass}
+            >
+              {UPS_SERVICES.map((svc) => (
+                <option key={svc.value} value={svc.value}>{svc.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">States selected below will use this service instead of the default.</p>
+          </div>
+
+          {/* Override States */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Override States</label>
+            <div className="flex flex-wrap gap-2">
+              {US_STATES.map((state) => {
+                const selected = (serviceData.forced_service_overrides?.states || []).includes(state.value);
+                return (
+                  <button
+                    key={state.value}
+                    type="button"
+                    onClick={() => {
+                      setServiceData(prev => {
+                        const currentStates: string[] = prev.forced_service_overrides?.states || [];
+                        const newStates = selected
+                          ? currentStates.filter((s: string) => s !== state.value)
+                          : [...currentStates, state.value];
+                        return {
+                          ...prev,
+                          forced_service_overrides: {
+                            ...prev.forced_service_overrides,
+                            states: newStates,
+                          },
+                        };
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      selected
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {state.value}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500">
+              {(serviceData.forced_service_overrides?.states || []).length} state{(serviceData.forced_service_overrides?.states || []).length !== 1 ? 's' : ''} selected for override
+            </p>
+          </div>
+        </div>
+
+        <SectionSaveButton
+          saving={savingSections.has('service')}
+          status={saveStatuses.service}
+          onClick={handleSaveService}
         />
       </div>
     </div>

@@ -584,7 +584,9 @@ serve(async (req) => {
       'default_package_weight',
       'shipping_rate_markup_type',
       'shipping_rate_markup_percent',
-      'shipping_rate_markup_dollars'
+      'shipping_rate_markup_dollars',
+      'forced_service_default',
+      'forced_service_overrides'
     ])
 
     // Try composite JSON key first, then fall back to individual business category fields
@@ -891,6 +893,24 @@ serve(async (req) => {
         if (fastRates.length > 0) {
           rates = fastRates
         }
+      }
+    }
+
+    // Forced service assignment: filter to a single service based on destination state
+    const forcedDefault = shippingSettings.forced_service_default
+    if (forcedDefault && rates.length > 0) {
+      const overrides = shippingSettings.forced_service_overrides || { service_code: '', states: [] }
+      const destState = (ship_to.state_province || '').toUpperCase()
+      const forcedCode = (Array.isArray(overrides.states) && overrides.states.includes(destState) && overrides.service_code)
+        ? overrides.service_code
+        : forcedDefault
+
+      console.log(`Forced service: ${forcedCode} for state ${destState}`)
+      const forcedRates = rates.filter(r => r.service_code === forcedCode)
+      if (forcedRates.length > 0) {
+        rates = forcedRates
+      } else {
+        console.warn(`Forced service code "${forcedCode}" not found in rates, showing all rates as fallback`)
       }
     }
 
