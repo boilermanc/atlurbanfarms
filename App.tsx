@@ -13,6 +13,7 @@ import OrderConfirmationPage from './src/components/OrderConfirmationPage';
 import TrackingPage from './src/components/TrackingPage';
 import ShopPage from './components/ShopPage';
 import PromotionalBanner from './components/PromotionalBanner';
+import OutageBanner from './components/OutageBanner';
 import FAQPage from './components/FAQPage';
 import AboutPage from './components/AboutPage';
 import SchoolsPage from './components/SchoolsPage';
@@ -584,6 +585,7 @@ const App: React.FC = () => {
   return (
     <SiteContentProvider>
       <AuthProvider>
+        <OutageBanner />
         {renderContent()}
         <CartDrawer
           isOpen={isCartOpen}
