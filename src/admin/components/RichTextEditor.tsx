@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -6,6 +6,7 @@ import Underline from '@tiptap/extension-underline';
 import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Unlink, Palette } from 'lucide-react';
+import { useBrandingSettings } from '../../hooks/useSupabase';
 
 interface RichTextEditorProps {
   value: string;
@@ -35,14 +36,55 @@ const MenuButton: React.FC<{
   </button>
 );
 
+const RECENT_COLORS_KEY = 'atluf_recent_colors';
+const MAX_RECENT_COLORS = 8;
+
+function getRecentColors(): string[] {
+  try {
+    const stored = localStorage.getItem(RECENT_COLORS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentColor(hex: string) {
+  try {
+    const normalized = hex.toLowerCase();
+    const recent = getRecentColors().filter((c) => c !== normalized);
+    recent.unshift(normalized);
+    localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(recent.slice(0, MAX_RECENT_COLORS)));
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) }
+    : null;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+}
+
 const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder }) => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customHex, setCustomHex] = useState('#000000');
+  const [customRgb, setCustomRgb] = useState({ r: 0, g: 0, b: 0 });
+  const [recentColors, setRecentColors] = useState<string[]>(getRecentColors);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  const { settings: brandingSettings } = useBrandingSettings();
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        link: false,
+        underline: false,
         bulletList: {
           keepMarks: true,
           keepAttributes: false,
@@ -74,6 +116,67 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
       onChange(editor.getHTML());
     },
   });
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!showColorPicker) return;
+    const handleClick = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showColorPicker]);
+
+  // Sync hex/rgb when color picker opens with current text color
+  useEffect(() => {
+    if (showColorPicker && editor) {
+      const currentColor = editor.getAttributes('textStyle').color || '#000000';
+      setCustomHex(currentColor);
+      const rgb = hexToRgb(currentColor);
+      if (rgb) setCustomRgb(rgb);
+    }
+  }, [showColorPicker, editor]);
+
+  const updateFromHex = (hex: string) => {
+    setCustomHex(hex);
+    const rgb = hexToRgb(hex);
+    if (rgb) setCustomRgb(rgb);
+  };
+
+  const updateFromRgb = (channel: 'r' | 'g' | 'b', val: number) => {
+    const next = { ...customRgb, [channel]: val };
+    setCustomRgb(next);
+    setCustomHex(rgbToHex(next.r, next.g, next.b));
+  };
+
+  const applyColor = (color: string) => {
+    if (!editor) return;
+    editor.chain().focus().setColor(color).run();
+    saveRecentColor(color);
+    setRecentColors(getRecentColors());
+    setShowColorPicker(false);
+  };
+
+  const applyCustomColor = () => {
+    applyColor(customHex);
+  };
+
+  // Build brand color presets from settings
+  const brandColors: { color: string; label: string }[] = [];
+  if (brandingSettings?.primary_brand_color) {
+    brandColors.push({ color: brandingSettings.primary_brand_color, label: 'Primary' });
+  }
+  if (brandingSettings?.secondary_brand_color) {
+    brandColors.push({ color: brandingSettings.secondary_brand_color, label: 'Secondary' });
+  }
+  if (brandingSettings?.background_color && brandingSettings.background_color !== '#fafafa') {
+    brandColors.push({ color: brandingSettings.background_color, label: 'Background' });
+  }
+  if (brandingSettings?.secondary_background_color && brandingSettings.secondary_background_color !== '#ffffff') {
+    brandColors.push({ color: brandingSettings.secondary_background_color, label: 'Sec. BG' });
+  }
 
   const setLink = useCallback(() => {
     if (!editor) return;
@@ -176,7 +279,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
 
         <div className="w-px h-6 bg-slate-200 mx-1" />
 
-        <div className="relative">
+        <div className="relative" ref={colorPickerRef}>
           <MenuButton
             onClick={() => setShowColorPicker(!showColorPicker)}
             isActive={!!editor.getAttributes('textStyle').color}
@@ -192,47 +295,132 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
           </MenuButton>
 
           {showColorPicker && (
-            <div className="absolute top-full left-0 mt-1 p-3 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-52">
-              <div className="grid grid-cols-6 gap-1.5 mb-2">
+            <div className="absolute top-full left-0 mt-1 p-3 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-64">
+              {/* Brand Colors */}
+              {brandColors.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Brand Colors</p>
+                  <div className="flex gap-1.5">
+                    {brandColors.map(({ color, label }) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => applyColor(color)}
+                        className="flex flex-col items-center gap-0.5 group"
+                        title={`${label}: ${color}`}
+                      >
+                        <span
+                          className="w-7 h-7 rounded-lg border-2 border-slate-200 group-hover:scale-110 group-hover:border-slate-400 transition-all"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span className="text-[9px] text-slate-400 group-hover:text-slate-600">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recently Used */}
+              {recentColors.length > 0 && (
+                <div className="mb-2.5">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Recent</p>
+                  <div className="flex gap-1.5">
+                    {recentColors.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => applyColor(color)}
+                        className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
+                          color === '#ffffff' ? 'border-slate-300' : 'border-slate-200'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Standard Colors */}
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Colors</p>
+              <div className="grid grid-cols-8 gap-1.5 mb-2.5">
                 {[
-                  '#000000', '#374151', '#6B7280', '#EF4444', '#F97316', '#F59E0B',
-                  '#10B981', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899',
-                  '#991B1B', '#9A3412', '#92400E', '#065F46', '#155E75', '#1E3A8A',
+                  '#000000', '#374151', '#6B7280', '#9CA3AF', '#EF4444', '#F97316', '#F59E0B', '#EAB308',
+                  '#10B981', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#FFFFFF',
+                  '#991B1B', '#9A3412', '#92400E', '#065F46', '#155E75', '#1E3A8A', '#4C1D95', '#831843',
                 ].map((color) => (
                   <button
                     key={color}
                     type="button"
-                    onClick={() => {
-                      editor.chain().focus().setColor(color).run();
-                      setShowColorPicker(false);
-                    }}
-                    className="w-6 h-6 rounded-md border border-slate-200 hover:scale-110 transition-transform"
+                    onClick={() => applyColor(color)}
+                    className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
+                      color === '#FFFFFF' ? 'border-slate-300' : 'border-slate-200'
+                    }`}
                     style={{ backgroundColor: color }}
                     title={color}
                   />
                 ))}
               </div>
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                <input
-                  type="color"
-                  onChange={(e) => {
-                    editor.chain().focus().setColor(e.target.value).run();
-                    setShowColorPicker(false);
-                  }}
-                  className="w-6 h-6 rounded cursor-pointer border-0 p-0"
-                  title="Custom color"
-                />
-                <span className="text-xs text-slate-400">Custom</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    editor.chain().focus().unsetColor().run();
-                    setShowColorPicker(false);
-                  }}
-                  className="ml-auto text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
-                >
-                  Reset
-                </button>
+
+              {/* Custom Color Section */}
+              <div className="pt-2.5 border-t border-slate-100">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Custom</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="color"
+                    value={customHex}
+                    onChange={(e) => updateFromHex(e.target.value)}
+                    className="w-8 h-8 rounded cursor-pointer border border-slate-200 p-0 bg-transparent"
+                    title="Pick custom color"
+                  />
+                  <input
+                    type="text"
+                    value={customHex}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setCustomHex(v);
+                      const rgb = hexToRgb(v);
+                      if (rgb) setCustomRgb(rgb);
+                    }}
+                    className="flex-1 px-2 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400"
+                    placeholder="#000000"
+                    maxLength={7}
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  {(['r', 'g', 'b'] as const).map((ch) => (
+                    <div key={ch} className="flex-1">
+                      <label className="block text-[10px] font-medium text-slate-400 uppercase text-center mb-0.5">{ch}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={255}
+                        value={customRgb[ch]}
+                        onChange={(e) => updateFromRgb(ch, Math.max(0, Math.min(255, parseInt(e.target.value) || 0)))}
+                        className="w-full px-1.5 py-1.5 text-xs text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={applyCustomColor}
+                    className="flex-1 px-3 py-1.5 text-xs font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      editor.chain().focus().unsetColor().run();
+                      setShowColorPicker(false);
+                    }}
+                    className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    Reset
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -162,10 +162,12 @@ const AboutPage: React.FC = () => {
         >
           <img src={heroContent.image_url || 'https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=1600'} alt="Inside our high-tech nursery" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          <div className="absolute bottom-10 left-10 text-white">
-            <p className="text-sm font-black uppercase tracking-widest mb-2">{heroContent.image_caption_label || 'Facility 01 // Atlanta, GA'}</p>
-            <h3 className="text-2xl font-bold">{heroContent.image_caption_text || 'Climate-Controlled Nursery Operations'}</h3>
-          </div>
+          {(heroContent.image_caption_label?.trim() || heroContent.image_caption_text?.trim()) && (
+            <div className="absolute bottom-10 left-10 text-white">
+              {heroContent.image_caption_label?.trim() && <p className="text-sm font-black uppercase tracking-widest mb-2">{heroContent.image_caption_label}</p>}
+              {heroContent.image_caption_text?.trim() && <h3 className="text-2xl font-bold">{heroContent.image_caption_text}</h3>}
+            </div>
+          )}
         </motion.div>
       </section>
 
@@ -394,7 +396,7 @@ const AboutPage: React.FC = () => {
                     {/* Info Overlay */}
                     <div className="absolute bottom-0 left-0 right-0 p-8">
                       <h3 className="text-2xl font-heading font-bold text-white mb-1">{grower.name}</h3>
-                      <p className="brand-text font-semibold text-sm" style={{ opacity: 0.8 }}>{grower.title}</p>
+                      <p className="text-white font-semibold text-sm" style={{ opacity: 0.8 }}>{grower.title}</p>
                     </div>
                   </div>
 

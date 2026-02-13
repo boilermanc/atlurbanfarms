@@ -29,8 +29,17 @@ interface TabConfig {
   pages: string[]; // Which pages this tab covers
 }
 
+// Field configuration with optional select options and conditional visibility
+interface FieldConfig {
+  key: string;
+  label: string;
+  type: 'text' | 'rich_text' | 'image_url' | 'number' | 'select';
+  options?: string[];
+  showWhen?: { key: string; value: string };
+}
+
 // Define content structure for each page
-const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { key: string; label: string; type: 'text' | 'rich_text' | 'image_url' | 'number' }[] }>> = {
+const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: FieldConfig[] }>> = {
   home: {
     hero: {
       label: 'Hero Section',
@@ -42,7 +51,9 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'secondary_cta_text', label: 'Secondary Button Text', type: 'text' },
         { key: 'guarantee_label', label: 'Guarantee Label', type: 'text' },
         { key: 'guarantee_text', label: 'Guarantee Text', type: 'text' },
-        { key: 'image_url', label: 'Hero Image', type: 'image_url' },
+        { key: 'hero_media_type', label: 'Hero Media Type', type: 'select', options: ['image', 'video'] },
+        { key: 'image_url', label: 'Hero Image', type: 'image_url', showWhen: { key: 'hero_media_type', value: 'image' } },
+        { key: 'hero_video_url', label: 'Hero Video URL', type: 'text', showWhen: { key: 'hero_media_type', value: 'video' } },
       ],
     },
     featured: {
@@ -52,6 +63,52 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'description', label: 'Description', type: 'rich_text' },
         { key: 'cta_text', label: 'Button Text', type: 'text' },
+      ],
+    },
+    reviews: {
+      label: 'Customer Reviews',
+      keys: [
+        { key: 'heading', label: 'Section Heading', type: 'text' },
+        { key: 'subheading', label: 'Subheading', type: 'text' },
+        { key: 'review_1_name', label: 'Review 1 - Customer Name', type: 'text' },
+        { key: 'review_1_image', label: 'Review 1 - Photo (optional)', type: 'image_url' },
+        { key: 'review_1_text', label: 'Review 1 - Review', type: 'rich_text' },
+        { key: 'review_2_name', label: 'Review 2 - Customer Name', type: 'text' },
+        { key: 'review_2_image', label: 'Review 2 - Photo (optional)', type: 'image_url' },
+        { key: 'review_2_text', label: 'Review 2 - Review', type: 'rich_text' },
+        { key: 'review_3_name', label: 'Review 3 - Customer Name', type: 'text' },
+        { key: 'review_3_image', label: 'Review 3 - Photo (optional)', type: 'image_url' },
+        { key: 'review_3_text', label: 'Review 3 - Review', type: 'rich_text' },
+        { key: 'review_4_name', label: 'Review 4 - Customer Name', type: 'text' },
+        { key: 'review_4_image', label: 'Review 4 - Photo (optional)', type: 'image_url' },
+        { key: 'review_4_text', label: 'Review 4 - Review', type: 'rich_text' },
+        { key: 'review_5_name', label: 'Review 5 - Customer Name', type: 'text' },
+        { key: 'review_5_image', label: 'Review 5 - Photo (optional)', type: 'image_url' },
+        { key: 'review_5_text', label: 'Review 5 - Review', type: 'rich_text' },
+        { key: 'review_6_name', label: 'Review 6 - Customer Name', type: 'text' },
+        { key: 'review_6_image', label: 'Review 6 - Photo (optional)', type: 'image_url' },
+        { key: 'review_6_text', label: 'Review 6 - Review', type: 'rich_text' },
+      ],
+    },
+    mission: {
+      label: 'Mission Section (ATL Urban Farms Standard)',
+      keys: [
+        { key: 'mission_heading', label: 'Heading', type: 'text' },
+        { key: 'mission_description', label: 'Description', type: 'rich_text' },
+        { key: 'mission_button_text', label: 'Button Text', type: 'text' },
+        { key: 'mission_button_link', label: 'Button Link', type: 'text' },
+        { key: 'mission_image', label: 'Section Image (optional)', type: 'image_url' },
+      ],
+    },
+    sproutify: {
+      label: 'Sproutify App Section',
+      keys: [
+        { key: 'sproutify_enabled', label: 'Show Section', type: 'select', options: ['disabled', 'enabled'] },
+        { key: 'sproutify_heading', label: 'Heading', type: 'text' },
+        { key: 'sproutify_description', label: 'Description', type: 'rich_text' },
+        { key: 'sproutify_image', label: 'App Image/Screenshot', type: 'image_url' },
+        { key: 'sproutify_button_text', label: 'Button Text', type: 'text' },
+        { key: 'sproutify_button_link', label: 'Button Link', type: 'text' },
       ],
     },
     schools_promo: {
@@ -88,6 +145,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: { 
         { key: 'image_url', label: 'Story Image', type: 'image_url' },
         { key: 'founder_name', label: 'Founder Name', type: 'text' },
         { key: 'founder_title', label: 'Founder Title', type: 'text' },
+        { key: 'founder_image', label: 'Founder Image', type: 'image_url' },
         { key: 'established_year', label: 'Established Year', type: 'text' },
         { key: 'established_caption', label: 'Established Caption', type: 'text' },
       ],
@@ -338,7 +396,7 @@ const SiteContentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['home-hero', 'about-hero', 'schools-hero', 'faq-header', 'footer-main']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState<Record<string, Record<string, Record<string, string>>>>({});
   const [uploadingImage, setUploadingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -417,7 +475,7 @@ const SiteContentPage: React.FC = () => {
               section,
               key: field.key,
               value,
-              content_type: field.type,
+              content_type: field.type === 'select' ? 'text' : field.type,
             });
           }
         }
@@ -523,10 +581,38 @@ const SiteContentPage: React.FC = () => {
   };
 
   // Render field based on type
-  const renderField = (page: string, section: string, field: { key: string; label: string; type: string }) => {
+  const renderField = (page: string, section: string, field: FieldConfig) => {
+    // Conditional visibility: check showWhen condition
+    if (field.showWhen) {
+      const depValue = formData[page]?.[section]?.[field.showWhen.key] || '';
+      // Default to 'image' for hero_media_type when empty (preserves existing behavior)
+      const effectiveValue = depValue || (field.showWhen.key === 'hero_media_type' ? 'image' : '');
+      if (effectiveValue !== field.showWhen.value) return null;
+    }
+
     const value = formData[page]?.[section]?.[field.key] || '';
     const fieldKey = `${page}-${section}-${field.key}`;
     const isUploading = uploadingImage === fieldKey;
+
+    if (field.type === 'select' && field.options) {
+      return (
+        <div key={fieldKey} className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            {getTypeIcon(field.type)}
+            {field.label}
+          </label>
+          <select
+            value={value || field.options[0]}
+            onChange={(e) => updateField(page, section, field.key, e.target.value)}
+            className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all capitalize"
+          >
+            {field.options.map((opt) => (
+              <option key={opt} value={opt} className="capitalize">{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
 
     if (field.type === 'rich_text') {
       return (

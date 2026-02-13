@@ -572,6 +572,83 @@ export function useAddresses(customerId) {
 }
 
 /**
+ * Enrich bundle products with stock derived from component product availability.
+ * A bundle is in stock only if ALL component products have sufficient quantity.
+ * Effective bundle quantity = MIN(FLOOR(component_qty / required_qty)) across all components.
+ */
+export async function enrichBundleStock(products) {
+  const bundles = products.filter(p => p.product_type === 'bundle')
+  if (bundles.length === 0) return products
+
+  const bundleIds = bundles.map(p => p.id)
+
+  // Fetch relationships for all bundle products
+  const { data: relationships, error } = await supabase
+    .from('product_relationships')
+    .select('parent_product_id, child_product_id, quantity')
+    .in('parent_product_id', bundleIds)
+    .eq('relationship_type', 'bundle')
+
+  if (error || !relationships || relationships.length === 0) return products
+
+  // Collect child product IDs that aren't already in the products array
+  const productMap = new Map(products.map(p => [p.id, p]))
+  const missingChildIds = relationships
+    .map(r => r.child_product_id)
+    .filter(id => !productMap.has(id))
+  const uniqueMissingIds = [...new Set(missingChildIds)]
+
+  // Fetch any missing child products (e.g. inactive products not in the main query)
+  if (uniqueMissingIds.length > 0) {
+    const { data: missingProducts } = await supabase
+      .from('products')
+      .select('id, quantity_available, track_inventory, stock_status')
+      .in('id', uniqueMissingIds)
+
+    if (missingProducts) {
+      missingProducts.forEach(p => productMap.set(p.id, p))
+    }
+  }
+
+  // Group relationships by parent bundle
+  const bundleRels = {}
+  for (const rel of relationships) {
+    if (!bundleRels[rel.parent_product_id]) {
+      bundleRels[rel.parent_product_id] = []
+    }
+    bundleRels[rel.parent_product_id].push(rel)
+  }
+
+  // Compute effective stock for each bundle
+  return products.map(product => {
+    if (product.product_type !== 'bundle') return product
+
+    const rels = bundleRels[product.id]
+    if (!rels || rels.length === 0) return product
+
+    const effectiveQty = Math.min(
+      ...rels.map(r => {
+        const child = productMap.get(r.child_product_id)
+        if (!child) return 0
+        // If child doesn't track inventory, check stock_status
+        if (child.track_inventory === false) {
+          return child.stock_status === 'in_stock' ? 999 : 0
+        }
+        const childQty = child.quantity_available ?? 0
+        const reqQty = r.quantity || 1
+        return Math.floor(childQty / reqQty)
+      })
+    )
+
+    return {
+      ...product,
+      quantity_available: effectiveQty,
+      stock_status: effectiveQty > 0 ? 'in_stock' : 'out_of_stock'
+    }
+  })
+}
+
+/**
  * Fetch all active products with category and primary image
  * Includes realtime subscription to automatically update when products change
  */
@@ -604,7 +681,10 @@ export function useProducts() {
         primary_image: product.images?.find(img => img.is_primary) || product.images?.[0] || null
       }))
 
-      setProducts(productsWithPrimaryImage)
+      // Derive bundle stock from component product availability
+      const enrichedProducts = await enrichBundleStock(productsWithPrimaryImage)
+
+      setProducts(enrichedProducts)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -705,8 +785,11 @@ export function useBestSellers(limit = 8) {
         sales_count: salesCounts[product.id] || 0
       }))
 
+      // Derive bundle stock from component product availability
+      const enrichedProducts = await enrichBundleStock(productsWithSales)
+
       // Sort by sales count descending and take top N
-      const bestSellers = productsWithSales
+      const bestSellers = enrichedProducts
         .sort((a, b) => b.sales_count - a.sales_count)
         .slice(0, limit)
 

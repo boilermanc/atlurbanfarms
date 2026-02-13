@@ -183,11 +183,11 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
   // Default text logo fallback - cleaner, more prominent
   const defaultLogo = (
     <>
-      <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-md group-hover:scale-105 transition-all duration-300 brand-bg">
+      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl lg:text-2xl shadow-md group-hover:scale-105 transition-all duration-300 brand-bg">
         A
       </div>
       <div className="flex flex-col leading-tight">
-        <span className="font-heading text-lg md:text-xl font-extrabold tracking-tight text-gray-900">
+        <span className="font-heading text-lg md:text-xl lg:text-2xl font-extrabold tracking-tight text-gray-900">
           ATL Urban Farms
         </span>
         <span className="text-[10px] md:text-xs font-medium text-gray-500 tracking-wide hidden sm:block">
@@ -203,7 +203,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
         <img
           src={brandingSettings.logo_url}
           alt="ATL Urban Farms"
-          className="h-10 md:h-12 lg:h-14 w-auto object-contain group-hover:scale-[1.02] transition-transform duration-300"
+          className="h-10 md:h-12 lg:h-16 w-auto object-contain group-hover:scale-[1.02] transition-transform duration-300"
           onError={() => setLogoError(true)}
         />
       ) : (
@@ -242,10 +242,10 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
       {/* Main Navigation */}
       <nav
         ref={navBarRef}
-        className={`transition-all duration-300 ease-out ${
+        className={`transition-all duration-300 ease-out lg:bg-emerald-900 ${
           isScrolled
-            ? 'bg-white/95 backdrop-blur-lg py-2.5 shadow-sm border-b border-gray-100/50'
-            : 'bg-white py-4'
+            ? 'bg-white/95 backdrop-blur-lg py-2.5 shadow-sm border-b border-gray-100/50 lg:shadow-none lg:border-transparent'
+            : 'bg-white py-3'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
@@ -266,14 +266,14 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
               </button>
             </div>
 
-            {/* Logo - Left on desktop, center on mobile */}
-            <div className="hidden lg:flex items-center flex-shrink-0">{logo}</div>
+            {/* Mobile: Center logo */}
             <div className="lg:hidden flex-1 flex justify-center">{logo}</div>
 
-            {/* Desktop Navigation - Center */}
-            <div className="hidden lg:flex items-center justify-center flex-1">
-              {/* Nav Items Container */}
-              <nav className="flex items-center gap-1">
+            {/* Desktop: White rounded pill with logo + nav links */}
+            <div className="hidden lg:flex items-center bg-white rounded-full pl-3 pr-1.5 py-1.5 shadow-lg">
+              <div className="flex-shrink-0">{logo}</div>
+              <div className="w-px h-8 bg-gray-200 mx-3" />
+              <nav className="flex items-center gap-0.5">
                 {/* Shop Mega-Menu */}
                 <div
                   onMouseEnter={() => setIsShopDropdownOpen(true)}
@@ -284,7 +284,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                     className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
                       currentView === 'shop'
                         ? 'brand-text brand-bg-light'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
                     }`}
                   >
                     Shop
@@ -406,7 +406,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                     className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
                       currentView === item.key
                         ? 'brand-text brand-bg-light'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
                     }`}
                   >
                     {item.label}
@@ -424,7 +424,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                     className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
                       currentView === 'about'
                         ? 'brand-text brand-bg-light'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
                     }`}
                   >
                     About
@@ -481,7 +481,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
             </div>
 
             {/* Right Actions: Search, Account, Cart */}
-            <div className="flex items-center gap-1 lg:gap-2">
+            <div className="flex items-center gap-1 lg:gap-1.5 lg:bg-white lg:rounded-full lg:px-1.5 lg:py-1 lg:shadow-lg">
               {/* Search Icon / Expanded Search */}
               <div className="relative hidden sm:block">
                 <AnimatePresence mode="wait">
@@ -643,19 +643,23 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 </>
               )}
 
-              {/* Cart Button */}
-              <button
-                onClick={onOpenCart}
-                className="relative p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
-                aria-label="Shopping cart"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/>
-                  <path d="M3 6h18"/>
-                  <path d="M16 10a4 4 0 0 1-8 0"/>
-                </svg>
-                <AnimatePresence>
-                  {cartCount > 0 && (
+              {/* Cart Button - only visible when cart has items */}
+              <AnimatePresence>
+                {cartCount > 0 && (
+                  <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    onClick={onOpenCart}
+                    className="relative p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors duration-200 overflow-visible"
+                    aria-label="Shopping cart"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/>
+                      <path d="M3 6h18"/>
+                      <path d="M16 10a4 4 0 0 1-8 0"/>
+                    </svg>
                     <motion.span
                       key={cartCount}
                       initial={{ scale: 0.5, opacity: 0 }}
@@ -665,9 +669,9 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                     >
                       {cartCount > 99 ? '99+' : cartCount}
                     </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
+                  </motion.button>
+                )}
+              </AnimatePresence>
             </div>
 
           </div>

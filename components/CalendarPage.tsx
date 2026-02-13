@@ -13,6 +13,8 @@ interface Event {
   start_time: string | null;
   end_time: string | null;
   location: string | null;
+  map_url: string | null;
+  registration_link: string | null;
   max_attendees: number | null;
 }
 
@@ -199,6 +201,8 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
           start_time: null,
           end_time: null,
           location: null,
+          map_url: null,
+          registration_link: null,
           max_attendees: null,
         });
       }
@@ -433,7 +437,10 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
                             </span>
                             <h4 className="font-bold text-gray-900 mt-1">{event.title}</h4>
                             {event.description && (
-                              <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                              <div
+                                className="text-sm text-gray-600 mt-1 prose prose-sm max-w-none [&_a]:text-emerald-600 [&_a]:underline"
+                                dangerouslySetInnerHTML={{ __html: event.description }}
+                              />
                             )}
                             {(event.start_time || event.location) && (
                               <div className="mt-3 space-y-1">
@@ -453,10 +460,36 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
                                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                                       <circle cx="12" cy="10" r="3"/>
                                     </svg>
-                                    {event.location}
+                                    {event.map_url ? (
+                                      <a
+                                        href={event.map_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-emerald-600 hover:text-emerald-700 underline"
+                                      >
+                                        {event.location}
+                                      </a>
+                                    ) : (
+                                      event.location
+                                    )}
                                   </div>
                                 )}
                               </div>
+                            )}
+                            {event.registration_link && (
+                              <a
+                                href={event.registration_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-emerald-500 text-white text-sm font-semibold rounded-xl hover:bg-emerald-600 transition-colors"
+                              >
+                                Register
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                                  <polyline points="15 3 21 3 21 9"/>
+                                  <line x1="10" y1="14" x2="21" y2="3"/>
+                                </svg>
+                              </a>
                             )}
                           </div>
                         </div>

@@ -4,7 +4,6 @@ import Header from './components/Header';
 import Hero from './components/Hero';
 import CategorySection from './components/CategorySection';
 import FeaturedSection from './components/FeaturedSection';
-import ProductGrid from './components/ProductGrid';
 import SageAssistant from './components/SageAssistant';
 import CartDrawer from './components/CartDrawer';
 import Footer from './components/Footer';
@@ -12,6 +11,9 @@ import CheckoutPage from './src/components/CheckoutPage';
 import OrderConfirmationPage from './src/components/OrderConfirmationPage';
 import TrackingPage from './src/components/TrackingPage';
 import ShopPage from './components/ShopPage';
+import CustomerReviews from './components/CustomerReviews';
+import MissionSection from './components/MissionSection';
+import SproutifySection from './components/SproutifySection';
 import PromotionalBanner from './components/PromotionalBanner';
 import OutageBanner from './components/OutageBanner';
 import FAQPage from './components/FAQPage';
@@ -142,7 +144,7 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
             {content.label || 'Education First'}
           </span>
           <h2
-            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
+            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
             dangerouslySetInnerHTML={{ __html: content.headline || 'Empowering the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
           />
           <p className="text-lg text-gray-500 mb-10 leading-relaxed"
@@ -567,10 +569,12 @@ const App: React.FC = () => {
               <FeaturedSection onAddToCart={handleAddToCart} onNavigate={handleNavigate} />
               
               <CategorySection onCategoryClick={(cat) => handleNavigate('shop', cat)} />
-              
-              <section id="shop" className="scroll-mt-32">
-                <ProductGrid onAddToCart={handleAddToCart} onAboutClick={() => handleNavigate('about')} onShopClick={() => handleNavigate('shop')} onNavigate={handleNavigate} />
-              </section>
+
+              <MissionSection onNavigate={handleNavigate} />
+
+              <CustomerReviews />
+
+              <SproutifySection onNavigate={handleNavigate} />
 
               <SchoolsPromoSection onNavigate={handleNavigate} />
             </main>

@@ -18,7 +18,9 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
   const secondaryCtaText = get('hero', 'secondary_cta_text', 'Learn Our Process');
   const guaranteeLabel = get('hero', 'guarantee_label', 'Guaranteed');
   const guaranteeText = get('hero', 'guarantee_text', 'Arrives Alive');
+  const mediaType = get('hero', 'hero_media_type', 'image');
   const imageUrl = get('hero', 'image_url', 'https://picsum.photos/seed/urbanfarm/800/1000');
+  const videoUrl = get('hero', 'hero_video_url', '');
 
   return (
     <section className="relative pt-16 pb-8 md:pt-20 md:pb-14 px-4 md:px-12 overflow-hidden bg-site-secondary border-b border-gray-200">
@@ -64,7 +66,11 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
 
         <motion.div initial={{ opacity: 0, scale: 0.8, rotate: -5 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="flex-1 relative">
           <div className="relative z-10 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-emerald-200 border-8 border-white">
-            <img src={imageUrl || 'https://picsum.photos/seed/urbanfarm/800/1000'} alt="Healthy seedlings" className="w-full h-auto object-cover" />
+            {mediaType === 'video' && videoUrl ? (
+              <video src={videoUrl} autoPlay muted loop playsInline className="w-full h-auto object-cover" />
+            ) : (
+              <img src={imageUrl || 'https://picsum.photos/seed/urbanfarm/800/1000'} alt="Healthy seedlings" className="w-full h-auto object-cover" />
+            )}
           </div>
           <div className="absolute -bottom-6 -left-6 glass p-6 rounded-3xl shadow-xl border border-white z-20 flex items-center gap-4 max-w-[240px]">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center brand-bg-light brand-text">

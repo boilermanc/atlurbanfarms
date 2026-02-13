@@ -82,7 +82,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
     >
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900">
+          <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900">
             {title}
           </h2>
           {subtitle && (
@@ -377,8 +377,14 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
 
       // Get all assigned category IDs and their details from the junction table
       const assignments = rawProduct?.category_assignments || [];
-      const assignedCategoryIds = assignments.map((a: any) => a.category_id);
-      const assignedCategories = assignments.map((a: any) => a.category).filter(Boolean);
+      let assignedCategoryIds = assignments.map((a: any) => a.category_id);
+      let assignedCategories = assignments.map((a: any) => a.category).filter(Boolean);
+
+      // Fallback to primary category if no junction table assignments exist
+      if (assignedCategoryIds.length === 0 && rawProduct?.category) {
+        assignedCategoryIds = [rawProduct.category.id];
+        assignedCategories = [rawProduct.category];
+      }
 
       // If subcategory selected, check if product is assigned to that subcategory
       if (activeSubcategoryId) {
@@ -522,7 +528,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           >
             The <span className="text-emerald-600">Aeroponic</span> Shop
           </motion.h1>
-          <p className="text-gray-500 text-lg max-w-2xl">
+          <p className="text-gray-500 text-lg max-w-4xl">
             Premium seedlings, growing supplies, and everything you need for your aeroponic garden needs.
           </p>
         </div>
@@ -694,7 +700,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Favorites View
           <div>
             <div className="mb-8">
-              <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
+              <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
@@ -792,21 +798,44 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
 
               // For parent categories with subcategories, show grouped by subcategory
               if (hasSubcategories) {
-                // Group products by subcategory for this parent
+                // Group products by subcategory using category_assignments (not primary category)
                 const groupedBySubcat: Record<string, Product[]> = {};
+                const subcategories = getChildCategories(parentCat.id);
+                const seenSubcat = new Set<string>();
+
                 parentProducts.forEach(product => {
                   const rawProduct = rawProducts.find((rp: any) => rp.id === product.id);
-                  const subcatName = rawProduct?.category?.name || 'Other';
-                  if (!groupedBySubcat[subcatName]) {
-                    groupedBySubcat[subcatName] = [];
+                  const assignments = rawProduct?.category_assignments || [];
+                  let placed = false;
+
+                  // Find which subcategory of this parent the product is assigned to
+                  assignments.forEach((assignment: any) => {
+                    const cat = assignment.category;
+                    if (!cat) return;
+                    const subcat = subcategories.find((c: Category) => c.id === cat.id);
+                    if (subcat) {
+                      const key = `${product.id}-${subcat.name}`;
+                      if (!seenSubcat.has(key)) {
+                        seenSubcat.add(key);
+                        if (!groupedBySubcat[subcat.name]) groupedBySubcat[subcat.name] = [];
+                        groupedBySubcat[subcat.name].push(product);
+                        placed = true;
+                      }
+                    }
+                  });
+
+                  // Fallback: products assigned directly to parent or without matching subcategory
+                  if (!placed) {
+                    const fallbackName = rawProduct?.category?.name || 'Other';
+                    if (!groupedBySubcat[fallbackName]) groupedBySubcat[fallbackName] = [];
+                    groupedBySubcat[fallbackName].push(product);
                   }
-                  groupedBySubcat[subcatName].push(product);
                 });
 
                 return (
                   <div key={parentCat.id} className="mb-10">
                     <div className="mb-8">
-                      <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900 flex items-center gap-3">
+                      <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
                         {parentCat.name}
                       </h2>

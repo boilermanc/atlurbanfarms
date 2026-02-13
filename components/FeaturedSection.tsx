@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../src/lib/supabase';
+import { enrichBundleStock } from '../src/hooks/useSupabase';
 import { useProductsPromotions, calculateSalePrice } from '../src/hooks/usePromotions';
 import { useAuth } from '../src/hooks/useAuth';
 import { usePageContent } from '../src/hooks/useSiteContent';
@@ -68,7 +69,9 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
           primary_image: product.images?.find((img: any) => img.is_primary) || product.images?.[0] || null
         }));
 
-        setRawProducts(productsWithPrimaryImage);
+        // Derive bundle stock from component product availability
+        const enrichedProducts = await enrichBundleStock(productsWithPrimaryImage);
+        setRawProducts(enrichedProducts);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -155,7 +158,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
           >
             <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-3 block">{sectionLabel}</span>
             <h2
-              className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight"
+              className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight"
               dangerouslySetInnerHTML={{ __html: headline }}
             />
             <p className="text-gray-500 mt-4 text-lg font-medium"

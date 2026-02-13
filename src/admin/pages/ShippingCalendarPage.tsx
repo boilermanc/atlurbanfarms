@@ -4,7 +4,8 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import BlackoutDateModal from '../components/BlackoutDateModal';
 import OverrideDateModal from '../components/OverrideDateModal';
-import { Calendar, Truck, Plus, Pencil, Trash2, X, Repeat, Tags, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import RichTextEditor from '../components/RichTextEditor';
+import { Calendar, Truck, Plus, Pencil, Trash2, X, Repeat, Tags, ChevronLeft, ChevronRight, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, MapPin, ExternalLink, Copy } from 'lucide-react';
 
 type TabType = 'events' | 'shipping' | 'categories' | 'calendar_view';
 
@@ -36,6 +37,8 @@ interface Event {
   start_time: string | null;
   end_time: string | null;
   location: string | null;
+  map_url: string | null;
+  registration_link: string | null;
   max_attendees: number | null;
   is_active: boolean;
   recurrence_rule: RecurrenceRule | null;
@@ -112,11 +115,20 @@ const ShippingCalendarPage: React.FC = () => {
     start_time: '',
     end_time: '',
     location: '',
+    map_url: '',
+    registration_link: '',
     max_attendees: '',
     is_active: true,
   });
   const [eventSaving, setEventSaving] = useState(false);
   const [recurrence, setRecurrence] = useState<RecurrenceRule>({ ...DEFAULT_RECURRENCE });
+
+  // Events search/filter/sort state
+  const [eventSearch, setEventSearch] = useState('');
+  const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
+  const [eventStatusFilter, setEventStatusFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<'title' | 'event_type' | 'start_date' | 'location' | 'is_active'>('start_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Categories state
   const [categories, setCategories] = useState<EventCategory[]>([]);
@@ -191,6 +203,8 @@ const ShippingCalendarPage: React.FC = () => {
         start_time: event.start_time || '',
         end_time: event.end_time || '',
         location: event.location || '',
+        map_url: event.map_url || '',
+        registration_link: event.registration_link || '',
         max_attendees: event.max_attendees?.toString() || '',
         is_active: event.is_active,
       });
@@ -206,6 +220,8 @@ const ShippingCalendarPage: React.FC = () => {
         start_time: '10:00',
         end_time: '12:00',
         location: '',
+        map_url: '',
+        registration_link: '',
         max_attendees: '',
         is_active: true,
       });
@@ -277,6 +293,8 @@ const ShippingCalendarPage: React.FC = () => {
         start_time: eventForm.start_time || null,
         end_time: eventForm.end_time || null,
         location: eventForm.location || null,
+        map_url: eventForm.map_url || null,
+        registration_link: eventForm.registration_link || null,
         max_attendees: eventForm.max_attendees ? parseInt(eventForm.max_attendees) : null,
         is_active: eventForm.is_active,
         recurrence_rule: recurrence.type !== 'none' ? recurrence : null,
@@ -337,6 +355,24 @@ const ShippingCalendarPage: React.FC = () => {
       setEvents(prev => prev.filter(e => e.id !== id));
     } catch (error) {
       console.error('Error deleting event:', error);
+    }
+  };
+
+  const handleDuplicateEvent = async (event: Event) => {
+    try {
+      const { id, ...eventData } = event;
+      const duplicate = {
+        ...eventData,
+        title: `${event.title} (Copy)`,
+        parent_event_id: null,
+        recurrence_rule: null,
+      };
+
+      const { error } = await supabase.from('events').insert(duplicate);
+      if (error) throw error;
+      await fetchEvents();
+    } catch (error) {
+      console.error('Error duplicating event:', error);
     }
   };
 
@@ -731,6 +767,72 @@ const ShippingCalendarPage: React.FC = () => {
     { id: 'shipping' as TabType, label: 'Shipping Config', icon: <Truck size={20} /> },
   ];
 
+  const handleSort = (column: typeof sortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === 'title' ? 'asc' : 'desc');
+    }
+  };
+
+  const SortIcon: React.FC<{ column: typeof sortColumn }> = ({ column }) => {
+    if (sortColumn !== column) return <ArrowUpDown size={14} className="text-slate-300" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp size={14} className="text-emerald-600" />
+      : <ArrowDown size={14} className="text-emerald-600" />;
+  };
+
+  const filteredAndSortedEvents = useMemo(() => {
+    let result = [...events];
+
+    // Text search
+    if (eventSearch.trim()) {
+      const q = eventSearch.toLowerCase();
+      result = result.filter(e =>
+        e.title.toLowerCase().includes(q) ||
+        (e.description && e.description.toLowerCase().includes(q)) ||
+        (e.location && e.location.toLowerCase().includes(q))
+      );
+    }
+
+    // Type filter
+    if (eventTypeFilter !== 'all') {
+      result = result.filter(e => e.event_type === eventTypeFilter);
+    }
+
+    // Status filter
+    if (eventStatusFilter !== 'all') {
+      const isActive = eventStatusFilter === 'active';
+      result = result.filter(e => e.is_active === isActive);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let cmp = 0;
+      switch (sortColumn) {
+        case 'title':
+          cmp = a.title.localeCompare(b.title);
+          break;
+        case 'event_type':
+          cmp = a.event_type.localeCompare(b.event_type);
+          break;
+        case 'start_date':
+          cmp = a.start_date.localeCompare(b.start_date);
+          break;
+        case 'location':
+          cmp = (a.location || '').localeCompare(b.location || '');
+          break;
+        case 'is_active':
+          cmp = (a.is_active === b.is_active) ? 0 : a.is_active ? -1 : 1;
+          break;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [events, eventSearch, eventTypeFilter, eventStatusFilter, sortColumn, sortDirection]);
+
   const renderEventsTab = () => {
     if (eventsLoading) {
       return (
@@ -742,7 +844,7 @@ const ShippingCalendarPage: React.FC = () => {
 
     return (
       <div className="space-y-6">
-        {/* Add Event Button */}
+        {/* Header + Add Button */}
         <div className="flex justify-between items-center">
           <p className="text-slate-500">Manage workshops, farm events, open hours, and shipping days visible on the public calendar.</p>
           <button
@@ -754,27 +856,102 @@ const ShippingCalendarPage: React.FC = () => {
           </button>
         </div>
 
+        {/* Search & Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={eventSearch}
+              onChange={e => setEventSearch(e.target.value)}
+              placeholder="Search events..."
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+          <select
+            value={eventTypeFilter}
+            onChange={e => setEventTypeFilter(e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          >
+            <option value="all">All Types</option>
+            {EVENT_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          <select
+            value={eventStatusFilter}
+            onChange={e => setEventStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          {(eventSearch || eventTypeFilter !== 'all' || eventStatusFilter !== 'all') && (
+            <button
+              onClick={() => { setEventSearch(''); setEventTypeFilter('all'); setEventStatusFilter('all'); }}
+              className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
+          <span className="text-sm text-slate-400 ml-auto">
+            {filteredAndSortedEvents.length} of {events.length} events
+          </span>
+        </div>
+
         {/* Events List */}
         {events.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl">
             <Calendar className="mx-auto h-12 w-12 text-slate-300 mb-4" />
             <p className="text-slate-500">No events yet. Create your first event!</p>
           </div>
+        ) : filteredAndSortedEvents.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-2xl">
+            <Search className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+            <p className="text-slate-500">No events match your filters.</p>
+            <button
+              onClick={() => { setEventSearch(''); setEventTypeFilter('all'); setEventStatusFilter('all'); }}
+              className="mt-2 text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Event</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Type</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Date</th>
+                  <th
+                    className="text-left py-3 px-4 text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+                    onClick={() => handleSort('title')}
+                  >
+                    <span className="inline-flex items-center gap-1">Event <SortIcon column="title" /></span>
+                  </th>
+                  <th
+                    className="text-left py-3 px-4 text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+                    onClick={() => handleSort('event_type')}
+                  >
+                    <span className="inline-flex items-center gap-1">Type <SortIcon column="event_type" /></span>
+                  </th>
+                  <th
+                    className="text-left py-3 px-4 text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+                    onClick={() => handleSort('start_date')}
+                  >
+                    <span className="inline-flex items-center gap-1">Date <SortIcon column="start_date" /></span>
+                  </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Time</th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-slate-500">Status</th>
+                  <th
+                    className="text-left py-3 px-4 text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-700 select-none"
+                    onClick={() => handleSort('is_active')}
+                  >
+                    <span className="inline-flex items-center gap-1">Status <SortIcon column="is_active" /></span>
+                  </th>
                   <th className="text-right py-3 px-4 text-sm font-medium text-slate-500">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {events.map(event => (
+                {filteredAndSortedEvents.map(event => (
                   <tr key={event.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="py-3 px-4">
                       <div>
@@ -824,6 +1001,13 @@ const ShippingCalendarPage: React.FC = () => {
                           title="Edit"
                         >
                           <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateEvent(event)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Duplicate"
+                        >
+                          <Copy size={16} />
                         </button>
                         <button
                           onClick={() => handleEventDelete(event.id)}
@@ -1408,7 +1592,7 @@ const ShippingCalendarPage: React.FC = () => {
               exit={{ opacity: 0, scale: 0.95 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between p-6 border-b border-slate-200">
                   <h2 className="text-xl font-semibold text-slate-800">
                     {editingEvent ? 'Edit Event' : 'Add Event'}
@@ -1448,12 +1632,10 @@ const ShippingCalendarPage: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                    <textarea
+                    <RichTextEditor
                       value={eventForm.description}
-                      onChange={e => setEventForm(prev => ({ ...prev, description: e.target.value }))}
-                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      rows={3}
-                      placeholder="Event description"
+                      onChange={(html) => setEventForm(prev => ({ ...prev, description: html }))}
+                      placeholder="Event description..."
                     />
                   </div>
 
@@ -1507,6 +1689,32 @@ const ShippingCalendarPage: React.FC = () => {
                       onChange={e => setEventForm(prev => ({ ...prev, location: e.target.value }))}
                       className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                       placeholder="Event location"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <span className="flex items-center gap-1.5"><MapPin size={14} /> Map URL</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={eventForm.map_url}
+                      onChange={e => setEventForm(prev => ({ ...prev, map_url: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="https://maps.google.com/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <span className="flex items-center gap-1.5"><ExternalLink size={14} /> Registration Link</span>
+                    </label>
+                    <input
+                      type="url"
+                      value={eventForm.registration_link}
+                      onChange={e => setEventForm(prev => ({ ...prev, registration_link: e.target.value }))}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="https://eventbrite.com/..."
                     />
                   </div>
 

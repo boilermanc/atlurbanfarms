@@ -125,7 +125,7 @@ const CategorySection: React.FC<CategorySectionProps> = ({ onCategoryClick }) =>
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-8">
           <motion.span initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Explore Categories</motion.span>
-          <motion.h2 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-3xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight">Shop by <span className="sage-text-gradient">Garden Type</span></motion.h2>
+          <motion.h2 initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 tracking-tight">Shop by <span className="sage-text-gradient">Garden Type</span></motion.h2>
         </div>
 
         <motion.div
