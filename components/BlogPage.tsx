@@ -109,7 +109,7 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
             {headerContent.tagline || 'From the Farm'}
           </span>
           <h1
-            className="text-7xl md:text-9xl font-heading font-black text-gray-900 mb-6"
+            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(headerContent.headline || 'Our <span class="text-emerald-600">Blog</span>') }}
           />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">

@@ -85,7 +85,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
     >
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900">
+          <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900">
             {title}
           </h2>
           {subtitle && (
@@ -533,7 +533,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-7xl md:text-9xl font-heading font-black text-gray-900 mb-4"
+            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-4"
           >
             The <span className="text-emerald-600">Aeroponic</span> Shop
           </motion.h1>
@@ -709,7 +709,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Favorites View
           <div>
             <div className="mb-8">
-              <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900 flex items-center gap-3">
+              <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
@@ -847,7 +847,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 return (
                   <div key={parentCat.id} className="mb-10">
                     <div className="mb-8">
-                      <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900 flex items-center gap-3">
+                      <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
                         {parentCat.name}
                       </h2>

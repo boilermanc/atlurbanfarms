@@ -130,7 +130,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           </motion.span>
           <motion.h1
             variants={fadeIn}
-            className="text-8xl md:text-9xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+            className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
             dangerouslySetInnerHTML={{ __html: heroContent.headline || 'Growing the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
           />
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
@@ -167,7 +167,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           >
             <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{benefitsContent.tagline || 'Why Partner With Us'}</span>
             <h2
-              className="text-7xl md:text-8xl font-heading font-black text-gray-900 mb-6"
+              className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6"
               dangerouslySetInnerHTML={{ __html: benefitsContent.headline || 'Benefits for Your <span class="text-emerald-600">School</span>' }}
             />
             <p className="text-lg text-gray-500 max-w-2xl mx-auto">
@@ -208,7 +208,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
             >
               <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{featuresContent.tagline || 'What\'s Included'}</span>
               <h2
-                className="text-7xl md:text-8xl font-heading font-black text-gray-900 mb-8 leading-tight"
+                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-tight"
                 dangerouslySetInnerHTML={{ __html: featuresContent.headline || 'Everything You Need to <span class="text-emerald-600">Get Growing.</span>' }}
               />
               <div className="space-y-8">
@@ -259,7 +259,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
             >
               <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{contactContent.tagline || 'Get Started'}</span>
               <h2
-                className="text-7xl md:text-8xl font-heading font-black text-gray-900 mb-6 leading-tight"
+                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6 leading-tight"
                 dangerouslySetInnerHTML={{ __html: contactContent.headline || 'Ready to Bring Urban Farming to Your <span class="text-emerald-600">School?</span>' }}
               />
               <p className="text-lg text-gray-500 mb-8 leading-relaxed">

@@ -206,7 +206,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
             {headerContent.tagline || 'How can we help?'}
           </span>
           <h1
-            className="text-7xl md:text-9xl font-heading font-black text-gray-900 mb-6"
+            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(headerContent.headline || 'Help <span class="text-emerald-600">Center</span>') }}
           />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
