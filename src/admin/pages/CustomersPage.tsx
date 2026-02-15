@@ -253,10 +253,12 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
       const orderStatsMap: Record<string, { order_count: number; total_spent: number }> = {};
 
       if (pageCustomerIds.length > 0) {
+        // Override Supabase default 1000-row limit for order stats aggregation
         const { data: orderData } = await supabase
           .from('orders')
-          .select('customer_id, id, total')
-          .in('customer_id', pageCustomerIds);
+          .select('customer_id, total')
+          .in('customer_id', pageCustomerIds)
+          .limit(10000);
 
         for (const order of (orderData || [])) {
           if (!orderStatsMap[order.customer_id]) {
