@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { Search, Download, Users, Mail, Filter, Plus, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Download, Users, Mail, Filter, Plus, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   CustomerWithStats,
   NewsletterSubscriber,
@@ -15,7 +15,7 @@ import {
 import { useCustomerTags } from '../hooks/useCustomerTags';
 
 type TabType = 'customers' | 'newsletter';
-type SortField = 'last_name' | 'first_name' | 'email';
+type SortField = 'last_name' | 'first_name' | 'email' | 'created_at' | 'phone';
 type SortDirection = 'asc' | 'desc';
 
 interface CustomersPageProps {
@@ -30,7 +30,9 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [searchInput, setSearchInput] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
-  const [customerCount, setCustomerCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce: update the query value 300ms after the user stops typing
@@ -50,6 +52,13 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([]);
   const [sortField, setSortField] = useState<SortField>('last_name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Reset to page 1 when filters/sort/search/pageSize change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [customerSearch, selectedTagFilters, sortField, sortDirection, pageSize]);
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
@@ -160,7 +169,31 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
   const fetchCustomers = async () => {
     try {
-      // First try to fetch customers with tags
+      const offset = (currentPage - 1) * pageSize;
+
+      // Step A: Server-side tag filtering (pre-query for matching customer IDs)
+      let tagFilterIds: string[] | null = null;
+      if (selectedTagFilters.length > 0) {
+        const { data: tagMatches, error: tagError } = await supabase
+          .from('customer_tag_assignments')
+          .select('customer_id')
+          .in('tag_id', selectedTagFilters);
+
+        if (tagError) {
+          console.error('Error fetching tag assignments:', tagError);
+          throw tagError;
+        }
+
+        tagFilterIds = [...new Set((tagMatches || []).map((t: any) => t.customer_id))];
+
+        if (tagFilterIds.length === 0) {
+          setCustomers([]);
+          setTotalCount(0);
+          return;
+        }
+      }
+
+      // Step B: Paginated customer query with count
       let query = supabase
         .from('customers')
         .select(`
@@ -168,72 +201,85 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
           customer_tag_assignments!customer_id(
             tag:customer_tags(*)
           )
-        `)
+        `, { count: 'exact' })
         .order(sortField, { ascending: sortDirection === 'asc' });
 
       if (customerSearch) {
-        query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
+        query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%`);
       }
 
-      let { data: customersData, error: customersError } = await query;
+      if (tagFilterIds !== null) {
+        query = query.in('id', tagFilterIds);
+      }
 
-      // If the query with tags fails (e.g., tag tables don't exist), fallback to basic query
+      query = query.range(offset, offset + pageSize - 1);
+
+      let { data: customersData, error: customersError, count } = await query;
+
+      // Fallback if tag join fails (e.g., tag tables don't exist)
       if (customersError) {
         console.error('Error fetching customers with tags, falling back to basic query:', customersError);
 
-        // Try without the tag join
         let fallbackQuery = supabase
           .from('customers')
-          .select('*')
+          .select('*', { count: 'exact' })
           .order(sortField, { ascending: sortDirection === 'asc' });
 
         if (customerSearch) {
-          fallbackQuery = fallbackQuery.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`);
+          fallbackQuery = fallbackQuery.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%`);
         }
 
-        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+        if (tagFilterIds !== null) {
+          fallbackQuery = fallbackQuery.in('id', tagFilterIds);
+        }
+
+        fallbackQuery = fallbackQuery.range(offset, offset + pageSize - 1);
+
+        const { data: fallbackData, error: fallbackError, count: fallbackCount } = await fallbackQuery;
 
         if (fallbackError) {
           console.error('Fallback query also failed:', fallbackError);
           throw fallbackError;
         }
 
-        // Use fallback data without tags
         customersData = (fallbackData || []).map((c: any) => ({ ...c, customer_tag_assignments: [] }));
+        count = fallbackCount;
       }
 
-      // Filter by tags if selected
-      let filteredCustomers = customersData || [];
-      if (selectedTagFilters.length > 0) {
-        filteredCustomers = filteredCustomers.filter((customer: any) =>
-          customer.customer_tag_assignments?.some((assignment: any) =>
-            selectedTagFilters.includes(assignment.tag?.id)
-          )
-        );
+      setTotalCount(count || 0);
+
+      // Step C: Batch order stats for current page (fixes N+1)
+      const pageCustomerIds = (customersData || []).map((c: any) => c.id);
+      const orderStatsMap: Record<string, { order_count: number; total_spent: number }> = {};
+
+      if (pageCustomerIds.length > 0) {
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('customer_id, id, total')
+          .in('customer_id', pageCustomerIds);
+
+        for (const order of (orderData || [])) {
+          if (!orderStatsMap[order.customer_id]) {
+            orderStatsMap[order.customer_id] = { order_count: 0, total_spent: 0 };
+          }
+          orderStatsMap[order.customer_id].order_count += 1;
+          orderStatsMap[order.customer_id].total_spent += (order.total || 0);
+        }
       }
 
-      const customersWithStats: CustomerWithStats[] = await Promise.all(
-        filteredCustomers.map(async (customer: any) => {
-          const { data: orderStats } = await supabase
-            .from('orders')
-            .select('id, total')
-            .eq('customer_id', customer.id);
-
-          const orders = orderStats || [];
-          return {
-            ...customer,
-            order_count: orders.length,
-            total_spent: orders.reduce((sum, order) => sum + (order.total || 0), 0),
-            tags: customer.customer_tag_assignments?.map((a: any) => a.tag).filter(Boolean) || [],
-          };
-        })
-      );
+      const customersWithStats: CustomerWithStats[] = (customersData || []).map((customer: any) => {
+        const stats = orderStatsMap[customer.id] || { order_count: 0, total_spent: 0 };
+        return {
+          ...customer,
+          order_count: stats.order_count,
+          total_spent: stats.total_spent,
+          tags: customer.customer_tag_assignments?.map((a: any) => a.tag).filter(Boolean) || [],
+        };
+      });
 
       setCustomers(customersWithStats);
-      setCustomerCount(customersWithStats.length);
     } catch (err: any) {
       console.error('Error fetching customers:', err);
-      // Show more specific error message
       const errorMessage = err?.message || err?.code || 'Unknown error';
       setError(`Failed to load customers: ${errorMessage}`);
     }
@@ -288,7 +334,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     };
 
     loadData();
-  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters, sortField, sortDirection]);
+  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters, sortField, sortDirection, currentPage, pageSize]);
 
   const handleCustomerClick = (customerId: string) => {
     onViewCustomer?.(customerId);
@@ -370,7 +416,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Customers</h1>
             <p className="text-slate-500 text-sm mt-1">
               {activeTab === 'customers'
-                ? `${customerCount} total customers`
+                ? `${totalCount.toLocaleString()} total customers`
                 : `${subscriberCount} newsletter subscribers`}
             </p>
           </div>
@@ -431,7 +477,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   {/* Sort Dropdown */}
                   <select
                     value={`${sortField}-${sortDirection}`}
@@ -448,6 +494,10 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     <option value="first_name-desc">First Name (Z-A)</option>
                     <option value="email-asc">Email (A-Z)</option>
                     <option value="email-desc">Email (Z-A)</option>
+                    <option value="created_at-desc">Joined (Newest)</option>
+                    <option value="created_at-asc">Joined (Oldest)</option>
+                    <option value="phone-asc">Phone (A-Z)</option>
+                    <option value="phone-desc">Phone (Z-A)</option>
                   </select>
 
                   {/* Tag Filter */}
@@ -496,6 +546,17 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     </div>
                   )}
 
+                  {/* Page Size Selector */}
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                  >
+                    <option value={25}>25 per page</option>
+                    <option value={50}>50 per page</option>
+                    <option value={100}>100 per page</option>
+                  </select>
+
                   {/* Search Bar */}
                   <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -503,7 +564,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                       type="text"
                       value={searchInput}
                       onChange={(e) => setSearchInput(e.target.value)}
-                      placeholder="Search by name or email..."
+                      placeholder="Search by name, email, or phone..."
                       className="w-full pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 transition-all"
                     />
                   </div>
@@ -528,10 +589,22 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                           Email
                           <SortIndicator field="email" />
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</th>
+                        <th
+                          className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
+                          onClick={() => handleSort('phone')}
+                        >
+                          Phone
+                          <SortIndicator field="phone" />
+                        </th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Spent</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Joined</th>
+                        <th
+                          className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
+                          onClick={() => handleSort('created_at')}
+                        >
+                          Joined
+                          <SortIndicator field="created_at" />
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -608,6 +681,38 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                       )}
                     </tbody>
                   </table>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+                      <p className="text-sm text-slate-500">
+                        Showing {((currentPage - 1) * pageSize + 1).toLocaleString()} to{' '}
+                        {Math.min(currentPage * pageSize, totalCount).toLocaleString()} of{' '}
+                        {totalCount.toLocaleString()} customers
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft size={16} />
+                          Previous
+                        </button>
+                        <span className="text-sm text-slate-500">
+                          Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Next
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
