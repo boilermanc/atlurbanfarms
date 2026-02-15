@@ -468,7 +468,7 @@ const EmailTemplatesPage: React.FC = () => {
                         srcDoc={getPreviewHtml()}
                         title="Email Preview"
                         className="w-full h-[600px] border-0"
-                        sandbox="allow-same-origin"
+                        sandbox="allow-same-origin allow-scripts"
                       />
                     </DeviceFrame>
                   </div>

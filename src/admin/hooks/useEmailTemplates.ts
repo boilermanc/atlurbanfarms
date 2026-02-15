@@ -330,32 +330,50 @@ export function replaceVariables(template: string, variables: Record<string, str
 /**
  * Sample data for template preview
  */
+/**
+ * Generate progress bar HTML for email template preview
+ */
+function generatePreviewProgressBar(activeStep: number): string {
+  const steps = ['Order<br>Placed', 'Shipped', 'In<br>Transit', 'Delivered']
+  const activeColor = '#8dc63f'
+  const inactiveColor = '#d1d5db'
+  const activeTextColor = '#333333'
+  const inactiveTextColor = '#999999'
+
+  let html = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;">'
+  html += '<tr>'
+  steps.forEach((_step, i) => {
+    const isActive = i < activeStep
+    const color = isActive ? activeColor : inactiveColor
+    html += `<td width="40" align="center" valign="middle" style="padding:0;"><div style="width:20px;height:20px;border-radius:50%;background-color:${color};margin:0 auto;font-size:0;line-height:0;">&nbsp;</div></td>`
+    if (i < steps.length - 1) {
+      const connectorColor = i < activeStep - 1 ? activeColor : inactiveColor
+      html += `<td valign="middle" style="padding:0 2px;"><div style="height:3px;background-color:${connectorColor};border-radius:2px;"></div></td>`
+    }
+  })
+  html += '</tr><tr>'
+  steps.forEach((step, i) => {
+    const isActive = i < activeStep
+    const textColor = isActive ? activeTextColor : inactiveTextColor
+    html += `<td align="center" style="padding-top:8px;font-size:11px;font-family:Arial,Helvetica,sans-serif;color:${textColor};line-height:1.3;">${step}</td>`
+    if (i < steps.length - 1) html += '<td></td>'
+  })
+  html += '</tr></table>'
+  return html
+}
+
 export const SAMPLE_PREVIEW_DATA: Record<string, string> = {
   customer_name: 'John Smith',
   customer_first_name: 'John',
   customer_email: 'john@example.com',
+  customer_phone: '(404) 555-9876',
   order_id: 'ORD-2025-001234',
   order_date: 'January 22, 2025',
   order_total: '$47.99',
   order_subtotal: '$42.99',
   order_shipping: '$5.00',
   order_tax: '$0.00',
-  order_items: `
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
-      <tr style="border-bottom: 1px solid #e5e7eb;">
-        <td style="padding: 10px 0;"><strong>Tomato Seedling (Cherry)</strong><br><span style="color: #666; font-size: 14px;">Qty: 2</span></td>
-        <td style="padding: 10px 0; text-align: right;">$19.98</td>
-      </tr>
-      <tr style="border-bottom: 1px solid #e5e7eb;">
-        <td style="padding: 10px 0;"><strong>Basil Seedling (Sweet)</strong><br><span style="color: #666; font-size: 14px;">Qty: 1</span></td>
-        <td style="padding: 10px 0; text-align: right;">$8.99</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 0;"><strong>Herb Garden Starter Kit</strong><br><span style="color: #666; font-size: 14px;">Qty: 1</span></td>
-        <td style="padding: 10px 0; text-align: right;">$14.02</td>
-      </tr>
-    </table>
-  `,
+  order_items: '2 x Tomato Seedling (Cherry)<br>1 x Basil Seedling (Sweet)<br>1 x Herb Garden Starter Kit',
   tracking_number: '1Z999AA10123456784',
   carrier: 'UPS',
   tracking_url: 'https://www.ups.com/track?tracknum=1Z999AA10123456784',
@@ -363,6 +381,9 @@ export const SAMPLE_PREVIEW_DATA: Record<string, string> = {
   current_location: 'Atlanta, GA Distribution Center',
   delivery_date: 'January 24, 2026 at 2:30 PM',
   order_number: 'ORD-2026-001234',
+  shipping_address: '123 Garden St<br>Atlanta, GA 30318',
+  status: 'Shipped',
+  progress_bar: generatePreviewProgressBar(2),
   pickup_date: 'Saturday, January 25th',
   pickup_time: '10:00 AM - 2:00 PM',
   login_url: 'https://atlurbanfarms.com/login',
@@ -374,7 +395,7 @@ export const SAMPLE_PREVIEW_DATA: Record<string, string> = {
   pickup_instructions: 'Ring doorbell on arrival',
   business_name: 'ATL Urban Farms',
   business_email: 'hello@atlurbanfarms.com',
-  business_phone: '(404) 555-1234',
+  business_phone: '770.678.6552',
   business_address: 'Atlanta, GA',
   logo_url: '',
   current_year: new Date().getFullYear().toString(),
