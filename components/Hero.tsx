@@ -44,7 +44,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
 
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-16">
         <div className="flex-1 text-center md:text-left">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-6 brand-bg-light brand-text">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="inline-flex items-center px-3 py-1 rounded-full text-2xl font-bold tracking-wide uppercase mb-6 brand-bg-light brand-text">
             {badgeText}
           </motion.div>
 
@@ -52,7 +52,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-8xl md:text-9xl font-heading font-extrabold text-gray-900 leading-[1.1] mb-8"
+            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 leading-[1.1] mb-8"
             dangerouslySetInnerHTML={{ __html: headline }}
           />
 

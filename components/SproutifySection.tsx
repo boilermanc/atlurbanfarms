@@ -58,10 +58,10 @@ const SproutifySection: React.FC<SproutifySectionProps> = ({ onNavigate }) => {
           viewport={{ once: true, margin: '-50px' }}
           transition={{ duration: 0.6, delay: 0.1 }}
         >
-          <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
+          <span className="text-emerald-600 font-bold uppercase tracking-widest text-2xl mb-4 block">
             Sproutify
           </span>
-          <h2 className="text-7xl md:text-8xl font-heading font-extrabold text-gray-900 mb-6 leading-tight">
+          <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6 leading-tight">
             {heading}
           </h2>
           {description && (

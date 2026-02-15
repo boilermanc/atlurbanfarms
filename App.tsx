@@ -145,7 +145,7 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
           <div className="absolute -bottom-8 -right-8 w-48 h-48 sage-gradient rounded-full blur-3xl opacity-30"></div>
         </div>
         <div>
-          <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
+          <span className="text-emerald-600 font-bold uppercase tracking-widest text-2xl mb-4 block">
             {content.label || 'Education First'}
           </span>
           <h2

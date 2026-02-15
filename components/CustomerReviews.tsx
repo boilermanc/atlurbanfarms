@@ -115,7 +115,7 @@ const CustomerReviews: React.FC = () => {
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block"
+            className="text-emerald-600 font-bold uppercase tracking-widest text-2xl mb-4 block"
           >
             Customer Reviews
           </motion.span>
@@ -124,7 +124,7 @@ const CustomerReviews: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-7xl md:text-8xl font-heading font-extrabold text-gray-900 mb-4"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4"
           >
             {heading}
           </motion.h2>
