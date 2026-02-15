@@ -1006,6 +1006,20 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               </div>
             )}
 
+            {/* Customer Notes Card */}
+            {order.customer_notes && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                <div className="px-6 py-4 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Customer Notes</h2>
+                </div>
+                <div className="p-6">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap">
+                    {order.customer_notes}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Internal Notes Card */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 print:hidden">
               <div className="px-6 py-4 border-b border-slate-200">

@@ -28,7 +28,7 @@ const MissionSection: React.FC<MissionSectionProps> = ({ onNavigate }) => {
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50/50 rounded-full blur-3xl -z-10 -translate-y-1/2 translate-x-1/2" />
 
           <div className="max-w-2xl">
-            <h3 className="text-4xl md:text-6xl font-heading font-extrabold text-gray-900 mb-4">
+            <h3 className="text-7xl md:text-9xl font-heading font-extrabold text-gray-900 mb-4">
               {heading}
             </h3>
             <p

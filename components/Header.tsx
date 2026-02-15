@@ -8,7 +8,7 @@ import { useAuth } from '../src/hooks/useAuth';
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'login' | 'account', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'account', category?: string) => void;
   currentView?: string;
   onSearch?: (query: string) => void;
 }
@@ -157,11 +157,12 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
     return isScrolled ? 52 : 68;
   };
 
-  // About dropdown sections
+  // About dropdown sections — must match id attributes in AboutPage.tsx
   const ABOUT_SECTIONS = [
     { label: 'About Us', hash: '' },
-    { label: 'Our History', hash: 'our-history' },
-    { label: 'Our Philosophy', hash: 'our-philosophy' },
+    { label: 'Our Story', hash: 'our-story' },
+    { label: 'Our Approach', hash: 'our-approach' },
+    { label: 'Technology', hash: 'technology' },
     { label: 'Our Team', hash: 'our-team' },
   ];
 
@@ -273,7 +274,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
             <div className="hidden lg:flex items-center bg-white rounded-full pl-3 pr-1.5 py-1.5 shadow-lg">
               <div className="flex-shrink-0">{logo}</div>
               <div className="w-px h-8 bg-gray-200 mx-3" />
-              <nav className="flex items-center gap-0.5">
+              <nav className="flex items-center gap-0.5 font-heading">
                 {/* Shop Mega-Menu */}
                 <div
                   onMouseEnter={() => setIsShopDropdownOpen(true)}
@@ -396,9 +397,10 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
 
                 {/* Other Nav Items */}
                 {[
-                  { key: 'faq', label: 'Guides' },
+                  { key: 'faq', label: 'FAQs' },
                   { key: 'schools', label: 'Schools' },
                   { key: 'calendar', label: 'Calendar' },
+                  { key: 'blog', label: 'Blog' },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -743,7 +745,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
               </div>
 
               {/* Navigation */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto font-heading">
                 {/* Shop Section */}
                 <div className="px-5 py-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Shop</h3>
@@ -777,7 +779,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 <div className="px-5 py-4 border-t border-gray-100">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Menu</h3>
                   <div className="space-y-1">
-                    {/* Guides */}
+                    {/* FAQs */}
                     <button
                       onClick={() => {
                         onNavigate('faq');
@@ -792,7 +794,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                         <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
-                      Guides
+                      FAQs
                     </button>
 
                     {/* Schools */}
@@ -831,6 +833,24 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       Calendar
                     </button>
 
+                    {/* Blog */}
+                    <button
+                      onClick={() => {
+                        onNavigate('blog');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
+                        currentView === 'blog'
+                          ? 'brand-bg-light brand-text font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50 font-medium'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z" />
+                      </svg>
+                      Blog
+                    </button>
+
                     {/* About Us + sub-items */}
                     <button
                       onClick={() => handleAboutNavigate('')}
@@ -845,11 +865,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       </svg>
                       About Us
                     </button>
-                    {[
-                      { label: 'Our History', hash: 'our-history' },
-                      { label: 'Our Philosophy', hash: 'our-philosophy' },
-                      { label: 'Our Team', hash: 'our-team' },
-                    ].map((item) => (
+                    {ABOUT_SECTIONS.filter((s) => s.hash).map((item) => (
                       <button
                         key={item.hash}
                         onClick={() => handleAboutNavigate(item.hash)}

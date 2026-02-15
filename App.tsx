@@ -22,6 +22,9 @@ import SchoolsPage from './components/SchoolsPage';
 import ContentPage from './components/ContentPage';
 import CalendarPage from './components/CalendarPage';
 import ToolsPage from './components/ToolsPage';
+import BlogPage from './components/BlogPage';
+import BlogPostPage from './components/BlogPostPage';
+import { safeDecodeURIComponent } from './src/utils/url';
 import LoginPage from './src/components/auth/LoginPage';
 import RegisterPage from './src/components/auth/RegisterPage';
 import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
@@ -86,7 +89,7 @@ interface OrderData {
   estimatedDeliveryDate?: string | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -99,6 +102,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/schools') return 'schools';
   if (pathname === '/calendar') return 'calendar';
   if (pathname === '/tools') return 'tools';
+  if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
   return 'home';
 };
 
@@ -114,6 +118,7 @@ const getPathForView = (view: ViewType): string => {
     case 'schools': return '/schools';
     case 'calendar': return '/calendar';
     case 'tools': return '/tools';
+    case 'blog': return '/blog';
     default: return '/';
   }
 };
@@ -179,6 +184,13 @@ const App: React.FC = () => {
   const [categoryNavKey, setCategoryNavKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState<string | undefined>(undefined);
+  const [blogSlug, setBlogSlug] = useState<string | null>(() => {
+    const pathname = window.location.pathname;
+    if (pathname.startsWith('/blog/') && pathname.length > 6) {
+      return safeDecodeURIComponent(pathname.split('/')[2]);
+    }
+    return null;
+  });
   const [completedOrder, setCompletedOrder] = useState<OrderData | null>(null);
 
   // Fetch branding settings and apply primary brand color
@@ -301,7 +313,14 @@ const App: React.FC = () => {
   // Handle browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      setView(getViewFromPath(window.location.pathname));
+      const pathname = window.location.pathname;
+      setView(getViewFromPath(pathname));
+      // Update blog slug on popstate
+      if (pathname.startsWith('/blog/') && pathname.length > 6) {
+        setBlogSlug(safeDecodeURIComponent(pathname.split('/')[2]));
+      } else {
+        setBlogSlug(null);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -362,6 +381,11 @@ const App: React.FC = () => {
     } else if (newView !== 'calendar') {
       // Reset filter when navigating away from calendar
       setCalendarFilter(undefined);
+    }
+
+    // Clear blog slug when navigating away from blog
+    if (newView !== 'blog') {
+      setBlogSlug(null);
     }
 
     // Update browser URL for admin views
@@ -491,6 +515,32 @@ const App: React.FC = () => {
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <ToolsPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
+          </>
+        );
+      case 'blog':
+        return (
+          <>
+            <PromotionalBanner />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            {blogSlug ? (
+              <BlogPostPage
+                slug={blogSlug}
+                onBack={() => {
+                  setBlogSlug(null);
+                  window.history.pushState({ view: 'blog' }, '', '/blog');
+                }}
+              />
+            ) : (
+              <BlogPage
+                onViewPost={(slug: string) => {
+                  setBlogSlug(slug);
+                  window.history.pushState({ view: 'blog', slug }, '', `/blog/${slug}`);
+                  window.scrollTo(0, 0);
+                }}
+              />
+            )}
+            <Footer onNavigate={handleNavigate} />
+            <SageAssistant />
           </>
         );
       case 'privacy':

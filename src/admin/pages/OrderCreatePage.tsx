@@ -147,6 +147,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
   const [fetchingRates, setFetchingRates] = useState<boolean>(false);
   const [ratesError, setRatesError] = useState<string | null>(null);
+  const [ratesSandbox, setRatesSandbox] = useState<boolean>(false);
+  const [ratesMarkup, setRatesMarkup] = useState<string | null>(null);
 
   // Pickup state
   const { locations: pickupLocations, loading: loadingLocations } = usePickupLocations();
@@ -354,6 +356,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     setRatesError(null);
     setShippingRates([]);
     setSelectedRate(null);
+    setRatesSandbox(false);
+    setRatesMarkup(null);
 
     try {
       const requestBody = {
@@ -409,6 +413,18 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
       }
       if (data.carrier_errors?.length > 0) {
         console.warn('Some carriers did not return rates:', data.carrier_errors);
+      }
+
+      // Track sandbox mode and markup for admin visibility
+      if (data.is_sandbox) {
+        setRatesSandbox(true);
+      }
+      if (data.markup_applied) {
+        if (data.markup_applied.type === 'fixed') {
+          setRatesMarkup(`+$${data.markup_applied.amount.toFixed(2)} fixed markup applied`);
+        } else if (data.markup_applied.type === 'percentage') {
+          setRatesMarkup(`+${data.markup_applied.percent}% markup applied`);
+        }
       }
 
       // Deduplicate rates: keep cheapest per carrier_id + service_code.
@@ -1021,6 +1037,20 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                   {ratesError && (
                     <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                       {ratesError}
+                    </div>
+                  )}
+
+                  {/* Sandbox Warning */}
+                  {ratesSandbox && shippingRates.length > 0 && (
+                    <div className="mb-3 p-3 bg-orange-50 border border-orange-300 rounded-lg text-sm text-orange-800">
+                      <strong>Sandbox Mode:</strong> Using a TEST API key. These are estimated retail rates, not your negotiated Shipstation rates. Switch to a production API key in Settings &rarr; Integrations for accurate pricing.
+                    </div>
+                  )}
+
+                  {/* Markup Info */}
+                  {ratesMarkup && shippingRates.length > 0 && !ratesSandbox && (
+                    <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                      {ratesMarkup} (configured in Settings &rarr; Shipping)
                     </div>
                   )}
 

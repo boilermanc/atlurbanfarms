@@ -137,7 +137,25 @@ const CategoriesPage: React.FC = () => {
 
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      }
+
+      // Validate file extension
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+      const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+      if (!allowedExtensions.includes(ext)) {
+        throw new Error('Invalid file extension. Please upload JPG, PNG, GIF, or WebP images.');
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image file is too large. Maximum size is 5MB.');
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       const fileName = `category-${Date.now()}.${fileExt}`;
       const filePath = `category-images/${fileName}`;
 

@@ -13,7 +13,7 @@ import {
   VariableSchema
 } from '../hooks/useEmailTemplates'
 import { useEmailService } from '../../hooks/useIntegrations'
-import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus } from 'lucide-react'
+import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Info } from 'lucide-react'
 
 // Template icons mapping
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
@@ -103,6 +103,23 @@ const DeviceFrame: React.FC<{
   </div>
 )
 
+// Detail row for test email results
+const DetailRow: React.FC<{
+  label: string
+  value: string
+  type: 'success' | 'error'
+  mono?: boolean
+}> = ({ label, value, type, mono }) => (
+  <div className="flex items-start gap-2">
+    <span className={`w-20 flex-shrink-0 text-xs font-medium ${
+      type === 'success' ? 'text-emerald-600' : 'text-red-600'
+    }`}>{label}</span>
+    <span className={`text-xs truncate ${mono ? 'font-mono' : ''} ${
+      type === 'success' ? 'text-emerald-800' : 'text-red-800'
+    }`}>{value}</span>
+  </div>
+)
+
 const EmailTemplatesPage: React.FC = () => {
   const { templates, loading: loadingTemplates, refetch: refetchTemplates } = useEmailTemplates()
   const { updateTemplate, saving } = useUpdateEmailTemplate()
@@ -121,6 +138,19 @@ const EmailTemplatesPage: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [testEmailAddress, setTestEmailAddress] = useState('')
   const [sendingTest, setSendingTest] = useState(false)
+  const [testEmailResult, setTestEmailResult] = useState<{
+    type: 'success' | 'error'
+    to: string
+    templateName: string
+    templateKey: string
+    subject: string
+    sentAt: string
+    emailId?: string
+    error?: string
+    errorDetails?: string
+    variablesReplaced: number
+    contentSize: string
+  } | null>(null)
   const [showVersions, setShowVersions] = useState(false)
 
   // Load template content into editor when selected
@@ -189,6 +219,7 @@ const EmailTemplatesPage: React.FC = () => {
     if (!selectedTemplate || !testEmailAddress) return
 
     setSendingTest(true)
+    setTestEmailResult(null)
 
     // Merge brand settings with sample data
     const previewData = {
@@ -200,20 +231,58 @@ const EmailTemplatesPage: React.FC = () => {
     const processedSubject = replaceVariables(editedSubject, previewData)
     const processedHtml = replaceVariables(editedHtml, previewData)
 
+    // Count variables that were replaced
+    const variableMatches = editedHtml.match(/\{\{\w+\}\}/g) || []
+    const replacedCount = variableMatches.filter(m => {
+      const key = m.replace(/\{\{|\}\}/g, '')
+      return previewData[key] !== undefined
+    }).length
+
+    // Content size
+    const sizeBytes = new Blob([processedHtml]).size
+    const contentSize = sizeBytes > 1024
+      ? `${(sizeBytes / 1024).toFixed(1)} KB`
+      : `${sizeBytes} bytes`
+
+    const sentAt = new Date().toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    })
+
     const result = await sendEmail({
       to: testEmailAddress,
       subject: `[TEST] ${processedSubject}`,
       html: processedHtml,
     })
 
+    const baseInfo = {
+      to: testEmailAddress,
+      templateName: selectedTemplate.name,
+      templateKey: selectedTemplate.template_key,
+      subject: `[TEST] ${processedSubject}`,
+      sentAt,
+      variablesReplaced: replacedCount,
+      contentSize,
+    }
+
     if (result.success) {
-      setSaveMessage(`Test email sent to ${testEmailAddress}!`)
+      setTestEmailResult({
+        ...baseInfo,
+        type: 'success',
+        emailId: result.id,
+      })
     } else {
-      setSaveMessage(`Failed to send: ${result.error}`)
+      setTestEmailResult({
+        ...baseInfo,
+        type: 'error',
+        error: result.error || 'Failed to send test email',
+        errorDetails: result.details,
+      })
     }
 
     setSendingTest(false)
-    setTimeout(() => setSaveMessage(null), 5000)
   }
 
   const insertVariable = useCallback((key: string) => {
@@ -504,6 +573,72 @@ const EmailTemplatesPage: React.FC = () => {
                     )}
                   </button>
                 </div>
+                <AnimatePresence>
+                  {testEmailResult && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className={`mt-3 rounded-xl border text-sm overflow-hidden ${
+                        testEmailResult.type === 'success'
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-red-200 bg-red-50'
+                      }`}>
+                        {/* Header */}
+                        <div className={`flex items-center justify-between px-4 py-2.5 ${
+                          testEmailResult.type === 'success'
+                            ? 'bg-emerald-100/70 text-emerald-800'
+                            : 'bg-red-100/70 text-red-800'
+                        }`}>
+                          <div className="flex items-center gap-2 font-semibold">
+                            {testEmailResult.type === 'success' ? (
+                              <CheckCircle size={16} className="text-emerald-600" />
+                            ) : (
+                              <AlertTriangle size={16} className="text-red-600" />
+                            )}
+                            {testEmailResult.type === 'success' ? 'Test Email Sent' : 'Test Email Failed'}
+                          </div>
+                          <button
+                            onClick={() => setTestEmailResult(null)}
+                            className={`p-1 rounded transition-colors ${
+                              testEmailResult.type === 'success'
+                                ? 'hover:bg-emerald-200/60 text-emerald-500'
+                                : 'hover:bg-red-200/60 text-red-500'
+                            }`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+
+                        {/* Details grid */}
+                        <div className="px-4 py-3 space-y-1.5">
+                          {testEmailResult.type === 'error' && (
+                            <div className="flex gap-2 pb-2 mb-2 border-b border-red-200">
+                              <AlertTriangle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <span className="font-medium text-red-800">{testEmailResult.error}</span>
+                                {testEmailResult.errorDetails && (
+                                  <p className="text-red-600 text-xs mt-0.5">{testEmailResult.errorDetails}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <DetailRow label="To" value={testEmailResult.to} type={testEmailResult.type} />
+                          <DetailRow label="Template" value={`${testEmailResult.templateName} (${testEmailResult.templateKey})`} type={testEmailResult.type} />
+                          <DetailRow label="Subject" value={testEmailResult.subject} type={testEmailResult.type} />
+                          {testEmailResult.emailId && (
+                            <DetailRow label="Email ID" value={testEmailResult.emailId} type={testEmailResult.type} mono />
+                          )}
+                          <DetailRow label="Sent at" value={testEmailResult.sentAt} type={testEmailResult.type} />
+                          <DetailRow label="Variables" value={`${testEmailResult.variablesReplaced} replaced`} type={testEmailResult.type} />
+                          <DetailRow label="Content" value={testEmailResult.contentSize} type={testEmailResult.type} />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           ) : (

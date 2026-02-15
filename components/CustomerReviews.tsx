@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface Review {
@@ -106,7 +107,7 @@ const CustomerReviews: React.FC = () => {
   const subheading = content.subheading || 'Real reviews from our growing community of urban gardeners.';
 
   return (
-    <section className="py-16 px-4 md:px-12 bg-site overflow-hidden">
+    <section className="py-16 px-4 md:px-12 bg-amber-50 overflow-hidden">
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-12">
@@ -123,7 +124,7 @@ const CustomerReviews: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4"
+            className="text-7xl md:text-8xl font-heading font-extrabold text-gray-900 mb-4"
           >
             {heading}
           </motion.h2>
@@ -197,10 +198,13 @@ const CustomerReviews: React.FC = () => {
                 </div>
 
                 {/* Review Text */}
-                <div
-                  className="text-gray-600 leading-relaxed mb-6 text-sm min-h-[60px]"
-                  dangerouslySetInnerHTML={{ __html: `"${review.text}"` }}
-                />
+                <div className="mb-6 min-h-[60px]">
+                  <span className="text-3xl leading-none text-emerald-300 font-serif">{'\u201C'}</span>
+                  <div
+                    className="text-gray-600 leading-relaxed text-sm mt-1 [&>p]:inline"
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(review.text) }}
+                  />
+                </div>
 
                 {/* Customer Info */}
                 <div className="flex items-center gap-3 pt-4 border-t border-gray-100">

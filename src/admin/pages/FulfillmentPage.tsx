@@ -198,6 +198,9 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   }, [bulkActionType, executeBulkStatusChange]);
 
   // Print functions
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+
   const openPrintWindow = useCallback((ordersToPrint: Order[]) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -344,10 +347,16 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
               </table>
             </div>
 
+            ${order.customer_notes ? `
+              <div class="section" style="margin-top: 20px;">
+                <div class="section-title">Customer Notes</div>
+                <div class="notes">${escapeHtml(order.customer_notes).replace(/\n/g, '<br>')}</div>
+              </div>
+            ` : ''}
             ${order.internal_notes ? `
               <div class="section" style="margin-top: 20px;">
                 <div class="section-title">Internal Notes</div>
-                <div class="notes">${order.internal_notes.replace(/\n/g, '<br>')}</div>
+                <div class="notes">${escapeHtml(order.internal_notes).replace(/\n/g, '<br>')}</div>
               </div>
             ` : ''}
           </div>
@@ -452,6 +461,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
         tracking_number: order.tracking_number,
         estimated_delivery: order.estimated_delivery,
         internal_notes: order.internal_notes,
+        customer_notes: order.customer_notes,
         created_at: order.created_at,
         updated_at: order.updated_at,
         items: (order.order_items || []).map((item: any) => ({

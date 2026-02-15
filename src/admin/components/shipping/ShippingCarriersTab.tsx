@@ -54,7 +54,9 @@ const ShippingCarriersTab: React.FC = () => {
   const [discoveredCarriers, setDiscoveredCarriers] = useState<ShipEngineCarrier[] | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const hasApiKey = !settingsLoading && !!(settings.integrations || {}).shipengine_api_key;
+  const apiKey = !settingsLoading ? (settings.integrations || {}).shipengine_api_key : null;
+  const hasApiKey = !!apiKey;
+  const isSandboxKey = hasApiKey && typeof apiKey === 'string' && apiKey.startsWith('TEST_');
 
   // Load carriers from carrier_configurations table
   const loadDbCarriers = async () => {
@@ -237,6 +239,23 @@ const ShippingCarriersTab: React.FC = () => {
         )}
       </div>
 
+      {/* Sandbox API key warning */}
+      {isSandboxKey && (
+        <div className="p-4 bg-orange-50 border-2 border-orange-300 rounded-xl text-sm">
+          <div className="flex items-start gap-3">
+            <span className="text-lg flex-shrink-0">&#9888;</span>
+            <div>
+              <p className="font-semibold text-orange-800">Sandbox Mode Active</p>
+              <p className="text-orange-700 mt-1">
+                Your ShipEngine API key starts with <code className="bg-orange-100 px-1 rounded text-xs">TEST_</code> — this is a sandbox key.
+                Rates returned are <strong>estimated retail prices</strong>, not your negotiated Shipstation rates.
+                Replace with your production API key in <strong>Configuration &rarr; Integrations</strong> for accurate pricing.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sync message */}
       {syncMessage && (
         <div className={`p-4 rounded-xl border text-sm ${
@@ -316,7 +335,14 @@ const ShippingCarriersTab: React.FC = () => {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1 flex-wrap">
-                    <h5 className="text-lg font-medium text-slate-800">{carrier.carrier_name}</h5>
+                    <h5 className="text-lg font-medium text-slate-800">
+                      {carrier.carrier_name}
+                      {carrier.carrier_name.toLowerCase().includes('test account') && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                          Test Carrier
+                        </span>
+                      )}
+                    </h5>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
                       carrier.is_enabled
                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200'

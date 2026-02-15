@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   Home, Info, GraduationCap, HelpCircle, Calendar,
   Save, Upload, Trash2, Image, Type, Hash, FileText,
-  ChevronDown, ChevronRight, RefreshCw
+  ChevronDown, ChevronRight, RefreshCw, Palette
 } from 'lucide-react';
 
 // Types
@@ -33,7 +33,7 @@ interface TabConfig {
 interface FieldConfig {
   key: string;
   label: string;
-  type: 'text' | 'rich_text' | 'image_url' | 'number' | 'select';
+  type: 'text' | 'rich_text' | 'image_url' | 'number' | 'select' | 'color';
   options?: string[];
   showWhen?: { key: string; value: string };
 }
@@ -206,6 +206,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'title', label: 'Title / Role', type: 'text' },
         { key: 'image', label: 'Photo', type: 'image_url' },
         { key: 'bio', label: 'Bio', type: 'rich_text' },
+        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
       ],
     },
     grower_2: {
@@ -215,6 +216,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'title', label: 'Title / Role', type: 'text' },
         { key: 'image', label: 'Photo', type: 'image_url' },
         { key: 'bio', label: 'Bio', type: 'rich_text' },
+        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
       ],
     },
     grower_3: {
@@ -224,6 +226,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'title', label: 'Title / Role', type: 'text' },
         { key: 'image', label: 'Photo', type: 'image_url' },
         { key: 'bio', label: 'Bio', type: 'rich_text' },
+        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
       ],
     },
     grower_4: {
@@ -233,6 +236,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'title', label: 'Title / Role', type: 'text' },
         { key: 'image', label: 'Photo', type: 'image_url' },
         { key: 'bio', label: 'Bio', type: 'rich_text' },
+        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
       ],
     },
     values: {
@@ -575,6 +579,8 @@ const SiteContentPage: React.FC = () => {
         return <Image size={14} className="text-blue-500" />;
       case 'number':
         return <Hash size={14} className="text-amber-500" />;
+      case 'color':
+        return <Palette size={14} className="text-pink-500" />;
       default:
         return <Type size={14} className="text-slate-400" />;
     }
@@ -695,6 +701,41 @@ const SiteContentPage: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'color') {
+      return (
+        <div key={fieldKey} className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            {getTypeIcon(field.type)}
+            {field.label}
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={value || '#FFFFFF'}
+              onChange={(e) => updateField(page, section, field.key, e.target.value)}
+              className="w-10 h-10 rounded-lg border border-slate-200 cursor-pointer p-0.5"
+            />
+            <input
+              type="text"
+              value={value || '#FFFFFF'}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) {
+                  updateField(page, section, field.key, v);
+                }
+              }}
+              className="w-28 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              placeholder="#FFFFFF"
+            />
+            <div
+              className="w-10 h-10 rounded-lg border border-slate-200"
+              style={{ backgroundColor: value || '#FFFFFF' }}
+            />
           </div>
         </div>
       );

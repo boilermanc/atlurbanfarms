@@ -60,6 +60,8 @@ const LegacyOrderDetailPage = lazy(() => import('../pages/LegacyOrderDetailPage'
 const SiteContentPage = lazy(() => import('../pages/SiteContentPage'));
 const GrowersPage = lazy(() => import('../pages/GrowersPage'));
 const SproutifyCreditsPage = lazy(() => import('../pages/SproutifyCreditsPage'));
+const BlogListPage = lazy(() => import('../pages/BlogListPage'));
+const BlogEditPage = lazy(() => import('../pages/BlogEditPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -113,6 +115,8 @@ const PAGE_TITLES: Record<string, string> = {
   'site-content': 'Site Content',
   'growers': 'Team Members',
   'sproutify-credits': 'Sproutify Credits',
+  'blog': 'Blog',
+  'blog-edit': 'Edit Blog Post',
 };
 
 // Dashboard Stats Interface
@@ -530,6 +534,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
   const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null);
   const [showGiftCardCreateModal, setShowGiftCardCreateModal] = useState(false);
+  const [selectedBlogPostId, setSelectedBlogPostId] = useState<string | null>(null);
   const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
@@ -613,6 +618,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     if (page === 'inventory') setSelectedBatchId(null);
     if (page === 'promotions') setSelectedPromotionId(null);
     if (page === 'gift-cards') setSelectedGiftCardId(null);
+    if (page === 'blog') setSelectedBlogPostId(null);
     if (page !== 'order-detail' && page !== 'legacy-order-detail') setOrderContext(null);
   };
 
@@ -662,6 +668,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
   const handleCreateGiftCard = () => {
     setShowGiftCardCreateModal(true);
+  };
+
+  const handleEditBlogPost = (postId: string) => {
+    setSelectedBlogPostId(postId);
+    setCurrentPage('blog-edit');
+  };
+
+  const handleCreateBlogPost = () => {
+    setSelectedBlogPostId(null);
+    setCurrentPage('blog-edit');
   };
 
   const handleGiftCardCreated = (_: string, code: string) => {
@@ -812,6 +828,16 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <GrowersPage />;
       case 'sproutify-credits':
         return <SproutifyCreditsPage />;
+      case 'blog':
+        return <BlogListPage onEditPost={handleEditBlogPost} onCreatePost={handleCreateBlogPost} />;
+      case 'blog-edit':
+        return (
+          <BlogEditPage
+            postId={selectedBlogPostId}
+            onBack={() => handleNavigate('blog')}
+            onSave={() => handleNavigate('blog')}
+          />
+        );
       case 'dashboard':
       default:
         return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} />;

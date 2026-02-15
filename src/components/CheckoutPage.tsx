@@ -250,6 +250,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [normalizedAddress, setNormalizedAddress] = useState<ShippingAddress | null>(null);
   const [showAddressSuggestion, setShowAddressSuggestion] = useState(false);
   const [addressWarningAcknowledged, setAddressWarningAcknowledged] = useState(false);
+  const [customerNotes, setCustomerNotes] = useState('');
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
@@ -665,6 +666,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
           appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
         ].filter(Boolean).join(', ') || undefined,
+        customerNotes: customerNotes.trim() || null,
         ...shippingDetails,
         ...pickupDetails
       });
@@ -763,6 +765,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
         appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
       ].filter(Boolean).join(', ') || undefined,
+      customerNotes: customerNotes.trim() || null,
       ...shippingDetails,
       ...pickupDetails
     });
@@ -1846,6 +1849,39 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 </p>
               </motion.section>
               )}
+
+              {/* Order Notes Section */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="mt-10"
+              >
+                <details className="group">
+                  <summary className="flex items-center gap-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400 group-open:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span className="text-sm font-semibold text-gray-700 group-open:text-emerald-700 transition-colors">
+                      Add a note to your order
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <div className="mt-3">
+                    <textarea
+                      value={customerNotes}
+                      onChange={(e) => setCustomerNotes(e.target.value)}
+                      placeholder="Any special instructions for your order? (e.g., delivery preferences, plant care requests)"
+                      rows={3}
+                      maxLength={500}
+                      className="w-full bg-white border-2 border-gray-200 rounded-2xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none text-sm transition-all"
+                    />
+                    <p className="text-xs text-gray-400 mt-1 text-right">{customerNotes.length}/500</p>
+                  </div>
+                </details>
+              </motion.section>
 
               <hr className="my-10 border-gray-100" />
 

@@ -34,7 +34,10 @@ const mapProduct = (p: any): Product => ({
   compareAtPrice: p.compare_at_price ?? null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
-  stock: p.quantity_available || 0
+  stock: p.quantity_available || 0,
+  productType: p.product_type || null,
+  externalUrl: p.external_url || null,
+  externalButtonText: p.external_button_text || null,
 });
 
 interface ProductSectionProps {
@@ -82,7 +85,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
     >
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900">
+          <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900">
             {title}
           </h2>
           {subtitle && (
@@ -123,6 +126,9 @@ const ProductSection: React.FC<ProductSectionProps> = ({
                   compareAtPrice={product.compareAtPrice ?? null}
                   shortDescription={product.shortDescription}
                   description={product.description}
+                  productType={product.productType}
+                  externalUrl={product.externalUrl}
+                  externalButtonText={product.externalButtonText}
                   isFavorited={isFavorite?.(product.id)}
                   onToggleFavorite={onToggleFavorite}
                   requireLoginToFavorite={requireLoginToFavorite}
@@ -218,6 +224,9 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
                   compareAtPrice={product.compareAtPrice ?? null}
                   shortDescription={product.shortDescription}
                   description={product.description}
+                  productType={product.productType}
+                  externalUrl={product.externalUrl}
+                  externalButtonText={product.externalButtonText}
                   isFavorited={isFavorite?.(product.id)}
                   onToggleFavorite={onToggleFavorite}
                   requireLoginToFavorite={requireLoginToFavorite}
@@ -517,14 +526,14 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites;
 
   return (
-    <div className="min-h-screen pt-20 pb-10 bg-site">
+    <div className="min-h-screen pt-32 pb-10 bg-site">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-4"
+            className="text-7xl md:text-9xl font-heading font-black text-gray-900 mb-4"
           >
             The <span className="text-emerald-600">Aeroponic</span> Shop
           </motion.h1>
@@ -700,7 +709,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Favorites View
           <div>
             <div className="mb-8">
-              <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
+              <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900 flex items-center gap-3">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
@@ -748,6 +757,9 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                           compareAtPrice={product.compareAtPrice ?? null}
                           shortDescription={product.shortDescription}
                           description={product.description}
+                          productType={product.productType}
+                          externalUrl={product.externalUrl}
+                          externalButtonText={product.externalButtonText}
                           isFavorited={true}
                           onToggleFavorite={toggleFavorite}
                           requireLoginToFavorite={true}
@@ -835,7 +847,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 return (
                   <div key={parentCat.id} className="mb-10">
                     <div className="mb-8">
-                      <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
+                      <h2 className="text-7xl md:text-9xl font-heading font-black text-gray-900 flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
                         {parentCat.name}
                       </h2>
@@ -882,7 +894,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Parent category with subcategories - show grouped by subcategory
           <div>
             <div className="mb-8">
-              <h2 className="text-2xl md:text-3xl font-heading font-black text-gray-900">
+              <h2 className="text-5xl md:text-6xl font-heading font-black text-gray-900">
                 {getCategoryById(activeParentId)?.name || 'Products'}
               </h2>
             </div>
@@ -931,6 +943,9 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       compareAtPrice={product.compareAtPrice ?? null}
                       shortDescription={product.shortDescription}
                       description={product.description}
+                      productType={product.productType}
+                      externalUrl={product.externalUrl}
+                      externalButtonText={product.externalButtonText}
                       isFavorited={isFavorite(product.id)}
                       onToggleFavorite={toggleFavorite}
                       requireLoginToFavorite={true}

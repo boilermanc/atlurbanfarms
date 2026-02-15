@@ -123,6 +123,7 @@ export interface Order {
   tracking_number: string | null;
   estimated_delivery: string | null;
   internal_notes: string | null;
+  customer_notes?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];

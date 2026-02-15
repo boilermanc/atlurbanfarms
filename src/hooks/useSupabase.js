@@ -1132,7 +1132,9 @@ export function useCreateOrder() {
     promotionId = null,
     promotionCode = null,
     discountAmount = 0,
-    discountDescription = null
+    discountDescription = null,
+    // Customer notes
+    customerNotes = null
   }) => {
     setLoading(true)
     setError(null)
@@ -1185,7 +1187,9 @@ export function useCreateOrder() {
         promotion_id: promotionId,
         promotion_code: promotionCode,
         discount_amount: discountAmount,
-        discount_description: discountDescription
+        discount_description: discountDescription,
+        // Customer notes
+        customer_notes: customerNotes
       }
 
       // Prepare order items for RPC

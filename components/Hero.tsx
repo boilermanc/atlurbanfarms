@@ -8,6 +8,21 @@ interface HeroProps {
   onAboutClick: () => void;
 }
 
+/**
+ * Extract YouTube video ID from various YouTube URL formats.
+ * Returns null if not a YouTube URL.
+ */
+function getYouTubeVideoId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
   const { get } = usePageContent('home');
 
@@ -23,7 +38,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
   const videoUrl = get('hero', 'hero_video_url', '');
 
   return (
-    <section className="relative pt-16 pb-8 md:pt-20 md:pb-14 px-4 md:px-12 overflow-hidden bg-site-secondary border-b border-gray-200">
+    <section className="relative pt-32 pb-8 md:pb-14 px-4 md:px-12 overflow-hidden bg-site-secondary border-b border-gray-200">
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-emerald-100/50 rounded-full blur-3xl -z-10" />
       <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[400px] h-[400px] bg-emerald-50/50 rounded-full blur-3xl -z-10" />
 
@@ -37,7 +52,7 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 leading-[1.1] mb-8"
+            className="text-8xl md:text-9xl font-heading font-extrabold text-gray-900 leading-[1.1] mb-8"
             dangerouslySetInnerHTML={{ __html: headline }}
           />
 
@@ -67,7 +82,26 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
         <motion.div initial={{ opacity: 0, scale: 0.8, rotate: -5 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="flex-1 relative">
           <div className="relative z-10 rounded-[2.5rem] overflow-hidden shadow-2xl shadow-emerald-200 border-8 border-white">
             {mediaType === 'video' && videoUrl ? (
-              <video src={videoUrl} autoPlay muted loop playsInline className="w-full h-auto object-cover" />
+              (() => {
+                const ytId = getYouTubeVideoId(videoUrl);
+                if (ytId) {
+                  return (
+                    <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&showinfo=0&rel=0&modestbranding=1`}
+                        title="Hero video"
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                        className="absolute inset-0 w-full h-full object-cover"
+                        style={{ border: 'none' }}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <video src={videoUrl} autoPlay muted loop playsInline className="w-full h-auto object-cover" />
+                );
+              })()
             ) : (
               <img src={imageUrl || 'https://picsum.photos/seed/urbanfarm/800/1000'} alt="Healthy seedlings" className="w-full h-auto object-cover" />
             )}

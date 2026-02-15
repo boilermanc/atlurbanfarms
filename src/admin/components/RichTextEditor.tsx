@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -78,6 +79,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
   const [customRgb, setCustomRgb] = useState({ r: 0, g: 0, b: 0 });
   const [recentColors, setRecentColors] = useState<string[]>(getRecentColors);
   const colorPickerRef = useRef<HTMLDivElement>(null);
+  const colorButtonRef = useRef<HTMLDivElement>(null);
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const { settings: brandingSettings } = useBrandingSettings();
 
   const editor = useEditor({
@@ -117,11 +120,19 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
     },
   });
 
-  // Close color picker on outside click
+  // Position color picker and close on outside click
   useEffect(() => {
     if (!showColorPicker) return;
+    // Calculate position from button ref
+    if (colorButtonRef.current) {
+      const rect = colorButtonRef.current.getBoundingClientRect();
+      setPickerPos({ top: rect.bottom + 4, left: rect.left });
+    }
     const handleClick = (e: MouseEvent) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+      if (
+        colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node) &&
+        colorButtonRef.current && !colorButtonRef.current.contains(e.target as Node)
+      ) {
         setShowColorPicker(false);
       }
     };
@@ -279,7 +290,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
 
         <div className="w-px h-6 bg-slate-200 mx-1" />
 
-        <div className="relative" ref={colorPickerRef}>
+        <div ref={colorButtonRef}>
           <MenuButton
             onClick={() => setShowColorPicker(!showColorPicker)}
             isActive={!!editor.getAttributes('textStyle').color}
@@ -293,138 +304,143 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
               />
             )}
           </MenuButton>
+        </div>
 
-          {showColorPicker && (
-            <div className="absolute top-full left-0 mt-1 p-3 bg-white border border-slate-200 rounded-xl shadow-lg z-50 w-64">
-              {/* Brand Colors */}
-              {brandColors.length > 0 && (
-                <div className="mb-2.5">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Brand Colors</p>
-                  <div className="flex gap-1.5">
-                    {brandColors.map(({ color, label }) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => applyColor(color)}
-                        className="flex flex-col items-center gap-0.5 group"
-                        title={`${label}: ${color}`}
-                      >
-                        <span
-                          className="w-7 h-7 rounded-lg border-2 border-slate-200 group-hover:scale-110 group-hover:border-slate-400 transition-all"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="text-[9px] text-slate-400 group-hover:text-slate-600">{label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Recently Used */}
-              {recentColors.length > 0 && (
-                <div className="mb-2.5">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Recent</p>
-                  <div className="flex gap-1.5">
-                    {recentColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => applyColor(color)}
-                        className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
-                          color === '#ffffff' ? 'border-slate-300' : 'border-slate-200'
-                        }`}
+        {showColorPicker && createPortal(
+          <div
+            ref={colorPickerRef}
+            className="fixed p-3 bg-white border border-slate-200 rounded-xl shadow-lg w-64 max-h-[80vh] overflow-y-auto"
+            style={{ top: pickerPos.top, left: pickerPos.left, zIndex: 9999 }}
+          >
+            {/* Brand Colors */}
+            {brandColors.length > 0 && (
+              <div className="mb-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Brand Colors</p>
+                <div className="flex gap-1.5">
+                  {brandColors.map(({ color, label }) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => applyColor(color)}
+                      className="flex flex-col items-center gap-0.5 group"
+                      title={`${label}: ${color}`}
+                    >
+                      <span
+                        className="w-7 h-7 rounded-lg border-2 border-slate-200 group-hover:scale-110 group-hover:border-slate-400 transition-all"
                         style={{ backgroundColor: color }}
-                        title={color}
                       />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Standard Colors */}
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Colors</p>
-              <div className="grid grid-cols-8 gap-1.5 mb-2.5">
-                {[
-                  '#000000', '#374151', '#6B7280', '#9CA3AF', '#EF4444', '#F97316', '#F59E0B', '#EAB308',
-                  '#10B981', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#FFFFFF',
-                  '#991B1B', '#9A3412', '#92400E', '#065F46', '#155E75', '#1E3A8A', '#4C1D95', '#831843',
-                ].map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => applyColor(color)}
-                    className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
-                      color === '#FFFFFF' ? 'border-slate-300' : 'border-slate-200'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    title={color}
-                  />
-                ))}
-              </div>
-
-              {/* Custom Color Section */}
-              <div className="pt-2.5 border-t border-slate-100">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Custom</p>
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="color"
-                    value={customHex}
-                    onChange={(e) => updateFromHex(e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer border border-slate-200 p-0 bg-transparent"
-                    title="Pick custom color"
-                  />
-                  <input
-                    type="text"
-                    value={customHex}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setCustomHex(v);
-                      const rgb = hexToRgb(v);
-                      if (rgb) setCustomRgb(rgb);
-                    }}
-                    className="flex-1 px-2 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400"
-                    placeholder="#000000"
-                    maxLength={7}
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 mb-2.5">
-                  {(['r', 'g', 'b'] as const).map((ch) => (
-                    <div key={ch} className="flex-1">
-                      <label className="block text-[10px] font-medium text-slate-400 uppercase text-center mb-0.5">{ch}</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={255}
-                        value={customRgb[ch]}
-                        onChange={(e) => updateFromRgb(ch, Math.max(0, Math.min(255, parseInt(e.target.value) || 0)))}
-                        className="w-full px-1.5 py-1.5 text-xs text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                    </div>
+                      <span className="text-[9px] text-slate-400 group-hover:text-slate-600">{label}</span>
+                    </button>
                   ))}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={applyCustomColor}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      editor.chain().focus().unsetColor().run();
-                      setShowColorPicker(false);
-                    }}
-                    className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
-                    Reset
-                  </button>
+              </div>
+            )}
+
+            {/* Recently Used */}
+            {recentColors.length > 0 && (
+              <div className="mb-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Recent</p>
+                <div className="flex gap-1.5">
+                  {recentColors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => applyColor(color)}
+                      className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
+                        color === '#ffffff' ? 'border-slate-300' : 'border-slate-200'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
                 </div>
               </div>
+            )}
+
+            {/* Standard Colors */}
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Colors</p>
+            <div className="grid grid-cols-8 gap-1.5 mb-2.5">
+              {[
+                '#000000', '#374151', '#6B7280', '#9CA3AF', '#EF4444', '#F97316', '#F59E0B', '#EAB308',
+                '#10B981', '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#FFFFFF',
+                '#991B1B', '#9A3412', '#92400E', '#065F46', '#155E75', '#1E3A8A', '#4C1D95', '#831843',
+              ].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => applyColor(color)}
+                  className={`w-6 h-6 rounded-md border hover:scale-110 transition-transform ${
+                    color === '#FFFFFF' ? 'border-slate-300' : 'border-slate-200'
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
             </div>
-          )}
-        </div>
+
+            {/* Custom Color Section */}
+            <div className="pt-2.5 border-t border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Custom</p>
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  type="color"
+                  value={customHex}
+                  onChange={(e) => updateFromHex(e.target.value)}
+                  className="w-8 h-8 rounded cursor-pointer border border-slate-200 p-0 bg-transparent"
+                  title="Pick custom color"
+                />
+                <input
+                  type="text"
+                  value={customHex}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomHex(v);
+                    const rgb = hexToRgb(v);
+                    if (rgb) setCustomRgb(rgb);
+                  }}
+                  className="flex-1 px-2 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400"
+                  placeholder="#000000"
+                  maxLength={7}
+                />
+              </div>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                {(['r', 'g', 'b'] as const).map((ch) => (
+                  <div key={ch} className="flex-1">
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase text-center mb-0.5">{ch}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={255}
+                      value={customRgb[ch]}
+                      onChange={(e) => updateFromRgb(ch, Math.max(0, Math.min(255, parseInt(e.target.value) || 0)))}
+                      className="w-full px-1.5 py-1.5 text-xs text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={applyCustomColor}
+                  className="flex-1 px-3 py-1.5 text-xs font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    editor.chain().focus().unsetColor().run();
+                    setShowColorPicker(false);
+                  }}
+                  className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {showLinkInput && (
           <div className="flex items-center gap-2 ml-2">

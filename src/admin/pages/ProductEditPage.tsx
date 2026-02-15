@@ -331,8 +331,27 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     setError(null);
 
     try {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+
       for (const file of Array.from(files)) {
-        const fileExt = file.name.split('.').pop();
+        // Validate file type
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error(`Invalid file type for "${file.name}". Please upload JPG, PNG, GIF, or WebP images.`);
+        }
+
+        // Validate file extension
+        const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+        if (!allowedExtensions.includes(ext)) {
+          throw new Error(`Invalid file extension for "${file.name}". Please upload JPG, PNG, GIF, or WebP images.`);
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`"${file.name}" is too large. Maximum size is 5MB.`);
+        }
+
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const filePath = `product-images/${fileName}`;
 

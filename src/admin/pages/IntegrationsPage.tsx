@@ -369,7 +369,9 @@ const DEFAULT_INTEGRATION_SETTINGS = {
   stripe_webhook_url: { value: 'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/stripe-webhook', dataType: 'string' as const },
   // ShipEngine (shipping integration)
   shipstation_enabled: { value: false, dataType: 'boolean' as const },
-  shipengine_api_key: { value: '', dataType: 'string' as const },
+  shipengine_mode: { value: 'sandbox', dataType: 'string' as const },
+  shipengine_api_key_production: { value: '', dataType: 'string' as const },
+  shipengine_api_key_sandbox: { value: '', dataType: 'string' as const },
   shipstation_store_id: { value: '', dataType: 'string' as const },
   // Resend
   resend_enabled: { value: false, dataType: 'boolean' as const },
@@ -419,6 +421,11 @@ const IntegrationsPage: React.FC = () => {
   const [upsLoading, setUpsLoading] = useState(true);
   const [upsSaving, setUpsSaving] = useState(false);
   const [upsTestResult, setUpsTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Derived: active ShipEngine key based on mode
+  const activeShipEngineKey = formData.shipengine_mode === 'production'
+    ? formData.shipengine_api_key_production
+    : formData.shipengine_api_key_sandbox;
 
   // Initialize form data with defaults and loaded settings
   useEffect(() => {
@@ -783,9 +790,12 @@ const IntegrationsPage: React.FC = () => {
       formData.stripe_enabled,
       !!(formData.stripe_publishable_key && formData.stripe_secret_key)
     );
+    const activeShipEngineKey = formData.shipengine_mode === 'production'
+      ? formData.shipengine_api_key_production
+      : formData.shipengine_api_key_sandbox;
     const shipstationStatus = getConnectionStatus(
       formData.shipstation_enabled,
-      !!formData.shipengine_api_key
+      !!activeShipEngineKey
     );
     const resendStatus = getConnectionStatus(
       formData.resend_enabled,
@@ -1099,13 +1109,84 @@ const IntegrationsPage: React.FC = () => {
                 </button>
               </div>
 
-              <SecretInput
-                label="API Key"
-                value={formData.shipengine_api_key || ''}
-                onChange={(v) => updateField('shipengine_api_key', v)}
-                placeholder="TEST_... or your production API key"
-                helpText="Get your API key from ShipEngine Dashboard (shipengine.com)"
-              />
+              {/* Environment Mode Toggle */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-600">Environment</label>
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+                  <button
+                    type="button"
+                    onClick={() => updateField('shipengine_mode', 'sandbox')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      formData.shipengine_mode !== 'production'
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Sandbox
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateField('shipengine_mode', 'production')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      formData.shipengine_mode === 'production'
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Production
+                  </button>
+                </div>
+                {formData.shipengine_mode !== 'production' && (
+                  <p className="text-xs text-orange-600 flex items-center gap-1">
+                    <span>&#9888;</span> Sandbox mode returns estimated retail rates, not your negotiated Shipstation rates.
+                  </p>
+                )}
+                {formData.shipengine_mode === 'production' && (
+                  <p className="text-xs text-emerald-600">Using production API key with negotiated carrier rates.</p>
+                )}
+              </div>
+
+              {/* Dual API Key Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`rounded-xl border-2 p-4 transition-colors ${
+                  formData.shipengine_mode === 'production'
+                    ? 'border-emerald-300 bg-emerald-50/50'
+                    : 'border-slate-200 bg-white'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    {formData.shipengine_mode === 'production' && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                    <span className="text-sm font-medium text-slate-700">Production Key</span>
+                  </div>
+                  <SecretInput
+                    label=""
+                    value={formData.shipengine_api_key_production || ''}
+                    onChange={(v) => updateField('shipengine_api_key_production', v)}
+                    placeholder="Your live ShipEngine API key"
+                    helpText="From your ShipEngine dashboard (Shipstation-connected account)"
+                  />
+                </div>
+                <div className={`rounded-xl border-2 p-4 transition-colors ${
+                  formData.shipengine_mode !== 'production'
+                    ? 'border-orange-300 bg-orange-50/50'
+                    : 'border-slate-200 bg-white'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    {formData.shipengine_mode !== 'production' && (
+                      <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    )}
+                    <span className="text-sm font-medium text-slate-700">Sandbox Key</span>
+                  </div>
+                  <SecretInput
+                    label=""
+                    value={formData.shipengine_api_key_sandbox || ''}
+                    onChange={(v) => updateField('shipengine_api_key_sandbox', v)}
+                    placeholder="TEST_... sandbox API key"
+                    helpText="For testing (returns estimated retail rates)"
+                  />
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -1156,7 +1237,7 @@ const IntegrationsPage: React.FC = () => {
                 </div>
                 <button
                   onClick={() => testConnection('ShipEngine')}
-                  disabled={testingConnection === 'ShipEngine' || !formData.shipengine_api_key}
+                  disabled={testingConnection === 'ShipEngine' || !activeShipEngineKey}
                   className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'ShipEngine' ? (
@@ -1173,7 +1254,7 @@ const IntegrationsPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => triggerSync('ShipEngine')}
-                  disabled={syncing === 'ShipEngine' || !formData.shipengine_api_key}
+                  disabled={syncing === 'ShipEngine' || !activeShipEngineKey}
                   className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {syncing === 'ShipEngine' ? (

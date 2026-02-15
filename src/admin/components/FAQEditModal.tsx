@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 interface FAQ {
   id?: string;
@@ -73,7 +74,9 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
       newErrors.question = 'Question is required';
     }
 
-    if (!formData.answer.trim()) {
+    // Strip HTML tags to check if there's actual text content
+    const answerText = formData.answer.replace(/<[^>]*>/g, '').trim();
+    if (!answerText) {
       newErrors.answer = 'Answer is required';
     }
 
@@ -150,16 +153,9 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
                 <label className="block text-sm font-medium text-slate-600 mb-2">
                   Answer <span className="text-red-500">*</span>
                 </label>
-                <p className="text-xs text-slate-400 mb-2">
-                  Supports basic Markdown: **bold**, *italic*, [links](url), and line breaks
-                </p>
-                <textarea
+                <RichTextEditor
                   value={formData.answer}
-                  onChange={(e) => setFormData(prev => ({ ...prev, answer: e.target.value }))}
-                  rows={8}
-                  className={`w-full px-4 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none ${
-                    errors.answer ? 'border-red-400' : 'border-slate-200'
-                  }`}
+                  onChange={(html) => setFormData(prev => ({ ...prev, answer: html }))}
                   placeholder="Enter the answer..."
                 />
                 {errors.answer && (

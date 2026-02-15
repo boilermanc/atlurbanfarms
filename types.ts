@@ -9,6 +9,9 @@ export interface Product {
   category: string;
   stock: number;
   compareAtPrice?: number | null;
+  productType?: string | null;
+  externalUrl?: string | null;
+  externalButtonText?: string | null;
 }
 
 export interface CartItem extends Product {

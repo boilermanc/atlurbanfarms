@@ -25,6 +25,7 @@ import {
   Download,
   Globe,
   UsersRound,
+  Newspaper,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -75,6 +76,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'growers', label: 'Team Members', icon: UsersRound },
       { id: 'faqs', label: 'FAQs', icon: HelpCircle },
       { id: 'content-pages', label: 'Content Pages', icon: FileText },
+      { id: 'blog', label: 'Blog', icon: Newspaper },
       { id: 'product-tags', label: 'Product Tags', icon: Tag },
       { id: 'customer-tags', label: 'Customer Tags', icon: Users },
       { id: 'attribution', label: 'Attribution', icon: Megaphone },

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DOMPurify from 'dompurify';
 import { supabase } from '../src/lib/supabase';
 import { useBrandingSettings } from '../src/hooks/useSupabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
@@ -52,9 +53,10 @@ const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
             transition={{ duration: 0.3, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <p className="text-gray-500 pb-8 leading-relaxed max-w-3xl">
-              {answer}
-            </p>
+            <div
+              className="text-gray-500 pb-8 leading-relaxed max-w-3xl [&_a]:text-emerald-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_li]:my-1 [&_strong]:text-gray-700 [&_p]:mb-2 [&_p:last-child]:mb-0"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(answer) }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -76,10 +78,17 @@ const categoryToId = (category: string): string => {
     .replace(/^-|-$/g, '');
 };
 
+// Strip HTML tags to get plain text for search matching
+const stripHtml = (html: string): string => {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
 const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   const [faqData, setFaqData] = useState<FAQCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { settings: brandingSettings } = useBrandingSettings();
   const { getSection } = usePageContent('faq');
 
@@ -137,9 +146,28 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
     }
   };
 
+  // Extract all unique category names
+  const allCategories = faqData.map(section => section.category);
+
+  // Filter FAQ data based on search query and selected category
+  const filteredFaqData = faqData
+    .filter(section => !selectedCategory || section.category === selectedCategory)
+    .map(section => {
+      if (!searchQuery.trim()) return section;
+      const query = searchQuery.toLowerCase();
+      const filteredQuestions = section.questions.filter(item =>
+        item.q.toLowerCase().includes(query) ||
+        stripHtml(item.a).toLowerCase().includes(query)
+      );
+      return { ...section, questions: filteredQuestions };
+    })
+    .filter(section => section.questions.length > 0);
+
+  const hasNoResults = !loading && !error && faqData.length > 0 && filteredFaqData.length === 0;
+
   if (loading) {
     return (
-      <div className="min-h-screen pt-16 pb-16 bg-site">
+      <div className="min-h-screen pt-32 pb-16 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
@@ -152,7 +180,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen pt-16 pb-16 bg-site">
+      <div className="min-h-screen pt-32 pb-16 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 text-center">
           <p className="text-red-500 mb-4">{error}</p>
           <button
@@ -167,7 +195,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-20 bg-site">
+    <div className="min-h-screen pt-32 pb-20 bg-site">
       <div className="max-w-4xl mx-auto px-4 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -178,13 +206,82 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
             {headerContent.tagline || 'How can we help?'}
           </span>
           <h1
-            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
-            dangerouslySetInnerHTML={{ __html: headerContent.headline || 'Help <span class="text-emerald-600">Center</span>' }}
+            className="text-7xl md:text-9xl font-heading font-black text-gray-900 mb-6"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(headerContent.headline || 'Help <span class="text-emerald-600">Center</span>') }}
           />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
             {headerContent.description || 'Everything you need to know about our seedlings, our shipping process, and our high-tech growing mission.'}
           </p>
         </motion.div>
+
+        {/* Search & Category Filters */}
+        {faqData.length > 0 && (
+          <div className="mb-10 space-y-4">
+            {/* Search Bar */}
+            <div className="relative max-w-xl mx-auto">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search FAQs..."
+                className="w-full pl-12 pr-10 py-4 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm text-base"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Category Filter Buttons */}
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                  !selectedCategory
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                All
+              </button>
+              {allCategories.map(category => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                    selectedCategory === category
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {faqData.length === 0 ? (
           <div className="text-center py-12">
@@ -192,26 +289,39 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
           </div>
         ) : (
           <div className="space-y-12">
-            {faqData.map((section, idx) => (
-              <motion.div
-                key={section.category}
-                id={categoryToId(section.category)}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-              >
-                <h2 className="text-sm font-black uppercase tracking-widest text-emerald-600 mb-8 flex items-center gap-4">
-                  {section.category}
-                  <div className="h-px bg-emerald-100 flex-1" />
-                </h2>
-                <div className="bg-white rounded-[2rem] border border-gray-100 px-8 shadow-sm">
-                  {section.questions.map((item: { q: string; a: string }, qIdx: number) => (
-                    <FAQItem key={qIdx} question={item.q} answer={item.a} />
-                  ))}
-                </div>
-              </motion.div>
-            ))}
+            {hasNoResults ? (
+              <div className="text-center py-16">
+                <div className="text-5xl mb-4">🔍</div>
+                <p className="text-gray-500 text-lg">No FAQs found matching your search.</p>
+                <button
+                  onClick={() => { setSearchQuery(''); setSelectedCategory(null); }}
+                  className="mt-4 text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : (
+              filteredFaqData.map((section, idx) => (
+                <motion.div
+                  key={section.category}
+                  id={categoryToId(section.category)}
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.1 }}
+                >
+                  <h2 className="text-sm font-black uppercase tracking-widest text-emerald-600 mb-8 flex items-center gap-4">
+                    {section.category}
+                    <div className="h-px bg-emerald-100 flex-1" />
+                  </h2>
+                  <div className="bg-white rounded-[2rem] border border-gray-100 px-8 shadow-sm">
+                    {section.questions.map((item: { q: string; a: string }, qIdx: number) => (
+                      <FAQItem key={qIdx} question={item.q} answer={item.a} />
+                    ))}
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
         )}
 
@@ -225,7 +335,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-          <h2 className="text-3xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
+          <h2 className="text-6xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
           <p className="text-white/90 mb-8 relative z-10 font-medium">Sage AI is available 24/7 to answer your specific growing questions.</p>
           <button
             onClick={handleAskSage}

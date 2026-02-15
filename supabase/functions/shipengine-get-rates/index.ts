@@ -627,6 +627,12 @@ serve(async (req) => {
     const markupPercent = shippingSettings.shipping_rate_markup_percent || 0
     const markupDollars = shippingSettings.shipping_rate_markup_dollars || 0
 
+    // Detect sandbox mode from API key prefix
+    const isSandbox = (integrationSettings.shipengine_api_key as string).startsWith('TEST_')
+    if (isSandbox) {
+      console.warn('SANDBOX MODE: Using TEST_ API key — rates are estimated retail, not negotiated.')
+    }
+
     if (!warehouseAddress || !warehouseAddress.address_line1) {
       console.error('MISSING_CONFIG: No warehouse address found in shipping.warehouse_address or business.ship_from_* fields')
       return new Response(
@@ -914,7 +920,18 @@ serve(async (req) => {
       }
     }
 
-    const response: RatesResponse & { carrier_ids_used?: string[] } = {
+    // Build markup info for transparency
+    const markupInfo = (markupType === 'fixed' && markupDollars > 0)
+      ? { type: 'fixed' as const, amount: markupDollars }
+      : (markupType === 'percentage' && markupPercent > 0)
+        ? { type: 'percentage' as const, percent: markupPercent }
+        : null
+
+    const response: RatesResponse & {
+      carrier_ids_used?: string[]
+      is_sandbox?: boolean
+      markup_applied?: { type: 'fixed'; amount: number } | { type: 'percentage'; percent: number } | null
+    } = {
       success: true,
       rates,
       ship_from: warehouseAddress,
@@ -931,6 +948,8 @@ serve(async (req) => {
       } : undefined,
       carrier_errors: carrierErrors.length > 0 ? carrierErrors : undefined,
       carrier_ids_used: carrierIds,
+      is_sandbox: isSandbox || undefined,
+      markup_applied: markupInfo,
     }
 
     return new Response(
