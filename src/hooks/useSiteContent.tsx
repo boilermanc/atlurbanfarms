@@ -8,7 +8,7 @@ interface SiteContentItem {
   section: string;
   key: string;
   value: string;
-  content_type: 'text' | 'rich_text' | 'image_url' | 'number';
+  content_type: 'text' | 'rich_text' | 'image_url' | 'video_url' | 'number';
 }
 
 // Nested content structure: content[section][key] = value

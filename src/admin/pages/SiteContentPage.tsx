@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import {
   Home, Info, GraduationCap, HelpCircle, Calendar,
   Save, Upload, Trash2, Image, Type, Hash, FileText,
-  ChevronDown, ChevronRight, RefreshCw, Palette
+  ChevronDown, ChevronRight, RefreshCw, Palette, Video, Link
 } from 'lucide-react';
 
 // Types
@@ -16,7 +16,7 @@ interface SiteContentItem {
   section: string;
   key: string;
   value: string;
-  content_type: 'text' | 'rich_text' | 'image_url' | 'number';
+  content_type: 'text' | 'rich_text' | 'image_url' | 'video_url' | 'number';
   updated_at: string;
 }
 
@@ -33,9 +33,21 @@ interface TabConfig {
 interface FieldConfig {
   key: string;
   label: string;
-  type: 'text' | 'rich_text' | 'image_url' | 'number' | 'select' | 'color';
+  type: 'text' | 'rich_text' | 'image_url' | 'video_url' | 'number' | 'select' | 'color';
   options?: string[];
   showWhen?: { key: string; value: string };
+}
+
+/** Extract YouTube video ID from URL for preview in admin */
+function getYouTubeVideoId(url: string): string | null {
+  const match = url.match(
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}
+
+function isYouTubeUrl(url: string): boolean {
+  return /(?:youtube\.com|youtu\.be)/.test(url);
 }
 
 // Define content structure for each page
@@ -53,7 +65,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'guarantee_text', label: 'Guarantee Text', type: 'text' },
         { key: 'hero_media_type', label: 'Hero Media Type', type: 'select', options: ['image', 'video'] },
         { key: 'image_url', label: 'Hero Image', type: 'image_url', showWhen: { key: 'hero_media_type', value: 'image' } },
-        { key: 'hero_video_url', label: 'Hero Video URL', type: 'text', showWhen: { key: 'hero_media_type', value: 'video' } },
+        { key: 'hero_video_url', label: 'Hero Video', type: 'video_url', showWhen: { key: 'hero_media_type', value: 'video' } },
       ],
     },
     featured: {
@@ -405,6 +417,9 @@ const SiteContentPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentUploadKey, setCurrentUploadKey] = useState<{ page: string; section: string; key: string } | null>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const [currentVideoUploadKey, setCurrentVideoUploadKey] = useState<{ page: string; section: string; key: string } | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState<string | null>(null);
 
   // Fetch all site content
   const fetchContent = useCallback(async () => {
@@ -479,7 +494,7 @@ const SiteContentPage: React.FC = () => {
               section,
               key: field.key,
               value,
-              content_type: field.type === 'select' ? 'text' : field.type,
+              content_type: (field.type === 'select' || field.type === 'color') ? 'text' : field.type,
             });
           }
         }
@@ -570,6 +585,55 @@ const SiteContentPage: React.FC = () => {
     fileInputRef.current?.click();
   };
 
+  // Handle video upload
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentVideoUploadKey) return;
+
+    const { page, section, key } = currentVideoUploadKey;
+    setUploadingVideo(`${page}-${section}-${key}`);
+
+    try {
+      const validTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+      if (!validTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Please upload MP4, WebM, or MOV video files.');
+      }
+      if (file.size > 100 * 1024 * 1024) {
+        throw new Error('File is too large. Maximum video size is 100MB.');
+      }
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+      const fileName = `videos/${page}/${section}-${key}-${Date.now()}.${ext}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('site-media')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('site-media')
+        .getPublicUrl(data.path);
+
+      updateField(page, section, key, urlData.publicUrl);
+    } catch (error: any) {
+      console.error('Video upload error:', error);
+      alert(error.message || 'Failed to upload video');
+    } finally {
+      setUploadingVideo(null);
+      setCurrentVideoUploadKey(null);
+      if (videoFileInputRef.current) {
+        videoFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Trigger video file input for specific field
+  const triggerVideoUpload = (page: string, section: string, key: string) => {
+    setCurrentVideoUploadKey({ page, section, key });
+    videoFileInputRef.current?.click();
+  };
+
   // Get content type icon
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -581,6 +645,8 @@ const SiteContentPage: React.FC = () => {
         return <Hash size={14} className="text-amber-500" />;
       case 'color':
         return <Palette size={14} className="text-pink-500" />;
+      case 'video_url':
+        return <Video size={14} className="text-red-500" />;
       default:
         return <Type size={14} className="text-slate-400" />;
     }
@@ -701,6 +767,96 @@ const SiteContentPage: React.FC = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'video_url') {
+      const isYT = value && isYouTubeUrl(value);
+      const isDirectVideo = value && !isYT && (value.startsWith('http') || value.startsWith('/'));
+      const isVideoUploading = uploadingVideo === fieldKey;
+
+      return (
+        <div key={fieldKey} className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            {getTypeIcon(field.type)}
+            {field.label}
+          </label>
+
+          {/* Video preview */}
+          {value && (
+            <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-black max-w-md">
+              {isYT ? (
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${getYouTubeVideoId(value)}?controls=1&modestbranding=1`}
+                    title="Video preview"
+                    className="absolute inset-0 w-full h-full"
+                    style={{ border: 'none' }}
+                    allow="encrypted-media"
+                  />
+                </div>
+              ) : isDirectVideo ? (
+                <video
+                  src={value}
+                  controls
+                  muted
+                  className="w-full h-auto max-h-48 object-contain"
+                  preload="metadata"
+                />
+              ) : null}
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => updateField(page, section, field.key, '')}
+                  className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  title="Remove"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* URL input for YouTube or direct URLs */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Link size={16} className="text-slate-400 flex-shrink-0" />
+              <input
+                type="url"
+                value={value}
+                onChange={(e) => updateField(page, section, field.key, e.target.value)}
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                placeholder="Paste YouTube URL or video file URL..."
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-xs text-slate-400 uppercase tracking-wider">or</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => triggerVideoUpload(page, section, field.key)}
+              disabled={isVideoUploading}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors w-full justify-center"
+            >
+              {isVideoUploading ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  Uploading video...
+                </>
+              ) : (
+                <>
+                  <Upload size={16} />
+                  Upload Video File
+                  <span className="text-xs text-slate-400 ml-1">(MP4, WebM, MOV — max 100MB)</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       );
@@ -837,12 +993,19 @@ const SiteContentPage: React.FC = () => {
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        {/* Hidden file input */}
+        {/* Hidden file inputs */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp"
           onChange={handleImageUpload}
+          className="hidden"
+        />
+        <input
+          ref={videoFileInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime"
+          onChange={handleVideoUpload}
           className="hidden"
         />
 
