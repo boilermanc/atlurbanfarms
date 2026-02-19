@@ -37,14 +37,14 @@ const TOOLS = [
     status: 'coming-soon' as const,
   },
   {
-    name: 'Sproutify Farm App',
+    name: 'Sproutify Home App',
     description: 'Manage your aeroponic garden with our companion app. Track growth, set watering schedules, and monitor plant health.',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
         <path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     ),
-    url: 'https://farm.sproutify.app',
+    url: 'https://www.sproutify.app/sproutify-home.html',
     status: 'available' as const,
   },
 ];

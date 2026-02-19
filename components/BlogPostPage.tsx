@@ -50,14 +50,6 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
     fetchPost();
   }, [slug]);
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
   if (loading) {
     return (
@@ -115,20 +107,17 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          {/* Category & Date */}
-          <div className="flex items-center gap-3 mb-4">
-            {post.category && (
+          {/* Category */}
+          {post.category && (
+            <div className="mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
                 {post.category}
               </span>
-            )}
-            <span className="text-sm text-gray-400 font-medium">
-              {formatDate(post.published_at || post.created_at)}
-            </span>
-          </div>
+            </div>
+          )}
 
           {/* Title */}
-          <h1 className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6 leading-tight">
+          <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6 leading-tight">
             {post.title}
           </h1>
 
@@ -178,8 +167,13 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
               prose-img:rounded-2xl prose-img:shadow-md
               prose-ul:text-gray-600 prose-ol:text-gray-600
               prose-blockquote:border-emerald-500 prose-blockquote:text-gray-500
-              prose-code:text-emerald-700 prose-code:bg-emerald-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content || '') }}
+              prose-code:text-emerald-700 prose-code:bg-emerald-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm
+              [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:rounded-2xl [&_iframe]:my-4"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content || '', {
+              ADD_TAGS: ['iframe'],
+              ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'src', 'width', 'height', 'title'],
+              ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+            }) }}
           />
         </motion.div>
 

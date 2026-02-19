@@ -50,21 +50,27 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       subheading: 'Real reviews from our growing community of urban gardeners.',
       review_1_name: 'Sarah M.',
       review_1_image: '',
+      review_1_growing_system: '',
       review_1_text: 'The seedlings arrived in perfect condition and were already thriving within days of planting. Best quality I\'ve found online!',
       review_2_name: 'James T.',
       review_2_image: '',
+      review_2_growing_system: '',
       review_2_text: 'I\'ve ordered from ATL Urban Farms three times now. The herbs are incredibly robust and the packaging keeps everything fresh.',
       review_3_name: 'Maria L.',
       review_3_image: '',
+      review_3_growing_system: '',
       review_3_text: 'As a first-time gardener, I was nervous about ordering live plants online. These seedlings made it so easy to get started!',
       review_4_name: 'David K.',
       review_4_image: '',
+      review_4_growing_system: '',
       review_4_text: 'The tomato seedlings I ordered are now producing like crazy. Healthy roots and strong stems from day one.',
       review_5_name: '',
       review_5_image: '',
+      review_5_growing_system: '',
       review_5_text: '',
       review_6_name: '',
       review_6_image: '',
+      review_6_growing_system: '',
       review_6_text: '',
     },
     mission: {
@@ -154,24 +160,28 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       title: '',
       image: '',
       bio: '',
+      font_color: '#FFFFFF',
     },
     grower_2: {
       name: '',
       title: '',
       image: '',
       bio: '',
+      font_color: '#FFFFFF',
     },
     grower_3: {
       name: '',
       title: '',
       image: '',
       bio: '',
+      font_color: '#FFFFFF',
     },
     grower_4: {
       name: '',
       title: '',
       image: '',
       bio: '',
+      font_color: '#FFFFFF',
     },
     values: {
       tagline: 'Our Philosophy',
@@ -308,7 +318,8 @@ export const SiteContentProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       if (data && data.length > 0) {
         // Transform flat array into nested structure
-        const transformed: Record<string, PageContent> = { ...DEFAULT_CONTENT };
+        // Deep copy DEFAULT_CONTENT to prevent mutation of the original defaults
+        const transformed: Record<string, PageContent> = JSON.parse(JSON.stringify(DEFAULT_CONTENT));
 
         (data as SiteContentItem[]).forEach((item) => {
           if (!transformed[item.page]) {

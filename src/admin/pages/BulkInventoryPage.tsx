@@ -36,8 +36,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  // Track changes: Map<product_id, new_quantity>
+  // Track changes: Map<product_id, new_value>
   const [changes, setChanges] = useState<Map<string, number>>(new Map());
+  const [priceChanges, setPriceChanges] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     fetchProducts();
@@ -81,6 +82,12 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         price: p.price,
         compare_at_price: p.compare_at_price,
       }));
+
+      // Sort by category name, then product name
+      mappedProducts.sort((a, b) => {
+        const catCmp = a.category_name.localeCompare(b.category_name);
+        return catCmp !== 0 ? catCmp : a.name.localeCompare(b.name);
+      });
 
       setProducts(mappedProducts);
 
@@ -143,11 +150,40 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     }
   };
 
+  const handlePriceChange = (productId: string, value: string) => {
+    const newPrice = parseFloat(value);
+
+    if (isNaN(newPrice) || value === '') {
+      const next = new Map(priceChanges);
+      next.delete(productId);
+      setPriceChanges(next);
+      return;
+    }
+
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+
+    if (newPrice !== product.price) {
+      const next = new Map(priceChanges);
+      next.set(productId, newPrice);
+      setPriceChanges(next);
+    } else {
+      const next = new Map(priceChanges);
+      next.delete(productId);
+      setPriceChanges(next);
+    }
+  };
+
   const getDisplayQuantity = (product: ProductInventory): number => {
     return changes.has(product.id) ? changes.get(product.id)! : product.quantity_available;
   };
 
-  const hasChanges = () => changes.size > 0;
+  const getDisplayPrice = (product: ProductInventory): string => {
+    if (priceChanges.has(product.id)) return priceChanges.get(product.id)!.toString();
+    return product.price != null ? product.price.toString() : '';
+  };
+
+  const hasChanges = () => changes.size > 0 || priceChanges.size > 0;
 
   const handleSaveAll = async () => {
     if (!hasChanges()) return;
@@ -157,37 +193,39 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       setError(null);
       setSuccessMessage(null);
 
-      // Prepare updates array
-      const updates = Array.from(changes.entries()).map(
-        ([product_id, new_quantity]) => ({
-          product_id,
-          new_quantity,
-        })
-      );
+      // Collect all product IDs that have any change
+      const allProductIds = new Set([
+        ...changes.keys(),
+        ...priceChanges.keys(),
+      ]);
 
-      // Log the payload for debugging
-      console.log('Saving inventory updates:', updates);
+      console.log('Saving inventory updates for', allProductIds.size, 'product(s)');
 
-      // Update each product directly (more reliable than RPC)
       let updatedCount = 0;
       const errors: string[] = [];
 
-      for (const update of updates) {
+      for (const productId of allProductIds) {
+        const updatePayload: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (changes.has(productId)) {
+          updatePayload.quantity_available = changes.get(productId);
+        }
+        if (priceChanges.has(productId)) {
+          updatePayload.price = priceChanges.get(productId);
+        }
+
         const { error: updateError } = await supabase
           .from('products')
-          .update({
-            quantity_available: update.new_quantity,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', update.product_id);
+          .update(updatePayload)
+          .eq('id', productId);
 
         if (updateError) {
-          console.error(`Error updating product ${update.product_id}:`, updateError);
-          const productName = products.find(p => p.id === update.product_id)?.name || update.product_id;
+          console.error(`Error updating product ${productId}:`, updateError);
+          const productName = products.find(p => p.id === productId)?.name || productId;
           errors.push(`Failed to update "${productName}": ${updateError.message}`);
         } else {
           updatedCount++;
-          console.log(`Updated product ${update.product_id} to quantity: ${update.new_quantity}`);
         }
       }
 
@@ -204,6 +242,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
       // Clear changes
       setChanges(new Map());
+      setPriceChanges(new Map());
 
       // Refresh products
       await fetchProducts();
@@ -220,12 +259,14 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
   const handleReset = () => {
     setChanges(new Map());
+    setPriceChanges(new Map());
     setError(null);
     setSuccessMessage(null);
   };
 
   const handleRefresh = () => {
     setChanges(new Map());
+    setPriceChanges(new Map());
     setError(null);
     setSuccessMessage(null);
     fetchProducts();
@@ -314,7 +355,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 ) : (
                   <>
                     <Save size={18} />
-                    Update All ({changes.size})
+                    Update All ({new Set([...changes.keys(), ...priceChanges.keys()]).size})
                   </>
                 )}
               </button>
@@ -367,9 +408,11 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                   </tr>
                 ) : (
                   filteredProducts.map((product) => {
-                    const hasChange = changes.has(product.id);
+                    const hasQtyChange = changes.has(product.id);
+                    const hasPriceChange = priceChanges.has(product.id);
+                    const hasChange = hasQtyChange || hasPriceChange;
                     const newQty = getDisplayQuantity(product);
-                    const difference = hasChange
+                    const difference = hasQtyChange
                       ? newQty - product.quantity_available
                       : 0;
 
@@ -398,14 +441,26 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                           <span className="text-slate-600 text-sm">{product.category_name}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-slate-800">
-                            {product.price != null ? `$${product.price.toFixed(2)}` : '-'}
+                          <span className="text-slate-500">
+                            {product.compare_at_price != null ? `$${product.compare_at_price.toFixed(2)}` : '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-emerald-600">
-                            {product.compare_at_price != null ? `$${product.compare_at_price.toFixed(2)}` : '-'}
-                          </span>
+                          <div className="flex justify-end items-center gap-1">
+                            <span className="text-slate-400">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={getDisplayPrice(product)}
+                              onChange={(e) => handlePriceChange(product.id, e.target.value)}
+                              className={`w-24 px-3 py-2 text-right border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                                priceChanges.has(product.id)
+                                  ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500 font-semibold'
+                                  : 'border-slate-200 bg-white focus:ring-emerald-500/20 focus:border-emerald-500'
+                              }`}
+                            />
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span
@@ -427,14 +482,14 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                             value={newQty}
                             onChange={(e) => handleQuantityChange(product.id, e.target.value)}
                             className={`w-24 px-3 py-2 text-center border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                              hasChange
+                              hasQtyChange
                                 ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500 font-semibold'
                                 : 'border-slate-200 bg-white focus:ring-emerald-500/20 focus:border-emerald-500'
                             }`}
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
-                          {hasChange && (
+                          {hasQtyChange && (
                             <span
                               className={`text-sm font-semibold ${
                                 difference > 0
@@ -447,6 +502,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                               {difference > 0 ? '+' : ''}
                               {difference}
                             </span>
+                          )}
+                          {hasPriceChange && (
+                            <span className="text-xs text-amber-600 block">price</span>
                           )}
                         </td>
                       </tr>
@@ -468,7 +526,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
             <div className="bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6">
               <div className="text-sm">
                 <span className="text-slate-300">Pending changes:</span>{' '}
-                <span className="font-bold text-white">{changes.size} product(s)</span>
+                <span className="font-bold text-white">{new Set([...changes.keys(), ...priceChanges.keys()]).size} product(s)</span>
               </div>
               <div className="flex gap-3">
                 <button

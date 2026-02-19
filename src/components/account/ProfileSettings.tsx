@@ -383,49 +383,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) 
           </div>
         </div>
 
-        {/* Communication Preferences */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <h2 className="font-heading font-bold text-gray-900 mb-4">Communication Preferences</h2>
-
-          <div className="space-y-4">
-            <label className="flex items-start gap-4 cursor-pointer">
-              <div className="pt-0.5">
-                <input
-                  type="checkbox"
-                  name="newsletter_subscribed"
-                  checked={formData.newsletter_subscribed}
-                  onChange={handleInputChange}
-                  className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <span className="font-medium text-gray-900 block">Subscribe to Newsletter</span>
-                <span className="text-sm text-gray-500">
-                  Receive updates about new products, growing tips, and exclusive offers.
-                </span>
-              </div>
-            </label>
-
-            <label className="flex items-start gap-4 cursor-pointer">
-              <div className="pt-0.5">
-                <input
-                  type="checkbox"
-                  name="sms_opt_in"
-                  checked={formData.sms_opt_in}
-                  onChange={handleInputChange}
-                  className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                />
-              </div>
-              <div>
-                <span className="font-medium text-gray-900 block">SMS Updates</span>
-                <span className="text-sm text-gray-500">
-                  Receive text messages about your orders and important updates.
-                </span>
-              </div>
-            </label>
-          </div>
-        </div>
-
         {/* Save Button */}
         <div className="flex justify-end">
           <button

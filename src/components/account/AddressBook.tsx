@@ -11,6 +11,7 @@ interface Address {
   label: string;
   first_name: string;
   last_name: string;
+  company?: string;
   street: string;
   unit?: string;
   city: string;
@@ -24,6 +25,7 @@ interface AddressFormData {
   label: string;
   first_name: string;
   last_name: string;
+  company: string;
   street: string;
   unit: string;
   city: string;
@@ -37,6 +39,7 @@ const initialFormData: AddressFormData = {
   label: '',
   first_name: '',
   last_name: '',
+  company: '',
   street: '',
   unit: '',
   city: '',
@@ -88,6 +91,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
       label: address.label || '',
       first_name: address.first_name || '',
       last_name: address.last_name || '',
+      company: address.company || '',
       street: address.street || '',
       unit: address.unit || '',
       city: address.city || '',
@@ -241,6 +245,21 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
                   />
                 </div>
+              </div>
+
+              {/* Company (Optional) */}
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                  Company (Optional)
+                </label>
+                <input
+                  type="text"
+                  name="company"
+                  value={formData.company}
+                  onChange={handleInputChange}
+                  placeholder="Business or school name"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                />
               </div>
 
               {/* Street Address */}
@@ -438,6 +457,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
                 <p className="font-medium text-gray-900">
                   {address.first_name} {address.last_name}
                 </p>
+                {address.company && <p>{address.company}</p>}
                 <p>{address.street}</p>
                 {address.unit && <p>{address.unit}</p>}
                 <p>{address.city}, {address.state} {address.zip}</p>

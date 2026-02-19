@@ -471,7 +471,8 @@ export function useAddresses(customerId) {
       const mappedAddresses = (data || []).map(addr => ({
         ...addr,
         street: addr.address_line1,
-        unit: addr.address_line2
+        unit: addr.address_line2,
+        company: addr.company
       }))
       setAddresses(mappedAddresses)
     } catch (err) {
@@ -495,11 +496,12 @@ export function useAddresses(customerId) {
       }
 
       // Map street/unit to address_line1/2 for database
-      const { street, unit, ...rest } = address
+      const { street, unit, company, ...rest } = address
       const dbAddress = {
         ...rest,
         address_line1: street,
-        address_line2: unit || null
+        address_line2: unit || null,
+        company: company || null
       }
 
       const { data, error } = await supabase
@@ -526,13 +528,14 @@ export function useAddresses(customerId) {
       }
 
       // Map street/unit to address_line1/2 for database
-      const { street, unit, ...rest } = updates
+      const { street, unit, company, ...rest } = updates
       const dbUpdates = {
         ...rest,
         updated_at: new Date().toISOString()
       }
       if (street !== undefined) dbUpdates.address_line1 = street
       if (unit !== undefined) dbUpdates.address_line2 = unit || null
+      if (company !== undefined) dbUpdates.company = company || null
 
       const { data, error } = await supabase
         .from('customer_addresses')
@@ -668,7 +671,8 @@ export function useProducts() {
           *,
           category:product_categories(*),
           images:product_images(*),
-          category_assignments:product_category_assignments(category_id, category:product_categories(*))
+          category_assignments:product_category_assignments(category_id, category:product_categories(*)),
+          tag_assignments:product_tag_assignments(tag_id, tag:product_tags(*))
         `)
         .eq('is_active', true)
         .order('name')
@@ -1134,7 +1138,9 @@ export function useCreateOrder() {
     discountAmount = 0,
     discountDescription = null,
     // Customer notes
-    customerNotes = null
+    customerNotes = null,
+    // Growing system
+    growingSystem = null
   }) => {
     setLoading(true)
     setError(null)
@@ -1156,6 +1162,7 @@ export function useCreateOrder() {
         guest_phone: customerId ? null : customerInfo.phone,
         shipping_first_name: shippingInfo?.firstName || customerInfo.firstName,
         shipping_last_name: shippingInfo?.lastName || customerInfo.lastName,
+        shipping_company: shippingInfo?.company || null,
         shipping_address_line1: shippingInfo?.address1 || null,
         shipping_address_line2: shippingInfo?.address2 || null,
         shipping_city: shippingInfo?.city || null,
@@ -1189,7 +1196,9 @@ export function useCreateOrder() {
         discount_amount: discountAmount,
         discount_description: discountDescription,
         // Customer notes
-        customer_notes: customerNotes
+        customer_notes: customerNotes,
+        // Growing system
+        growing_system: growingSystem
       }
 
       // Prepare order items for RPC
@@ -1310,6 +1319,7 @@ export function useCreateOrder() {
                 label: 'Shipping',
                 first_name: shippingInfo.firstName,
                 last_name: shippingInfo.lastName,
+                company: shippingInfo.company || null,
                 address_line1: shippingInfo.address1,
                 address_line2: shippingInfo.address2 || null,
                 city: shippingInfo.city,

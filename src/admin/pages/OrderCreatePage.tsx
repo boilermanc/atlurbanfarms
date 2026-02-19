@@ -31,6 +31,7 @@ interface CustomerAddress {
   label: string;
   first_name: string | null;
   last_name: string | null;
+  company: string | null;
   address_line1: string;
   address_line2: string | null;
   city: string;

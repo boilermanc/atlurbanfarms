@@ -129,6 +129,8 @@ interface DashboardStats {
   totalActiveProducts: number;
   inventoryHealth: 'critical' | 'low' | 'good';
   totalCustomers: number;
+  abandonedCarts: number;
+  abandonedCartValue: number;
   recentOrders: Array<{
     id: string;
     order_number: string;
@@ -211,6 +213,19 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           .from('customers')
           .select('*', { count: 'exact', head: true });
 
+        // Fetch abandoned carts (last 7 days, not converted)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const { data: abandonedCartsData } = await supabase
+          .from('abandoned_carts')
+          .select('cart_total')
+          .is('converted_at', null)
+          .gt('created_at', sevenDaysAgo.toISOString());
+
+        const abandonedCarts = abandonedCartsData?.length || 0;
+        const abandonedCartValue = (abandonedCartsData || [])
+          .reduce((sum: number, cart: any) => sum + (Number(cart.cart_total) || 0), 0);
+
         // Fetch recent orders
         const { data: recentOrdersData } = await supabase
           .from('orders')
@@ -240,6 +255,8 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           totalActiveProducts: totalActive,
           inventoryHealth,
           totalCustomers: customerCount || 0,
+          abandonedCarts,
+          abandonedCartValue,
           recentOrders: (recentOrdersData || []).map((order: any) => ({
             id: order.id,
             order_number: order.order_number,
@@ -438,7 +455,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Customers Card */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
           <div className="flex items-center gap-4">
@@ -448,6 +465,24 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
             <div>
               <p className="text-sm font-medium text-slate-500">Total Customers</p>
               <p className="text-2xl font-bold text-slate-800 font-admin-display">{stats?.totalCustomers || 0}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Abandoned Carts Card */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-amber-100">
+              <ShoppingCart size={24} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Abandoned Carts (7d)</p>
+              <p className="text-2xl font-bold text-slate-800 font-admin-display">{stats?.abandonedCarts || 0}</p>
+              {(stats?.abandonedCartValue || 0) > 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  {formatCurrency(stats?.abandonedCartValue || 0)} potential revenue
+                </p>
+              )}
             </div>
           </div>
         </div>

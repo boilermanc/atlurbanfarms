@@ -1006,6 +1006,23 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               </div>
             )}
 
+            {/* Growing System Card */}
+            {order.growing_system && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                <div className="px-6 py-4 border-b border-slate-200">
+                  <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Growing System</h2>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center gap-2 text-slate-700">
+                    <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                    <span className="font-medium">{order.growing_system}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Customer Notes Card */}
             {order.customer_notes && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">

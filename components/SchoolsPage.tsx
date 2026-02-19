@@ -125,12 +125,12 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           variants={staggerContainer}
           className="text-center max-w-4xl mx-auto"
         >
-          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+          <motion.span variants={fadeIn} className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
             {heroContent.tagline || 'School Partnership Program'}
           </motion.span>
           <motion.h1
             variants={fadeIn}
-            className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-[1.1]"
             dangerouslySetInnerHTML={{ __html: heroContent.headline || 'Growing the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
           />
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
@@ -165,9 +165,9 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
             viewport={{ once: true }}
             className="text-center mb-10"
           >
-            <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{benefitsContent.tagline || 'Why Partner With Us'}</span>
+            <span className="text-purple-600 font-bold uppercase tracking-widest text-xs mb-4 block">{benefitsContent.tagline || 'Why Partner With Us'}</span>
             <h2
-              className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6"
+              className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6"
               dangerouslySetInnerHTML={{ __html: benefitsContent.headline || 'Benefits for Your <span class="text-emerald-600">School</span>' }}
             />
             <p className="text-lg text-gray-500 max-w-2xl mx-auto">
@@ -206,9 +206,9 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{featuresContent.tagline || 'What\'s Included'}</span>
+              <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">{featuresContent.tagline || 'What\'s Included'}</span>
               <h2
-                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-tight"
+                className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
                 dangerouslySetInnerHTML={{ __html: featuresContent.headline || 'Everything You Need to <span class="text-emerald-600">Get Growing.</span>' }}
               />
               <div className="space-y-8">
@@ -257,9 +257,9 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="text-purple-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{contactContent.tagline || 'Get Started'}</span>
+              <span className="text-purple-600 font-bold uppercase tracking-widest text-xs mb-4 block">{contactContent.tagline || 'Get Started'}</span>
               <h2
-                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-6 leading-tight"
+                className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6 leading-tight"
                 dangerouslySetInnerHTML={{ __html: contactContent.headline || 'Ready to Bring Urban Farming to Your <span class="text-emerald-600">School?</span>' }}
               />
               <p className="text-lg text-gray-500 mb-8 leading-relaxed">
@@ -448,7 +448,7 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
       {/* CTA Section */}
       <section className="px-4 md:px-12 py-16">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-heading font-black text-gray-900 mb-6">
+          <h2 className="text-3xl md:text-4xl font-heading font-extrabold text-gray-900 mb-6">
             {ctaContent.headline || 'Questions? We\'re Here to Help.'}
           </h2>
           <p className="text-lg text-gray-500 mb-8">

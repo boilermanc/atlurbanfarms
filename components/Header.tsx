@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SparkleIcon } from '../constants';
-import { useCategories, useProducts, useBrandingSettings } from '../src/hooks/useSupabase';
+import { useCategories, useProducts, useBrandingSettings, useCustomerProfile } from '../src/hooks/useSupabase';
 import { useAuth } from '../src/hooks/useAuth';
 
 interface HeaderProps {
@@ -27,11 +27,16 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const navBarRef = useRef<HTMLElement>(null);
+  const shopDropdownTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { categories: rawCategories } = useCategories();
   const { products: rawProducts } = useProducts();
   const { user, loading: authLoading, signOut } = useAuth();
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
+  const { profile: customerProfile } = useCustomerProfile(user?.id);
+
+  // Derive the avatar initial from the customer's first_name, falling back to email
+  const avatarInitial = (customerProfile?.first_name?.charAt(0) || user?.email?.charAt(0) || '?').toUpperCase();
 
   // Check if announcement was previously dismissed
   useEffect(() => {
@@ -92,6 +97,28 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
       setSearchQuery('');
     }
   };
+
+  // Timeout-based hover for Shop mega-menu: the fixed-position dropdown
+  // sits outside the wrapper's layout bounds, so a brief grace period
+  // prevents the dropdown from closing while the mouse traverses the gap.
+  const handleShopMouseEnter = () => {
+    if (shopDropdownTimeout.current) {
+      clearTimeout(shopDropdownTimeout.current);
+      shopDropdownTimeout.current = null;
+    }
+    setIsShopDropdownOpen(true);
+  };
+  const handleShopMouseLeave = () => {
+    shopDropdownTimeout.current = setTimeout(() => {
+      setIsShopDropdownOpen(false);
+    }, 150);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (shopDropdownTimeout.current) clearTimeout(shopDropdownTimeout.current);
+    };
+  }, []);
 
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -223,7 +250,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="brand-bg text-white text-[10px] md:text-xs py-2.5 px-4 text-center font-semibold tracking-wide relative overflow-hidden"
+            className="brand-bg text-white text-[10px] md:text-xs py-2.5 px-6 md:px-10 lg:px-12 text-center font-semibold tracking-wide relative overflow-hidden"
           >
             <span className="pr-6">{brandingSettings.announcement_bar_text}</span>
             <button
@@ -249,7 +276,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
             : 'bg-white py-3'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12">
           <div className="flex items-center justify-between gap-4">
 
             {/* Mobile: Hamburger (left) */}
@@ -277,12 +304,12 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
               <nav className="flex items-center gap-0.5 font-heading">
                 {/* Shop Mega-Menu */}
                 <div
-                  onMouseEnter={() => setIsShopDropdownOpen(true)}
-                  onMouseLeave={() => setIsShopDropdownOpen(false)}
+                  onMouseEnter={handleShopMouseEnter}
+                  onMouseLeave={handleShopMouseLeave}
                 >
                   <button
                     onClick={() => onNavigate('shop')}
-                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                    className={`flex items-center gap-1.5 px-4 py-2 text-[15px] font-semibold rounded-full transition-all duration-200 ${
                       currentView === 'shop'
                         ? 'brand-text brand-bg-light'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
@@ -309,7 +336,9 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 4 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="fixed left-1/2 -translate-x-1/2 pt-3 z-50"
+                        onMouseEnter={handleShopMouseEnter}
+                        onMouseLeave={handleShopMouseLeave}
+                        className="fixed left-1/2 -translate-x-1/2 pt-4 z-50"
                         style={{ top: `${getNavBottom()}px`, width: 'min(92vw, 820px)' }}
                       >
                         <div className="bg-white rounded-2xl shadow-2xl shadow-gray-200/60 border border-gray-100 overflow-hidden">
@@ -397,7 +426,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
 
                 {/* Other Nav Items */}
                 {[
-                  { key: 'faq', label: 'FAQs' },
+                  { key: 'faq', label: 'FAQ' },
                   { key: 'schools', label: 'Schools' },
                   { key: 'calendar', label: 'Calendar' },
                   { key: 'blog', label: 'Blog' },
@@ -405,7 +434,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                   <button
                     key={item.key}
                     onClick={() => onNavigate(item.key as any)}
-                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                    className={`px-4 py-2 text-[15px] font-semibold rounded-full transition-all duration-200 ${
                       currentView === item.key
                         ? 'brand-text brand-bg-light'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
@@ -423,7 +452,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 >
                   <button
                     onClick={() => handleAboutNavigate('')}
-                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                    className={`flex items-center gap-1.5 px-4 py-2 text-[15px] font-semibold rounded-full transition-all duration-200 ${
                       currentView === 'about'
                         ? 'brand-text brand-bg-light'
                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:scale-105'
@@ -471,7 +500,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 {/* Tools */}
                 <button
                   onClick={() => onNavigate('tools')}
-                  className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-200 ${
+                  className={`px-4 py-2 text-[15px] font-semibold rounded-full transition-all duration-200 ${
                     currentView === 'tools'
                       ? 'brand-text brand-bg-light'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -552,7 +581,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       <button className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center brand-bg">
                           <span className="text-sm font-bold text-white">
-                            {user.email?.charAt(0).toUpperCase()}
+                            {avatarInitial}
                           </span>
                         </div>
                       </button>
@@ -625,7 +654,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       {/* Desktop Sign In Button */}
                       <button
                         onClick={() => onNavigate('login')}
-                        className="hidden lg:flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
+                        className="hidden lg:flex items-center gap-2 px-4 py-2 text-[15px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
                       >
                         Sign In
                       </button>
@@ -794,7 +823,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                         <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
-                      FAQs
+                      FAQ
                     </button>
 
                     {/* Schools */}
@@ -905,7 +934,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       <div className="flex items-center gap-3 py-2">
                         <div className="w-10 h-10 brand-bg rounded-full flex items-center justify-center">
                           <span className="text-base font-bold text-white">
-                            {user.email?.charAt(0).toUpperCase()}
+                            {avatarInitial}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">

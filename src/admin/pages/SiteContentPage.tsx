@@ -84,21 +84,27 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'subheading', label: 'Subheading', type: 'text' },
         { key: 'review_1_name', label: 'Review 1 - Customer Name', type: 'text' },
         { key: 'review_1_image', label: 'Review 1 - Photo (optional)', type: 'image_url' },
+        { key: 'review_1_growing_system', label: 'Review 1 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_1_text', label: 'Review 1 - Review', type: 'rich_text' },
         { key: 'review_2_name', label: 'Review 2 - Customer Name', type: 'text' },
         { key: 'review_2_image', label: 'Review 2 - Photo (optional)', type: 'image_url' },
+        { key: 'review_2_growing_system', label: 'Review 2 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_2_text', label: 'Review 2 - Review', type: 'rich_text' },
         { key: 'review_3_name', label: 'Review 3 - Customer Name', type: 'text' },
         { key: 'review_3_image', label: 'Review 3 - Photo (optional)', type: 'image_url' },
+        { key: 'review_3_growing_system', label: 'Review 3 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_3_text', label: 'Review 3 - Review', type: 'rich_text' },
         { key: 'review_4_name', label: 'Review 4 - Customer Name', type: 'text' },
         { key: 'review_4_image', label: 'Review 4 - Photo (optional)', type: 'image_url' },
+        { key: 'review_4_growing_system', label: 'Review 4 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_4_text', label: 'Review 4 - Review', type: 'rich_text' },
         { key: 'review_5_name', label: 'Review 5 - Customer Name', type: 'text' },
         { key: 'review_5_image', label: 'Review 5 - Photo (optional)', type: 'image_url' },
+        { key: 'review_5_growing_system', label: 'Review 5 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_5_text', label: 'Review 5 - Review', type: 'rich_text' },
         { key: 'review_6_name', label: 'Review 6 - Customer Name', type: 'text' },
         { key: 'review_6_image', label: 'Review 6 - Photo (optional)', type: 'image_url' },
+        { key: 'review_6_growing_system', label: 'Review 6 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
         { key: 'review_6_text', label: 'Review 6 - Review', type: 'rich_text' },
       ],
     },
@@ -421,9 +427,9 @@ const SiteContentPage: React.FC = () => {
   const [currentVideoUploadKey, setCurrentVideoUploadKey] = useState<{ page: string; section: string; key: string } | null>(null);
   const [uploadingVideo, setUploadingVideo] = useState<string | null>(null);
 
-  // Fetch all site content
-  const fetchContent = useCallback(async () => {
-    setLoading(true);
+  // Fetch all site content (showLoading=false for silent refetch after save)
+  const fetchContent = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('site_content')
@@ -447,7 +453,7 @@ const SiteContentPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching site content:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -508,6 +514,9 @@ const SiteContentPage: React.FC = () => {
         });
 
       if (error) throw error;
+
+      // Silently refetch content from DB to ensure formData stays in sync
+      await fetchContent(false);
 
       setSaveMessage('Changes saved successfully!');
       setTimeout(() => setSaveMessage(null), 3000);
@@ -679,7 +688,7 @@ const SiteContentPage: React.FC = () => {
             className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all capitalize"
           >
             {field.options.map((opt) => (
-              <option key={opt} value={opt} className="capitalize">{opt.charAt(0).toUpperCase() + opt.slice(1)}</option>
+              <option key={opt || '__none__'} value={opt} className="capitalize">{opt ? opt.charAt(0).toUpperCase() + opt.slice(1) : '(None)'}</option>
             ))}
           </select>
         </div>
@@ -883,6 +892,19 @@ const SiteContentPage: React.FC = () => {
                 const v = e.target.value;
                 if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) {
                   updateField(page, section, field.key, v);
+                }
+              }}
+              onBlur={() => {
+                // Normalize partial hex to valid 7-char hex on blur
+                const current = formData[page]?.[section]?.[field.key] || '';
+                if (/^#[0-9A-Fa-f]{6}$/.test(current)) return; // already valid
+                if (/^#[0-9A-Fa-f]{3}$/.test(current)) {
+                  // Expand shorthand: #RGB → #RRGGBB
+                  const expanded = '#' + current[1] + current[1] + current[2] + current[2] + current[3] + current[3];
+                  updateField(page, section, field.key, expanded);
+                } else {
+                  // Reset invalid/partial hex to white
+                  updateField(page, section, field.key, '#FFFFFF');
                 }
               }}
               className="w-28 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"

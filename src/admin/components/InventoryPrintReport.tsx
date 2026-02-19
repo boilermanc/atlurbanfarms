@@ -161,6 +161,21 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid #334155', fontWeight: 700 }}>
+                  <td></td>
+                  <td style={{ textAlign: 'right', letterSpacing: '0.05em' }}>TOTALS</td>
+                  <td></td>
+                  <td></td>
+                  <td className="numeric-cell">
+                    {rows.reduce((sum, r) => sum + (r.pendingOrders || 0), 0)}
+                  </td>
+                  <td className="numeric-cell">
+                    {rows.reduce((sum, r) => sum + r.currentInventory, 0)}
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           )}
         </div>

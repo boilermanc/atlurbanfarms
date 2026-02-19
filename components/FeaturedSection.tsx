@@ -159,7 +159,7 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
             viewport={{ once: true }}
             className="max-w-2xl"
           >
-            <span className="brand-text font-black uppercase tracking-[0.2em] text-[20px] mb-3 block">{sectionLabel}</span>
+            <span className="brand-text font-black uppercase tracking-[0.2em] text-[20px] mb-4 block">{sectionLabel}</span>
             <h2
               className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 tracking-tight leading-tight"
               dangerouslySetInnerHTML={{ __html: headline }}

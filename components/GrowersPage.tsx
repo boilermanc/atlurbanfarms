@@ -100,8 +100,8 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
           variants={staggerContainer}
           className="text-center max-w-4xl mx-auto"
         >
-          <motion.span variants={fadeIn} className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Team</motion.span>
-          <motion.h1 variants={fadeIn} className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]">
+          <motion.span variants={fadeIn} className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">Our Team</motion.span>
+          <motion.h1 variants={fadeIn} className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-[1.1]">
             Meet the <span className="sage-text-gradient">Growers</span>
           </motion.h1>
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
@@ -201,7 +201,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="text-center mb-10">
             <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">Our Philosophy</span>
-            <h2 className="text-4xl font-heading font-black text-gray-900">What Drives <span className="sage-text-gradient">Our Team</span></h2>
+            <h2 className="text-4xl font-heading font-extrabold text-gray-900">What Drives <span className="sage-text-gradient">Our Team</span></h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -254,7 +254,7 @@ const GrowersPage: React.FC<GrowersPageProps> = ({ onBack }) => {
             viewport={{ once: true }}
             className="relative z-10"
           >
-            <h2 className="text-4xl md:text-6xl font-heading font-black text-white mb-8">Want to join our <span className="text-emerald-400">growing team?</span></h2>
+            <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-8">Want to join our <span className="text-emerald-400">growing team?</span></h2>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-12 font-medium">
               We're always looking for passionate plant people to join our mission of transforming urban agriculture.
             </p>

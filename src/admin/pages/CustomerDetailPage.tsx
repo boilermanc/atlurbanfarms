@@ -62,11 +62,13 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     last_name: string;
     email: string;
     phone: string;
+    company: string;
   }>({
     first_name: '',
     last_name: '',
     email: '',
     phone: '',
+    company: '',
   });
 
   const [editedAddresses, setEditedAddresses] = useState<CustomerAddress[]>([]);
@@ -75,6 +77,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     label: '',
     first_name: '',
     last_name: '',
+    company: '',
     address_line1: '',
     address_line2: '',
     city: '',
@@ -261,6 +264,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         last_name: customer.last_name || '',
         email: customer.email,
         phone: customer.phone || '',
+        company: customer.company || '',
       });
       setIsEditingCustomer(true);
       setValidationErrors({});
@@ -288,6 +292,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
       label: '',
       first_name: customer?.first_name || '',
       last_name: customer?.last_name || '',
+      company: customer?.company || '',
       address_line1: '',
       address_line2: '',
       city: '',
@@ -356,6 +361,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           label: newAddress.label || null,
           first_name: newAddress.first_name,
           last_name: newAddress.last_name,
+          company: newAddress.company || null,
           address_line1: newAddress.address_line1,
           address_line2: newAddress.address_line2 || null,
           city: newAddress.city,
@@ -505,6 +511,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
           last_name: editedCustomer.last_name,
           email: editedCustomer.email,
           phone: editedCustomer.phone || null,
+          company: editedCustomer.company || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', customerId)
@@ -541,6 +548,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             label: address.label || null,
             first_name: address.first_name,
             last_name: address.last_name,
+            company: address.company || null,
             address_line1: address.address_line1,
             address_line2: address.address_line2 || null,
             city: address.city,
@@ -922,6 +930,21 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
                   <div>
                     <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Company
+                    </label>
+                    <input
+                      type="text"
+                      value={editedCustomer.company}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, company: e.target.value })
+                      }
+                      placeholder="Business or school name (optional)"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
                       Email <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-center gap-3">
@@ -1034,6 +1057,12 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Last Name</p>
                     <p className="text-slate-800">{customer.last_name || '-'}</p>
                   </div>
+                  {customer.company && (
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Company</p>
+                      <p className="text-slate-800">{customer.company}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
                     <div className="flex items-center justify-between">
@@ -1605,6 +1634,19 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
                     <div className="mt-3">
                       <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                        Company
+                      </label>
+                      <input
+                        type="text"
+                        value={newAddress.company}
+                        onChange={(e) => setNewAddress({ ...newAddress, company: e.target.value })}
+                        placeholder="Business or school name (optional)"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
                         Address Line 1 <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -1831,6 +1873,23 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
                       <div className="mt-3">
                         <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                          Company
+                        </label>
+                        <input
+                          type="text"
+                          value={address.company || ''}
+                          onChange={(e) => {
+                            const updated = [...editedAddresses];
+                            updated[index].company = e.target.value || null;
+                            setEditedAddresses(updated);
+                          }}
+                          placeholder="Business or school name (optional)"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
                           Address Line 1 <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -2027,6 +2086,9 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                             <p className="text-slate-800 font-medium">
                               {address.first_name} {address.last_name}
                             </p>
+                            {address.company && (
+                              <p className="text-slate-600 text-sm">{address.company}</p>
+                            )}
                             <p className="text-slate-600 text-sm">{address.address_line1}</p>
                             {address.address_line2 && (
                               <p className="text-slate-600 text-sm">{address.address_line2}</p>

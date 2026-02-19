@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useProductTags, ProductTag } from '../hooks/useProductTags';
 import { supabase } from '../../lib/supabase';
@@ -17,6 +17,7 @@ const ProductTagsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   const [filterType, setFilterType] = useState<string>('');
+  const formRef = useRef<HTMLDivElement>(null);
 
   // Known tag types from the database
   const TAG_TYPES = ['attribute', 'difficulty', 'growing', 'system', 'type', 'use'];
@@ -70,6 +71,13 @@ const ProductTagsPage: React.FC = () => {
   useEffect(() => {
     fetchProductCounts();
   }, [fetchProductCounts]);
+
+  // Scroll the form into view when editing a tag
+  useEffect(() => {
+    if (editingTag && showAddForm && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [editingTag, showAddForm]);
 
   const handleNameChange = (name: string) => {
     setFormName(name);
@@ -195,7 +203,7 @@ const ProductTagsPage: React.FC = () => {
 
         {/* Add/Edit Form */}
         {showAddForm && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+          <div ref={formRef} className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-slate-800 font-admin-display">
                 {editingTag ? 'Edit Tag' : 'Add New Tag'}

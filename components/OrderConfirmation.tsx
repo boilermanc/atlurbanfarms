@@ -125,7 +125,7 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
               />
             </div>
             
-            <h1 className="text-4xl md:text-5xl font-heading font-black text-gray-900">Order Confirmed!</h1>
+            <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900">Order Confirmed!</h1>
             <p className="text-xl text-gray-500 font-medium">Thank you, {customerName || 'Urban Farmer'}! ✨</p>
             <div className="inline-block px-4 py-2 bg-gray-50 rounded-2xl border border-gray-100">
               <span className="text-xs font-black text-gray-400 uppercase tracking-widest mr-2">Order ID:</span>

@@ -58,14 +58,6 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
     ? posts.filter(p => p.category === selectedCategory)
     : posts;
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
   if (loading) {
     return (
@@ -105,11 +97,11 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+          <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
             {headerContent.tagline || 'From the Farm'}
           </span>
           <h1
-            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(headerContent.headline || 'Our <span class="text-emerald-600">Blog</span>') }}
           />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
@@ -186,17 +178,14 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
 
                 {/* Content */}
                 <div className="p-6">
-                  {/* Category & Date */}
-                  <div className="flex items-center gap-3 mb-3">
-                    {post.category && (
+                  {/* Category */}
+                  {post.category && (
+                    <div className="mb-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
                         {post.category}
                       </span>
-                    )}
-                    <span className="text-xs text-gray-400 font-medium">
-                      {formatDate(post.published_at || post.created_at)}
-                    </span>
-                  </div>
+                    </div>
+                  )}
 
                   {/* Title */}
                   <h2 className="text-xl font-heading font-bold text-gray-900 mb-2 group-hover:text-emerald-600 transition-colors line-clamp-2">

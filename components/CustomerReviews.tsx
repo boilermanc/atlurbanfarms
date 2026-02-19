@@ -7,6 +7,7 @@ import { usePageContent } from '../src/hooks/useSiteContent';
 interface Review {
   name: string;
   image: string;
+  growing_system: string;
   text: string;
 }
 
@@ -23,6 +24,7 @@ const CustomerReviews: React.FC = () => {
       reviews.push({
         name,
         image: content[`review_${i}_image`] || '',
+        growing_system: content[`review_${i}_growing_system`] || '',
         text,
       });
     }
@@ -115,7 +117,7 @@ const CustomerReviews: React.FC = () => {
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-emerald-600 font-bold uppercase tracking-widest text-2xl mb-4 block"
+            className="brand-text font-black uppercase tracking-[0.2em] text-[20px] mb-4 block"
           >
             Customer Reviews
           </motion.span>
@@ -124,7 +126,7 @@ const CustomerReviews: React.FC = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4"
+            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 tracking-tight mb-4"
           >
             {heading}
           </motion.h2>
@@ -228,7 +230,7 @@ const CustomerReviews: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">{review.name}</p>
-                    <p className="text-xs text-gray-400">Verified Customer</p>
+                    <p className="text-xs text-gray-400">{review.growing_system || 'Verified Customer'}</p>
                   </div>
                 </div>
               </motion.div>

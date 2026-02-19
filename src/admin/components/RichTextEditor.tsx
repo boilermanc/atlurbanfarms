@@ -6,8 +6,11 @@ import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
-import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Unlink, Palette } from 'lucide-react';
+import Image from '@tiptap/extension-image';
+import Youtube from '@tiptap/extension-youtube';
+import { Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Link as LinkIcon, Unlink, Palette, ImagePlus, Video } from 'lucide-react';
 import { useBrandingSettings } from '../../hooks/useSupabase';
+import { supabase } from '../../lib/supabase';
 
 interface RichTextEditorProps {
   value: string;
@@ -74,6 +77,10 @@ function rgbToHex(r: number, g: number, b: number): string {
 const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder }) => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [showVideoInput, setShowVideoInput] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customHex, setCustomHex] = useState('#000000');
   const [customRgb, setCustomRgb] = useState({ r: 0, g: 0, b: 0 });
@@ -107,6 +114,18 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
           target: '_blank',
           rel: 'noopener noreferrer',
         },
+      }),
+      Image.configure({
+        HTMLAttributes: {
+          class: 'rounded-xl max-w-full h-auto',
+        },
+      }),
+      Youtube.configure({
+        HTMLAttributes: {
+          class: 'rounded-xl w-full',
+        },
+        width: 640,
+        height: 360,
       }),
     ],
     content: value,
@@ -221,6 +240,47 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
     setShowLinkInput(true);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !editor) return;
+
+    setUploadingImage(true);
+    try {
+      const file = files[0];
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image file is too large. Maximum size is 5MB.');
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `blog/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      editor.chain().focus().setImage({ src: publicUrl, alt: file.name }).run();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const insertVideo = useCallback(() => {
+    if (!editor || !videoUrl.trim()) return;
+    editor.commands.setYoutubeVideo({ src: videoUrl.trim() });
+    setVideoUrl('');
+    setShowVideoInput(false);
+  }, [editor, videoUrl]);
+
   if (!editor) {
     return null;
   }
@@ -305,6 +365,34 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
             )}
           </MenuButton>
         </div>
+
+        <div className="w-px h-6 bg-slate-200 mx-1" />
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
+        <MenuButton
+          onClick={() => imageInputRef.current?.click()}
+          disabled={uploadingImage}
+          title="Insert Image"
+        >
+          {uploadingImage ? (
+            <div className="w-[18px] h-[18px] border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <ImagePlus size={18} />
+          )}
+        </MenuButton>
+
+        <MenuButton
+          onClick={() => setShowVideoInput(!showVideoInput)}
+          title="Embed YouTube Video"
+        >
+          <Video size={18} />
+        </MenuButton>
 
         {showColorPicker && createPortal(
           <div
@@ -481,6 +569,46 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
             </button>
           </div>
         )}
+
+        {showVideoInput && (
+          <div className="flex items-center gap-2 ml-2">
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="YouTube URL..."
+              className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-56"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  insertVideo();
+                }
+                if (e.key === 'Escape') {
+                  setShowVideoInput(false);
+                  setVideoUrl('');
+                }
+              }}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={insertVideo}
+              className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+            >
+              Embed
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowVideoInput(false);
+                setVideoUrl('');
+              }}
+              className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       <EditorContent editor={editor} />
@@ -511,6 +639,21 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
         }
         .ProseMirror:focus {
           outline: none;
+        }
+        .ProseMirror img {
+          max-width: 100%;
+          height: auto;
+          border-radius: 0.75rem;
+          margin: 0.75rem 0;
+        }
+        .ProseMirror div[data-youtube-video] {
+          margin: 0.75rem 0;
+        }
+        .ProseMirror div[data-youtube-video] iframe {
+          border-radius: 0.75rem;
+          width: 100%;
+          aspect-ratio: 16/9;
+          height: auto;
         }
       `}</style>
     </div>

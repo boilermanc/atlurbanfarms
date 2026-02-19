@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SparkleIcon } from '../constants';
 import { Message } from '../types';
-import { getSageResponse } from '../services/geminiService';
+import { useSageChat } from '../src/hooks/useIntegrations';
 
 const SageAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,7 +11,7 @@ const SageAssistant: React.FC = () => {
     { role: 'model', text: "Hi! I'm Sage ✨ Your ATL Urban Farms expert. Need help picking the perfect seedlings for your space?" }
   ]);
   const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const { sendMessage, loading: isTyping } = useSageChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,14 +34,9 @@ const SageAssistant: React.FC = () => {
     const userMsg: Message = { role: 'user', text: inputValue };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
-    setIsTyping(true);
 
-    try {
-      const sageText = await getSageResponse(messages, inputValue);
-      setMessages(prev => [...prev, { role: 'model', text: sageText }]);
-    } finally {
-      setIsTyping(false);
-    }
+    const sageText = await sendMessage(messages, inputValue);
+    setMessages(prev => [...prev, { role: 'model', text: sageText }]);
   };
 
   return (

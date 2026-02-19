@@ -33,7 +33,6 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -91,7 +90,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     setError(null);
-    setSuccessMessage(null);
+
     setFormData(prev => {
       const newData = { ...prev, [name]: type === 'checkbox' ? checked : value };
       if (name === 'title' && !isEditMode) {
@@ -201,7 +200,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
           .update(postData)
           .eq('id', postId);
         if (updateError) throw updateError;
-        setSuccessMessage('Post updated successfully');
+        onSave();
       } else {
         const { error: insertError } = await supabase
           .from('blog_posts')
@@ -295,11 +294,6 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
         <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
           {error}
           <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
-        </div>
-      )}
-      {successMessage && (
-        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-sm">
-          {successMessage}
         </div>
       )}
 

@@ -202,11 +202,11 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10"
         >
-          <span className="text-emerald-600 font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+          <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
             {headerContent.tagline || 'How can we help?'}
           </span>
           <h1
-            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-6"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-6"
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(headerContent.headline || 'Help <span class="text-emerald-600">Center</span>') }}
           />
           <p className="text-gray-500 text-lg max-w-2xl mx-auto">
@@ -335,7 +335,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
-          <h2 className="text-6xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
+          <h2 className="text-4xl md:text-5xl font-heading font-extrabold mb-4 relative z-10">Still have questions?</h2>
           <p className="text-white/90 mb-8 relative z-10 font-medium">Sage AI is available 24/7 to answer your specific growing questions.</p>
           <button
             onClick={handleAskSage}

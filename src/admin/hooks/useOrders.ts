@@ -124,6 +124,7 @@ export interface Order {
   estimated_delivery: string | null;
   internal_notes: string | null;
   customer_notes?: string | null;
+  growing_system?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];

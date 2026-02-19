@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProducts, useCategories, useFavorites } from '../src/hooks/useSupabase';
 import { useAuth } from '../src/hooks/useAuth';
@@ -85,7 +85,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
     >
       <div className="flex items-end justify-between mb-8">
         <div>
-          <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900">
+          <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900">
             {title}
           </h2>
           {subtitle && (
@@ -185,15 +185,15 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
   return (
     <div className="mb-10">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-heading font-bold text-gray-800 flex items-center gap-2">
+        <h3 className="text-2xl font-heading font-bold text-gray-800 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
           {categoryName}
-          <span className="text-gray-400 font-normal text-sm">({products.length})</span>
+          <span className="text-gray-400 font-normal">({products.length})</span>
         </h3>
         {hasMore && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-emerald-600 font-medium hover:underline text-sm"
+            className="text-emerald-600 font-medium hover:underline text-2xl"
           >
             {expanded ? 'Show Less' : 'View All'}
           </button>
@@ -257,7 +257,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const { user } = useAuth();
   const { favorites, isFavorite, toggleFavorite, syncLocalFavoritesToDatabase } = useFavorites(user?.id);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   // Track active parent category (null = "All Products")
   const [activeParentId, setActiveParentId] = useState<string | null>(null);
@@ -267,6 +267,12 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [showInStockOnly, setShowInStockOnly] = useState(false);
   // Show favorites view
   const [showFavorites, setShowFavorites] = useState(false);
+  // Show on-sale view (products where compare_at_price > price)
+  const [showOnSale, setShowOnSale] = useState(false);
+  // Tag filter
+  const [activeTagId, setActiveTagId] = useState<string | null>(null);
+  // Search input ref for refocus after clear
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Sync localStorage favorites when user logs in
   useEffect(() => {
@@ -288,6 +294,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       setActiveParentId(null);
       setActiveSubcategoryId(null);
       setShowFavorites(false);
+      setShowOnSale(false);
     }
   }, [initialSearchQuery]);
 
@@ -313,8 +320,12 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       }
     }
     // Clear search and favorites when navigating via header/dropdown
-    setSearchQuery('');
+    // But preserve search if there's an active search query from the header
+    if (!initialSearchQuery) {
+      setSearchQuery('');
+    }
     setShowFavorites(false);
+    setShowOnSale(false);
   }, [initialCategory, rawCategories, categoryNavKey]);
 
   // Map Supabase data to local types
@@ -359,6 +370,25 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     };
   }, [rawCategories, rawProducts]);
 
+  // Derive available tags from products' tag_assignments (only tags with products)
+  const availableTags = useMemo(() => {
+    const tagMap = new Map<string, { id: string; name: string; tag_type: string | null; count: number }>();
+    rawProducts.forEach((rp: any) => {
+      const assignments = rp.tag_assignments || [];
+      assignments.forEach((a: any) => {
+        const tag = a.tag;
+        if (!tag) return;
+        const existing = tagMap.get(tag.id);
+        if (existing) {
+          existing.count++;
+        } else {
+          tagMap.set(tag.id, { id: tag.id, name: tag.name, tag_type: tag.tag_type, count: 1 });
+        }
+      });
+    });
+    return Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawProducts]);
+
   // Get subcategories for the currently active parent
   const activeSubcategories = useMemo(() => {
     if (!activeParentId) return [];
@@ -379,6 +409,20 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       // In-stock filter
       if (showInStockOnly && rawProduct) {
         if (!isProductInStock(rawProduct)) return false;
+      }
+
+      // Tag filter
+      if (activeTagId && rawProduct) {
+        const tagAssignments = rawProduct.tag_assignments || [];
+        const hasTag = tagAssignments.some((a: any) => a.tag_id === activeTagId);
+        if (!hasTag) return false;
+      }
+
+      // On Sale view: only show products where compare_at_price > price
+      if (showOnSale) {
+        if (!rawProduct) return false;
+        const cap = rawProduct.compare_at_price;
+        return cap != null && cap > rawProduct.price && rawProduct.price > 0;
       }
 
       // If no parent selected, show all (that passed above filters)
@@ -408,7 +452,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         assignedCategories.find((c: any) => c?.id === catId)?.parent_id === activeParentId
       );
     });
-  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly]);
+  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly, showOnSale, activeTagId]);
 
   // Group products by parent category for the "All Products" view
   // Products with multiple category assignments appear under each relevant parent
@@ -522,8 +566,18 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     return products.filter(p => favorites.includes(p.id));
   }, [products, favorites]);
 
+  // Get on-sale products (compare_at_price > price and price > 0)
+  const onSaleProducts = useMemo(() => {
+    return products.filter(p => {
+      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
+      if (!rawProduct) return false;
+      const cap = rawProduct.compare_at_price;
+      return cap != null && cap > rawProduct.price && rawProduct.price > 0;
+    });
+  }, [products, rawProducts]);
+
   // Determine if we should show sectioned view (when viewing "All" with no search)
-  const showSectionedView = !activeParentId && !searchQuery && !showFavorites;
+  const showSectionedView = !activeParentId && !searchQuery && !showFavorites && !showOnSale && !activeTagId;
 
   return (
     <div className="min-h-screen pt-32 pb-10 bg-site">
@@ -533,7 +587,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-6xl font-heading font-black text-gray-900 mb-4"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4"
           >
             The <span className="text-emerald-600">Aeroponic</span> Shop
           </motion.h1>
@@ -549,9 +603,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               setActiveParentId(null);
               setActiveSubcategoryId(null);
               setShowFavorites(false);
+              setShowOnSale(false);
             }}
             className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
-              !activeParentId && !showFavorites
+              !activeParentId && !showFavorites && !showOnSale
                 ? 'bg-gray-900 text-white shadow-lg'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
@@ -576,6 +631,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                   setActiveParentId(cat.id);
                   setActiveSubcategoryId(null);
                   setShowFavorites(false);
+                  setShowOnSale(false);
                 }}
                 className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${colorClasses}`}
               >
@@ -583,6 +639,28 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               </button>
             );
           })}
+          {/* On Sale Button */}
+          {onSaleProducts.length > 0 && (
+            <button
+              onClick={() => {
+                setShowOnSale(true);
+                setShowFavorites(false);
+                setActiveParentId(null);
+                setActiveSubcategoryId(null);
+              }}
+              className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+                showOnSale
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-100'
+                  : 'bg-red-50 text-red-700 hover:bg-red-100'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                <line x1="7" y1="7" x2="7.01" y2="7"/>
+              </svg>
+              On Sale ({onSaleProducts.length})
+            </button>
+          )}
           {/* My Favorites Button */}
           <button
             onClick={() => {
@@ -592,6 +670,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 return;
               }
               setShowFavorites(true);
+              setShowOnSale(false);
               setActiveParentId(null);
               setActiveSubcategoryId(null);
             }}
@@ -651,35 +730,72 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
 
         {/* Filters and Search */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          {/* In-stock toggle */}
-          <label className="flex items-center gap-3 cursor-pointer select-none group">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={showInStockOnly}
-                onChange={(e) => setShowInStockOnly(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
-              <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></div>
-            </div>
-            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
-              Show in-stock only
-            </span>
-          </label>
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* In-stock toggle */}
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={showInStockOnly}
+                  onChange={(e) => setShowInStockOnly(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
+                <div className="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-5"></div>
+              </div>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                Show in-stock only
+              </span>
+            </label>
+
+            {/* Tag filter dropdown */}
+            {availableTags.length > 0 && (
+              <div className="relative">
+                <select
+                  value={activeTagId || ''}
+                  onChange={(e) => setActiveTagId(e.target.value || null)}
+                  className="appearance-none px-4 py-2.5 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                >
+                  <option value="">All Tags</option>
+                  {availableTags.map(tag => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name} ({tag.count})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Search */}
           <div className="relative w-full sm:w-80 group">
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search products..."
               className="w-full px-6 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-12"
             />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            </div>
+            {searchQuery ? (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            ) : (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              </div>
+            )}
           </div>
         </div>
 
@@ -709,7 +825,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Favorites View
           <div>
             <div className="mb-8">
-              <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
+              <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 flex items-center gap-3">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="28"
@@ -797,6 +913,75 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               </div>
             )}
           </div>
+        ) : showOnSale ? (
+          // On Sale View - products with compare_at_price > price
+          <div>
+            <div className="mb-8">
+              <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                  <line x1="7" y1="7" x2="7.01" y2="7"/>
+                </svg>
+                On Sale
+              </h2>
+              <p className="text-gray-500 mt-1">Seedlings currently at reduced prices</p>
+            </div>
+
+            {filteredProducts.length > 0 ? (
+              <motion.div
+                layout
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
+              >
+                <AnimatePresence mode="popLayout">
+                  {filteredProducts.map((product) => {
+                    const rawProduct = rawProducts.find((p: any) => p.id === product.id);
+                    return (
+                      <motion.div
+                        key={product.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <ProductCard
+                          id={product.id}
+                          image={product.image}
+                          name={product.name}
+                          price={product.price}
+                          category={product.category}
+                          inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
+                          onAddToCart={(qty) => onAddToCart(product, qty)}
+                          onClick={() => setSelectedProduct(rawProduct)}
+                          compareAtPrice={product.compareAtPrice ?? null}
+                          shortDescription={product.shortDescription}
+                          description={product.description}
+                          productType={product.productType}
+                          externalUrl={product.externalUrl}
+                          externalButtonText={product.externalButtonText}
+                          isFavorited={isFavorite(product.id)}
+                          onToggleFavorite={toggleFavorite}
+                          requireLoginToFavorite={true}
+                          onRequireLogin={() => onNavigate?.('login')}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              <div className="py-16 text-center">
+                <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">No sale items right now</h3>
+                <p className="text-gray-500">Check back soon for deals on seedlings!</p>
+              </div>
+            )}
+          </div>
         ) : showSectionedView ? (
           // Sectioned View (All Products - no parent selected)
           <div>
@@ -847,17 +1032,21 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 return (
                   <div key={parentCat.id} className="mb-10">
                     <div className="mb-8">
-                      <h2 className="text-4xl md:text-6xl font-heading font-black text-gray-900 flex items-center gap-3">
+                      <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 flex items-center gap-3">
                         <span className={`w-3 h-3 rounded-full bg-${accentColor}-500`}></span>
                         {parentCat.name}
                       </h2>
                     </div>
 
-                    {Object.entries(groupedBySubcat).map(([subcatName, subcatProducts]) => (
+                    {/* Render subcategories in sort_order, then any remaining groups */}
+                    {[
+                      ...subcategories.map(sc => sc.name).filter(name => groupedBySubcat[name]),
+                      ...Object.keys(groupedBySubcat).filter(name => !subcategories.some(sc => sc.name === name))
+                    ].map(subcatName => (
                       <CategorySubsection
                         key={subcatName}
                         categoryName={subcatName}
-                        products={subcatProducts}
+                        products={groupedBySubcat[subcatName]}
                         rawProducts={rawProducts}
                         onAddToCart={onAddToCart}
                         onProductClick={setSelectedProduct}
@@ -894,7 +1083,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           // Parent category with subcategories - show grouped by subcategory
           <div>
             <div className="mb-8">
-              <h2 className="text-5xl md:text-6xl font-heading font-black text-gray-900">
+              <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900">
                 {getCategoryById(activeParentId)?.name || 'Products'}
               </h2>
             </div>
@@ -966,7 +1155,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-500">Try adjusting your filters or searching for something else.</p>
             <button
-              onClick={() => {setActiveParentId(null); setActiveSubcategoryId(null); setSearchQuery(''); setShowInStockOnly(false);}}
+              onClick={() => {setActiveParentId(null); setActiveSubcategoryId(null); setSearchQuery(''); setShowInStockOnly(false); setShowOnSale(false); setActiveTagId(null);}}
               className="mt-6 text-emerald-600 font-bold hover:underline"
             >
               Clear all filters

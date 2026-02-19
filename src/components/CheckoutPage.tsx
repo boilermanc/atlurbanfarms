@@ -75,6 +75,7 @@ interface CheckoutFormData {
   phone: string;
   firstName: string;
   lastName: string;
+  company: string;
   address1: string;
   address2: string;
   city: string;
@@ -140,6 +141,15 @@ const US_STATES = [
   { name: 'West Virginia', abbreviation: 'WV' },
   { name: 'Wisconsin', abbreviation: 'WI' },
   { name: 'Wyoming', abbreviation: 'WY' },
+];
+
+const GROWING_SYSTEMS = [
+  'Tower Garden',
+  'Aerospring',
+  'Lettuce Grow',
+  'Gardyn',
+  'DIY',
+  'Other',
 ];
 
 const TAX_RATE = 0.08; // 8% tax rate
@@ -251,15 +261,29 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [showAddressSuggestion, setShowAddressSuggestion] = useState(false);
   const [addressWarningAcknowledged, setAddressWarningAcknowledged] = useState(false);
   const [customerNotes, setCustomerNotes] = useState('');
+  const [growingSystem, setGrowingSystem] = useState('');
+  const [growingSystemOther, setGrowingSystemOther] = useState('');
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
+
+  // Abandoned cart tracking: session ID for deduplication across re-renders
+  const [abandonedCartSessionId] = useState<string>(() => {
+    let sid = sessionStorage.getItem('checkout-session-id');
+    if (!sid) {
+      sid = crypto.randomUUID();
+      sessionStorage.setItem('checkout-session-id', sid);
+    }
+    return sid;
+  });
+  const abandonedCartSavedRef = useRef(false);
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     phone: '',
     firstName: '',
     lastName: '',
+    company: '',
     address1: '',
     address2: '',
     city: '',
@@ -306,6 +330,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         firstName: profile?.first_name || defaultAddress?.first_name || prev.firstName,
         lastName: profile?.last_name || defaultAddress?.last_name || prev.lastName,
         phone: profile?.phone || defaultAddress?.phone || prev.phone,
+        // Company from default address
+        company: defaultAddress?.company || prev.company,
         // Address from default address
         address1: defaultAddress?.street || prev.address1,
         address2: defaultAddress?.unit || prev.address2,
@@ -331,6 +357,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   // Build shipping address for validation/rates
   const buildShippingAddress = useCallback((): ShippingAddress => ({
     name: `${formData.firstName} ${formData.lastName}`.trim(),
+    company_name: formData.company || undefined,
     phone: formData.phone,
     address_line1: formData.address1,
     address_line2: formData.address2 || undefined,
@@ -469,6 +496,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       ...prev,
       firstName: address.first_name || prev.firstName,
       lastName: address.last_name || prev.lastName,
+      company: address.company || '',
       phone: address.phone || prev.phone,
       address1: address.street || '',
       address2: address.unit || '',
@@ -560,6 +588,43 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     return Object.keys(errors).length === 0;
   };
 
+  // Save cart snapshot to abandoned_carts for email recovery
+  const saveAbandonedCart = useCallback(async () => {
+    const email = formData.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || items.length === 0) {
+      return;
+    }
+    try {
+      const cartSnapshot = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image || null,
+        category: item.category || null
+      }));
+      const cartTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+      await supabase
+        .from('abandoned_carts')
+        .upsert({
+          session_id: abandonedCartSessionId,
+          email,
+          customer_id: user?.id || null,
+          first_name: formData.firstName || null,
+          cart_items: cartSnapshot,
+          cart_total: cartTotal,
+          item_count: itemCount
+        }, { onConflict: 'session_id,email' });
+
+      abandonedCartSavedRef.current = true;
+    } catch (err) {
+      // Non-critical — don't block checkout flow
+      console.error('Failed to save abandoned cart:', err);
+    }
+  }, [formData.email, formData.firstName, items, abandonedCartSessionId, user?.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -603,6 +668,21 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
     }
 
+    // Validate growing system selection
+    if (!growingSystem) {
+      setOrderError('Please select your growing system.');
+      return;
+    }
+    if (growingSystem === 'Other' && !growingSystemOther.trim()) {
+      setOrderError('Please specify your growing system.');
+      return;
+    }
+
+    // Ensure abandoned cart is captured before attempting order (covers autofill)
+    if (!abandonedCartSavedRef.current) {
+      await saveAbandonedCart();
+    }
+
     // Build shipping details for order (only for shipping orders)
     const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
       shippingRateId: selectedShippingRate.rate_id,
@@ -639,6 +719,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         shippingInfo: deliveryMethod === 'shipping' ? {
           firstName: formData.firstName,
           lastName: formData.lastName,
+          company: formData.company,
           address1: formData.address1,
           address2: formData.address2,
           city: formData.city,
@@ -649,6 +730,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
           firstName: formData.firstName,
           lastName: formData.lastName,
+          company: formData.company,
           address1: selectedPickupLocation.address_line1,
           address2: selectedPickupLocation.address_line2 || '',
           city: selectedPickupLocation.city,
@@ -667,6 +749,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
         ].filter(Boolean).join(', ') || undefined,
         customerNotes: customerNotes.trim() || null,
+        growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
         ...shippingDetails,
         ...pickupDetails
       });
@@ -739,6 +822,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingInfo: deliveryMethod === 'shipping' ? {
         firstName: formData.firstName,
         lastName: formData.lastName,
+        company: formData.company,
         address1: formData.address1,
         address2: formData.address2,
         city: formData.city,
@@ -749,6 +833,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
         firstName: formData.firstName,
         lastName: formData.lastName,
+        company: formData.company,
         address1: selectedPickupLocation.address_line1,
         address2: selectedPickupLocation.address_line2 || '',
         city: selectedPickupLocation.city,
@@ -766,6 +851,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
       ].filter(Boolean).join(', ') || undefined,
       customerNotes: customerNotes.trim() || null,
+      growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
       ...shippingDetails,
       ...pickupDetails
     });
@@ -782,6 +868,19 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     localStorage.removeItem('atl-urban-farms-cart');
     localStorage.removeItem('cart');
     orderCompletedRef.current = true;
+
+    // Mark abandoned cart as converted so no reminder is sent
+    if (abandonedCartSavedRef.current) {
+      try {
+        await supabase
+          .from('abandoned_carts')
+          .update({ converted_at: new Date().toISOString() })
+          .eq('session_id', abandonedCartSessionId)
+          .eq('email', formData.email.trim());
+      } catch (err) {
+        console.error('Failed to mark abandoned cart as converted:', err);
+      }
+    }
 
     // Redeem seedling credit if applied
     if (appliedCredit > 0) {
@@ -961,6 +1060,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
+                      onBlur={saveAbandonedCart}
                       type="email"
                       placeholder="you@example.com"
                       className={getInputClassName('email')}
@@ -1326,6 +1426,21 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <p className="text-xs text-red-500 mt-1">{formErrors.lastName}</p>
                     )}
                   </div>
+                </div>
+
+                {/* Company (Optional) */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    Company (Optional)
+                  </label>
+                  <input
+                    name="company"
+                    value={formData.company}
+                    onChange={handleInputChange}
+                    type="text"
+                    placeholder="Business or school name"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                  />
                 </div>
 
                 {/* Address Line 1 */}
@@ -1850,6 +1965,57 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
               </motion.section>
               )}
 
+              {/* Growing System Section */}
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-10 space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                    {deliveryMethod === 'pickup' ? (hasPickupLocations ? '4' : '3') : (hasPickupLocations ? '5' : '4')}
+                  </span>
+                  <h3 className="text-xl font-heading font-extrabold text-gray-900">Growing System</h3>
+                </div>
+                <p className="text-sm text-gray-500">What growing system will you be using with your seedlings?</p>
+                <select
+                  value={growingSystem}
+                  onChange={(e) => {
+                    setGrowingSystem(e.target.value);
+                    if (e.target.value !== 'Other') setGrowingSystemOther('');
+                  }}
+                  className={`w-full bg-white border-2 rounded-2xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all appearance-none cursor-pointer ${
+                    submitAttempted && !growingSystem ? 'border-red-300' : 'border-gray-200'
+                  }`}
+                >
+                  <option value="">Select your growing system...</option>
+                  {GROWING_SYSTEMS.map((system) => (
+                    <option key={system} value={system}>{system}</option>
+                  ))}
+                </select>
+                {submitAttempted && !growingSystem && (
+                  <p className="text-sm text-red-500">Please select your growing system</p>
+                )}
+                {growingSystem === 'Other' && (
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      value={growingSystemOther}
+                      onChange={(e) => setGrowingSystemOther(e.target.value)}
+                      placeholder="Please specify your growing system"
+                      maxLength={100}
+                      className={`w-full bg-white border-2 rounded-2xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all ${
+                        submitAttempted && !growingSystemOther.trim() ? 'border-red-300' : 'border-gray-200'
+                      }`}
+                    />
+                    {submitAttempted && !growingSystemOther.trim() && (
+                      <p className="text-sm text-red-500 mt-1">Please specify your growing system</p>
+                    )}
+                  </div>
+                )}
+              </motion.section>
+
               {/* Order Notes Section */}
               <motion.section
                 initial={{ opacity: 0, y: 20 }}
@@ -1857,30 +2023,30 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 transition={{ delay: 0.25 }}
                 className="mt-10"
               >
-                <details className="group">
-                  <summary className="flex items-center gap-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400 group-open:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    <span className="text-sm font-semibold text-gray-700 group-open:text-emerald-700 transition-colors">
-                      Add a note to your order
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </summary>
-                  <div className="mt-3">
-                    <textarea
-                      value={customerNotes}
-                      onChange={(e) => setCustomerNotes(e.target.value)}
-                      placeholder="Any special instructions for your order? (e.g., delivery preferences, plant care requests)"
-                      rows={3}
-                      maxLength={500}
-                      className="w-full bg-white border-2 border-gray-200 rounded-2xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none text-sm transition-all"
-                    />
-                    <p className="text-xs text-gray-400 mt-1 text-right">{customerNotes.length}/500</p>
+                    <label htmlFor="customer-notes" className="text-base font-bold text-amber-900">
+                      Order Notes
+                    </label>
+                    <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Optional</span>
                   </div>
-                </details>
+                  <p className="text-sm text-amber-700 mb-3">
+                    Special delivery instructions, plant care requests, or anything we should know about your order.
+                  </p>
+                  <textarea
+                    id="customer-notes"
+                    value={customerNotes}
+                    onChange={(e) => setCustomerNotes(e.target.value)}
+                    placeholder="e.g., Leave at back door, extra packaging for fragile plants, gift order..."
+                    rows={3}
+                    maxLength={500}
+                    className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40 focus:border-amber-400 resize-none text-sm transition-all"
+                  />
+                  <p className="text-xs text-amber-500 mt-1.5 text-right">{customerNotes.length}/500</p>
+                </div>
               </motion.section>
 
               <hr className="my-10 border-gray-100" />
@@ -1894,7 +2060,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
               >
                 <div className="flex items-center gap-3 mb-4">
                   <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                    {deliveryMethod === 'pickup' ? (hasPickupLocations ? '4' : '3') : (hasPickupLocations ? '5' : '4')}
+                    {deliveryMethod === 'pickup' ? (hasPickupLocations ? '5' : '4') : (hasPickupLocations ? '6' : '5')}
                   </span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Payment</h3>
                 </div>

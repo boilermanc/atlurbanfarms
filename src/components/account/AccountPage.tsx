@@ -11,11 +11,11 @@ interface AccountPageProps {
   onNavigate: (view: string) => void;
 }
 
-type AccountTab = 'overview' | 'orders' | 'addresses' | 'profile' | 'settings';
+type AccountTab = 'orders' | 'addresses' | 'profile' | 'settings';
 
 const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
   const { user, loading: authLoading, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<AccountTab>('overview');
+  const [activeTab, setActiveTab] = useState<AccountTab>('profile');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const { settings: brandingSettings } = useBrandingSettings();
@@ -34,14 +34,12 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
 
   const tabs: { id: AccountTab; label: string; icon: React.ReactNode }[] = [
     {
-      id: 'overview',
-      label: 'Overview',
+      id: 'profile',
+      label: 'Profile',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="9" rx="1" />
-          <rect x="14" y="3" width="7" height="5" rx="1" />
-          <rect x="14" y="12" width="7" height="9" rx="1" />
-          <rect x="3" y="16" width="7" height="5" rx="1" />
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
         </svg>
       ),
     },
@@ -63,16 +61,6 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
-        </svg>
-      ),
-    },
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
         </svg>
       ),
     },
@@ -106,13 +94,11 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
         return <OrderHistory userId={user.id} onNavigate={onNavigate} />;
       case 'addresses':
         return <AddressBook userId={user.id} />;
-      case 'profile':
-        return <ProfileSettings userId={user.id} userEmail={user.email || ''} />;
       case 'settings':
         return <SettingsTab userEmail={user.email || ''} />;
-      case 'overview':
+      case 'profile':
       default:
-        return <OverviewTab user={user} onTabChange={setActiveTab} />;
+        return <ProfileSettings userId={user.id} userEmail={user.email || ''} />;
     }
   };
 
@@ -249,75 +235,6 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
               </motion.div>
             </AnimatePresence>
           </main>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Overview Tab Component
-interface OverviewTabProps {
-  user: any;
-  onTabChange: (tab: AccountTab) => void;
-}
-
-const OverviewTab: React.FC<OverviewTabProps> = ({ user, onTabChange }) => {
-  const quickActions = [
-    { label: 'View Orders', tab: 'orders' as AccountTab, icon: '📦' },
-    { label: 'Manage Addresses', tab: 'addresses' as AccountTab, icon: '📍' },
-    { label: 'Edit Profile', tab: 'profile' as AccountTab, icon: '👤' },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-heading font-extrabold text-gray-900 mb-2">
-          Welcome back!
-        </h1>
-        <p className="text-gray-500">
-          Here's an overview of your account activity.
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {quickActions.map((action) => (
-          <motion.button
-            key={action.tab}
-            onClick={() => onTabChange(action.tab)}
-            whileHover={{ y: -4 }}
-            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-left hover:border-emerald-200 hover:shadow-md transition-all"
-          >
-            <span className="text-3xl mb-3 block">{action.icon}</span>
-            <span className="font-heading font-bold text-gray-900">{action.label}</span>
-          </motion.button>
-        ))}
-      </div>
-
-      {/* Account Stats */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-        <h2 className="font-heading font-bold text-gray-900 mb-4">Account Information</h2>
-        <div className="space-y-3">
-          <div className="flex justify-between py-3 border-b border-gray-50">
-            <span className="text-gray-500">Email</span>
-            <span className="font-medium text-gray-900">{user.email}</span>
-          </div>
-          <div className="flex justify-between py-3 border-b border-gray-50">
-            <span className="text-gray-500">Member Since</span>
-            <span className="font-medium text-gray-900">
-              {new Date(user.created_at).toLocaleDateString('en-US', {
-                month: 'long',
-                year: 'numeric',
-              })}
-            </span>
-          </div>
-          <div className="flex justify-between py-3">
-            <span className="text-gray-500">Account Status</span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-full text-sm font-medium">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-              Active
-            </span>
-          </div>
         </div>
       </div>
     </div>

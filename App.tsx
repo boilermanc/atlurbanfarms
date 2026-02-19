@@ -145,11 +145,11 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
           <div className="absolute -bottom-8 -right-8 w-48 h-48 sage-gradient rounded-full blur-3xl opacity-30"></div>
         </div>
         <div>
-          <span className="text-emerald-600 font-bold uppercase tracking-widest text-2xl mb-4 block">
+          <span className="brand-text font-black uppercase tracking-[0.2em] text-[20px] mb-4 block">
             {content.label || 'Education First'}
           </span>
           <h2
-            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
+            className="text-5xl md:text-7xl font-heading font-extrabold text-gray-900 tracking-tight mb-8 leading-tight"
             dangerouslySetInnerHTML={{ __html: content.headline || 'Empowering the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>' }}
           />
           <p className="text-lg text-gray-500 mb-10 leading-relaxed"

@@ -143,12 +143,12 @@ const AboutPage: React.FC = () => {
           variants={staggerContainer}
           className="text-center max-w-4xl mx-auto"
         >
-          <motion.span variants={fadeIn} className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+          <motion.span variants={fadeIn} className="brand-text font-bold uppercase tracking-widest text-xs mb-4 block">
             {heroContent.tagline || 'About Us'}
           </motion.span>
           <motion.h1
             variants={fadeIn}
-            className="text-5xl md:text-7xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+            className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-[1.1]"
             dangerouslySetInnerHTML={{ __html: heroContent.headline || 'Growing the Future of Food, <span class="sage-text-gradient">Right Here in Atlanta.</span>' }}
           />
           <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed mb-12">
@@ -197,9 +197,9 @@ const AboutPage: React.FC = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{storyContent.tagline || 'The Genesis'}</span>
+              <span className="brand-text font-bold uppercase tracking-widest text-xs mb-4 block">{storyContent.tagline || 'The Genesis'}</span>
               <h2
-                className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-tight"
+                className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
                 dangerouslySetInnerHTML={{ __html: storyContent.headline || 'A Story of <span class="sage-text-gradient">Roots & Algorithms.</span>' }}
               />
               <div className="space-y-6 text-gray-500 text-lg leading-relaxed">
@@ -232,7 +232,7 @@ const AboutPage: React.FC = () => {
               viewport={{ once: true }}
             >
               <h2
-                className="text-4xl font-heading font-black text-gray-900 mb-8 leading-tight"
+                className="text-4xl font-heading font-extrabold text-gray-900 mb-8 leading-tight"
                 dangerouslySetInnerHTML={{ __html: seedlingsContent.headline || 'Why <span class="brand-text">Nursery-Grown</span> Seedlings Matter.' }}
               />
               <div className="space-y-8">
@@ -272,7 +272,7 @@ const AboutPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="text-center mb-10">
             <h2
-              className="text-4xl font-heading font-black text-gray-900"
+              className="text-4xl font-heading font-extrabold text-gray-900"
               dangerouslySetInnerHTML={{ __html: technologyContent.headline || 'The Technology Behind the <span class="sage-text-gradient">Green</span>' }}
             />
           </div>
@@ -319,12 +319,12 @@ const AboutPage: React.FC = () => {
             variants={staggerContainer}
             className="text-center max-w-4xl mx-auto mb-8"
           >
-            <motion.span variants={fadeIn} className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">
+            <motion.span variants={fadeIn} className="brand-text font-bold uppercase tracking-widest text-xs mb-4 block">
               {growersHeaderContent.tagline || 'Our Team'}
             </motion.span>
             <motion.h2
               variants={fadeIn}
-              className="text-4xl md:text-5xl font-heading font-black text-gray-900 mb-8 leading-[1.1]"
+              className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-8 leading-[1.1]"
               dangerouslySetInnerHTML={{ __html: growersHeaderContent.headline || 'Meet the <span class="sage-text-gradient">Growers</span>' }}
             />
             <motion.p variants={fadeIn} className="text-xl text-gray-500 leading-relaxed">
@@ -420,9 +420,9 @@ const AboutPage: React.FC = () => {
           {/* Values Section */}
           <div className="mt-12 py-12 bg-gray-50 -mx-4 md:-mx-12 px-4 md:px-12 rounded-[3rem]">
             <div className="text-center mb-8">
-              <span className="brand-text font-black uppercase tracking-[0.2em] text-[10px] mb-4 block">{valuesContent.tagline || 'Our Philosophy'}</span>
+              <span className="brand-text font-bold uppercase tracking-widest text-xs mb-4 block">{valuesContent.tagline || 'Our Philosophy'}</span>
               <h3
-                className="text-4xl font-heading font-black text-gray-900"
+                className="text-4xl font-heading font-extrabold text-gray-900"
                 dangerouslySetInnerHTML={{ __html: valuesContent.headline || 'What Drives <span class="sage-text-gradient">Our Team</span>' }}
               />
             </div>
@@ -479,7 +479,7 @@ const AboutPage: React.FC = () => {
             className="relative z-10"
           >
             <h2
-              className="text-4xl md:text-6xl font-heading font-black text-white mb-8"
+              className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-8"
               dangerouslySetInnerHTML={{ __html: ctaContent.headline || 'Ready to grow <span class="brand-text">smarter?</span>' }}
             />
             <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-12 font-medium">
