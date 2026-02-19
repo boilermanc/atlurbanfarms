@@ -150,7 +150,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     }
   };
 
-  const handlePriceChange = (productId: string, value: string) => {
+  const handleSalePriceChange = (productId: string, value: string) => {
     const newPrice = parseFloat(value);
 
     if (isNaN(newPrice) || value === '') {
@@ -163,7 +163,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
-    if (newPrice !== product.price) {
+    if (newPrice !== product.compare_at_price) {
       const next = new Map(priceChanges);
       next.set(productId, newPrice);
       setPriceChanges(next);
@@ -178,9 +178,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     return changes.has(product.id) ? changes.get(product.id)! : product.quantity_available;
   };
 
-  const getDisplayPrice = (product: ProductInventory): string => {
+  const getDisplaySalePrice = (product: ProductInventory): string => {
     if (priceChanges.has(product.id)) return priceChanges.get(product.id)!.toString();
-    return product.price != null ? product.price.toString() : '';
+    return product.compare_at_price != null ? product.compare_at_price.toString() : '';
   };
 
   const hasChanges = () => changes.size > 0 || priceChanges.size > 0;
@@ -212,7 +212,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
           updatePayload.quantity_available = changes.get(productId);
         }
         if (priceChanges.has(productId)) {
-          updatePayload.price = priceChanges.get(productId);
+          updatePayload.compare_at_price = priceChanges.get(productId);
         }
 
         const { error: updateError } = await supabase
@@ -442,7 +442,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className="text-slate-500">
-                            {product.compare_at_price != null ? `$${product.compare_at_price.toFixed(2)}` : '-'}
+                            {product.price != null ? `$${product.price.toFixed(2)}` : '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -452,8 +452,8 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                               type="number"
                               min="0"
                               step="0.01"
-                              value={getDisplayPrice(product)}
-                              onChange={(e) => handlePriceChange(product.id, e.target.value)}
+                              value={getDisplaySalePrice(product)}
+                              onChange={(e) => handleSalePriceChange(product.id, e.target.value)}
                               className={`w-24 px-3 py-2 text-right border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                                 priceChanges.has(product.id)
                                   ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500 font-semibold'

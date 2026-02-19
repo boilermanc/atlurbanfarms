@@ -269,10 +269,10 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                     </td>
                     <td className="py-4 px-6 text-slate-600">{product.category?.name || 'Uncategorized'}</td>
                     <td className="py-4 px-6">
-                      {product.compare_at_price && product.compare_at_price > product.price ? (
+                      {product.compare_at_price && product.compare_at_price < product.price ? (
                         <>
-                          <span className="text-slate-400 text-sm line-through">${product.compare_at_price.toFixed(2)}</span>
-                          <span className="text-red-600 font-semibold ml-2">${product.price.toFixed(2)}</span>
+                          <span className="text-slate-400 text-sm line-through">${product.price.toFixed(2)}</span>
+                          <span className="text-red-600 font-semibold ml-2">${product.compare_at_price.toFixed(2)}</span>
                         </>
                       ) : (
                         <span className="text-slate-800 font-semibold">${product.price.toFixed(2)}</span>
