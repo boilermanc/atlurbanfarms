@@ -770,12 +770,12 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Regular Price</label>
-                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" placeholder="e.g. 25.00" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Regular Price *</label>
+                <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required placeholder="e.g. 25.00" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Sale Price *</label>
-                <input type="number" name="price" value={formData.price} onChange={handleChange} step="0.01" min="0" required className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                <label className="block text-sm font-medium text-slate-600 mb-1">Sale Price</label>
+                <input type="number" name="compare_at_price" value={formData.compare_at_price} onChange={handleChange} step="0.01" min="0" placeholder="Original price if on sale" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
               </div>
             </div>
           </div>
