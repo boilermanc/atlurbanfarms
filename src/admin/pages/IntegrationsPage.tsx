@@ -356,6 +356,12 @@ const IntegrationsPage: React.FC = () => {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testModal, setTestModal] = useState<{
+    integration: string;
+    success: boolean;
+    message: string;
+    details?: Record<string, any> | string;
+  } | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [testEmailAddress, setTestEmailAddress] = useState<string>('');
   const [lastError, setLastError] = useState<{ integration: string; error: string; details?: string; timestamp: Date } | null>(null);
@@ -502,14 +508,15 @@ const IntegrationsPage: React.FC = () => {
       });
 
       if (invokeError) {
-        setUpsTestResult({ success: false, message: invokeError.message || 'Connection test failed' });
-        setSaveMessage(`UPS connection failed: ${invokeError.message}`);
+        const msg = invokeError.message || 'Connection test failed';
+        setUpsTestResult({ success: false, message: msg });
+        setTestModal({ integration: 'UPS Direct', success: false, message: msg });
         return;
       }
 
       if (data.success) {
         setUpsTestResult({ success: true, message: 'Connection successful!' });
-        setSaveMessage('UPS connection successful!');
+        setTestModal({ integration: 'UPS Direct', success: true, message: 'Connection successful!', details: data });
 
         // Update last_successful_call in carrier_configurations
         await supabase
@@ -517,17 +524,18 @@ const IntegrationsPage: React.FC = () => {
           .update({ last_successful_call: new Date().toISOString() })
           .eq('carrier_code', 'ups_direct');
       } else {
-        setUpsTestResult({ success: false, message: data.error || 'Connection failed' });
-        setSaveMessage(`UPS connection failed: ${data.error}`);
+        const msg = data.error || 'Connection failed';
+        setUpsTestResult({ success: false, message: msg });
+        setTestModal({ integration: 'UPS Direct', success: false, message: msg, details: data });
       }
 
       setTimeout(() => {
-        setSaveMessage(null);
         setUpsTestResult(null);
       }, 5000);
     } catch (err: any) {
-      setUpsTestResult({ success: false, message: err.message || 'Connection test failed' });
-      setSaveMessage(`UPS test error: ${err.message}`);
+      const msg = err.message || 'Connection test failed';
+      setUpsTestResult({ success: false, message: msg });
+      setTestModal({ integration: 'UPS Direct', success: false, message: msg });
     } finally {
       setTestingConnection(null);
     }
@@ -647,33 +655,35 @@ const IntegrationsPage: React.FC = () => {
       setTestingConnection(null);
       setTestResult(result);
 
-      if (result.success) {
-        setSaveMessage(`${integration} connection successful!`);
-        setLastError(null);
-        setTimeout(() => {
-          setSaveMessage(null);
-          setTestResult(null);
-        }, 5000);
-      } else {
-        // Show detailed error with any additional details
-        const detailsStr = result.details ? JSON.stringify(result.details) : undefined;
-        const errorMsg = `${integration} failed: ${result.message}`;
-        setSaveMessage(errorMsg + (detailsStr ? ` | Details: ${detailsStr}` : ''));
+      // Show modal with full result
+      setTestModal({
+        integration,
+        success: result.success,
+        message: result.message,
+        details: result.details,
+      });
+
+      if (!result.success) {
         setLastError({
           integration,
           error: result.message,
-          details: detailsStr,
+          details: result.details ? JSON.stringify(result.details) : undefined,
           timestamp: new Date()
         });
+      } else {
+        setLastError(null);
       }
     } catch (err: any) {
       console.error('🔴 testConnection error:', err);
       setTestingConnection(null);
-      const errorMsg = err.message || String(err);
-      setSaveMessage(`${integration} test error: ${errorMsg}`);
+      setTestModal({
+        integration,
+        success: false,
+        message: err.message || String(err),
+      });
       setLastError({
         integration,
-        error: errorMsg,
+        error: err.message || String(err),
         timestamp: new Date()
       });
     }
@@ -694,26 +704,31 @@ const IntegrationsPage: React.FC = () => {
       console.log('🔵 sendEmail result:', result);
 
       setTestingConnection(null);
-      if (result.success) {
-        setSaveMessage(`Test email sent to ${recipient}!`);
-        setLastError(null);
-        setTimeout(() => setSaveMessage(null), 5000);
-      } else {
-        // Show detailed error message
-        const errorDetails = result.details ? ` (${result.details})` : '';
-        setSaveMessage(`Failed to send email: ${result.error}${errorDetails}`);
+      setTestModal({
+        integration: 'Resend Email',
+        success: result.success,
+        message: result.success ? `Test email sent to ${recipient}` : (result.error || 'Failed to send email'),
+        details: result.details ? { details: result.details } : undefined,
+      });
+      if (!result.success) {
         setLastError({
           integration: 'Resend Email',
           error: result.error || 'Unknown error',
           details: result.details,
           timestamp: new Date()
         });
+      } else {
+        setLastError(null);
       }
     } catch (err: any) {
       console.error('🔴 sendTestEmail error:', err);
       setTestingConnection(null);
       const errorMsg = err.message || String(err);
-      setSaveMessage(`Failed to send email: ${errorMsg}`);
+      setTestModal({
+        integration: 'Resend Email',
+        success: false,
+        message: errorMsg,
+      });
       setLastError({
         integration: 'Resend Email',
         error: errorMsg,
@@ -1838,6 +1853,99 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationSection>
         </div>
       </div>
+
+      {/* Test Connection Result Modal */}
+      <AnimatePresence>
+        {testModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setTestModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className={`px-6 py-4 flex items-center justify-between ${
+                testModal.success ? 'bg-emerald-50' : 'bg-red-50'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    testModal.success ? 'bg-emerald-100' : 'bg-red-100'
+                  }`}>
+                    {testModal.success ? (
+                      <CheckCircle size={22} className="text-emerald-600" />
+                    ) : (
+                      <AlertCircle size={22} className="text-red-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">{testModal.integration}</h3>
+                    <p className={`text-sm font-medium ${
+                      testModal.success ? 'text-emerald-600' : 'text-red-600'
+                    }`}>
+                      {testModal.success ? 'Connection Successful' : 'Connection Failed'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setTestModal(null)}
+                  className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                >
+                  <X size={18} className="text-slate-500" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-4 space-y-3">
+                <p className="text-sm text-slate-700">{testModal.message}</p>
+
+                {testModal.details && (
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Response Details</h4>
+                    <pre className="text-xs text-slate-600 whitespace-pre-wrap break-words font-mono leading-relaxed">
+                      {typeof testModal.details === 'string'
+                        ? testModal.details
+                        : JSON.stringify(testModal.details, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Report Issue button for failures */}
+                {!testModal.success && lastError && (
+                  <button
+                    onClick={() => {
+                      reportIssueToSupport();
+                      setTestModal(null);
+                    }}
+                    disabled={reportingIssue}
+                    className="w-full px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Mail size={16} />
+                    Report Issue to Support
+                  </button>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setTestModal(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Fixed Toast Notification */}
       <AnimatePresence>
