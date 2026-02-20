@@ -586,7 +586,8 @@ serve(async (req) => {
       'shipping_rate_markup_percent',
       'shipping_rate_markup_dollars',
       'forced_service_default',
-      'forced_service_overrides'
+      'forced_service_overrides',
+      'allowed_service_codes'
     ])
 
     // Try composite JSON key first, then fall back to individual business category fields
@@ -874,6 +875,14 @@ serve(async (req) => {
       })
       // Sort by price (cheapest first)
       .sort((a: ShippingRate, b: ShippingRate) => a.shipping_amount - b.shipping_amount)
+
+    // Filter by allowed service codes from config (e.g. ups_ground, ups_2nd_day_air, ups_3_day_select)
+    const allowedServiceCodes: string[] | undefined = shippingSettings.allowed_service_codes
+    if (allowedServiceCodes && Array.isArray(allowedServiceCodes) && allowedServiceCodes.length > 0) {
+      const beforeCount = rates.length
+      rates = rates.filter(rate => allowedServiceCodes.includes(rate.service_code))
+      console.log(`Filtered rates by allowed_service_codes: ${beforeCount} → ${rates.length} (allowed: ${allowedServiceCodes.join(', ')})`)
+    }
 
     // If zone requires specific services, filter or mark rates
     if (zoneCheck.required_services?.length && rates.length > 0) {

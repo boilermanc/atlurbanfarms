@@ -53,7 +53,27 @@
       "Bash(supabase link:*)",
       "Bash(where:*)",
       "Bash(Select-String \"useDeleteCustomer\")",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(layout)",
+      "Bash(header \")",
+      "Bash(supabase migration repair --help:*)",
+      "Bash(supabase migration repair:*)",
+      "Bash(npx vite build:*)",
+      "Bash(python -c:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -File -:*)",
+      "Bash(git diff:*)",
+      "Bash(Select-String \"FAQPage\")",
+      "Bash(while read f)",
+      "Bash(do if grep -q \"product_tags\" \"$f\")",
+      "Bash(then echo \"$f\")",
+      "Bash(fi)",
+      "Bash(cat:*)",
+      "Bash(xargs:*)",
+      "Bash(do grep -l \"CREATE TABLE orders\" \"$f\")",
+      "Bash(echo:*)",
+      "Bash(break)",
+      "Bash(git ls-tree:*)"
     ],
     "additionalDirectories": [
       "c:\\Users\\clint\\Documents\\Github\\atlurbanfarms\\src\\admin"

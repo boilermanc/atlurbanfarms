@@ -2,9 +2,16 @@ import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 
 export interface IntegrationSettings {
   stripe_enabled?: boolean
+  stripe_mode?: 'test' | 'live'
   stripe_publishable_key?: string
+  stripe_publishable_key_live?: string
+  stripe_publishable_key_test?: string
   stripe_secret_key?: string
+  stripe_secret_key_live?: string
+  stripe_secret_key_test?: string
   stripe_webhook_secret?: string
+  stripe_webhook_secret_live?: string
+  stripe_webhook_secret_test?: string
   resend_enabled?: boolean
   resend_api_key?: string
   resend_from_email?: string
@@ -28,6 +35,27 @@ const SHIPENGINE_MODE_KEYS = [
   'shipengine_api_key_production',
   'shipengine_api_key_sandbox',
   'shipengine_api_key', // legacy fallback
+]
+
+/** Keys needed to resolve active Stripe keys based on mode */
+const STRIPE_MODE_KEYS = [
+  'stripe_mode',
+  'stripe_secret_key_live',
+  'stripe_secret_key_test',
+  'stripe_secret_key', // legacy fallback
+  'stripe_publishable_key_live',
+  'stripe_publishable_key_test',
+  'stripe_publishable_key', // legacy fallback
+  'stripe_webhook_secret_live',
+  'stripe_webhook_secret_test',
+  'stripe_webhook_secret', // legacy fallback
+]
+
+/** Stripe keys that trigger mode resolution when requested */
+const STRIPE_RESOLVABLE_KEYS = [
+  'stripe_secret_key',
+  'stripe_publishable_key',
+  'stripe_webhook_secret',
 ]
 
 /**
@@ -64,9 +92,16 @@ export async function getIntegrationSettings(
 ): Promise<Record<string, any>> {
   // If shipengine_api_key is requested, also fetch mode-related keys
   const needsShipEngineResolve = keys.includes('shipengine_api_key')
-  const fetchKeys = needsShipEngineResolve
-    ? [...new Set([...keys, ...SHIPENGINE_MODE_KEYS])]
-    : keys
+  // If any Stripe resolvable key is requested, also fetch mode-related keys
+  const needsStripeResolve = keys.some(k => STRIPE_RESOLVABLE_KEYS.includes(k))
+
+  let fetchKeys = keys
+  if (needsShipEngineResolve) {
+    fetchKeys = [...new Set([...fetchKeys, ...SHIPENGINE_MODE_KEYS])]
+  }
+  if (needsStripeResolve) {
+    fetchKeys = [...new Set([...fetchKeys, ...STRIPE_MODE_KEYS])]
+  }
 
   const { data, error } = await supabaseClient
     .from('config_settings')
@@ -108,6 +143,41 @@ export async function getIntegrationSettings(
 
     // Always include the active mode so callers can check
     settings.shipengine_mode = mode
+  }
+
+  // Resolve the active Stripe keys based on mode
+  if (needsStripeResolve) {
+    const mode = settings.stripe_mode || 'test'
+
+    // Resolve each Stripe key type
+    const keyPairs = [
+      { name: 'stripe_secret_key', live: settings.stripe_secret_key_live, test: settings.stripe_secret_key_test },
+      { name: 'stripe_publishable_key', live: settings.stripe_publishable_key_live, test: settings.stripe_publishable_key_test },
+      { name: 'stripe_webhook_secret', live: settings.stripe_webhook_secret_live, test: settings.stripe_webhook_secret_test },
+    ]
+
+    for (const pair of keyPairs) {
+      const legacyKey = settings[pair.name]
+      let resolvedKey: string | undefined
+
+      if (mode === 'live' && pair.live) {
+        resolvedKey = pair.live
+      } else if (mode === 'test' && pair.test) {
+        resolvedKey = pair.test
+      }
+
+      // Fallback: if mode-specific key is empty, try the other or legacy
+      if (!resolvedKey) {
+        resolvedKey = pair.live || pair.test || legacyKey
+      }
+
+      if (resolvedKey) {
+        settings[pair.name] = resolvedKey
+      }
+    }
+
+    // Always include the active mode so callers can check
+    settings.stripe_mode = mode
   }
 
   return settings

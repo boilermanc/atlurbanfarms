@@ -8,6 +8,9 @@ import { usePickupLocations, useAvailablePickupSlots, formatPickupTime, formatPi
 import { useSetting } from '../admin/hooks/useSettings';
 import { useStripePayment } from '../hooks/useStripePayment';
 import { useSeedlingCredit } from '../hooks/useSeedlingCredit';
+import { calculateTax } from '../lib/tax';
+import { useTaxConfig } from '../hooks/useTaxConfig';
+import { useAutoApplyPromotion, useRecordPromotionUsage } from '../hooks/usePromotions';
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
 import { supabase } from '../lib/supabase';
@@ -152,8 +155,6 @@ const GROWING_SYSTEMS = [
   'Other',
 ];
 
-const TAX_RATE = 0.08; // 8% tax rate
-
 /**
  * Calculate the next ship date based on current time, cutoff, and ship day settings.
  * All times evaluated in America/New_York timezone.
@@ -208,11 +209,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { value: weeklyCutoffTime } = useSetting('shipping', 'weekly_cutoff_time');
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
+  const { taxConfig } = useTaxConfig();
 
   // Sproutify seedling credit
   const { hasCredit, creditAmount, isLifetime, redeemCredit, loading: creditLoading } = useSeedlingCredit(
     user?.email || null
   );
+
+  // Auto-apply promotions from promotions table
+  const { discount: autoPromotion, loading: promoLoading } = useAutoApplyPromotion(items, user?.id, user?.email);
+  const { recordUsage: recordPromotionUsage } = useRecordPromotionUsage();
 
   // ShipEngine address validation and rates
   const {
@@ -349,8 +355,21 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const lifetimeDiscount = isLifetime ? Math.round(subtotal * 0.10 * 100) / 100 : 0;
-  const tax = subtotal * TAX_RATE;
-  const totalBeforeCredit = subtotal - lifetimeDiscount + shippingCost + tax;
+  const promoDiscount = autoPromotion?.valid ? autoPromotion.discount : 0;
+  // Best discount wins — no stacking between lifetime and promo
+  const bestDiscount = Math.max(lifetimeDiscount, promoDiscount);
+  const activeDiscountLabel = bestDiscount > 0
+    ? (lifetimeDiscount >= promoDiscount ? 'Lifetime Member 10% Off' : (autoPromotion?.description || 'Promotion'))
+    : '';
+  const taxResult = calculateTax({
+    subtotal,
+    shippingState: formData.state,
+    isTaxExempt: profile?.is_tax_exempt || false,
+    taxExemptReason: profile?.tax_exempt_reason || undefined,
+    config: taxConfig,
+  });
+  const tax = taxResult.taxAmount;
+  const totalBeforeCredit = subtotal - bestDiscount + shippingCost + tax;
   const appliedCredit = hasCredit ? Math.min(creditAmount, totalBeforeCredit) : 0;
   const total = totalBeforeCredit - appliedCredit;
 
@@ -743,13 +762,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         customerId: user?.id || null,
         paymentStatus: 'pending',
         saveAddress: deliveryMethod === 'shipping' && saveAddress,
-        discountAmount: appliedCredit + lifetimeDiscount,
+        discountAmount: appliedCredit + bestDiscount,
         discountDescription: [
-          lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
+          bestDiscount > 0 ? activeDiscountLabel : '',
           appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
         ].filter(Boolean).join(', ') || undefined,
         customerNotes: customerNotes.trim() || null,
         growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
+        tax,
+        taxRateApplied: taxResult.taxRate,
+        taxNote: taxResult.taxNote,
         ...shippingDetails,
         ...pickupDetails
       });
@@ -760,7 +782,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
 
       // Create payment intent with pre-discount total — the edge function
-      // verifies the credit and lifetime discount server-side before charging Stripe
+      // verifies the credit and discount server-side before charging Stripe
       const paymentResult = await createPaymentIntent({
         amount: subtotal + shippingCost + tax,
         customerEmail: formData.email,
@@ -770,7 +792,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         },
         discountAmount: appliedCredit > 0 ? appliedCredit : undefined,
         discountDescription: appliedCredit > 0 ? 'Sproutify Seedling Credit' : undefined,
-        lifetimeDiscount: lifetimeDiscount > 0 ? lifetimeDiscount : undefined
+        lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined
       });
 
       if (!paymentResult) {
@@ -845,13 +867,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingCost: shippingCost,
       customerId: user?.id || null,
       saveAddress: deliveryMethod === 'shipping' && saveAddress,
-      discountAmount: appliedCredit + lifetimeDiscount,
+      discountAmount: appliedCredit + bestDiscount,
       discountDescription: [
-        lifetimeDiscount > 0 ? 'Lifetime Member 10% Off' : '',
+        bestDiscount > 0 ? activeDiscountLabel : '',
         appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
       ].filter(Boolean).join(', ') || undefined,
       customerNotes: customerNotes.trim() || null,
       growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
+      tax,
+      taxRateApplied: taxResult.taxRate,
+      taxNote: taxResult.taxNote,
       ...shippingDetails,
       ...pickupDetails
     });
@@ -897,6 +922,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         });
       } catch (e) {
         console.error('Failed to redeem seedling credit:', e);
+        // Don't block order flow
+      }
+    }
+
+    // Record promotion usage if a promo discount was applied
+    if (promoDiscount > 0 && autoPromotion?.promotion_id) {
+      try {
+        await recordPromotionUsage(
+          autoPromotion.promotion_id,
+          order.id || order.order_id || pendingOrderId,
+          user?.id || null,
+          formData.email,
+          promoDiscount
+        );
+      } catch (e) {
+        console.error('Failed to record promotion usage:', e);
         // Don't block order flow
       }
     }
@@ -2236,13 +2277,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     </span>
                   </div>
                   <div className="flex justify-between text-gray-500 text-sm">
-                    <span>Tax (8%)</span>
+                    <span>{taxResult.taxLabel}</span>
                     <span className="font-bold">${tax.toFixed(2)}</span>
                   </div>
-                  {lifetimeDiscount > 0 && (
+                  {bestDiscount > 0 && (
                     <div className="flex justify-between text-emerald-600 text-sm">
-                      <span>Lifetime Member 10% Off</span>
-                      <span className="font-bold">-${lifetimeDiscount.toFixed(2)}</span>
+                      <span>{activeDiscountLabel}</span>
+                      <span className="font-bold">-${bestDiscount.toFixed(2)}</span>
                     </div>
                   )}
                   {appliedCredit > 0 && (

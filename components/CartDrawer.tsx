@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../types';
 import { useAutoApplyPromotion } from '../src/hooks/usePromotions';
+import { supabase } from '../src/lib/supabase';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -19,8 +20,26 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
   // Check for automatic promotions
   const { discount: autoDiscount } = useAutoApplyPromotion(items);
 
+  // Free shipping config from admin settings
+  const [freeShippingConfig, setFreeShippingConfig] = useState<{ enabled: boolean; threshold: number } | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('config_settings')
+      .select('key, value')
+      .eq('category', 'shipping')
+      .in('key', ['free_shipping_enabled', 'free_shipping_threshold'])
+      .then(({ data }) => {
+        if (data) {
+          const enabled = data.find(r => r.key === 'free_shipping_enabled')?.value === 'true';
+          const threshold = parseFloat(data.find(r => r.key === 'free_shipping_threshold')?.value ?? '0');
+          setFreeShippingConfig({ enabled, threshold });
+        }
+      });
+  }, []);
+
   const discountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
-  const isFreeShipping = autoDiscount?.free_shipping || subtotal > 50;
+  const isFreeShipping = freeShippingConfig?.enabled && subtotal >= freeShippingConfig.threshold;
   const total = subtotal - discountAmount;
 
   return (
@@ -121,9 +140,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                       {isFreeShipping ? 'FREE' : 'Calculated at checkout'}
                     </span>
                   </div>
-                  {!isFreeShipping && (
+                  {freeShippingConfig?.enabled && !isFreeShipping && (
                     <p className="text-[10px] brand-text font-bold uppercase tracking-wider">
-                      Add ${(50 - subtotal).toFixed(2)} more for free shipping
+                      Add ${(freeShippingConfig.threshold - subtotal).toFixed(2)} more for free shipping
                     </p>
                   )}
                   <div className="flex justify-between text-xl font-heading font-extrabold text-gray-900 pt-2 border-t border-gray-200">

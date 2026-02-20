@@ -1214,6 +1214,118 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
               </div>
             </div>
 
+            {/* Tax Status Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Tax Status</h2>
+              <div className="space-y-4">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div>
+                    <span className="text-sm font-medium text-slate-700">Tax-exempt customer</span>
+                    <p className="text-xs text-slate-500">Exempt customers are not charged sales tax</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newValue = !customer?.is_tax_exempt;
+                      try {
+                        const { error } = await supabase
+                          .from('customers')
+                          .update({
+                            is_tax_exempt: newValue,
+                            tax_exempt_reason: newValue ? (customer?.tax_exempt_reason || null) : null,
+                            tax_exempt_certificate: newValue ? (customer?.tax_exempt_certificate || null) : null,
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq('id', customerId);
+                        if (!error) {
+                          setCustomer(prev => prev ? {
+                            ...prev,
+                            is_tax_exempt: newValue,
+                            tax_exempt_reason: newValue ? (prev.tax_exempt_reason || null) : null,
+                            tax_exempt_certificate: newValue ? (prev.tax_exempt_certificate || null) : null,
+                          } : null);
+                          setToast({ message: newValue ? 'Customer marked as tax-exempt' : 'Tax exemption removed', type: 'success' });
+                        }
+                      } catch (err) {
+                        console.error('Error updating tax-exempt status:', err);
+                        setToast({ message: 'Failed to update tax status', type: 'error' });
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      customer?.is_tax_exempt ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                        customer?.is_tax_exempt ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+
+                {customer?.is_tax_exempt && (
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider">Exemption Reason</label>
+                      <select
+                        value={customer?.tax_exempt_reason || ''}
+                        onChange={async (e) => {
+                          const reason = e.target.value || null;
+                          try {
+                            const { error } = await supabase
+                              .from('customers')
+                              .update({ tax_exempt_reason: reason, updated_at: new Date().toISOString() })
+                              .eq('id', customerId);
+                            if (!error) {
+                              setCustomer(prev => prev ? { ...prev, tax_exempt_reason: reason } : null);
+                            }
+                          } catch (err) {
+                            console.error('Error updating tax-exempt reason:', err);
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                      >
+                        <option value="">Select reason...</option>
+                        <option value="School">School</option>
+                        <option value="Nonprofit">Nonprofit</option>
+                        <option value="Wholesale">Wholesale</option>
+                        <option value="Government">Government</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider">Certificate / Tax ID (optional)</label>
+                      <input
+                        type="text"
+                        value={customer?.tax_exempt_certificate || ''}
+                        onChange={async (e) => {
+                          const cert = e.target.value || null;
+                          // Update locally immediately for responsive UI
+                          setCustomer(prev => prev ? { ...prev, tax_exempt_certificate: cert } : null);
+                        }}
+                        onBlur={async (e) => {
+                          const cert = e.target.value || null;
+                          try {
+                            const { error } = await supabase
+                              .from('customers')
+                              .update({ tax_exempt_certificate: cert, updated_at: new Date().toISOString() })
+                              .eq('id', customerId);
+                            if (error) {
+                              console.error('Error updating certificate:', error);
+                              setToast({ message: 'Failed to save certificate', type: 'error' });
+                            }
+                          } catch (err) {
+                            console.error('Error updating certificate:', err);
+                          }
+                        }}
+                        placeholder="Enter certificate number"
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Growing Profile</h2>

@@ -1,8 +1,25 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertTriangle, XCircle, Loader2, MapPin } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Loader2, MapPin, Calendar } from 'lucide-react';
 import { useSettings, useBulkUpdateSettings, ConfigSetting } from '../../hooks/useSettings';
 import { supabase } from '../../../lib/supabase';
+
+const DAYS_OF_WEEK = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+];
+
+const TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+];
 
 const US_STATES = [
   { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
@@ -64,6 +81,15 @@ const SERVICE_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['da
   forced_service_overrides: { value: { service_code: 'ups_3_day_select', states: [] }, dataType: 'json' },
 };
 
+const SCHEDULE_DEFAULTS: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {
+  weekly_cutoff_day: { value: '0', dataType: 'string' },
+  weekly_cutoff_time: { value: '23:59', dataType: 'string' },
+  timezone: { value: 'America/New_York', dataType: 'string' },
+  default_ship_day: { value: '2', dataType: 'string' },
+  customer_shipping_message: { value: '', dataType: 'string' },
+  admin_shipping_notes: { value: '', dataType: 'string' },
+};
+
 const UPS_SERVICES = [
   { value: 'ups_ground', label: 'UPS Ground' },
   { value: 'ups_3_day_select', label: 'UPS 3 Day Select' },
@@ -72,7 +98,7 @@ const UPS_SERVICES = [
   { value: 'ups_next_day_air', label: 'UPS Next Day Air' },
 ];
 
-type SectionKey = 'address' | 'package' | 'rules' | 'service';
+type SectionKey = 'schedule' | 'address' | 'package' | 'rules' | 'service';
 type SaveStatus = { message: string; type: 'success' | 'error' } | null;
 type ValidationStatus = { status: 'verified' | 'warning' | 'unverified' | 'error'; messages: string[] } | null;
 
@@ -119,6 +145,7 @@ const ShippingSettingsTab: React.FC = () => {
   const { bulkUpdate } = useBulkUpdateSettings();
 
   // Form state - split by category for independent saving
+  const [scheduleData, setScheduleData] = useState<Record<string, any>>({});
   const [addressData, setAddressData] = useState<Record<string, any>>({});
   const [packageData, setPackageData] = useState<Record<string, any>>({});
   const [rulesData, setRulesData] = useState<Record<string, any>>({});
@@ -127,6 +154,7 @@ const ShippingSettingsTab: React.FC = () => {
   const [serviceData, setServiceData] = useState<Record<string, any>>({});
   const [savingSections, setSavingSections] = useState<Set<SectionKey>>(new Set());
   const [saveStatuses, setSaveStatuses] = useState<Record<SectionKey, SaveStatus>>({
+    schedule: null,
     address: null,
     package: null,
     rules: null,
@@ -150,6 +178,7 @@ const ShippingSettingsTab: React.FC = () => {
 
   // Per-section timeout refs for save status auto-clear
   const saveStatusTimeouts = useRef<Record<SectionKey, ReturnType<typeof setTimeout> | null>>({
+    schedule: null,
     address: null,
     package: null,
     rules: null,
@@ -178,6 +207,12 @@ const ShippingSettingsTab: React.FC = () => {
 
   // Initialize form data from settings
   useEffect(() => {
+    const sched: Record<string, any> = {};
+    Object.entries(SCHEDULE_DEFAULTS).forEach(([key, config]) => {
+      sched[key] = settings.shipping?.[key] ?? config.value;
+    });
+    setScheduleData(sched);
+
     const addr: Record<string, any> = {};
     Object.entries(ADDRESS_DEFAULTS).forEach(([key, config]) => {
       addr[key] = settings.business?.[key] ?? config.value;
@@ -209,6 +244,33 @@ const ShippingSettingsTab: React.FC = () => {
       setSaveStatuses(prev => ({ ...prev, [section]: null }));
     }, 3000);
   }, []);
+
+  // Save fulfillment schedule
+  const handleSaveSchedule = useCallback(async () => {
+    startSaving('schedule');
+    setSaveStatuses(prev => ({ ...prev, schedule: null }));
+
+    try {
+      const scheduleSettings: Record<string, { value: any; dataType: ConfigSetting['data_type'] }> = {};
+      Object.entries(SCHEDULE_DEFAULTS).forEach(([key, config]) => {
+        scheduleSettings[key] = { value: scheduleData[key], dataType: config.dataType };
+      });
+
+      const success = await bulkUpdate('shipping', scheduleSettings);
+
+      if (success) {
+        setSaveStatuses(prev => ({ ...prev, schedule: { message: 'Schedule saved!', type: 'success' } }));
+        refetch();
+      } else {
+        setSaveStatuses(prev => ({ ...prev, schedule: { message: 'Failed to save schedule', type: 'error' } }));
+      }
+    } catch {
+      setSaveStatuses(prev => ({ ...prev, schedule: { message: 'Failed to save schedule', type: 'error' } }));
+    } finally {
+      stopSaving('schedule');
+      clearSaveStatus('schedule');
+    }
+  }, [scheduleData, bulkUpdate, refetch, clearSaveStatus]);
 
   // Save warehouse address
   const handleSaveAddress = useCallback(async () => {
@@ -399,6 +461,104 @@ const ShippingSettingsTab: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Fulfillment Schedule Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar size={20} className="text-emerald-600" />
+          <h3 className="text-lg font-medium text-slate-800">Fulfillment Schedule</h3>
+        </div>
+        <p className="text-sm text-slate-500 mb-6">
+          Configure your weekly order cutoff and shipping day for batch processing.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Order Cutoff Day</label>
+            <select
+              value={scheduleData.weekly_cutoff_day || '0'}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, weekly_cutoff_day: e.target.value }))}
+              className={inputClass}
+            >
+              {DAYS_OF_WEEK.map((day) => (
+                <option key={day.value} value={day.value}>{day.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">Orders placed after this day will ship the following week</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Typical Ship Day</label>
+            <select
+              value={scheduleData.default_ship_day || '2'}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, default_ship_day: e.target.value }))}
+              className={inputClass}
+            >
+              {DAYS_OF_WEEK.map((day) => (
+                <option key={day.value} value={day.value}>{day.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">The day of the week orders are typically shipped</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Cutoff Time</label>
+            <input
+              type="time"
+              value={scheduleData.weekly_cutoff_time || '23:59'}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, weekly_cutoff_time: e.target.value }))}
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-500">Orders must be placed by this time on the cutoff day</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Timezone</label>
+            <select
+              value={scheduleData.timezone || 'America/New_York'}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, timezone: e.target.value }))}
+              className={inputClass}
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">Timezone for cutoff time calculations</p>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Customer Message</label>
+            <textarea
+              value={scheduleData.customer_shipping_message || ''}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, customer_shipping_message: e.target.value }))}
+              rows={3}
+              className={`${inputClass} resize-none`}
+              placeholder="Orders placed by Sunday at 11:59 PM ET will ship the following Tuesday. Live plants are shipped with care to ensure they arrive healthy!"
+            />
+            <p className="text-xs text-slate-500">Displayed to customers at checkout to explain the shipping schedule</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-600">Internal Notes</label>
+            <textarea
+              value={scheduleData.admin_shipping_notes || ''}
+              onChange={(e) => setScheduleData(prev => ({ ...prev, admin_shipping_notes: e.target.value }))}
+              rows={3}
+              className={`${inputClass} resize-none`}
+              placeholder="Notes for the fulfillment team about shipping procedures, carrier preferences, etc."
+            />
+            <p className="text-xs text-slate-500">Internal notes for the admin/fulfillment team (not shown to customers)</p>
+          </div>
+        </div>
+
+        <SectionSaveButton
+          saving={savingSections.has('schedule')}
+          status={saveStatuses.schedule}
+          onClick={handleSaveSchedule}
+        />
+      </div>
+
       {/* Warehouse / Ship-From Address Section */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
         <h3 className="text-lg font-medium text-slate-800 mb-2">Warehouse / Ship-From Address</h3>

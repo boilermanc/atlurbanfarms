@@ -15,6 +15,8 @@ import {
   PickupSlot,
 } from '../../hooks/usePickup';
 import { useEmailService } from '../../hooks/useIntegrations';
+import { calculateTax } from '../../lib/tax';
+import { useTaxConfig } from '../../hooks/useTaxConfig';
 
 interface Customer {
   id: string;
@@ -22,6 +24,8 @@ interface Customer {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  is_tax_exempt?: boolean;
+  tax_exempt_reason?: string | null;
   created_at: string;
 }
 
@@ -114,8 +118,6 @@ const US_STATES = [
   { name: 'Wyoming', abbreviation: 'WY' },
 ];
 
-const TAX_RATE = 0.08; // 8% tax rate
-
 type DeliveryMethod = 'shipping' | 'pickup';
 
 const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
@@ -169,6 +171,9 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
   // Email service
   const { sendOrderConfirmation } = useEmailService();
+
+  // Tax configuration
+  const { taxConfig } = useTaxConfig();
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
@@ -281,14 +286,22 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   // Calculate totals
   const calculateTotals = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
-    const tax = subtotal * TAX_RATE;
     const shipping = deliveryMethod === 'pickup' ? 0 : shippingCost;
+
+    const taxResult = calculateTax({
+      subtotal,
+      shippingState: deliveryMethod === 'pickup' ? 'GA' : shippingAddress.state,
+      isTaxExempt: selectedCustomer?.is_tax_exempt || false,
+      taxExemptReason: selectedCustomer?.tax_exempt_reason || undefined,
+      config: taxConfig,
+    });
+    const tax = taxResult.taxAmount;
     const total = subtotal + tax + shipping;
 
-    return { subtotal, tax, shipping, total };
+    return { subtotal, tax, shipping, total, taxResult };
   };
 
-  const { subtotal, tax, shipping, total } = calculateTotals();
+  const { subtotal, tax, shipping, total, taxResult } = calculateTotals();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -518,6 +531,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         created_by_admin_id: user.id,
         internal_notes: finalInternalNotes || null,
         skip_inventory_check: overrideInventory,
+        tax_rate_applied: taxResult.taxRate,
+        tax_note: taxResult.taxNote,
       };
 
       // Add delivery-specific fields
@@ -1304,7 +1319,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                 <span className="font-medium">{formatCurrency(shipping)}</span>
               </div>
               <div className="flex items-center justify-between text-slate-700">
-                <span>Tax (8%)</span>
+                <span>{taxResult.taxLabel}</span>
                 <span className="font-medium">{formatCurrency(tax)}</span>
               </div>
               <div className="h-px bg-slate-200" />

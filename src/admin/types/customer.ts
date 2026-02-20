@@ -17,6 +17,9 @@ export interface Customer {
   phone: string | null;
   company: string | null;
   role: CustomerRole;
+  is_tax_exempt: boolean;
+  tax_exempt_reason: string | null;
+  tax_exempt_certificate: string | null;
   newsletter_subscribed: boolean;
   sms_opt_in: boolean;
   created_at: string;

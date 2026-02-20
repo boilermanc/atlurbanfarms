@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings, ConfigSetting } from '../hooks/useSettings';
 import { supabase } from '../../lib/supabase';
-import { Building2, ShoppingCart, Package, Bell, Palette, Save, Truck, Upload, Trash2 } from 'lucide-react';
+import { Building2, ShoppingCart, Package, Bell, Palette, Save, Upload, Trash2, Receipt } from 'lucide-react';
 
-type TabType = 'business' | 'shipping' | 'checkout' | 'inventory' | 'notifications' | 'branding';
+type TabType = 'business' | 'checkout' | 'tax' | 'inventory' | 'notifications' | 'branding';
 
 interface TabConfig {
   id: TabType;
@@ -62,13 +62,11 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     social_youtube: { value: '', dataType: 'string' },
     social_tiktok: { value: '', dataType: 'string' },
   },
-  shipping: {
-    weekly_cutoff_day: { value: '0', dataType: 'string' },
-    weekly_cutoff_time: { value: '23:59', dataType: 'string' },
-    timezone: { value: 'America/New_York', dataType: 'string' },
-    default_ship_day: { value: '2', dataType: 'string' },
-    customer_shipping_message: { value: '', dataType: 'string' },
-    admin_shipping_notes: { value: '', dataType: 'string' },
+  tax: {
+    tax_enabled: { value: true, dataType: 'boolean' },
+    default_tax_rate: { value: 0.07, dataType: 'number' },
+    nexus_states: { value: '["GA"]', dataType: 'json' },
+    tax_label: { value: 'Sales Tax', dataType: 'string' },
   },
 };
 
@@ -90,16 +88,6 @@ const ALLOCATION_STRATEGIES = [
 
 // Fonts already loaded via index.html <link> tag
 const PRELOADED_FONTS = ['Inter', 'Plus Jakarta Sans', 'DM Sans', 'Space Grotesk', 'Caveat', 'Patrick Hand'];
-
-const DAYS_OF_WEEK = [
-  { value: '0', label: 'Sunday' },
-  { value: '1', label: 'Monday' },
-  { value: '2', label: 'Tuesday' },
-  { value: '3', label: 'Wednesday' },
-  { value: '4', label: 'Thursday' },
-  { value: '5', label: 'Friday' },
-  { value: '6', label: 'Saturday' },
-];
 
 const US_STATES = [
   { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
@@ -205,8 +193,8 @@ const SettingsPage: React.FC = () => {
 
   const tabs: TabConfig[] = [
     { id: 'business', label: 'Business', icon: <Building2 size={20} /> },
-    { id: 'shipping', label: 'Shipping', icon: <Truck size={20} /> },
     { id: 'checkout', label: 'Checkout', icon: <ShoppingCart size={20} /> },
+    { id: 'tax', label: 'Tax', icon: <Receipt size={20} /> },
     { id: 'inventory', label: 'Inventory', icon: <Package size={20} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} /> },
     { id: 'branding', label: 'Branding', icon: <Palette size={20} /> },
@@ -453,103 +441,6 @@ const SettingsPage: React.FC = () => {
               <option value="US">United States</option>
             </select>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderShippingTab = () => (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-slate-800 mb-1">Weekly Shipping Schedule</h3>
-        <p className="text-sm text-slate-500">Configure your weekly order cutoff and shipping day for batch processing.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left column: Cutoff Day, Cutoff Time, Timezone */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Order Cutoff Day</label>
-            <select
-              value={formData.shipping?.weekly_cutoff_day || '0'}
-              onChange={(e) => updateField('shipping', 'weekly_cutoff_day', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              {DAYS_OF_WEEK.map((day) => (
-                <option key={day.value} value={day.value}>{day.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500">Orders placed after this day will ship the following week</p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Cutoff Time</label>
-            <input
-              type="time"
-              value={formData.shipping?.weekly_cutoff_time || '23:59'}
-              onChange={(e) => updateField('shipping', 'weekly_cutoff_time', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            />
-            <p className="text-xs text-slate-500">Orders must be placed by this time on the cutoff day</p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Timezone</label>
-            <select
-              value={formData.shipping?.timezone || 'America/New_York'}
-              onChange={(e) => updateField('shipping', 'timezone', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              {TIMEZONES.filter(tz => tz.value.startsWith('America/')).map((tz) => (
-                <option key={tz.value} value={tz.value}>{tz.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500">Timezone for cutoff time calculations</p>
-          </div>
-        </div>
-
-        {/* Right column: Typical Ship Day */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Typical Ship Day</label>
-            <select
-              value={formData.shipping?.default_ship_day || '2'}
-              onChange={(e) => updateField('shipping', 'default_ship_day', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              {DAYS_OF_WEEK.map((day) => (
-                <option key={day.value} value={day.value}>{day.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500">The day of the week orders are typically shipped</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Full width: Customer Message and Internal Notes */}
-      <div className="space-y-4 pt-4 border-t border-slate-200">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Customer Message</label>
-          <textarea
-            value={formData.shipping?.customer_shipping_message || ''}
-            onChange={(e) => updateField('shipping', 'customer_shipping_message', e.target.value)}
-            rows={4}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
-            placeholder="Orders placed by Sunday at 11:59 PM ET will ship the following Tuesday. Live plants are shipped with care to ensure they arrive healthy!"
-          />
-          <p className="text-xs text-slate-500">This message is displayed to customers at checkout to explain the shipping schedule</p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700">Internal Notes</label>
-          <textarea
-            value={formData.shipping?.admin_shipping_notes || ''}
-            onChange={(e) => updateField('shipping', 'admin_shipping_notes', e.target.value)}
-            rows={4}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
-            placeholder="Notes for the fulfillment team about shipping procedures, carrier preferences, etc."
-          />
-          <p className="text-xs text-slate-500">Internal notes for the admin/fulfillment team (not shown to customers)</p>
         </div>
       </div>
     </div>
@@ -1149,14 +1040,95 @@ const SettingsPage: React.FC = () => {
     </div>
   );
 
+  const renderTaxTab = () => {
+    // Parse nexus_states for display — stored as JSON array, show as comma-separated
+    const nexusStatesRaw = formData.tax?.nexus_states;
+    const nexusStatesStr = Array.isArray(nexusStatesRaw)
+      ? nexusStatesRaw.join(', ')
+      : typeof nexusStatesRaw === 'string'
+        ? nexusStatesRaw
+        : 'GA';
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200/60">
+          <div>
+            <h4 className="text-slate-800 font-medium">Collect Sales Tax</h4>
+            <p className="text-sm text-slate-500">Enable tax collection on orders shipped to nexus states</p>
+          </div>
+          <button
+            onClick={() => updateField('tax', 'tax_enabled', !formData.tax?.tax_enabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              formData.tax?.tax_enabled ?? true ? 'bg-emerald-500' : 'bg-slate-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                formData.tax?.tax_enabled ?? true ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Tax Rate (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={((formData.tax?.default_tax_rate ?? 0.07) * 100).toFixed(2)}
+              onChange={(e) => updateField('tax', 'default_tax_rate', parseFloat(e.target.value) / 100 || 0)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+            <p className="text-xs text-slate-500">Enter as percentage (e.g. 7 for 7%). Stored as decimal internally.</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Nexus States</label>
+            <input
+              type="text"
+              value={nexusStatesStr}
+              onChange={(e) => {
+                const states = e.target.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+                updateField('tax', 'nexus_states', states);
+              }}
+              placeholder="GA, SC"
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+            <p className="text-xs text-slate-500">Comma-separated state abbreviations where you collect tax (e.g. GA)</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700">Tax Line Label</label>
+            <input
+              type="text"
+              value={formData.tax?.tax_label ?? 'Sales Tax'}
+              onChange={(e) => updateField('tax', 'tax_label', e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+            <p className="text-xs text-slate-500">Label shown to customers on the tax line item</p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-amber-50 rounded-xl border border-amber-200/60">
+          <p className="text-sm text-amber-800">
+            <strong>Tax-exempt customers:</strong> Mark individual customers as tax-exempt from their detail page in the Customers section. Tax-exempt customers will not be charged tax regardless of their shipping state.
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'business':
         return renderBusinessTab();
-      case 'shipping':
-        return renderShippingTab();
       case 'checkout':
         return renderCheckoutTab();
+      case 'tax':
+        return renderTaxTab();
       case 'inventory':
         return renderInventoryTab();
       case 'notifications':

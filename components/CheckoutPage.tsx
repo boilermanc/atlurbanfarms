@@ -29,7 +29,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onComplete }
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shippingCost = shippingMethod === 'standard' ? 8.99 : 14.99;
-  const tax = subtotal * 0.08; // Example 8% tax
+  const isGeorgia = formData.state.toUpperCase().trim() === 'GA';
+  const tax = isGeorgia ? Math.round(subtotal * 0.07 * 100) / 100 : 0;
   const total = subtotal + shippingCost + tax;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,7 +258,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onComplete }
                   <span>${shippingCost.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-gray-500 font-bold text-sm uppercase tracking-widest">
-                  <span>Tax (8%)</span>
+                  <span>{isGeorgia ? 'Tax (7%)' : 'Tax'}</span>
                   <span>${tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-gray-900 pt-6 border-t border-gray-900/10">

@@ -1140,7 +1140,13 @@ export function useCreateOrder() {
     // Customer notes
     customerNotes = null,
     // Growing system
-    growingSystem = null
+    growingSystem = null,
+    // Payment status (for Stripe flow: 'pending' until payment completes)
+    paymentStatus = null,
+    // Tax (pre-calculated by caller via calculateTax utility)
+    tax: preCalculatedTax = null,
+    taxRateApplied = null,
+    taxNote = null
   }) => {
     setLoading(true)
     setError(null)
@@ -1151,8 +1157,8 @@ export function useCreateOrder() {
         (sum, item) => sum + (item.price * item.quantity),
         0
       )
-      const taxRate = 0.08 // 8% tax
-      const tax = subtotal * taxRate
+      // Use pre-calculated tax from caller; fallback to 7% GA rate for backward compat
+      const tax = preCalculatedTax != null ? preCalculatedTax : Math.round(subtotal * 0.07 * 100) / 100
       const total = subtotal + shippingCost + tax - discountAmount
 
       // Prepare order data for RPC
@@ -1198,7 +1204,12 @@ export function useCreateOrder() {
         // Customer notes
         customer_notes: customerNotes,
         // Growing system
-        growing_system: growingSystem
+        growing_system: growingSystem,
+        // Payment status
+        payment_status: paymentStatus || 'pending',
+        // Tax audit
+        tax_rate_applied: taxRateApplied,
+        tax_note: taxNote
       }
 
       // Prepare order items for RPC

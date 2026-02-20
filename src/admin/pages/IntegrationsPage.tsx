@@ -363,9 +363,16 @@ const MOCK_SYNC_LOGS: SyncLog[] = [
 const DEFAULT_INTEGRATION_SETTINGS = {
   // Stripe
   stripe_enabled: { value: false, dataType: 'boolean' as const },
+  stripe_mode: { value: 'test', dataType: 'string' as const },
   stripe_publishable_key: { value: '', dataType: 'string' as const },
+  stripe_publishable_key_live: { value: '', dataType: 'string' as const },
+  stripe_publishable_key_test: { value: '', dataType: 'string' as const },
   stripe_secret_key: { value: '', dataType: 'string' as const },
+  stripe_secret_key_live: { value: '', dataType: 'string' as const },
+  stripe_secret_key_test: { value: '', dataType: 'string' as const },
   stripe_webhook_secret: { value: '', dataType: 'string' as const },
+  stripe_webhook_secret_live: { value: '', dataType: 'string' as const },
+  stripe_webhook_secret_test: { value: '', dataType: 'string' as const },
   stripe_webhook_url: { value: 'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/stripe-webhook', dataType: 'string' as const },
   // ShipEngine (shipping integration)
   shipstation_enabled: { value: false, dataType: 'boolean' as const },
@@ -573,6 +580,22 @@ const IntegrationsPage: React.FC = () => {
         dataType: config.dataType,
       };
     });
+
+    // Resolve active Stripe keys into legacy fields based on current mode
+    const stripeMode = formData.stripe_mode || 'test';
+    const suffix = stripeMode === 'live' ? '_live' : '_test';
+    settingsToSave.stripe_publishable_key = {
+      value: formData[`stripe_publishable_key${suffix}`] || formData.stripe_publishable_key || '',
+      dataType: 'string',
+    };
+    settingsToSave.stripe_secret_key = {
+      value: formData[`stripe_secret_key${suffix}`] || formData.stripe_secret_key || '',
+      dataType: 'string',
+    };
+    settingsToSave.stripe_webhook_secret = {
+      value: formData[`stripe_webhook_secret${suffix}`] || formData.stripe_webhook_secret || '',
+      dataType: 'string',
+    };
 
     console.log('🔵 Saving data:', settingsToSave);
     const success = await bulkUpdate('integrations', settingsToSave);
@@ -786,9 +809,12 @@ const IntegrationsPage: React.FC = () => {
 
   // Calculate health metrics for each integration
   const getIntegrationHealth = (): Record<string, IntegrationHealth> => {
+    const stripeMode = formData.stripe_mode || 'test';
+    const activeStripePk = stripeMode === 'live' ? formData.stripe_publishable_key_live : formData.stripe_publishable_key_test;
+    const activeStripeSk = stripeMode === 'live' ? formData.stripe_secret_key_live : formData.stripe_secret_key_test;
     const stripeStatus = getConnectionStatus(
       formData.stripe_enabled,
-      !!(formData.stripe_publishable_key && formData.stripe_secret_key)
+      !!(activeStripePk && activeStripeSk)
     );
     const activeShipEngineKey = formData.shipengine_mode === 'production'
       ? formData.shipengine_api_key_production
@@ -815,8 +841,8 @@ const IntegrationsPage: React.FC = () => {
         status: getHealthStatus(stripeStatus, 2),
         label: stripeStatus === 'connected' ? 'Connected' : stripeStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
         metrics: [
+          { label: 'Mode', value: stripeMode === 'live' ? 'Live' : 'Test' },
           { label: 'Last Webhook', value: MOCK_STRIPE_WEBHOOKS[0] ? formatTimestamp(MOCK_STRIPE_WEBHOOKS[0].timestamp) : 'Never' },
-          { label: 'Error Rate', value: '2.1%' },
         ],
       },
       shipstation: {
@@ -1006,30 +1032,116 @@ const IntegrationsPage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <SecretInput
-                  label="Publishable Key"
-                  value={formData.stripe_publishable_key || ''}
-                  onChange={(v) => updateField('stripe_publishable_key', v)}
-                  placeholder="pk_live_..."
-                  helpText="Your Stripe publishable key (starts with pk_)"
-                />
-                <SecretInput
-                  label="Secret Key"
-                  value={formData.stripe_secret_key || ''}
-                  onChange={(v) => updateField('stripe_secret_key', v)}
-                  placeholder="sk_live_..."
-                  helpText="Your Stripe secret key (starts with sk_)"
-                />
+              {/* Environment Mode Toggle */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-600">Environment</label>
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+                  <button
+                    type="button"
+                    onClick={() => updateField('stripe_mode', 'test')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      formData.stripe_mode !== 'live'
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Test
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateField('stripe_mode', 'live')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      formData.stripe_mode === 'live'
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Live
+                  </button>
+                </div>
+                {formData.stripe_mode !== 'live' && (
+                  <p className="text-xs text-orange-600 flex items-center gap-1">
+                    <span>&#9888;</span> Test mode — no real charges will be processed. Use Stripe test card numbers.
+                  </p>
+                )}
+                {formData.stripe_mode === 'live' && (
+                  <p className="text-xs text-emerald-600">Live mode — real payments will be processed.</p>
+                )}
               </div>
 
-              <SecretInput
-                label="Webhook Secret"
-                value={formData.stripe_webhook_secret || ''}
-                onChange={(v) => updateField('stripe_webhook_secret', v)}
-                placeholder="whsec_..."
-                helpText="Your Stripe webhook signing secret (starts with whsec_)"
-              />
+              {/* Dual Publishable Key Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`rounded-xl border-2 p-4 transition-colors ${
+                  formData.stripe_mode === 'live'
+                    ? 'border-emerald-300 bg-emerald-50/50'
+                    : 'border-slate-200 bg-white'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    {formData.stripe_mode === 'live' && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                    <span className="text-sm font-medium text-slate-700">Live Keys</span>
+                  </div>
+                  <div className="space-y-4">
+                    <SecretInput
+                      label="Publishable Key"
+                      value={formData.stripe_publishable_key_live || ''}
+                      onChange={(v) => updateField('stripe_publishable_key_live', v)}
+                      placeholder="pk_live_..."
+                      helpText="Starts with pk_live_"
+                    />
+                    <SecretInput
+                      label="Secret Key"
+                      value={formData.stripe_secret_key_live || ''}
+                      onChange={(v) => updateField('stripe_secret_key_live', v)}
+                      placeholder="sk_live_..."
+                      helpText="Starts with sk_live_"
+                    />
+                    <SecretInput
+                      label="Webhook Secret"
+                      value={formData.stripe_webhook_secret_live || ''}
+                      onChange={(v) => updateField('stripe_webhook_secret_live', v)}
+                      placeholder="whsec_..."
+                      helpText="From your live webhook endpoint in Stripe Dashboard"
+                    />
+                  </div>
+                </div>
+                <div className={`rounded-xl border-2 p-4 transition-colors ${
+                  formData.stripe_mode !== 'live'
+                    ? 'border-orange-300 bg-orange-50/50'
+                    : 'border-slate-200 bg-white'
+                }`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    {formData.stripe_mode !== 'live' && (
+                      <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                    )}
+                    <span className="text-sm font-medium text-slate-700">Test Keys</span>
+                  </div>
+                  <div className="space-y-4">
+                    <SecretInput
+                      label="Publishable Key"
+                      value={formData.stripe_publishable_key_test || ''}
+                      onChange={(v) => updateField('stripe_publishable_key_test', v)}
+                      placeholder="pk_test_..."
+                      helpText="Starts with pk_test_"
+                    />
+                    <SecretInput
+                      label="Secret Key"
+                      value={formData.stripe_secret_key_test || ''}
+                      onChange={(v) => updateField('stripe_secret_key_test', v)}
+                      placeholder="sk_test_..."
+                      helpText="Starts with sk_test_"
+                    />
+                    <SecretInput
+                      label="Webhook Secret"
+                      value={formData.stripe_webhook_secret_test || ''}
+                      onChange={(v) => updateField('stripe_webhook_secret_test', v)}
+                      placeholder="whsec_..."
+                      helpText="From your test webhook endpoint in Stripe Dashboard"
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Webhook URL */}
               <div className="space-y-2">
@@ -1050,14 +1162,14 @@ const IntegrationsPage: React.FC = () => {
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">Configure this URL in your Stripe Dashboard under Webhooks. Use your Supabase Edge Function URL.</p>
+                <p className="text-xs text-slate-500">Configure this URL in your Stripe Dashboard under Webhooks. You'll need separate webhook endpoints for test and live mode in Stripe.</p>
               </div>
 
               {/* Test Connection Button */}
               <div className="flex gap-3">
                 <button
                   onClick={() => testConnection('Stripe')}
-                  disabled={testingConnection === 'Stripe' || !formData.stripe_secret_key}
+                  disabled={testingConnection === 'Stripe' || !(formData.stripe_mode === 'live' ? formData.stripe_secret_key_live : formData.stripe_secret_key_test)}
                   className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {testingConnection === 'Stripe' ? (

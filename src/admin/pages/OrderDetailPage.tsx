@@ -1268,7 +1268,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   <span>{formatCurrency(order.shipping_cost)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
-                  <span>Tax</span>
+                  <span>{order.tax_note ? `Tax (${order.tax_note})` : 'Tax'}</span>
                   <span>{formatCurrency(order.tax)}</span>
                 </div>
                 <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
