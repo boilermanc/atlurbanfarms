@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import RichTextEditor from '../components/RichTextEditor';
 import { supabase } from '../../lib/supabase';
+import { useGrowingSystems } from '../hooks/useGrowingSystems';
 import {
   Home, Info, GraduationCap, HelpCircle, Calendar,
   Save, Upload, Trash2, Image, Type, Hash, FileText,
@@ -84,27 +85,27 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'subheading', label: 'Subheading', type: 'text' },
         { key: 'review_1_name', label: 'Review 1 - Customer Name', type: 'text' },
         { key: 'review_1_image', label: 'Review 1 - Photo (optional)', type: 'image_url' },
-        { key: 'review_1_growing_system', label: 'Review 1 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_1_growing_system', label: 'Review 1 - Growing System', type: 'select' },
         { key: 'review_1_text', label: 'Review 1 - Review', type: 'rich_text' },
         { key: 'review_2_name', label: 'Review 2 - Customer Name', type: 'text' },
         { key: 'review_2_image', label: 'Review 2 - Photo (optional)', type: 'image_url' },
-        { key: 'review_2_growing_system', label: 'Review 2 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_2_growing_system', label: 'Review 2 - Growing System', type: 'select' },
         { key: 'review_2_text', label: 'Review 2 - Review', type: 'rich_text' },
         { key: 'review_3_name', label: 'Review 3 - Customer Name', type: 'text' },
         { key: 'review_3_image', label: 'Review 3 - Photo (optional)', type: 'image_url' },
-        { key: 'review_3_growing_system', label: 'Review 3 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_3_growing_system', label: 'Review 3 - Growing System', type: 'select' },
         { key: 'review_3_text', label: 'Review 3 - Review', type: 'rich_text' },
         { key: 'review_4_name', label: 'Review 4 - Customer Name', type: 'text' },
         { key: 'review_4_image', label: 'Review 4 - Photo (optional)', type: 'image_url' },
-        { key: 'review_4_growing_system', label: 'Review 4 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_4_growing_system', label: 'Review 4 - Growing System', type: 'select' },
         { key: 'review_4_text', label: 'Review 4 - Review', type: 'rich_text' },
         { key: 'review_5_name', label: 'Review 5 - Customer Name', type: 'text' },
         { key: 'review_5_image', label: 'Review 5 - Photo (optional)', type: 'image_url' },
-        { key: 'review_5_growing_system', label: 'Review 5 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_5_growing_system', label: 'Review 5 - Growing System', type: 'select' },
         { key: 'review_5_text', label: 'Review 5 - Review', type: 'rich_text' },
         { key: 'review_6_name', label: 'Review 6 - Customer Name', type: 'text' },
         { key: 'review_6_image', label: 'Review 6 - Photo (optional)', type: 'image_url' },
-        { key: 'review_6_growing_system', label: 'Review 6 - Growing System', type: 'select', options: ['', 'Tower Garden', 'Aerospring', 'Lettuce Grow', 'Gardyn', 'DIY', 'Other'] },
+        { key: 'review_6_growing_system', label: 'Review 6 - Growing System', type: 'select' },
         { key: 'review_6_text', label: 'Review 6 - Review', type: 'rich_text' },
       ],
     },
@@ -426,6 +427,7 @@ const SiteContentPage: React.FC = () => {
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const [currentVideoUploadKey, setCurrentVideoUploadKey] = useState<{ page: string; section: string; key: string } | null>(null);
   const [uploadingVideo, setUploadingVideo] = useState<string | null>(null);
+  const { systems: growingSystems } = useGrowingSystems();
 
   // Fetch all site content (showLoading=false for silent refetch after save)
   const fetchContent = useCallback(async (showLoading = true) => {
@@ -675,7 +677,13 @@ const SiteContentPage: React.FC = () => {
     const fieldKey = `${page}-${section}-${field.key}`;
     const isUploading = uploadingImage === fieldKey;
 
-    if (field.type === 'select' && field.options) {
+    if (field.type === 'select') {
+      // Use dynamic growing systems for growing_system fields, static options otherwise
+      const isGrowingSystemField = field.key.endsWith('_growing_system');
+      const options = isGrowingSystemField
+        ? ['', ...growingSystems.filter(s => s.is_active).map(s => s.name)]
+        : field.options || [];
+
       return (
         <div key={fieldKey} className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -683,12 +691,12 @@ const SiteContentPage: React.FC = () => {
             {field.label}
           </label>
           <select
-            value={value || field.options[0]}
+            value={value || options[0]}
             onChange={(e) => updateField(page, section, field.key, e.target.value)}
             className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all capitalize"
           >
-            {field.options.map((opt) => (
-              <option key={opt || '__none__'} value={opt} className="capitalize">{opt ? opt.charAt(0).toUpperCase() + opt.slice(1) : '(None)'}</option>
+            {options.map((opt) => (
+              <option key={opt || '__none__'} value={opt} className="capitalize">{opt ? opt.charAt(0).toUpperCase() + opt.slice(1) : isGrowingSystemField ? 'Select Growing System' : '(None)'}</option>
             ))}
           </select>
         </div>
@@ -971,7 +979,41 @@ const SiteContentPage: React.FC = () => {
                 className="overflow-hidden"
               >
                 <div className="p-4 space-y-4 bg-white">
-                  {sectionData.keys.map((field) => renderField(page, sectionKey, field))}
+                  {sectionKey === 'reviews' ? (() => {
+                    // Separate heading/subheading fields from individual review fields
+                    const sectionFields = sectionData.keys.filter(f => !f.key.startsWith('review_'));
+                    const reviewFields = sectionData.keys.filter(f => f.key.startsWith('review_'));
+                    // Group by review number (review_1_*, review_2_*, etc.)
+                    const reviewGroups: Record<string, typeof reviewFields> = {};
+                    reviewFields.forEach(f => {
+                      const match = f.key.match(/^review_(\d+)_/);
+                      if (match) {
+                        const num = match[1];
+                        if (!reviewGroups[num]) reviewGroups[num] = [];
+                        reviewGroups[num].push(f);
+                      }
+                    });
+                    return (
+                      <>
+                        {sectionFields.map((field) => renderField(page, sectionKey, field))}
+                        <div className="space-y-5 mt-2">
+                          {Object.entries(reviewGroups).map(([num, fields], idx) => (
+                            <div
+                              key={num}
+                              className={`rounded-xl border border-slate-200 shadow-sm overflow-hidden ${idx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}`}
+                            >
+                              <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-100/60">
+                                <h4 className="text-sm font-semibold text-slate-600">Review #{num}</h4>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {fields.map((field) => renderField(page, sectionKey, field))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })() : sectionData.keys.map((field) => renderField(page, sectionKey, field))}
                 </div>
               </motion.div>
             )}

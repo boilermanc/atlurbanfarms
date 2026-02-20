@@ -137,9 +137,9 @@ const HealthCard = memo<{
         </div>
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-2 mt-3">
+    <div className="flex flex-col gap-1 mt-3">
       {health.metrics.map((metric, idx) => (
-        <div key={idx} className="text-xs">
+        <div key={idx} className="text-xs truncate">
           <span className="text-slate-500">{metric.label}:</span>
           <span className="text-slate-700 ml-1">{metric.value}</span>
         </div>
@@ -1862,14 +1862,12 @@ const IntegrationsPage: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setTestModal(null)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
               <div className={`px-6 py-4 flex items-center justify-between ${

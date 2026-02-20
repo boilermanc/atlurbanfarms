@@ -42,21 +42,15 @@ serve(async (req) => {
       'gemini_api_key'
     ])
 
-    if (!settings.gemini_enabled) {
+    if (!settings.gemini_enabled || !settings.gemini_api_key) {
       return new Response(
-        JSON.stringify({ error: 'Sage is currently unavailable', response: "I'm taking a little break right now. Please try again later! 🌱" }),
+        JSON.stringify({
+          error: 'Sage is not configured',
+          response: "Sage is coming soon! 🌱 In the meantime, check our FAQ above or email us at support@atlurbanfarms.com — we're happy to help!",
+          disabled: true
+        }),
         {
           status: 200, // Return 200 with error message for graceful handling
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    if (!settings.gemini_api_key) {
-      return new Response(
-        JSON.stringify({ error: 'Sage is not configured', response: "I'm still being set up. Please check back soon! 🌿" }),
-        {
-          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
@@ -132,7 +126,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: error.message,
-        response: "Sage is currently resting in the nursery. Please try again in a moment! ✨"
+        response: "Oops, Sage ran into an issue! Please try again, or email us at support@atlurbanfarms.com for help. 🌿"
       }),
       {
         status: 200, // Return 200 with fallback message

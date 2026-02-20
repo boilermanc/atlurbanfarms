@@ -168,6 +168,7 @@ export function useEmailService() {
 export function useSageChat() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [disabled, setDisabled] = useState(false)
 
   const sendMessage = useCallback(async (
     history: Array<{ role: 'user' | 'model'; text: string }>,
@@ -186,6 +187,10 @@ export function useSageChat() {
         throw new Error(invokeError.message)
       }
 
+      if (data.disabled) {
+        setDisabled(true)
+      }
+
       if (data.error && !data.response) {
         setError(data.error)
         throw new Error(data.error)
@@ -195,11 +200,11 @@ export function useSageChat() {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to get response'
       setError(errorMessage)
-      return "Sage is currently resting in the nursery. Please try again in a moment! ✨"
+      return "Oops, Sage ran into an issue! Please try again, or email us at support@atlurbanfarms.com for help. 🌿"
     } finally {
       setLoading(false)
     }
   }, [])
 
-  return { sendMessage, loading, error }
+  return { sendMessage, loading, error, disabled }
 }

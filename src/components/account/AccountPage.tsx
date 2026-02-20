@@ -98,7 +98,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
         return <SettingsTab userEmail={user.email || ''} />;
       case 'profile':
       default:
-        return <ProfileSettings userId={user.id} userEmail={user.email || ''} />;
+        return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => setActiveTab('settings')} />;
     }
   };
 

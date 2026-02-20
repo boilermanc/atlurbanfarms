@@ -52,9 +52,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
   onRequireLogin,
 }) => {
   const isExternal = productType === 'external' && !!externalUrl;
-  // Product is on sale when compare_at_price exists and is greater than current price
-  const isOnSale = typeof compareAtPrice === 'number' && compareAtPrice > price;
-  const percentOff = isOnSale ? Math.round((1 - price / compareAtPrice!) * 100) : 0;
+  // Product is on sale when compare_at_price exists and differs from price
+  // Handles both conventions: compare_at_price as original OR as sale price
+  const numPrice = Number(price) || 0;
+  const numCompareAt = compareAtPrice != null ? Number(compareAtPrice) : null;
+  const isOnSale = numCompareAt != null && numCompareAt > 0 && numPrice > 0 && numCompareAt !== numPrice;
+  const regularPrice = isOnSale ? Math.max(numPrice, numCompareAt!) : numPrice;
+  const salePrice = isOnSale ? Math.min(numPrice, numCompareAt!) : numPrice;
+  const percentOff = isOnSale ? Math.round((1 - salePrice / regularPrice) * 100) : 0;
   const [quantity, setQuantity] = useState(1);
 
   // Back-in-stock notification state
@@ -188,15 +193,15 @@ const ProductCard: React.FC<ProductCardProps> = ({
             {isOnSale ? (
               <>
                 <span className="text-xl font-semibold text-gray-400 line-through tracking-tight">
-                  ${compareAtPrice!.toFixed(2)}
+                  ${regularPrice.toFixed(2)}
                 </span>
                 <span className="text-xl font-black text-red-500">
-                  ${price.toFixed(2)}
+                  ${salePrice.toFixed(2)}
                 </span>
               </>
             ) : (
               <span className="text-xl font-black brand-text">
-                ${price.toFixed(2)}
+                ${numPrice.toFixed(2)}
               </span>
             )}
           </div>

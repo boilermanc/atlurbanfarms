@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../types';
 import { useAutoApplyPromotion } from '../src/hooks/usePromotions';
+import { useSetting } from '../src/admin/hooks/useSettings';
 import { supabase } from '../src/lib/supabase';
 
 interface CartDrawerProps {
@@ -16,6 +17,7 @@ interface CartDrawerProps {
 
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemove, onUpdateQuantity, onCheckout }) => {
   const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const { value: customerShippingMessage } = useSetting('shipping', 'customer_shipping_message');
 
   // Check for automatic promotions
   const { discount: autoDiscount } = useAutoApplyPromotion(items);
@@ -159,7 +161,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" x2="15" y1="12" y2="12"/><polyline points="12 19 19 12 12 5"/></svg>
                 </button>
                 <p className="text-[10px] text-gray-400 text-center font-medium">
-                  We only ship Mon-Wed to keep plants fresh 🌿
+                  {customerShippingMessage || 'We only ship Mon-Wed to keep plants fresh 🌿'}
                 </p>
               </div>
             )}

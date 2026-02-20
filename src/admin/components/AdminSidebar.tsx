@@ -26,6 +26,7 @@ import {
   Globe,
   UsersRound,
   Newspaper,
+  Sprout,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -79,6 +80,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'blog', label: 'Blog', icon: Newspaper },
       { id: 'product-tags', label: 'Product Tags', icon: Tag },
       { id: 'customer-tags', label: 'Customer Tags', icon: Users },
+      { id: 'growing-systems', label: 'Growing Systems', icon: Sprout },
       { id: 'attribution', label: 'Attribution', icon: Megaphone },
     ],
   },

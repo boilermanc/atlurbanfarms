@@ -139,6 +139,13 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
     },
   });
 
+  // Sync external value changes into the editor (e.g., when editing an existing FAQ)
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value);
+    }
+  }, [editor, value]);
+
   // Position color picker and close on outside click
   useEffect(() => {
     if (!showColorPicker) return;

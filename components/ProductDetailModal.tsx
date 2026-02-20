@@ -176,9 +176,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
-  // Sale pricing logic
-  const isOnSale = typeof product.compare_at_price === 'number' && product.compare_at_price > product.price;
-  const percentOff = isOnSale ? Math.round((1 - product.price / product.compare_at_price!) * 100) : 0;
+  // Sale pricing logic - handles both conventions (compare_at_price as original OR as sale price)
+  const numPrice = Number(product.price) || 0;
+  const numCompareAt = product.compare_at_price != null ? Number(product.compare_at_price) : null;
+  const isOnSale = numCompareAt != null && numCompareAt > 0 && numPrice > 0 && numCompareAt !== numPrice;
+  const regularPrice = isOnSale ? Math.max(numPrice, numCompareAt!) : numPrice;
+  const salePrice = isOnSale ? Math.min(numPrice, numCompareAt!) : numPrice;
+  const percentOff = isOnSale ? Math.round((1 - salePrice / regularPrice) * 100) : 0;
 
   const handleAddToCart = () => {
     onAddToCart(quantity);
@@ -345,15 +349,15 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                         {isOnSale ? (
                           <div className="flex items-center gap-3">
                             <span className="text-xl font-semibold text-gray-400 line-through">
-                              ${product.compare_at_price!.toFixed(2)}
+                              ${regularPrice.toFixed(2)}
                             </span>
                             <span className="text-3xl font-black text-red-500">
-                              ${product.price.toFixed(2)}
+                              ${salePrice.toFixed(2)}
                             </span>
                           </div>
                         ) : (
                           <span className="text-3xl font-black text-emerald-600">
-                            ${product.price.toFixed(2)}
+                            ${numPrice.toFixed(2)}
                           </span>
                         )}
                         {inStock && (

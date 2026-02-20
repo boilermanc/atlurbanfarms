@@ -44,6 +44,7 @@ export { default as SiteContentPage } from './pages/SiteContentPage';
 export { default as GrowersPage } from './pages/GrowersPage';
 export { default as BlogListPage } from './pages/BlogListPage';
 export { default as BlogEditPage } from './pages/BlogEditPage';
+export { default as GrowingSystemsPage } from './pages/GrowingSystemsPage';
 
 // Admin User Components
 export { default as InviteAdminModal } from './components/InviteAdminModal';
@@ -52,6 +53,8 @@ export { default as RolePermissionsModal } from './components/RolePermissionsMod
 
 // Admin Hooks
 export { useAdminAuth } from './hooks/useAdminAuth';
+export { useGrowingSystems } from './hooks/useGrowingSystems';
+export type { GrowingSystem } from './hooks/useGrowingSystems';
 export {
   useOrders,
   useOrder,

@@ -62,6 +62,7 @@ const GrowersPage = lazy(() => import('../pages/GrowersPage'));
 const SproutifyCreditsPage = lazy(() => import('../pages/SproutifyCreditsPage'));
 const BlogListPage = lazy(() => import('../pages/BlogListPage'));
 const BlogEditPage = lazy(() => import('../pages/BlogEditPage'));
+const GrowingSystemsPage = lazy(() => import('../pages/GrowingSystemsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -117,6 +118,7 @@ const PAGE_TITLES: Record<string, string> = {
   'sproutify-credits': 'Sproutify Credits',
   'blog': 'Blog',
   'blog-edit': 'Edit Blog Post',
+  'growing-systems': 'Growing Systems',
 };
 
 // Dashboard Stats Interface
@@ -865,6 +867,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <SproutifyCreditsPage />;
       case 'blog':
         return <BlogListPage onEditPost={handleEditBlogPost} onCreatePost={handleCreateBlogPost} />;
+      case 'growing-systems':
+        return <GrowingSystemsPage />;
       case 'blog-edit':
         return (
           <BlogEditPage

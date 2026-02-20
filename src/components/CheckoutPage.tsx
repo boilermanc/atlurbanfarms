@@ -13,7 +13,9 @@ import { useTaxConfig } from '../hooks/useTaxConfig';
 import { useAutoApplyPromotion, useRecordPromotionUsage } from '../hooks/usePromotions';
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
+import AddressAutocomplete, { ParsedAddress } from './ui/AddressAutocomplete';
 import { supabase } from '../lib/supabase';
+import { useGrowingSystems } from '../admin/hooks/useGrowingSystems';
 
 type DeliveryMethod = 'shipping' | 'pickup';
 
@@ -146,7 +148,7 @@ const US_STATES = [
   { name: 'Wyoming', abbreviation: 'WY' },
 ];
 
-const GROWING_SYSTEMS = [
+const GROWING_SYSTEMS_FALLBACK = [
   'Tower Garden',
   'Aerospring',
   'Lettuce Grow',
@@ -200,16 +202,21 @@ function getNextShipDate(cutoffDay: number, cutoffTime: string, shipDay: number)
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete }) => {
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
-  const { profile } = useCustomerProfile(user?.id);
-  const { addresses } = useAddresses(user?.id);
+  const { profile, loading: profileLoading } = useCustomerProfile(user?.id);
+  const { addresses, loading: addressesLoading } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
   const { value: shipEngineEnabled } = useSetting('integrations', 'shipstation_enabled');
   const { value: defaultShipDay } = useSetting('shipping', 'default_ship_day');
   const { value: weeklyCutoffDay } = useSetting('shipping', 'weekly_cutoff_day');
   const { value: weeklyCutoffTime } = useSetting('shipping', 'weekly_cutoff_time');
+  const { value: customerShippingMessage } = useSetting('shipping', 'customer_shipping_message');
   const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
   const { taxConfig } = useTaxConfig();
+  const { systems: growingSystems } = useGrowingSystems();
+  const growingSystemOptions = growingSystems.length > 0
+    ? growingSystems.filter(s => s.is_active).map(s => s.name)
+    : GROWING_SYSTEMS_FALLBACK;
 
   // Sproutify seedling credit
   const { hasCredit, creditAmount, isLifetime, redeemCredit, loading: creditLoading } = useSeedlingCredit(
@@ -316,39 +323,39 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   }, [shippingRates, selectedShippingRate]);
 
   // Pre-fill form with user data when logged in (only once)
+  // Wait for profile and addresses to finish loading to avoid race condition
+  // where email triggers pre-fill before phone/name data arrives
   useEffect(() => {
     if (!user || hasPrefilledForm) return;
+    if (profileLoading || addressesLoading) return;
 
     const defaultAddress = addresses?.find((addr: any) => addr.is_default) || addresses?.[0];
 
-    // Only pre-fill if we have user data loaded
-    if (user.email || profile || defaultAddress) {
-      // Mark the default address as selected in the UI
-      if (defaultAddress) {
-        setSelectedAddressId(defaultAddress.id);
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        // Email from auth user
-        email: user.email || prev.email,
-        // Name and phone from profile or address
-        firstName: profile?.first_name || defaultAddress?.first_name || prev.firstName,
-        lastName: profile?.last_name || defaultAddress?.last_name || prev.lastName,
-        phone: profile?.phone || defaultAddress?.phone || prev.phone,
-        // Company from default address
-        company: defaultAddress?.company || prev.company,
-        // Address from default address
-        address1: defaultAddress?.street || prev.address1,
-        address2: defaultAddress?.unit || prev.address2,
-        city: defaultAddress?.city || prev.city,
-        state: defaultAddress?.state || prev.state,
-        zip: defaultAddress?.zip || prev.zip,
-      }));
-
-      setHasPrefilledForm(true);
+    // Mark the default address as selected in the UI
+    if (defaultAddress) {
+      setSelectedAddressId(defaultAddress.id);
     }
-  }, [user, profile, addresses, hasPrefilledForm]);
+
+    setFormData(prev => ({
+      ...prev,
+      // Email from auth user
+      email: user.email || prev.email,
+      // Name and phone from profile or address
+      firstName: profile?.first_name || defaultAddress?.first_name || prev.firstName,
+      lastName: profile?.last_name || defaultAddress?.last_name || prev.lastName,
+      phone: profile?.phone || defaultAddress?.phone || prev.phone,
+      // Company from default address
+      company: defaultAddress?.company || prev.company,
+      // Address from default address
+      address1: defaultAddress?.street || prev.address1,
+      address2: defaultAddress?.unit || prev.address2,
+      city: defaultAddress?.city || prev.city,
+      state: defaultAddress?.state || prev.state,
+      zip: defaultAddress?.zip || prev.zip,
+    }));
+
+    setHasPrefilledForm(true);
+  }, [user, profile, addresses, hasPrefilledForm, profileLoading, addressesLoading]);
 
   // Shipping cost is 0 for pickup, otherwise use selected rate
   const shippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
@@ -471,21 +478,87 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   }, [formErrors, clearValidation, clearRates]);
 
-  // Auto-validate address when ZIP field loses focus and all required fields are filled
-  const handleZipBlur = useCallback(() => {
+  // Auto-fetch shipping rates when ZIP field loses focus and all required fields are filled
+  const handleZipBlur = useCallback(async () => {
     if (
       shipEngineEnabled &&
       !addressValidated &&
-      !validatingAddress &&
       formData.address1.trim() &&
       formData.city.trim() &&
       formData.state.trim() &&
       formData.zip.trim() &&
       /^\d{5}(-\d{4})?$/.test(formData.zip.trim())
     ) {
-      handleValidateAddress();
+      const address: ShippingAddress = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        phone: formData.phone,
+        address_line1: formData.address1,
+        address_line2: formData.address2 || undefined,
+        city_locality: formData.city,
+        state_province: formData.state,
+        postal_code: formData.zip,
+        country_code: 'US',
+      };
+      setAddressValidated(true);
+      const orderItems = items.map(item => ({
+        quantity: item.quantity,
+        weight_per_item: 0.5,
+      }));
+      await fetchRates(address, orderItems);
     }
-  }, [shipEngineEnabled, addressValidated, validatingAddress, formData.address1, formData.city, formData.state, formData.zip, handleValidateAddress]);
+  }, [shipEngineEnabled, addressValidated, formData, items, fetchRates]);
+
+  // Handle address selected from autocomplete
+  const handleAutocompleteSelect = useCallback(async (parsed: ParsedAddress) => {
+    setFormData(prev => ({
+      ...prev,
+      address1: parsed.address_line1,
+      city: parsed.city,
+      state: parsed.state,
+      zip: parsed.zip,
+    }));
+
+    // Clear validation state
+    setAddressValidated(false);
+    setAddressWarningAcknowledged(false);
+    clearValidation();
+    clearRates();
+    setSelectedShippingRate(null);
+    setShowAddressSuggestion(false);
+
+    // Clear address-related form errors
+    setFormErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors.address1;
+      delete newErrors.city;
+      delete newErrors.state;
+      delete newErrors.zip;
+      return newErrors;
+    });
+
+    // Auto-fetch shipping rates if ShipEngine enabled and all fields present
+    if (shipEngineEnabled && parsed.address_line1 && parsed.city && parsed.state && parsed.zip) {
+      const address: ShippingAddress = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        phone: formData.phone,
+        address_line1: parsed.address_line1,
+        address_line2: formData.address2 || undefined,
+        city_locality: parsed.city,
+        state_province: parsed.state,
+        postal_code: parsed.zip,
+        country_code: 'US',
+      };
+
+      // Mark as validated (autocomplete provides verified addresses)
+      setAddressValidated(true);
+
+      const orderItems = items.map(item => ({
+        quantity: item.quantity,
+        weight_per_item: 0.5,
+      }));
+      await fetchRates(address, orderItems);
+    }
+  }, [formData.firstName, formData.lastName, formData.phone, formData.address2, shipEngineEnabled, items, clearValidation, clearRates, fetchRates]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name } = e.target;
@@ -544,7 +617,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       return newErrors;
     });
 
-    // Auto-validate the selected saved address if ShipEngine is enabled
+    // Auto-fetch shipping rates for saved address
     if (shipEngineEnabled && address.street && address.city && address.state && address.zip) {
       const shippingAddress: ShippingAddress = {
         name: `${address.first_name || ''} ${address.last_name || ''}`.trim(),
@@ -557,17 +630,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         country_code: 'US'
       };
 
-      const result = await validateAddress(shippingAddress);
-      if (result && (result.status === 'verified' || result.status === 'warning')) {
-        setAddressValidated(true);
-        const rateAddress = result.matched_address || shippingAddress;
-        // Convert cart items to order_items format for package calculation
-        const orderItems = items.map(item => ({
-          quantity: item.quantity,
-          weight_per_item: 0.5 // Default weight per seedling in pounds
-        }));
-        await fetchRates(rateAddress, orderItems);
-      }
+      setAddressValidated(true);
+      const orderItems = items.map(item => ({
+        quantity: item.quantity,
+        weight_per_item: 0.5,
+      }));
+      await fetchRates(shippingAddress, orderItems);
     }
   };
 
@@ -670,13 +738,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       // Check if zone is blocked
       if (isZoneBlocked) {
         setOrderError('We cannot ship to this location. Please use a different shipping address.');
-        return;
-      }
-
-      // If address not validated and warning not acknowledged, show soft warning
-      if (shipEngineEnabled && !addressValidated && !addressWarningAcknowledged) {
-        setOrderError('Your address has not been verified. Click "Place Order" again to proceed anyway, or validate your address first.');
-        setAddressWarningAcknowledged(true);
         return;
       }
 
@@ -1028,7 +1089,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   };
 
   const getInputClassName = (fieldName: string) => {
-    const baseClass = "w-full px-6 py-4 bg-gray-50 border rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all";
+    const baseClass = "w-full px-6 py-4 bg-gray-50 border rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all placeholder:text-gray-300";
     const errorClass = formErrors[fieldName] && submitAttempted
       ? "border-red-300 bg-red-50/50"
       : "border-gray-100";
@@ -1484,17 +1545,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   />
                 </div>
 
-                {/* Address Line 1 */}
+                {/* Address Line 1 - Autocomplete */}
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400">
                     Address <span className="text-red-400">*</span>
                   </label>
-                  <input
-                    name="address1"
+                  <AddressAutocomplete
                     value={formData.address1}
-                    onChange={handleInputChange}
-                    type="text"
-                    placeholder="123 Main Street"
+                    onChange={(value) => {
+                      handleAddressChange({ target: { name: 'address1', value } } as React.ChangeEvent<HTMLInputElement>);
+                    }}
+                    onAddressSelect={handleAutocompleteSelect}
+                    placeholder="Start typing your address..."
                     className={getInputClassName('address1')}
                   />
                   {formErrors.address1 && submitAttempted && (
@@ -1595,122 +1657,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <p className="text-xs text-gray-400">Currently shipping within the United States only</p>
                 </div>
 
-                {/* Address Validation Section - Only show when ShipEngine is enabled */}
-                {shipEngineEnabled && (
-                  <div className="space-y-4 pt-4">
-                    {/* Validate Address Button */}
-                    <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={handleValidateAddress}
-                        disabled={validatingAddress || !formData.address1 || !formData.city || !formData.state || !formData.zip}
-                        className={`px-6 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
-                          addressValidated
-                            ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-200'
-                            : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed'
-                        }`}
-                      >
-                        {validatingAddress ? (
-                          <>
-                            <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Validating...
-                          </>
-                        ) : addressValidated ? (
-                          <>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                            Address Verified
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            Validate Address
-                          </>
-                        )}
-                      </button>
-
-                      {/* Validation Status Indicator */}
-                      {validationResult && !validatingAddress && (
-                        <div className={`flex items-center gap-2 text-sm font-medium ${
-                          validationResult.status === 'verified' ? 'text-emerald-600' :
-                          validationResult.status === 'warning' ? 'text-amber-600' :
-                          'text-red-600'
-                        }`}>
-                          {validationResult.status === 'verified' && (
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          {validationResult.status === 'warning' && (
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          {(validationResult.status === 'error' || validationResult.status === 'unverified') && (
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          <span>
-                            {validationResult.status === 'verified' && 'Verified'}
-                            {validationResult.status === 'warning' && 'Verified with warnings'}
-                            {validationResult.status === 'unverified' && 'Could not verify'}
-                            {validationResult.status === 'error' && 'Invalid address'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Validation Error */}
-                    {validationError && (
-                      <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-                        {validationError}
-                      </div>
-                    )}
-
-                    {/* Validation Messages */}
-                    {validationResult?.messages && validationResult.messages.length > 0 && (
-                      <div className={`p-4 rounded-xl text-sm ${
-                        validationResult.status === 'verified' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' :
-                        validationResult.status === 'warning' ? 'bg-amber-50 border border-amber-200 text-amber-700' :
-                        'bg-red-50 border border-red-200 text-red-700'
-                      }`}>
-                        <ul className="list-disc list-inside space-y-1">
-                          {validationResult.messages.map((msg, i) => (
-                            <li key={i}>{msg}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Address Suggestion - handled by modal below */}
-
-                    {/* Unverified address soft warning - allows checkout to proceed */}
-                    {validationResult && !validatingAddress &&
-                      (validationResult.status === 'unverified' || validationResult.status === 'error') && (
-                      <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
-                        <div className="flex items-start gap-3">
-                          <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                          <div>
-                            <p className="text-sm font-bold text-amber-800">Address could not be verified</p>
-                            <p className="text-sm text-amber-700 mt-1">
-                              Please double-check your address. You can still proceed with checkout, but delivery issues may occur with an unverified address.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Save Address Checkbox - only show for logged in users */}
                 {user && (
                   <div className="flex items-center gap-3 pt-4">
@@ -1720,7 +1666,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${
                         saveAddress
                           ? 'bg-emerald-600 border-emerald-600'
-                          : 'border-gray-300 hover:border-emerald-400'
+                          : 'border-gray-800 hover:border-emerald-400'
                       }`}
                     >
                       {saveAddress && (
@@ -1767,7 +1713,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                           <p className="text-sm font-medium">
-                            Please validate your shipping address above to see available shipping options.
+                            Please enter your shipping address above to see available shipping options.
                           </p>
                         </div>
                       </div>
@@ -2001,7 +1947,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 )}
 
                 <p className="text-[10px] text-gray-400 italic bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  {SHIPPING_NOTICE}
+                  {customerShippingMessage || SHIPPING_NOTICE}
                 </p>
               </motion.section>
               )}
@@ -2019,7 +1965,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Growing System</h3>
                 </div>
-                <p className="text-sm text-gray-500">What growing system will you be using with your seedlings?</p>
+                <p className="text-sm text-gray-500">To help us support you better, what growing system are you using?</p>
                 <select
                   value={growingSystem}
                   onChange={(e) => {
@@ -2031,7 +1977,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   }`}
                 >
                   <option value="">Select your growing system...</option>
-                  {GROWING_SYSTEMS.map((system) => (
+                  {growingSystemOptions.map((system) => (
                     <option key={system} value={system}>{system}</option>
                   ))}
                 </select>
@@ -2081,10 +2027,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     id="customer-notes"
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
-                    placeholder="e.g., Leave at back door, extra packaging for fragile plants, gift order..."
+                    placeholder="Add a note (optional)"
                     rows={3}
                     maxLength={500}
-                    className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-300/40 focus:border-amber-400 resize-none text-sm transition-all"
+                    className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-300/40 focus:border-amber-400 resize-none text-sm transition-all"
                   />
                   <p className="text-xs text-amber-500 mt-1.5 text-right">{customerNotes.length}/500</p>
                 </div>
@@ -2241,12 +2187,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                             </svg>
                           </div>
                         )}
-                        <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
-                          {item.quantity}
-                        </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-900 text-sm truncate">{item.name}</h4>
+                        <h4 className="font-bold text-gray-900 text-sm truncate">{item.name} ({item.quantity})</h4>
                         <p className="text-xs text-gray-400 font-medium">{item.category || 'Plant'}</p>
                         <p className="text-sm font-black text-emerald-600 mt-0.5">
                           ${(item.price * item.quantity).toFixed(2)}
@@ -2270,7 +2213,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       ) : shippingCost > 0 ? (
                         `$${shippingCost.toFixed(2)}`
                       ) : shipEngineEnabled && !addressValidated ? (
-                        <span className="text-gray-400">Validate address</span>
+                        <span className="text-gray-400">Enter address</span>
                       ) : (
                         <span className="text-gray-400">Select method</span>
                       )}
@@ -2361,66 +2304,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         </div>
       </div>
 
-      {/* Address Suggestion Modal */}
-      {showAddressSuggestion && normalizedAddress && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowAddressSuggestion(false)}
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 z-10"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-heading font-extrabold text-gray-900">Did you mean this address?</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
-                <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">You Entered</p>
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {formData.address1}<br />
-                  {formData.address2 && <>{formData.address2}<br /></>}
-                  {formData.city}, {formData.state} {formData.zip}
-                </p>
-              </div>
-              <div className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200">
-                <p className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2">Suggested</p>
-                <p className="text-sm text-blue-800 font-medium leading-relaxed">
-                  {normalizedAddress.address_line1}<br />
-                  {normalizedAddress.address_line2 && <>{normalizedAddress.address_line2}<br /></>}
-                  {normalizedAddress.city_locality}, {normalizedAddress.state_province} {normalizedAddress.postal_code}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleAcceptSuggestedAddress}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
-              >
-                Accept Suggestion
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddressSuggestion(false)}
-                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Keep Original
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 };

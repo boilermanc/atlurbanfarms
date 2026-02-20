@@ -128,7 +128,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                 <tr>
                   <th>Category</th>
                   <th>Product Name</th>
-                  <th>Price</th>
+                  <th>Regular Price</th>
                   <th>Sale Price</th>
                   <th>Pending Orders</th>
                   <th>Current Inventory</th>

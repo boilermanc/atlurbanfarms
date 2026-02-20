@@ -67,6 +67,10 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
     setErrors({});
   }, [faq, isOpen]);
 
+  // Don't mount TipTap until formData is synced with the current FAQ so the
+  // editor is created with the correct initial content instead of empty.
+  const editorReady = faq ? formData.id === faq.id : true;
+
   const validate = (): boolean => {
     const newErrors: { question?: string; answer?: string } = {};
 
@@ -153,11 +157,16 @@ const FAQEditModal: React.FC<FAQEditModalProps> = ({
                 <label className="block text-sm font-medium text-slate-600 mb-2">
                   Answer <span className="text-red-500">*</span>
                 </label>
-                <RichTextEditor
-                  value={formData.answer}
-                  onChange={(html) => setFormData(prev => ({ ...prev, answer: html }))}
-                  placeholder="Enter the answer..."
-                />
+                {editorReady ? (
+                  <RichTextEditor
+                    key={formData.id || 'new'}
+                    value={formData.answer}
+                    onChange={(html) => setFormData(prev => ({ ...prev, answer: html }))}
+                    placeholder="Enter the answer..."
+                  />
+                ) : (
+                  <div className="border border-slate-200 rounded-xl min-h-[200px] bg-slate-50 animate-pulse" />
+                )}
                 {errors.answer && (
                   <p className="mt-1 text-sm text-red-500">{errors.answer}</p>
                 )}

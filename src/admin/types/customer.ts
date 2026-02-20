@@ -4,7 +4,6 @@ export type SubscriberStatus = 'active' | 'unsubscribed' | 'bounced';
 
 export type GrowingEnvironment = 'indoor' | 'outdoor' | 'both' | 'none';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
-export type GrowingSystem = 'soil' | 'hydroponic' | 'aquaponic' | 'aeroponic' | 'container' | 'tower_garden' | 'aerospring' | 'lettuce_grow' | 'gardyn';
 export type GrowingInterest = 'microgreens' | 'herbs' | 'vegetables' | 'flowers' | 'mushrooms';
 
 export type CustomerRole = 'customer' | 'admin';
@@ -36,7 +35,7 @@ export interface CustomerProfile {
   customer_id: string;
   growing_environment: GrowingEnvironment | null;
   experience_level: ExperienceLevel | null;
-  growing_systems: GrowingSystem[] | null;
+  growing_systems: string[] | null;
   growing_interests: GrowingInterest[] | null;
   usda_zone: string | null;
   created_at: string;
@@ -146,18 +145,6 @@ export const ENVIRONMENT_OPTIONS: { value: GrowingEnvironment; label: string }[]
   { value: 'outdoor', label: 'Outdoor' },
   { value: 'both', label: 'Both' },
   { value: 'none', label: 'Not Growing Yet' },
-];
-
-export const GROWING_SYSTEM_OPTIONS: { value: GrowingSystem; label: string }[] = [
-  { value: 'soil', label: 'Soil' },
-  { value: 'hydroponic', label: 'Hydroponic' },
-  { value: 'aquaponic', label: 'Aquaponic' },
-  { value: 'aeroponic', label: 'Aeroponic' },
-  { value: 'container', label: 'Container' },
-  { value: 'tower_garden', label: 'Tower Garden' },
-  { value: 'aerospring', label: 'Aerospring' },
-  { value: 'lettuce_grow', label: 'Lettuce Grow' },
-  { value: 'gardyn', label: 'Gardyn' },
 ];
 
 export const INTEREST_OPTIONS: { value: GrowingInterest; label: string }[] = [

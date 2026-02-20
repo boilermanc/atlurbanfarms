@@ -75,8 +75,8 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
           id: product.id,
           category: product.category,
           name: product.name,
-          price: product.price,
-          salePrice: product.compare_at_price,
+          price: product.compare_at_price,
+          salePrice: product.price,
           pendingOrders: pendingMap.get(product.id) || 0,
           currentInventory: product.quantity_available,
         }))

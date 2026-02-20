@@ -11,7 +11,7 @@ const SageAssistant: React.FC = () => {
     { role: 'model', text: "Hi! I'm Sage ✨ Your ATL Urban Farms expert. Need help picking the perfect seedlings for your space?" }
   ]);
   const [inputValue, setInputValue] = useState('');
-  const { sendMessage, loading: isTyping } = useSageChat();
+  const { sendMessage, loading: isTyping, disabled: sageDisabled } = useSageChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,27 +108,35 @@ const SageAssistant: React.FC = () => {
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-6 bg-white border-t border-purple-50">
-              <div className="relative group">
-                <input 
-                  type="text"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="Ask Sage a question..."
-                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-300 transition-all pr-14"
-                />
-                <button 
-                  type="submit"
-                  disabled={!inputValue.trim() || isTyping}
-                  className="absolute right-2 top-2 bottom-2 px-4 sage-gradient text-white rounded-xl flex items-center justify-center shadow-lg shadow-purple-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:grayscale"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                </button>
-              </div>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <div className="h-px bg-gray-100 flex-1" />
-                <p className="text-[9px] text-gray-400 uppercase font-black tracking-[0.3em]">Nursery Intelligence</p>
-                <div className="h-px bg-gray-100 flex-1" />
-              </div>
+              {sageDisabled ? (
+                <div className="text-center py-2">
+                  <p className="text-xs text-gray-400">Sage is currently offline</p>
+                </div>
+              ) : (
+                <>
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      placeholder="Ask Sage a question..."
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-300 transition-all pr-14"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!inputValue.trim() || isTyping}
+                      className="absolute right-2 top-2 bottom-2 px-4 sage-gradient text-white rounded-xl flex items-center justify-center shadow-lg shadow-purple-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:grayscale"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <div className="h-px bg-gray-100 flex-1" />
+                    <p className="text-[9px] text-gray-400 uppercase font-black tracking-[0.3em]">Nursery Intelligence</p>
+                    <div className="h-px bg-gray-100 flex-1" />
+                  </div>
+                </>
+              )}
             </form>
           </motion.div>
         )}

@@ -61,7 +61,7 @@ const ToolsPage: React.FC<ToolsPageProps> = ({ onBack }) => {
             transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
-            <span className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest brand-text brand-bg-light mb-4">
+            <span className="text-emerald-600 font-bold uppercase tracking-widest text-xs mb-4 block">
               Tools & Apps
             </span>
             <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4">

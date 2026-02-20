@@ -13,9 +13,9 @@ import {
   TAG_COLOR_CONFIG,
   EXPERIENCE_LEVEL_CONFIG,
   ENVIRONMENT_OPTIONS,
-  GROWING_SYSTEM_OPTIONS,
   INTEREST_OPTIONS,
 } from '../types/customer';
+import { useGrowingSystems } from '../hooks/useGrowingSystems';
 import { useCustomerRole } from '../hooks/useCustomerRole';
 import { useDeleteCustomer } from '../hooks/useDeleteCustomer';
 import { useCustomerTagAssignments } from '../hooks/useCustomerTagAssignments';
@@ -111,6 +111,8 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const { updateRole, updating: updatingRole } = useCustomerRole();
   const { tags: assignedTags, assignTag, unassignTag } = useCustomerTagAssignments(customerId);
   const { tags: allTags } = useCustomerTags();
+  const { systems: growingSystems } = useGrowingSystems();
+  const activeGrowingSystems = growingSystems.filter(s => s.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
   useEffect(() => {
     fetchCustomerData();
@@ -751,9 +753,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   const getSystemLabels = (systems: string[] | null) => {
     if (!systems || systems.length === 0) return '-';
-    return systems
-      .map((sys) => GROWING_SYSTEM_OPTIONS.find((opt) => opt.value === sys)?.label || sys)
-      .join(', ');
+    return systems.join(', ');
   };
 
   const getInterestLabels = (interests: string[] | null) => {
@@ -1325,336 +1325,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                 )}
               </div>
             </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Growing Profile</h2>
-                {!isEditingProfile && (
-                  <button
-                    onClick={startEditingProfile}
-                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
-                )}
-              </div>
-
-              {isEditingProfile ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      Environment
-                    </label>
-                    <select
-                      value={editedProfile.growing_environment || ''}
-                      onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, growing_environment: e.target.value as any || null })
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    >
-                      <option value="">Select environment...</option>
-                      {ENVIRONMENT_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      Experience Level
-                    </label>
-                    <select
-                      value={editedProfile.experience_level || ''}
-                      onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, experience_level: e.target.value as any || null })
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    >
-                      <option value="">Select experience level...</option>
-                      {Object.entries(EXPERIENCE_LEVEL_CONFIG).map(([value, config]) => (
-                        <option key={value} value={value}>
-                          {config.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
-                      Growing Systems
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {GROWING_SYSTEM_OPTIONS.map((opt) => (
-                        <label
-                          key={opt.value}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
-                            editedProfile.growing_systems?.includes(opt.value)
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={editedProfile.growing_systems?.includes(opt.value) || false}
-                            onChange={(e) => {
-                              const current = editedProfile.growing_systems || [];
-                              if (e.target.checked) {
-                                setEditedProfile({
-                                  ...editedProfile,
-                                  growing_systems: [...current, opt.value],
-                                });
-                              } else {
-                                setEditedProfile({
-                                  ...editedProfile,
-                                  growing_systems: current.filter((s) => s !== opt.value),
-                                });
-                              }
-                            }}
-                            className="sr-only"
-                          />
-                          <span>{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
-                      Interests
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {INTEREST_OPTIONS.map((opt) => (
-                        <label
-                          key={opt.value}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
-                            editedProfile.growing_interests?.includes(opt.value)
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={editedProfile.growing_interests?.includes(opt.value) || false}
-                            onChange={(e) => {
-                              const current = editedProfile.growing_interests || [];
-                              if (e.target.checked) {
-                                setEditedProfile({
-                                  ...editedProfile,
-                                  growing_interests: [...current, opt.value],
-                                });
-                              } else {
-                                setEditedProfile({
-                                  ...editedProfile,
-                                  growing_interests: current.filter((i) => i !== opt.value),
-                                });
-                              }
-                            }}
-                            className="sr-only"
-                          />
-                          <span>{opt.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      USDA Zone
-                    </label>
-                    <input
-                      type="text"
-                      value={editedProfile.usda_zone || ''}
-                      onChange={(e) =>
-                        setEditedProfile({ ...editedProfile, usda_zone: e.target.value })
-                      }
-                      placeholder="e.g., 7b"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={saveProfile}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <Save size={14} />
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      onClick={cancelEditingProfile}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <XCircle size={14} />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : profile ? (
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</p>
-                    <p className="text-slate-800">{getEnvironmentLabel(profile.growing_environment)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Experience</p>
-                    {profile.experience_level ? (
-                      <span
-                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold text-white ${
-                          EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.color || 'bg-slate-500'
-                        }`}
-                      >
-                        {EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.label || profile.experience_level}
-                      </span>
-                    ) : (
-                      <p className="text-slate-500">-</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Growing Systems</p>
-                    <p className="text-slate-800">{getSystemLabels(profile.growing_systems)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Interests</p>
-                    <p className="text-slate-800">{getInterestLabels(profile.growing_interests)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">USDA Zone</p>
-                    <p className="text-slate-800">{profile.usda_zone || '-'}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-slate-500">No profile data</p>
-              )}
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Preferences</h2>
-                {!isEditingPreferences && (
-                  <button
-                    onClick={startEditingPreferences}
-                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
-                )}
-              </div>
-
-              {isEditingPreferences ? (
-                <div className="space-y-4">
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.email_notifications ?? true}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, email_notifications: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Email Notifications</span>
-                      <p className="text-xs text-slate-400">Receive order updates and announcements via email</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.sms_notifications ?? false}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, sms_notifications: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Notifications</span>
-                      <p className="text-xs text-slate-400">Receive text messages for important updates</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.newsletter_subscribed ?? false}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, newsletter_subscribed: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
-                      <p className="text-xs text-slate-400">Receive newsletters and promotional content</p>
-                    </div>
-                  </label>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={savePreferences}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <Save size={14} />
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      onClick={cancelEditingPreferences}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <XCircle size={14} />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : preferences ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Email Notifications</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.email_notifications
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.email_notifications ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">SMS Notifications</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.sms_notifications
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.sms_notifications ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Newsletter</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.newsletter_subscribed
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.newsletter_subscribed ? 'Subscribed' : 'Not Subscribed'}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-slate-500">No preferences set</p>
-              )}
-            </div>
           </div>
 
           {/* COLUMN 2 */}
@@ -2221,6 +1891,212 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                 </>
               )}
             </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Growing Profile</h2>
+                {!isEditingProfile && (
+                  <button
+                    onClick={startEditingProfile}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingProfile ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Environment
+                    </label>
+                    <select
+                      value={editedProfile.growing_environment || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, growing_environment: e.target.value as any || null })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">Select environment...</option>
+                      {ENVIRONMENT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      Experience Level
+                    </label>
+                    <select
+                      value={editedProfile.experience_level || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, experience_level: e.target.value as any || null })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    >
+                      <option value="">Select experience level...</option>
+                      {Object.entries(EXPERIENCE_LEVEL_CONFIG).map(([value, config]) => (
+                        <option key={value} value={value}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+                      Growing Systems
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeGrowingSystems.map((sys) => (
+                        <label
+                          key={sys.id}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
+                            editedProfile.growing_systems?.includes(sys.name)
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editedProfile.growing_systems?.includes(sys.name) || false}
+                            onChange={(e) => {
+                              const current = editedProfile.growing_systems || [];
+                              if (e.target.checked) {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_systems: [...current, sys.name],
+                                });
+                              } else {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_systems: current.filter((s) => s !== sys.name),
+                                });
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span>{sys.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+                      Interests
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {INTEREST_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
+                            editedProfile.growing_interests?.includes(opt.value)
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editedProfile.growing_interests?.includes(opt.value) || false}
+                            onChange={(e) => {
+                              const current = editedProfile.growing_interests || [];
+                              if (e.target.checked) {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_interests: [...current, opt.value],
+                                });
+                              } else {
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  growing_interests: current.filter((i) => i !== opt.value),
+                                });
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
+                      USDA Zone
+                    </label>
+                    <input
+                      type="text"
+                      value={editedProfile.usda_zone || ''}
+                      onChange={(e) =>
+                        setEditedProfile({ ...editedProfile, usda_zone: e.target.value })
+                      }
+                      placeholder="e.g., 7b"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveProfile}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingProfile}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : profile ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Environment</p>
+                    <p className="text-slate-800">{getEnvironmentLabel(profile.growing_environment)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Experience</p>
+                    {profile.experience_level ? (
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold text-white ${
+                          EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.color || 'bg-slate-500'
+                        }`}
+                      >
+                        {EXPERIENCE_LEVEL_CONFIG[profile.experience_level]?.label || profile.experience_level}
+                      </span>
+                    ) : (
+                      <p className="text-slate-500">-</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Growing Systems</p>
+                    <p className="text-slate-800">{getSystemLabels(profile.growing_systems)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Interests</p>
+                    <p className="text-slate-800">{getInterestLabels(profile.growing_interests)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">USDA Zone</p>
+                    <p className="text-slate-800">{profile.usda_zone || '-'}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-500">No profile data</p>
+              )}
+            </div>
           </div>
 
           {/* COLUMN 3 */}
@@ -2241,6 +2117,130 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   <p className="text-2xl font-bold text-slate-800">{formatCurrency(averageOrderValue)}</p>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Preferences</h2>
+                {!isEditingPreferences && (
+                  <button
+                    onClick={startEditingPreferences}
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingPreferences ? (
+                <div className="space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.email_notifications ?? true}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, email_notifications: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Email Notifications</span>
+                      <p className="text-xs text-slate-400">Receive order updates and announcements via email</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.sms_notifications ?? false}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, sms_notifications: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Notifications</span>
+                      <p className="text-xs text-slate-400">Receive text messages for important updates</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editedPreferences.newsletter_subscribed ?? false}
+                      onChange={(e) =>
+                        setEditedPreferences({ ...editedPreferences, newsletter_subscribed: e.target.checked })
+                      }
+                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
+                      <p className="text-xs text-slate-400">Receive newsletters and promotional content</p>
+                    </div>
+                  </label>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={savePreferences}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <Save size={14} />
+                      {isSaving ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEditingPreferences}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : preferences ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Email Notifications</span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        preferences.email_notifications
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {preferences.email_notifications ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">SMS Notifications</span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        preferences.sms_notifications
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {preferences.sms_notifications ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Newsletter</span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                        preferences.newsletter_subscribed
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      {preferences.newsletter_subscribed ? 'Subscribed' : 'Not Subscribed'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-500">No preferences set</p>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">

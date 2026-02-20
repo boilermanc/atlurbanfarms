@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useCustomerProfile } from '../../hooks/useSupabase';
+import { useGrowingSystems } from '../../admin/hooks/useGrowingSystems';
 import { supabase } from '../../lib/supabase';
 import { submitNewsletterPreference } from '../../services/newsletter';
 
 interface ProfileSettingsProps {
   userId: string;
   userEmail: string;
+  onNavigateToSettings?: () => void;
 }
 
 const GROWING_ENVIRONMENTS = [
@@ -22,16 +24,6 @@ const EXPERIENCE_LEVELS = [
   { value: 'expert', label: 'Expert', description: 'Professional or long-time grower' },
 ];
 
-const GROWING_SYSTEMS = [
-  { value: 'soil', label: 'Traditional Soil' },
-  { value: 'raised_beds', label: 'Raised Beds' },
-  { value: 'containers', label: 'Container Gardening' },
-  { value: 'hydroponics', label: 'Hydroponics' },
-  { value: 'aquaponics', label: 'Aquaponics' },
-  { value: 'vertical', label: 'Vertical Growing' },
-  { value: 'greenhouse', label: 'Greenhouse' },
-];
-
 const GROWING_INTERESTS = [
   { value: 'vegetables', label: 'Vegetables' },
   { value: 'herbs', label: 'Herbs' },
@@ -43,8 +35,10 @@ const GROWING_INTERESTS = [
   { value: 'succulents', label: 'Succulents' },
 ];
 
-const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) => {
+const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, onNavigateToSettings }) => {
   const { profile, loading, updateProfile } = useCustomerProfile(userId);
+  const { systems: growingSystems } = useGrowingSystems();
+  const activeGrowingSystems = growingSystems.filter(s => s.is_active);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -242,7 +236,21 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) 
                 disabled
                 className="w-full px-4 py-3 bg-gray-100 border border-gray-100 rounded-xl text-gray-500 cursor-not-allowed"
               />
-              <p className="text-xs text-gray-400">Email cannot be changed here.</p>
+              <p className="text-xs text-gray-400">
+                Go to{' '}
+                {onNavigateToSettings ? (
+                  <button
+                    type="button"
+                    onClick={onNavigateToSettings}
+                    className="text-emerald-600 hover:text-emerald-700 underline font-medium"
+                  >
+                    Settings
+                  </button>
+                ) : (
+                  <span className="font-medium">Settings</span>
+                )}
+                {' '}to change your email address.
+              </p>
             </div>
 
             {/* Phone */}
@@ -331,23 +339,23 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail }) 
                 Growing Systems (Select all that apply)
               </label>
               <div className="flex flex-wrap gap-2">
-                {GROWING_SYSTEMS.map((system) => (
+                {activeGrowingSystems.map((system) => (
                   <button
-                    key={system.value}
+                    key={system.id}
                     type="button"
-                    onClick={() => handleMultiSelectToggle('growing_systems', system.value)}
+                    onClick={() => handleMultiSelectToggle('growing_systems', system.name)}
                     className={`px-4 py-2 rounded-full border-2 font-medium text-sm transition-all ${
-                      formData.growing_systems.includes(system.value)
+                      formData.growing_systems.includes(system.name)
                         ? 'border-emerald-600 bg-emerald-600 text-white'
                         : 'border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    {formData.growing_systems.includes(system.value) && (
+                    {formData.growing_systems.includes(system.name) && (
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
-                    {system.label}
+                    {system.name}
                   </button>
                 ))}
               </div>

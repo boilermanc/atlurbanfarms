@@ -24,14 +24,24 @@ interface Category {
   sort_order?: number;
 }
 
+// Check if a raw product is on sale - handles both conventions
+// (compare_at_price as original price OR as sale price)
+const isRawProductOnSale = (rawProduct: any): boolean => {
+  const cap = rawProduct.compare_at_price;
+  if (cap == null) return false;
+  const numCap = Number(cap);
+  const numPrice = Number(rawProduct.price) || 0;
+  return numCap > 0 && numPrice > 0 && numCap !== numPrice;
+};
+
 // Map Supabase product to local Product type
 const mapProduct = (p: any): Product => ({
   id: p.id,
   name: p.name,
   description: p.description || '',
   shortDescription: p.short_description || null,
-  price: p.price,
-  compareAtPrice: p.compare_at_price ?? null,
+  price: Number(p.price) || 0,
+  compareAtPrice: p.compare_at_price != null ? Number(p.compare_at_price) : null,
   image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
   category: p.category?.name || 'Uncategorized',
   stock: p.quantity_available || 0,
@@ -95,7 +105,11 @@ const ProductSection: React.FC<ProductSectionProps> = ({
         {hasMore && showViewAll && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`text-${accentColor}-600 font-bold hover:underline text-sm`}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+              expanded
+                ? `bg-${accentColor}-600 text-white border-${accentColor}-600`
+                : `border-${accentColor}-600 text-${accentColor}-600 hover:bg-${accentColor}-600 hover:text-white`
+            }`}
           >
             {expanded ? 'Show Less' : `View All (${products.length})`}
           </button>
@@ -193,7 +207,11 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
         {hasMore && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="text-emerald-600 font-medium hover:underline text-2xl"
+            className={`px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+              expanded
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+            }`}
           >
             {expanded ? 'Show Less' : 'View All'}
           </button>
@@ -267,7 +285,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [showInStockOnly, setShowInStockOnly] = useState(false);
   // Show favorites view
   const [showFavorites, setShowFavorites] = useState(false);
-  // Show on-sale view (products where compare_at_price > price)
+  // Show on-sale view (products where compare_at_price differs from price)
   const [showOnSale, setShowOnSale] = useState(false);
   // Tag filter
   const [activeTagId, setActiveTagId] = useState<string | null>(null);
@@ -418,11 +436,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         if (!hasTag) return false;
       }
 
-      // On Sale view: only show products where compare_at_price > price
+      // On Sale view: only show products where compare_at_price differs from price
       if (showOnSale) {
         if (!rawProduct) return false;
-        const cap = rawProduct.compare_at_price;
-        return cap != null && cap > rawProduct.price && rawProduct.price > 0;
+        return isRawProductOnSale(rawProduct);
       }
 
       // If no parent selected, show all (that passed above filters)
@@ -566,15 +583,47 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     return products.filter(p => favorites.includes(p.id));
   }, [products, favorites]);
 
-  // Get on-sale products (compare_at_price > price and price > 0)
+  // Get on-sale products (compare_at_price differs from price)
   const onSaleProducts = useMemo(() => {
     return products.filter(p => {
       const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
       if (!rawProduct) return false;
-      const cap = rawProduct.compare_at_price;
-      return cap != null && cap > rawProduct.price && rawProduct.price > 0;
+      return isRawProductOnSale(rawProduct);
     });
   }, [products, rawProducts]);
+
+  // Find the "Seedlings" parent category and "On Sale this Week" category
+  const { seedlingsParentId, onSaleWeekCategoryId } = useMemo(() => {
+    const categories = rawCategories as Category[];
+    const seedlings = categories.find(c => !c.parent_id && c.name.toLowerCase() === 'seedlings');
+    const onSaleWeek = categories.find(c => c.name.toLowerCase().includes('on sale'));
+    return {
+      seedlingsParentId: seedlings?.id || null,
+      onSaleWeekCategoryId: onSaleWeek?.id || null,
+    };
+  }, [rawCategories]);
+
+  // Dynamic "On Sale this Week" seedling products: active seedlings where compare_at_price differs from price
+  const onSaleSeedlings = useMemo(() => {
+    if (!seedlingsParentId) return [];
+    const seedlingSubcategoryIds = (rawCategories as Category[])
+      .filter(c => c.parent_id === seedlingsParentId)
+      .map(c => c.id);
+    const seedlingCategoryIds = new Set([seedlingsParentId, ...seedlingSubcategoryIds]);
+
+    return products.filter(p => {
+      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
+      if (!rawProduct) return false;
+      // Must be on sale
+      if (!isRawProductOnSale(rawProduct)) return false;
+      // Must be a seedling (assigned to Seedlings parent or any of its subcategories)
+      const assignments = rawProduct.category_assignments || [];
+      const assignedCatIds = assignments.length > 0
+        ? assignments.map((a: any) => a.category_id)
+        : rawProduct.category ? [rawProduct.category.id] : [];
+      return assignedCatIds.some((catId: string) => seedlingCategoryIds.has(catId));
+    });
+  }, [products, rawProducts, rawCategories, seedlingsParentId]);
 
   // Determine if we should show sectioned view (when viewing "All" with no search)
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites && !showOnSale && !activeTagId;
@@ -914,7 +963,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             )}
           </div>
         ) : showOnSale ? (
-          // On Sale View - products with compare_at_price > price
+          // On Sale View - products with compare_at_price set
           <div>
             <div className="mb-8">
               <h2 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 flex items-center gap-3">
@@ -985,7 +1034,27 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         ) : showSectionedView ? (
           // Sectioned View (All Products - no parent selected)
           <div>
+            {/* Dynamic "On Sale this Week" section - shows seedlings where compare_at_price differs from price */}
+            {onSaleSeedlings.length > 0 && (
+              <ProductSection
+                title="On Sale this Week"
+                subtitle="Seedlings currently at reduced prices"
+                products={onSaleSeedlings}
+                rawProducts={rawProducts}
+                onAddToCart={onAddToCart}
+                onProductClick={setSelectedProduct}
+                showViewAll
+                accentColor="red"
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+                requireLoginToFavorite={true}
+                onRequireLogin={() => onNavigate?.('login')}
+              />
+            )}
             {parentCategories.map((parentCat: Category) => {
+              // Skip the manually-curated "On Sale" category — replaced by dynamic section above
+              if (onSaleWeekCategoryId && parentCat.id === onSaleWeekCategoryId) return null;
+
               const parentProducts = productsByParentCategory[parentCat.id] || [];
               if (parentProducts.length === 0) return null;
 

@@ -230,7 +230,7 @@ const CustomerReviews: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900 text-sm">{review.name}</p>
-                    <p className="text-xs text-gray-400">{review.growing_system || 'Verified Customer'}</p>
+                    <p className="text-xs text-gray-400">{review.growing_system ? `Growing System: ${review.growing_system}` : 'Verified Customer'}</p>
                   </div>
                 </div>
               </motion.div>
