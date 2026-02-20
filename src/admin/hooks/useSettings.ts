@@ -5,8 +5,9 @@ export interface ConfigSetting {
   id: string;
   category: string;
   key: string;
-  value: string;
-  data_type: 'string' | 'number' | 'boolean' | 'json';
+  value: any; // jsonb column — can be string, boolean, number, object
+  data_type: 'string' | 'number' | 'boolean' | 'json' | null;
+  value_type: string | null; // fallback type hint column
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -40,7 +41,8 @@ export function useSettings() {
         if (!grouped[setting.category]) {
           grouped[setting.category] = {};
         }
-        grouped[setting.category][setting.key] = parseValue(setting.value, setting.data_type);
+        const effectiveType = setting.data_type || setting.value_type || 'string';
+        grouped[setting.category][setting.key] = parseValue(setting.value, effectiveType as ConfigSetting['data_type']);
       });
 
       setSettings(grouped);
@@ -205,20 +207,54 @@ export function useBulkUpdateSettings() {
 }
 
 // Helper functions
-function parseValue(value: string, dataType: ConfigSetting['data_type']): any {
+
+/**
+ * Parse a value from the config_settings jsonb column.
+ *
+ * The `value` column is jsonb, so the Supabase client auto-parses it:
+ *   jsonb true        → JS boolean true
+ *   jsonb "true"      → JS string "true"
+ *   jsonb "\"sk_...\"" → JS string '"sk_..."' (double-encoded)
+ *   jsonb 42          → JS number 42
+ *
+ * This function normalises all variants into the expected JS type.
+ */
+function parseValue(value: any, dataType: ConfigSetting['data_type']): any {
+  if (value === null || value === undefined) return value;
+
+  // If value is already the target JS type, return directly
+  if (dataType === 'boolean' && typeof value === 'boolean') return value;
+  if (dataType === 'number' && typeof value === 'number') return value;
+  if (dataType === 'json' && typeof value === 'object') return value;
+
+  // Convert to string for further processing
+  let strValue = String(value);
+
+  // Strip double-encoding: "\"actual value\"" → "actual value"
+  if (strValue.length >= 2 && strValue.startsWith('"') && strValue.endsWith('"')) {
+    try {
+      const unwrapped = JSON.parse(strValue);
+      if (typeof unwrapped === 'string') {
+        strValue = unwrapped;
+      }
+    } catch {
+      // Not valid JSON — keep as-is
+    }
+  }
+
   switch (dataType) {
     case 'number':
-      return parseFloat(value);
+      return parseFloat(strValue) || 0;
     case 'boolean':
-      return value === 'true';
+      return strValue === 'true' || strValue === '1';
     case 'json':
       try {
-        return JSON.parse(value);
+        return JSON.parse(strValue);
       } catch {
-        return value;
+        return strValue;
       }
     default:
-      return value;
+      return strValue;
   }
 }
 

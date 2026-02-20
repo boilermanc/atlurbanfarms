@@ -50,14 +50,6 @@ interface EmailLog {
   timestamp: string;
 }
 
-interface SyncLog {
-  id: string;
-  action: string;
-  status: 'success' | 'failed';
-  itemsProcessed: number;
-  timestamp: string;
-}
-
 // Helper functions moved outside component
 const getStatusColor = (status: HealthStatus): string => {
   switch (status) {
@@ -294,48 +286,7 @@ const EmailsTable = memo<{
 ));
 EmailsTable.displayName = 'EmailsTable';
 
-// Sync Log Table Component - moved outside
-const SyncLogTable = memo<{
-  title: string;
-  logs: SyncLog[];
-}>(({ title, logs }) => (
-  <div className="space-y-3">
-    <h4 className="text-sm font-medium text-slate-700">{title}</h4>
-    <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 bg-slate-50">
-            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Action</th>
-            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Items</th>
-            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Time</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-slate-100">
-          {logs.map((log) => (
-            <tr key={log.id}>
-              <td className="px-4 py-2 text-slate-700 text-xs">{log.action}</td>
-              <td className="px-4 py-2">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                  log.status === 'success'
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                    : 'bg-red-100 text-red-700 border-red-200'
-                }`}>
-                  {log.status}
-                </span>
-              </td>
-              <td className="px-4 py-2 text-slate-500 text-xs">{log.itemsProcessed}</td>
-              <td className="px-4 py-2 text-slate-500 text-xs">{formatTimestamp(log.timestamp)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-));
-SyncLogTable.displayName = 'SyncLogTable';
-
-// Mock data for demonstration - in production, these would come from APIs
+// Mock data for webhook/email tables in expanded sections — will be replaced with real data later
 const MOCK_STRIPE_WEBHOOKS: WebhookEvent[] = [
   { id: '1', type: 'payment_intent.succeeded', status: 'success', timestamp: '2025-01-15T10:30:00Z' },
   { id: '2', type: 'checkout.session.completed', status: 'success', timestamp: '2025-01-15T10:25:00Z' },
@@ -350,13 +301,6 @@ const MOCK_EMAILS: EmailLog[] = [
   { id: '3', to: 'test@invalid.com', subject: 'Welcome Email', status: 'bounced', timestamp: '2025-01-15T10:20:00Z' },
   { id: '4', to: 'another@example.com', subject: 'Order Shipped #1233', status: 'delivered', timestamp: '2025-01-15T10:15:00Z' },
   { id: '5', to: 'customer2@example.com', subject: 'Order Confirmation #1232', status: 'delivered', timestamp: '2025-01-15T10:10:00Z' },
-];
-
-const MOCK_SYNC_LOGS: SyncLog[] = [
-  { id: '1', action: 'Order sync', status: 'success', itemsProcessed: 15, timestamp: '2025-01-15T10:30:00Z' },
-  { id: '2', action: 'Inventory update', status: 'success', itemsProcessed: 42, timestamp: '2025-01-15T10:00:00Z' },
-  { id: '3', action: 'Tracking import', status: 'failed', itemsProcessed: 0, timestamp: '2025-01-15T09:30:00Z' },
-  { id: '4', action: 'Order sync', status: 'success', itemsProcessed: 8, timestamp: '2025-01-15T09:00:00Z' },
 ];
 
 // Default integration settings
@@ -439,9 +383,33 @@ const IntegrationsPage: React.FC = () => {
     const integrationSettings = settings.integrations || {};
     const newFormData: Record<string, any> = {};
 
+    // 1. Start with defaults, override with any DB values
     Object.entries(DEFAULT_INTEGRATION_SETTINGS).forEach(([key, config]) => {
       newFormData[key] = integrationSettings[key] ?? config.value;
     });
+
+    // 2. Also pull in any DB keys not in defaults (legacy keys, etc.)
+    Object.entries(integrationSettings).forEach(([key, value]) => {
+      if (!(key in newFormData)) {
+        newFormData[key] = value;
+      }
+    });
+
+    // 3. Map legacy Stripe keys → mode-specific fields when mode-specific are empty.
+    //    DB may have stripe_publishable_key (resolved/legacy) but not stripe_publishable_key_test.
+    const stripeMode = newFormData.stripe_mode || 'test';
+    const stripeSuffix = stripeMode === 'live' ? '_live' : '_test';
+    const stripeLegacyMappings = [
+      'stripe_publishable_key',
+      'stripe_secret_key',
+      'stripe_webhook_secret',
+    ];
+    for (const legacyKey of stripeLegacyMappings) {
+      const modeKey = `${legacyKey}${stripeSuffix}`;
+      if (!newFormData[modeKey] && newFormData[legacyKey]) {
+        newFormData[modeKey] = newFormData[legacyKey];
+      }
+    }
 
     setFormData(newFormData);
   }, [settings]);
@@ -594,6 +562,15 @@ const IntegrationsPage: React.FC = () => {
     };
     settingsToSave.stripe_webhook_secret = {
       value: formData[`stripe_webhook_secret${suffix}`] || formData.stripe_webhook_secret || '',
+      dataType: 'string',
+    };
+
+    // Resolve active ShipEngine key into legacy field based on current mode
+    const shipengineMode = formData.shipengine_mode || 'sandbox';
+    settingsToSave.shipengine_api_key = {
+      value: shipengineMode === 'production'
+        ? (formData.shipengine_api_key_production || '')
+        : (formData.shipengine_api_key_sandbox || ''),
       dataType: 'string',
     };
 
@@ -807,92 +784,101 @@ const IntegrationsPage: React.FC = () => {
     setTimeout(() => setSaveMessage(null), 3000);
   };
 
-  // Calculate health metrics for each integration
+  // Calculate health metrics for each integration — all values from settings, no mocks
   const getIntegrationHealth = (): Record<string, IntegrationHealth> => {
+    // Stripe: check ACTIVE mode's keys only
     const stripeMode = formData.stripe_mode || 'test';
-    const activeStripePk = stripeMode === 'live' ? formData.stripe_publishable_key_live : formData.stripe_publishable_key_test;
-    const activeStripeSk = stripeMode === 'live' ? formData.stripe_secret_key_live : formData.stripe_secret_key_test;
-    const stripeStatus = getConnectionStatus(
-      formData.stripe_enabled,
-      !!(activeStripePk && activeStripeSk)
-    );
-    const activeShipEngineKey = formData.shipengine_mode === 'production'
-      ? formData.shipengine_api_key_production
-      : formData.shipengine_api_key_sandbox;
-    const shipstationStatus = getConnectionStatus(
-      formData.shipstation_enabled,
-      !!activeShipEngineKey
-    );
-    const resendStatus = getConnectionStatus(
-      formData.resend_enabled,
-      !!formData.resend_api_key
-    );
+    const stripeSuffix = stripeMode === 'live' ? '_live' : '_test';
+    const stripePk = formData[`stripe_publishable_key${stripeSuffix}`] || formData.stripe_publishable_key || '';
+    const stripeSk = formData[`stripe_secret_key${stripeSuffix}`] || formData.stripe_secret_key || '';
+    const stripeWh = formData[`stripe_webhook_secret${stripeSuffix}`] || formData.stripe_webhook_secret || '';
+    const stripeHasKeys = !!(stripePk && stripeSk);
+    const stripeStatus = getConnectionStatus(formData.stripe_enabled, stripeHasKeys);
+    const stripeDisplayMode = stripeMode === 'live' ? 'Live' : 'Test';
+
+    // ShipEngine: check ACTIVE mode's key only
+    const shipengineMode = formData.shipengine_mode || 'sandbox';
+    const activeShipEngineKey = shipengineMode === 'production'
+      ? (formData.shipengine_api_key_production || '')
+      : (formData.shipengine_api_key_sandbox || '');
+    const shipstationStatus = getConnectionStatus(formData.shipstation_enabled, !!activeShipEngineKey);
+    const shipengineDisplayMode = shipengineMode === 'production' ? 'Production' : 'Sandbox';
+    // Read carrier from shipping settings if available
+    const enabledCarriers = settings.shipping?.enabled_carriers;
+    const carrierDisplay = enabledCarriers
+      ? (Array.isArray(enabledCarriers) ? enabledCarriers[0] : String(enabledCarriers))
+      : 'Not set';
+
+    // Resend
+    const resendStatus = getConnectionStatus(formData.resend_enabled, !!formData.resend_api_key);
+    const resendFrom = formData.resend_from_email || 'Not set';
+
+    // Trellis
     const trellisStatus = getConnectionStatus(
       formData.trellis_enabled,
       !!(formData.trellis_api_endpoint && formData.trellis_api_key)
     );
-    const geminiStatus = getConnectionStatus(
-      formData.gemini_enabled,
-      !!formData.gemini_api_key
+
+    // Gemini
+    const geminiStatus = getConnectionStatus(formData.gemini_enabled, !!formData.gemini_api_key);
+
+    // UPS — values come from carrier_configurations table (real data)
+    const upsStatus = getConnectionStatus(
+      upsConfig.enabled,
+      !!(upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
     );
 
     return {
       stripe: {
-        status: getHealthStatus(stripeStatus, 2),
+        status: getHealthStatus(stripeStatus),
         label: stripeStatus === 'connected' ? 'Connected' : stripeStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
         metrics: [
-          { label: 'Mode', value: stripeMode === 'live' ? 'Live' : 'Test' },
-          { label: 'Last Webhook', value: MOCK_STRIPE_WEBHOOKS[0] ? formatTimestamp(MOCK_STRIPE_WEBHOOKS[0].timestamp) : 'Never' },
+          { label: 'Mode', value: stripeDisplayMode },
+          { label: 'Webhook', value: stripeWh ? 'Configured' : 'Not set' },
         ],
       },
       shipstation: {
         status: getHealthStatus(shipstationStatus),
-        label: shipstationStatus === 'connected' ? 'Connected' : shipstationStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
+        label: shipstationStatus === 'connected' ? 'Connected' : shipstationStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
         metrics: [
-          { label: 'Last Sync', value: MOCK_SYNC_LOGS[0] ? formatTimestamp(MOCK_SYNC_LOGS[0].timestamp) : 'Never' },
-          { label: 'Pending Orders', value: '3' },
+          { label: 'Mode', value: shipengineDisplayMode },
+          { label: 'Carrier', value: carrierDisplay },
         ],
       },
       resend: {
-        status: getHealthStatus(resendStatus, 1.5),
-        label: resendStatus === 'connected' ? 'Connected' : resendStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
+        status: getHealthStatus(resendStatus),
+        label: resendStatus === 'connected' ? 'Connected' : resendStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
         metrics: [
-          { label: 'Emails Today', value: '47' },
-          { label: 'Bounce Rate', value: '1.5%' },
+          { label: 'From', value: resendFrom },
         ],
       },
       trellis: {
         status: getHealthStatus(trellisStatus),
-        label: trellisStatus === 'connected' ? 'Connected' : trellisStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
-        metrics: [
-          { label: 'Subscribers', value: '1,234' },
-          { label: 'Last Sync', value: '2 hours ago' },
-        ],
+        label: trellisStatus === 'connected' ? 'Connected' : trellisStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
+        metrics: formData.trellis_api_endpoint
+          ? [{ label: 'Endpoint', value: formData.trellis_api_endpoint }]
+          : [],
       },
       gemini: {
         status: getHealthStatus(geminiStatus),
-        label: geminiStatus === 'connected' ? 'Connected' : geminiStatus === 'disconnected' ? 'Disabled' : 'Missing Credentials',
-        metrics: [
-          { label: 'Model', value: 'Gemini 1.5 Flash' },
-          { label: 'Usage', value: 'Sage AI Assistant' },
-        ],
+        label: geminiStatus === 'connected' ? 'Connected' : geminiStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
+        metrics: geminiStatus === 'connected'
+          ? [{ label: 'Usage', value: 'Sage AI Assistant' }]
+          : [],
       },
       ups: {
-        status: getHealthStatus(
-          getConnectionStatus(
-            upsConfig.enabled,
-            !!(upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
-          )
-        ),
+        status: getHealthStatus(upsStatus),
         label: upsConfig.enabled
           ? (upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
             ? 'Connected'
             : 'Missing Credentials'
           : 'Disabled',
-        metrics: [
-          { label: 'Environment', value: upsConfig.is_sandbox ? 'Sandbox' : 'Production' },
-          { label: 'Account', value: upsConfig.account_number ? `...${upsConfig.account_number.slice(-4)}` : 'Not set' },
-        ],
+        metrics: upsConfig.enabled
+          ? [
+              { label: 'Environment', value: upsConfig.is_sandbox ? 'Sandbox' : 'Production' },
+              { label: 'Account', value: upsConfig.account_number ? `...${upsConfig.account_number.slice(-4)}` : 'Not set' },
+            ]
+          : [],
       },
     };
   };
@@ -1313,10 +1299,15 @@ const IntegrationsPage: React.FC = () => {
                   <p className="text-xs text-slate-500">Optional store identifier for order routing</p>
                 </div>
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-600">Last Sync</label>
-                  <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600">
-                    {MOCK_SYNC_LOGS[0] ? formatTimestamp(MOCK_SYNC_LOGS[0].timestamp) : 'Never'}
+                  <label className="block text-sm font-medium text-slate-600">Carrier ID</label>
+                  <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 font-mono text-sm">
+                    {settings.shipping?.enabled_carriers
+                      ? (Array.isArray(settings.shipping.enabled_carriers)
+                          ? settings.shipping.enabled_carriers.join(', ')
+                          : String(settings.shipping.enabled_carriers))
+                      : 'Not configured'}
                   </div>
+                  <p className="text-xs text-slate-500">Configured in Shipping Settings → Enabled Carriers</p>
                 </div>
               </div>
 
@@ -1341,12 +1332,8 @@ const IntegrationsPage: React.FC = () => {
                 <p className="text-xs text-slate-500">Configure this URL in ShipEngine Dashboard under Webhooks</p>
               </div>
 
-              {/* Test Connection & Sync */}
-              <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex-1">
-                  <div className="text-sm text-slate-500">Pending Orders</div>
-                  <div className="text-2xl font-bold text-slate-800">3</div>
-                </div>
+              {/* Test Connection */}
+              <div className="flex gap-3">
                 <button
                   onClick={() => testConnection('ShipEngine')}
                   disabled={testingConnection === 'ShipEngine' || !activeShipEngineKey}
@@ -1364,27 +1351,8 @@ const IntegrationsPage: React.FC = () => {
                     </>
                   )}
                 </button>
-                <button
-                  onClick={() => triggerSync('ShipEngine')}
-                  disabled={syncing === 'ShipEngine' || !activeShipEngineKey}
-                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {syncing === 'ShipEngine' ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw size={16} />
-                      Sync Now
-                    </>
-                  )}
-                </button>
               </div>
 
-              {/* Recent Sync Log */}
-              <SyncLogTable title="Recent Sync Log" logs={MOCK_SYNC_LOGS} />
             </div>
           </IntegrationSection>
 
