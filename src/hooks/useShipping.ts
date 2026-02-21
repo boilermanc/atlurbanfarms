@@ -181,7 +181,13 @@ export function useShippingRates() {
       }
 
       if (!data.success && data.error) {
-        throw new Error(data.error.message || 'Failed to get shipping rates')
+        // Log full technical details to console for debugging
+        console.error('[useShippingRates] Rate fetch failed:', {
+          code: data.error.code,
+          message: data.error.message,
+          details: data.error.details,
+        })
+        throw new Error(data.error.code || 'RATE_ERROR')
       }
 
       // Store zone info if present (for conditional states)
@@ -198,8 +204,9 @@ export function useShippingRates() {
       setRates(fetchedRates)
       return fetchedRates
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to fetch shipping rates'
-      setError(errorMessage)
+      console.error('[useShippingRates] Error:', err.message || err)
+      // Show a friendly message to the customer regardless of the technical error
+      setError('We were unable to calculate shipping rates for your address. Please try again or contact us at support@atlurbanfarms.com for assistance.')
       setRates([])
       return []
     } finally {

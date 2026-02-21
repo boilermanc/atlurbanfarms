@@ -17,14 +17,22 @@ CREATE TABLE IF NOT EXISTS growing_systems (
 ALTER TABLE growing_systems ENABLE ROW LEVEL SECURITY;
 
 -- Anyone can read active growing systems (storefront, checkout, etc.)
-CREATE POLICY "Public read growing_systems" ON growing_systems
-  FOR SELECT USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'growing_systems' AND policyname = 'Public read growing_systems') THEN
+    CREATE POLICY "Public read growing_systems" ON growing_systems
+      FOR SELECT USING (true);
+  END IF;
+END $$;
 
 -- Only admins can insert/update/delete
-CREATE POLICY "Admins manage growing_systems" ON growing_systems
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM customers WHERE id = auth.uid() AND role = 'admin')
-  );
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'growing_systems' AND policyname = 'Admins manage growing_systems') THEN
+    CREATE POLICY "Admins manage growing_systems" ON growing_systems
+      FOR ALL USING (
+        EXISTS (SELECT 1 FROM customers WHERE id = auth.uid() AND role = 'admin')
+      );
+  END IF;
+END $$;
 
 -- Seed default systems
 INSERT INTO growing_systems (name, slug, sort_order) VALUES

@@ -23,6 +23,7 @@ serve(async (req) => {
       'shipstation_enabled',
       'shipengine_api_key'
     ])
+    const isSandbox = integrationSettings.shipengine_mode === 'sandbox'
 
     if (!integrationSettings.shipengine_api_key) {
       return new Response(
@@ -111,7 +112,7 @@ serve(async (req) => {
             carrier_code: carrierCode,
             carrier_name: carrierName,
             is_enabled: !carrier.disabled,
-            is_sandbox: false,
+            is_sandbox: isSandbox,
             api_credentials: {
               shipengine_carrier_id: carrier.carrier_id,
               account_number: carrier.account_number,

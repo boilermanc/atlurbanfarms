@@ -13,7 +13,7 @@ VALUES
   ('tax', 'tax_enabled', 'true', 'boolean', 'Whether sales tax collection is enabled'),
   ('tax', 'default_tax_rate', '0.07', 'number', 'Tax rate for nexus states (e.g., 0.07 for 7%)'),
   ('tax', 'nexus_states', '["GA"]', 'json', 'State abbreviations where sales tax applies'),
-  ('tax', 'tax_label', 'Sales Tax', 'string', 'Label shown on the tax line item')
+  ('tax', 'tax_label', '"Sales Tax"', 'string', 'Label shown on the tax line item')
 ON CONFLICT (category, key) DO NOTHING;
 
 -- Recreate order RPC to include tax_rate_applied and tax_note

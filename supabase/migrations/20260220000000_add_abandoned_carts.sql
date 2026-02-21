@@ -54,10 +54,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER abandoned_carts_updated_at
-    BEFORE UPDATE ON public.abandoned_carts
-    FOR EACH ROW
-    EXECUTE FUNCTION update_abandoned_carts_updated_at();
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'abandoned_carts_updated_at') THEN
+    CREATE TRIGGER abandoned_carts_updated_at
+        BEFORE UPDATE ON public.abandoned_carts
+        FOR EACH ROW
+        EXECUTE FUNCTION update_abandoned_carts_updated_at();
+  END IF;
+END $$;
 
 -- ============================================
 -- 4. RLS policies
@@ -65,40 +69,49 @@ CREATE TRIGGER abandoned_carts_updated_at
 
 ALTER TABLE public.abandoned_carts ENABLE ROW LEVEL SECURITY;
 
--- Anyone can insert (guest checkout has no auth)
-CREATE POLICY "Anyone can insert abandoned carts"
-    ON public.abandoned_carts
-    FOR INSERT
-    TO public
-    WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'abandoned_carts' AND policyname = 'Anyone can insert abandoned carts') THEN
+    CREATE POLICY "Anyone can insert abandoned carts"
+        ON public.abandoned_carts
+        FOR INSERT
+        TO public
+        WITH CHECK (true);
+  END IF;
+END $$;
 
--- Anyone can update by session_id (for marking as converted)
-CREATE POLICY "Anyone can update abandoned carts by session"
-    ON public.abandoned_carts
-    FOR UPDATE
-    TO public
-    USING (true)
-    WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'abandoned_carts' AND policyname = 'Anyone can update abandoned carts by session') THEN
+    CREATE POLICY "Anyone can update abandoned carts by session"
+        ON public.abandoned_carts
+        FOR UPDATE
+        TO public
+        USING (true)
+        WITH CHECK (true);
+  END IF;
+END $$;
 
--- Admin full access
-CREATE POLICY "Admins have full access to abandoned carts"
-    ON public.abandoned_carts
-    FOR ALL
-    TO authenticated
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.admin_user_roles
-            WHERE customer_id = auth.uid()
-            AND is_active = true
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'abandoned_carts' AND policyname = 'Admins have full access to abandoned carts') THEN
+    CREATE POLICY "Admins have full access to abandoned carts"
+        ON public.abandoned_carts
+        FOR ALL
+        TO authenticated
+        USING (
+            EXISTS (
+                SELECT 1 FROM public.admin_user_roles
+                WHERE customer_id = auth.uid()
+                AND is_active = true
+            )
         )
-    )
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.admin_user_roles
-            WHERE customer_id = auth.uid()
-            AND is_active = true
-        )
-    );
+        WITH CHECK (
+            EXISTS (
+                SELECT 1 FROM public.admin_user_roles
+                WHERE customer_id = auth.uid()
+                AND is_active = true
+            )
+        );
+  END IF;
+END $$;
 
 -- ============================================
 -- 5. Abandoned cart email template

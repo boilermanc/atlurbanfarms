@@ -359,30 +359,39 @@ async function checkShippingZone(
  * First checks carrier_configurations table for synced carriers with ShipEngine carrier IDs.
  * Falls back to fetching all active carriers from ShipEngine API if none configured in DB.
  */
-async function getCarrierIds(supabaseClient: any, apiKey: string): Promise<string[]> {
-  // Try DB-configured carriers first
-  const { data: dbCarriers, error: dbError } = await supabaseClient
-    .from('carrier_configurations')
-    .select('carrier_name, api_credentials, is_enabled')
-    .eq('is_enabled', true)
+async function getCarrierIds(supabaseClient: any, apiKey: string, mode?: string): Promise<string[]> {
+  const isSandbox = mode === 'sandbox'
 
-  if (!dbError && dbCarriers && dbCarriers.length > 0) {
-    const dbIds = dbCarriers
-      .filter((c: any) => c.api_credentials?.shipengine_carrier_id)
-      .map((c: any) => c.api_credentials.shipengine_carrier_id as string)
+  // In sandbox mode, skip DB carriers (they contain production carrier IDs)
+  // and go straight to ShipEngine API discovery with the sandbox key
+  if (!isSandbox) {
+    // Try DB-configured carriers first
+    const { data: dbCarriers, error: dbError } = await supabaseClient
+      .from('carrier_configurations')
+      .select('carrier_name, api_credentials, is_enabled')
+      .eq('is_enabled', true)
 
-    if (dbIds.length > 0) {
-      console.log(`Using ${dbIds.length} carrier(s) from carrier_configurations:`,
-        dbCarriers
-          .filter((c: any) => c.is_enabled && c.api_credentials?.shipengine_carrier_id)
-          .map((c: any) => `${c.carrier_name} (${c.api_credentials.shipengine_carrier_id})`)
-      )
-      return dbIds
+    if (!dbError && dbCarriers && dbCarriers.length > 0) {
+      const dbIds = dbCarriers
+        .filter((c: any) => c.api_credentials?.shipengine_carrier_id)
+        .map((c: any) => c.api_credentials.shipengine_carrier_id as string)
+
+      if (dbIds.length > 0) {
+        console.log(`Using ${dbIds.length} carrier(s) from carrier_configurations:`,
+          dbCarriers
+            .filter((c: any) => c.is_enabled && c.api_credentials?.shipengine_carrier_id)
+            .map((c: any) => `${c.carrier_name} (${c.api_credentials.shipengine_carrier_id})`)
+        )
+        return dbIds
+      }
     }
   }
 
-  // Fallback: fetch all active carriers from ShipEngine API
-  console.log('No enabled carriers in carrier_configurations with ShipEngine IDs, falling back to ShipEngine API discovery')
+  // Fallback (or sandbox mode): fetch all active carriers from ShipEngine API
+  console.log(isSandbox
+    ? 'Sandbox mode: discovering carriers from ShipEngine API (skipping DB carrier IDs)'
+    : 'No enabled carriers in carrier_configurations with ShipEngine IDs, falling back to ShipEngine API discovery'
+  )
   const response = await fetch('https://api.shipengine.com/v1/carriers', {
     method: 'GET',
     headers: {
@@ -630,8 +639,25 @@ serve(async (req) => {
 
     // Detect sandbox mode from API key prefix
     const isSandbox = (integrationSettings.shipengine_api_key as string).startsWith('TEST_')
+    const apiKeyPreview = (integrationSettings.shipengine_api_key as string).slice(0, 8) + '...'
+
+    console.log('[shipengine-get-rates] Config:', JSON.stringify({
+      mode: integrationSettings.shipengine_mode || 'unknown',
+      isSandbox,
+      apiKeyPrefix: apiKeyPreview,
+      hasWarehouseAddress: !!warehouseAddress?.address_line1,
+      warehouseCity: warehouseAddress?.city_locality || 'NOT SET',
+      warehouseState: warehouseAddress?.state_province || 'NOT SET',
+      warehouseZip: warehouseAddress?.postal_code || 'NOT SET',
+      defaultPackageDims: defaultPackage ? `${defaultPackage.dimensions?.length}x${defaultPackage.dimensions?.width}x${defaultPackage.dimensions?.height}` : 'NOT SET',
+      defaultPackageWeight: defaultPackage?.weight?.value || 'NOT SET',
+      markupType,
+      markupPercent,
+      markupDollars,
+    }))
+
     if (isSandbox) {
-      console.warn('SANDBOX MODE: Using TEST_ API key — rates are estimated retail, not negotiated.')
+      console.warn('[shipengine-get-rates] SANDBOX MODE: Using TEST_ API key — rates are estimated retail, not negotiated.')
     }
 
     if (!warehouseAddress || !warehouseAddress.address_line1) {
@@ -696,7 +722,7 @@ serve(async (req) => {
     }
 
     // Get enabled carrier IDs (from DB first, then ShipEngine API fallback)
-    const carrierIds = await getCarrierIds(supabaseClient, integrationSettings.shipengine_api_key)
+    const carrierIds = await getCarrierIds(supabaseClient, integrationSettings.shipengine_api_key, integrationSettings.shipengine_mode)
 
     if (carrierIds.length === 0) {
       return new Response(
@@ -780,6 +806,16 @@ serve(async (req) => {
     }
 
     // Call ShipEngine rates API
+    console.log('[shipengine-get-rates] Request to ShipEngine:', JSON.stringify({
+      carrier_ids: carrierIds,
+      ship_from: `${rateRequest.shipment.ship_from.city_locality}, ${rateRequest.shipment.ship_from.state_province} ${rateRequest.shipment.ship_from.postal_code}`,
+      ship_to: `${rateRequest.shipment.ship_to.city_locality}, ${rateRequest.shipment.ship_to.state_province} ${rateRequest.shipment.ship_to.postal_code}`,
+      packages: rateRequest.shipment.packages.map((p: any) => ({
+        weight: p.weight,
+        dims: p.dimensions ? `${p.dimensions.length}x${p.dimensions.width}x${p.dimensions.height}` : 'none'
+      }))
+    }))
+
     const shipEngineResponse = await fetch('https://api.shipengine.com/v1/rates', {
       method: 'POST',
       headers: {
@@ -791,8 +827,8 @@ serve(async (req) => {
 
     if (!shipEngineResponse.ok) {
       const errorBody = await shipEngineResponse.text()
-      console.error('ShipEngine API error:', shipEngineResponse.status, errorBody)
-      console.error('ShipEngine request payload:', JSON.stringify(rateRequest))
+      console.error(`[shipengine-get-rates] ShipEngine API ERROR ${shipEngineResponse.status}:`, errorBody)
+      console.error('[shipengine-get-rates] Full request payload:', JSON.stringify(rateRequest))
 
       return new Response(
         JSON.stringify({
@@ -936,6 +972,15 @@ serve(async (req) => {
         ? { type: 'percentage' as const, percent: markupPercent }
         : null
 
+    console.log(`[shipengine-get-rates] Success: ${rates.length} rate(s) returned`, rates.map(r =>
+      `${r.carrier_friendly_name} ${r.service_code} $${r.shipping_amount} (${r.delivery_days ?? '?'} days)`
+    ))
+    if (carrierErrors.length > 0) {
+      console.warn(`[shipengine-get-rates] ${carrierErrors.length} carrier error(s):`, carrierErrors.map(e =>
+        `${e.carrier_friendly_name}: ${e.message}`
+      ))
+    }
+
     const response: RatesResponse & {
       carrier_ids_used?: string[]
       is_sandbox?: boolean
@@ -970,7 +1015,8 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Get rates error:', error)
+    console.error('[shipengine-get-rates] UNHANDLED ERROR:', error.message || error)
+    console.error('[shipengine-get-rates] Stack:', error.stack || 'no stack')
     return new Response(
       JSON.stringify({
         success: false,

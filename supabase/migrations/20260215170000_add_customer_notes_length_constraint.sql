@@ -6,7 +6,13 @@
 UPDATE orders SET customer_notes = LEFT(customer_notes, 2000)
 WHERE customer_notes IS NOT NULL AND length(customer_notes) > 2000;
 
--- Add the constraint
-ALTER TABLE orders
-ADD CONSTRAINT customer_notes_max_length
-CHECK (customer_notes IS NULL OR length(customer_notes) <= 2000);
+-- Add the constraint only if it doesn't already exist
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'customer_notes_max_length'
+  ) THEN
+    ALTER TABLE orders
+    ADD CONSTRAINT customer_notes_max_length
+    CHECK (customer_notes IS NULL OR length(customer_notes) <= 2000);
+  END IF;
+END $$;
