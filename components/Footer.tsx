@@ -6,7 +6,7 @@ import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
-type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar';
+type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar' | 'blog' | 'schools' | 'tools';
 
 interface FooterProps {
   onNavigate?: (view: FooterViewType, category?: string, options?: { calendarFilter?: string }) => void;
@@ -139,10 +139,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   };
 
   const shopLinks = [
-    { label: 'All Products', cat: 'All' },
-    { label: 'Herbs', cat: 'Herbs' },
-    { label: 'Vegetables', cat: 'Vegetables' },
-    { label: 'Flowers', cat: 'Flowers' },
+    { label: 'Seedlings', cat: 'Seedlings' },
+    { label: 'Supplies', cat: 'Supplies' },
+    { label: 'Merchandise', cat: 'Merchandise' },
   ];
 
   return (
@@ -322,18 +321,16 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">About Us</button></li>
               <li><button onClick={(e) => { handleNav(e, 'about'); setTimeout(() => { document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Meet the Growers</button></li>
               <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Our Story</button></li>
-              <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Sustainability</button></li>
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Careers</button></li>
+              <li><button onClick={(e) => handleNav(e, 'calendar')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Calendar</button></li>
             </ul>
           </div>
           <div>
             <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Support</h4>
             <ul className="space-y-4">
               <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">FAQ</button></li>
-              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('contact', 'contact-us'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Contact</button></li>
-              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('shipping', 'shipping-and-delivery', 'shipping-delivery'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Shipping Policy</button></li>
-              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('returns', 'returns-and-refunds', 'refunds'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Returns</button></li>
-              <li><button onClick={(e) => { handleNav(e, 'faq'); setTimeout(() => scrollToSection('wholesale', 'bulk-orders', 'business'), 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Wholesale</button></li>
+              <li><button onClick={(e) => handleNav(e, 'blog')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Blog</button></li>
+              <li><button onClick={(e) => handleNav(e, 'schools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Schools</button></li>
+              <li><button onClick={(e) => handleNav(e, 'tools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Tools</button></li>
             </ul>
           </div>
           <div>

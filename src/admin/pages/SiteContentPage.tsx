@@ -211,51 +211,11 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
       ],
     },
     growers: {
-      label: 'Growers Section Header',
+      label: 'Growers Section Header (profiles managed in Team Members)',
       keys: [
         { key: 'tagline', label: 'Tagline', type: 'text' },
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'description', label: 'Description', type: 'text' },
-      ],
-    },
-    grower_1: {
-      label: 'Grower Profile 1',
-      keys: [
-        { key: 'name', label: 'Name', type: 'text' },
-        { key: 'title', label: 'Title / Role', type: 'text' },
-        { key: 'image', label: 'Photo', type: 'image_url' },
-        { key: 'bio', label: 'Bio', type: 'rich_text' },
-        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
-      ],
-    },
-    grower_2: {
-      label: 'Grower Profile 2',
-      keys: [
-        { key: 'name', label: 'Name', type: 'text' },
-        { key: 'title', label: 'Title / Role', type: 'text' },
-        { key: 'image', label: 'Photo', type: 'image_url' },
-        { key: 'bio', label: 'Bio', type: 'rich_text' },
-        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
-      ],
-    },
-    grower_3: {
-      label: 'Grower Profile 3',
-      keys: [
-        { key: 'name', label: 'Name', type: 'text' },
-        { key: 'title', label: 'Title / Role', type: 'text' },
-        { key: 'image', label: 'Photo', type: 'image_url' },
-        { key: 'bio', label: 'Bio', type: 'rich_text' },
-        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
-      ],
-    },
-    grower_4: {
-      label: 'Grower Profile 4 (Optional)',
-      keys: [
-        { key: 'name', label: 'Name', type: 'text' },
-        { key: 'title', label: 'Title / Role', type: 'text' },
-        { key: 'image', label: 'Photo', type: 'image_url' },
-        { key: 'bio', label: 'Bio', type: 'rich_text' },
-        { key: 'font_color', label: 'Font Color (on photo)', type: 'color' },
       ],
     },
     values: {

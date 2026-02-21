@@ -20,12 +20,6 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     support_email: { value: '', dataType: 'string' },
     support_phone: { value: '', dataType: 'string' },
     timezone: { value: 'America/New_York', dataType: 'string' },
-    ship_from_address_line1: { value: '', dataType: 'string' },
-    ship_from_address_line2: { value: '', dataType: 'string' },
-    ship_from_city: { value: '', dataType: 'string' },
-    ship_from_state: { value: '', dataType: 'string' },
-    ship_from_zip: { value: '', dataType: 'string' },
-    ship_from_country: { value: 'US', dataType: 'string' },
   },
   checkout: {
     guest_checkout_enabled: { value: true, dataType: 'boolean' },
@@ -51,7 +45,9 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     primary_brand_color: { value: '#10b981', dataType: 'string' },
     secondary_brand_color: { value: '#047857', dataType: 'string' },
     heading_font: { value: 'Plus Jakarta Sans', dataType: 'string' },
+    heading_font_size: { value: 28, dataType: 'number' },
     body_font: { value: 'Inter', dataType: 'string' },
+    body_font_size: { value: 16, dataType: 'number' },
     background_color: { value: '#fafafa', dataType: 'string' },
     secondary_background_color: { value: '#ffffff', dataType: 'string' },
     announcement_bar_enabled: { value: false, dataType: 'boolean' },
@@ -89,33 +85,8 @@ const ALLOCATION_STRATEGIES = [
 // Fonts already loaded via index.html <link> tag
 const PRELOADED_FONTS = ['Inter', 'Plus Jakarta Sans', 'DM Sans', 'Space Grotesk', 'Caveat', 'Patrick Hand'];
 
-const US_STATES = [
-  { value: 'AL', label: 'Alabama' }, { value: 'AK', label: 'Alaska' },
-  { value: 'AZ', label: 'Arizona' }, { value: 'AR', label: 'Arkansas' },
-  { value: 'CA', label: 'California' }, { value: 'CO', label: 'Colorado' },
-  { value: 'CT', label: 'Connecticut' }, { value: 'DE', label: 'Delaware' },
-  { value: 'FL', label: 'Florida' }, { value: 'GA', label: 'Georgia' },
-  { value: 'HI', label: 'Hawaii' }, { value: 'ID', label: 'Idaho' },
-  { value: 'IL', label: 'Illinois' }, { value: 'IN', label: 'Indiana' },
-  { value: 'IA', label: 'Iowa' }, { value: 'KS', label: 'Kansas' },
-  { value: 'KY', label: 'Kentucky' }, { value: 'LA', label: 'Louisiana' },
-  { value: 'ME', label: 'Maine' }, { value: 'MD', label: 'Maryland' },
-  { value: 'MA', label: 'Massachusetts' }, { value: 'MI', label: 'Michigan' },
-  { value: 'MN', label: 'Minnesota' }, { value: 'MS', label: 'Mississippi' },
-  { value: 'MO', label: 'Missouri' }, { value: 'MT', label: 'Montana' },
-  { value: 'NE', label: 'Nebraska' }, { value: 'NV', label: 'Nevada' },
-  { value: 'NH', label: 'New Hampshire' }, { value: 'NJ', label: 'New Jersey' },
-  { value: 'NM', label: 'New Mexico' }, { value: 'NY', label: 'New York' },
-  { value: 'NC', label: 'North Carolina' }, { value: 'ND', label: 'North Dakota' },
-  { value: 'OH', label: 'Ohio' }, { value: 'OK', label: 'Oklahoma' },
-  { value: 'OR', label: 'Oregon' }, { value: 'PA', label: 'Pennsylvania' },
-  { value: 'RI', label: 'Rhode Island' }, { value: 'SC', label: 'South Carolina' },
-  { value: 'SD', label: 'South Dakota' }, { value: 'TN', label: 'Tennessee' },
-  { value: 'TX', label: 'Texas' }, { value: 'UT', label: 'Utah' },
-  { value: 'VT', label: 'Vermont' }, { value: 'VA', label: 'Virginia' },
-  { value: 'WA', label: 'Washington' }, { value: 'WV', label: 'West Virginia' },
-  { value: 'WI', label: 'Wisconsin' }, { value: 'WY', label: 'Wyoming' },
-];
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48];
+
 
 const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('business');
@@ -371,76 +342,12 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <div className="border-t border-slate-200 pt-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Ship-From Address</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2 md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700">Address Line 1</label>
-            <input
-              type="text"
-              value={formData.business?.ship_from_address_line1 || ''}
-              onChange={(e) => updateField('business', 'ship_from_address_line1', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="123 Farm Street"
-            />
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <label className="block text-sm font-medium text-slate-700">Address Line 2</label>
-            <input
-              type="text"
-              value={formData.business?.ship_from_address_line2 || ''}
-              onChange={(e) => updateField('business', 'ship_from_address_line2', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="Suite 100"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">City</label>
-            <input
-              type="text"
-              value={formData.business?.ship_from_city || ''}
-              onChange={(e) => updateField('business', 'ship_from_city', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="Atlanta"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">State</label>
-            <select
-              value={formData.business?.ship_from_state || ''}
-              onChange={(e) => updateField('business', 'ship_from_state', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              <option value="">Select state</option>
-              {US_STATES.map((state) => (
-                <option key={state.value} value={state.value}>{state.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">ZIP Code</label>
-            <input
-              type="text"
-              value={formData.business?.ship_from_zip || ''}
-              onChange={(e) => updateField('business', 'ship_from_zip', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="30301"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Country</label>
-            <select
-              value={formData.business?.ship_from_country || 'US'}
-              onChange={(e) => updateField('business', 'ship_from_country', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              <option value="US">United States</option>
-            </select>
-          </div>
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60">
+          <p className="text-sm text-slate-600">
+            <strong>Ship-From Address</strong> has moved to{' '}
+            <span className="text-emerald-600 font-medium">Shipping &rarr; Settings</span>
+            , where you can also validate the address and configure fulfillment schedules.
+          </p>
         </div>
       </div>
     </div>
@@ -890,9 +797,21 @@ const SettingsPage: React.FC = () => {
               <option value="Space Grotesk">Space Grotesk</option>
             </select>
             <p className="text-xs text-slate-500">Used for h1, h2, h3, h4, and .font-heading elements</p>
+            <div className="space-y-1 mt-2">
+              <label className="block text-sm font-medium text-slate-700">Size (px)</label>
+              <select
+                value={formData.branding?.heading_font_size ?? 28}
+                onChange={(e) => updateField('branding', 'heading_font_size', parseInt(e.target.value))}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              >
+                {FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>{size}px{size === 28 ? ' (Default)' : ''}</option>
+                ))}
+              </select>
+            </div>
             <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
               <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p key={`heading-${formData.branding?.heading_font}-${fontLoadKey}`} className="text-xl font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif` }}>
+              <p key={`heading-${formData.branding?.heading_font}-${fontLoadKey}`} className="font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif`, fontSize: `${formData.branding?.heading_font_size ?? 28}px` }}>
                 The Quick Brown Fox
               </p>
             </div>
@@ -919,9 +838,21 @@ const SettingsPage: React.FC = () => {
               <option value="Space Grotesk">Space Grotesk</option>
             </select>
             <p className="text-xs text-slate-500">Used for body text, paragraphs, and general content</p>
+            <div className="space-y-1 mt-2">
+              <label className="block text-sm font-medium text-slate-700">Size (px)</label>
+              <select
+                value={formData.branding?.body_font_size ?? 16}
+                onChange={(e) => updateField('branding', 'body_font_size', parseInt(e.target.value))}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              >
+                {FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>{size}px{size === 16 ? ' (Default)' : ''}</option>
+                ))}
+              </select>
+            </div>
             <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
               <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p key={`body-${formData.branding?.body_font}-${fontLoadKey}`} className="text-base text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif` }}>
+              <p key={`body-${formData.branding?.body_font}-${fontLoadKey}`} className="text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif`, fontSize: `${formData.branding?.body_font_size ?? 16}px` }}>
                 Fresh seedlings delivered to your doorstep every week.
               </p>
             </div>

@@ -65,6 +65,13 @@
                 document.body.style.fontFamily = "'" + c.bodyFont + "', sans-serif";
               });
             }
+            // Apply cached font sizes
+            if (c.headingFontSize) {
+              root.style.setProperty('--heading-font-size', c.headingFontSize + 'px');
+            }
+            if (c.bodyFontSize) {
+              root.style.setProperty('--body-font-size', c.bodyFontSize + 'px');
+            }
           }
         } catch(e) {}
         // Failsafe: reveal page after 4s even if JS fails to load

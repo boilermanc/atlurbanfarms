@@ -29,6 +29,7 @@ import {
   Search,
   Package,
   FolderTree,
+  Mail,
 } from 'lucide-react';
 
 interface PromotionEditPageProps {
@@ -48,6 +49,13 @@ interface CategoryOption {
   name: string;
 }
 
+interface CustomerOption {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
   promotionId,
   onBack,
@@ -65,6 +73,12 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
+  const [showCustomerSelector, setShowCustomerSelector] = useState(false);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [selectedCustomerMap, setSelectedCustomerMap] = useState<Record<string, CustomerOption>>({});
 
   // Fetch products and categories for selectors
   useEffect(() => {
@@ -130,6 +144,21 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
         customer_ids: promotion.customers?.filter((c) => c.id).map((c) => c.id!) || [],
         customer_emails: promotion.customers?.filter((c) => !c.id && c.email).map((c) => c.email) || [],
       });
+
+      // Build customer display map from loaded promotion data
+      const map: Record<string, CustomerOption> = {};
+      promotion.customers?.forEach((c) => {
+        if (c.id) {
+          const nameParts = c.name?.split(' ') || [];
+          map[c.id] = {
+            id: c.id,
+            email: c.email,
+            first_name: nameParts[0] || null,
+            last_name: nameParts.slice(1).join(' ') || null,
+          };
+        }
+      });
+      setSelectedCustomerMap(map);
     }
   }, [promotion]);
 
@@ -198,6 +227,10 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
       newErrors.products = 'Select at least one product';
     }
 
+    if (formData.scope === 'customer' && formData.customer_ids.length === 0 && formData.customer_emails.length === 0) {
+      newErrors.customers = 'Select at least one customer or enter an email';
+    }
+
     if (!formData.starts_at) {
       newErrors.starts_at = 'Start date is required';
     }
@@ -248,6 +281,82 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
     setFormData((prev) => ({
       ...prev,
       category_ids: prev.category_ids.filter((id) => id !== categoryId),
+    }));
+  };
+
+  // Customer search with debounce
+  useEffect(() => {
+    if (customerSearch.length < 2) {
+      setCustomerResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCustomerSearchLoading(true);
+      try {
+        const { data } = await supabase
+          .from('customers')
+          .select('id, email, first_name, last_name')
+          .or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        const filtered = (data || []).filter(
+          (c: CustomerOption) => !formData.customer_ids.includes(c.id)
+        );
+        setCustomerResults(filtered);
+      } catch (err) {
+        console.error('Error searching customers:', err);
+      } finally {
+        setCustomerSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [customerSearch, formData.customer_ids]);
+
+  const addCustomer = (customer: CustomerOption) => {
+    if (!formData.customer_ids.includes(customer.id)) {
+      setFormData((prev) => ({
+        ...prev,
+        customer_ids: [...prev.customer_ids, customer.id],
+      }));
+      setSelectedCustomerMap((prev) => ({ ...prev, [customer.id]: customer }));
+    }
+    setShowCustomerSelector(false);
+    setCustomerSearch('');
+    setCustomerResults([]);
+  };
+
+  const removeCustomer = (customerId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      customer_ids: prev.customer_ids.filter((id) => id !== customerId),
+    }));
+    setSelectedCustomerMap((prev) => {
+      const next = { ...prev };
+      delete next[customerId];
+      return next;
+    });
+  };
+
+  const addCustomerEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    if (!email) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return;
+    if (formData.customer_emails.includes(email)) return;
+    setFormData((prev) => ({
+      ...prev,
+      customer_emails: [...prev.customer_emails, email],
+    }));
+    setEmailInput('');
+  };
+
+  const removeCustomerEmail = (email: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      customer_emails: prev.customer_emails.filter((e) => e !== email),
     }));
   };
 
@@ -725,6 +834,149 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
                 )}
               </div>
               {errors.products && <p className="text-red-500 text-xs mt-1">{errors.products}</p>}
+            </div>
+          )}
+
+          {/* Customer Selector */}
+          {formData.scope === 'customer' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Select Customers *
+              </label>
+
+              {/* Selected registered customer chips */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                {formData.customer_ids.map((id) => {
+                  const cust = selectedCustomerMap[id];
+                  const displayName = cust
+                    ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || cust.email
+                    : id;
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium"
+                    >
+                      <Users size={14} />
+                      {displayName}
+                      {cust && cust.first_name && (
+                        <span className="text-amber-500 text-xs ml-0.5">({cust.email})</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeCustomer(id)}
+                        className="ml-1 hover:text-amber-900"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  );
+                })}
+
+                {/* Selected email chips */}
+                {formData.customer_emails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-sm font-medium"
+                  >
+                    <Mail size={14} />
+                    {email}
+                    <button
+                      type="button"
+                      onClick={() => removeCustomerEmail(email)}
+                      className="ml-1 hover:text-amber-900"
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {/* Search registered customers */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerSelector(!showCustomerSelector)}
+                  className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  <Plus size={16} />
+                  Add Customer
+                </button>
+                {showCustomerSelector && (
+                  <div className="absolute z-10 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg py-2">
+                    <div className="px-3 pb-2">
+                      <div className="relative">
+                        <Search
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                          size={16}
+                        />
+                        <input
+                          type="text"
+                          value={customerSearch}
+                          onChange={(e) => setCustomerSearch(e.target.value)}
+                          placeholder="Search by name or email..."
+                          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm"
+                        />
+                        {customerSearchLoading && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <div className="w-4 h-4 border-2 border-slate-300 border-t-amber-500 rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {customerResults.map((cust) => (
+                        <button
+                          key={cust.id}
+                          type="button"
+                          onClick={() => addCustomer(cust)}
+                          className="w-full px-4 py-2 text-left hover:bg-slate-50 text-sm"
+                        >
+                          <span className="font-medium">
+                            {cust.first_name} {cust.last_name}
+                          </span>
+                          <span className="text-slate-400 ml-2">{cust.email}</span>
+                        </button>
+                      ))}
+                      {customerSearch.length >= 2 && !customerSearchLoading && customerResults.length === 0 && (
+                        <div className="px-4 py-2 text-sm text-slate-400">No customers found</div>
+                      )}
+                      {customerSearch.length < 2 && (
+                        <div className="px-4 py-2 text-sm text-slate-400">Type at least 2 characters to search</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Add by email for guests */}
+              <div className="flex gap-2 mt-3">
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCustomerEmail();
+                    }
+                  }}
+                  placeholder="Add by email address..."
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomerEmail}
+                  className="flex items-center gap-1 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm"
+                >
+                  <Plus size={16} />
+                  Add
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Search registered customers above, or add guest emails directly</p>
+
+              {errors.customers && (
+                <p className="text-red-500 text-xs mt-1">{errors.customers}</p>
+              )}
             </div>
           )}
         </div>

@@ -16,19 +16,25 @@ interface FeaturedSectionProps {
 }
 
 // Map Supabase product to local Product type
-const mapProduct = (p: any): Product => ({
-  id: p.id,
-  name: p.name,
-  description: p.description || '',
-  price: p.price,
-  compareAtPrice: p.compare_at_price ?? null,
-  image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
-  category: p.category?.name || 'Uncategorized',
-  stock: p.quantity_available || 0,
-  productType: p.product_type || null,
-  externalUrl: p.external_url || null,
-  externalButtonText: p.external_button_text || null,
-});
+const mapProduct = (p: any): Product => {
+  const rawPrice = Number(p.price) || 0;
+  const rawCompareAt = p.compare_at_price != null ? Number(p.compare_at_price) : null;
+  const isOnSale = rawCompareAt != null && rawCompareAt > 0 && rawPrice > 0 && rawCompareAt !== rawPrice;
+
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description || '',
+    price: isOnSale ? Math.min(rawPrice, rawCompareAt!) : rawPrice,
+    compareAtPrice: isOnSale ? Math.max(rawPrice, rawCompareAt!) : rawCompareAt,
+    image: p.primary_image?.url || p.images?.[0]?.url || 'https://placehold.co/400x400?text=No+Image',
+    category: p.category?.name || 'Uncategorized',
+    stock: p.quantity_available || 0,
+    productType: p.product_type || null,
+    externalUrl: p.external_url || null,
+    externalButtonText: p.external_button_text || null,
+  };
+};
 
 const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNavigate }) => {
   const [rawProducts, setRawProducts] = useState<any[]>([]);
@@ -198,7 +204,9 @@ const FeaturedSection: React.FC<FeaturedSectionProps> = ({ onAddToCart, onNaviga
                   name={product.name}
                   price={displayPrice}
                   category={product.category}
-                  inStock={product.stock > 0}
+                  inStock={featuredRawProducts[idx]?.track_inventory === false
+                    ? featuredRawProducts[idx]?.stock_status === 'in_stock'
+                    : product.stock > 0}
                   onAddToCart={(qty) => onAddToCart(product, qty)}
                   onClick={() => setSelectedProduct(featuredRawProducts[idx])}
                   compareAtPrice={displayCompareAtPrice}

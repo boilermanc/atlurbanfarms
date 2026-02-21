@@ -1175,7 +1175,7 @@ export function useCreateOrder() {
         shipping_state: shippingInfo?.state || null,
         shipping_zip: shippingInfo?.zip || null,
         shipping_country: shippingInfo?.country || 'US',
-        shipping_phone: customerInfo.phone,
+        shipping_phone: shippingInfo?.phone || customerInfo.phone,
         shipping_method: shippingMethodName || shippingMethod,
         shipping_cost: shippingCost,
         subtotal,
@@ -1391,7 +1391,9 @@ export function useBrandingSettings() {
     primary_brand_color: '#10b981',
     secondary_brand_color: '#047857',
     heading_font: 'Plus Jakarta Sans',
+    heading_font_size: 28,
     body_font: 'Inter',
+    body_font_size: 16,
     background_color: '#fafafa',
     secondary_background_color: '#ffffff'
   })

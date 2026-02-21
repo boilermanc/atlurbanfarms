@@ -78,28 +78,10 @@ const AboutPage: React.FC = () => {
   const { growers: supabaseGrowers, loading: growersLoading } = useGrowers();
   const { get, getSection } = usePageContent('about');
 
-  // Build CMS grower profiles from site_content
-  const cmsGrowers: Grower[] = [1, 2, 3, 4]
-    .map((i) => {
-      const section = getSection(`grower_${i}`);
-      return {
-        id: `cms-${i}`,
-        name: section.name || '',
-        title: section.title || '',
-        bio: section.bio || '',
-        image: section.image || '',
-        specialty: '',
-        font_color: section.font_color || '',
-      };
-    })
-    .filter((g) => g.name.trim() !== '');
-
-  // Priority: CMS grower profiles > Supabase growers table > hardcoded placeholders
-  const growers: Grower[] = cmsGrowers.length > 0
-    ? cmsGrowers
-    : supabaseGrowers.length > 0
-      ? supabaseGrowers
-      : PLACEHOLDER_GROWERS;
+  // Use growers table data, fall back to placeholders if empty
+  const growers: Grower[] = supabaseGrowers.length > 0
+    ? supabaseGrowers
+    : PLACEHOLDER_GROWERS;
 
   // Get CMS content for each section
   const heroContent = getSection('hero');

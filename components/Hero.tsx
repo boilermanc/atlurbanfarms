@@ -31,8 +31,6 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
   const subheadline = get('hero', 'subheadline', 'Premium live plant seedlings delivered to your doorstep. Optimized for home gardeners, schools, and vertical farmers.');
   const primaryCtaText = get('hero', 'primary_cta_text', 'Shop Seedlings');
   const secondaryCtaText = get('hero', 'secondary_cta_text', 'Learn Our Process');
-  const guaranteeLabel = get('hero', 'guarantee_label', 'Guaranteed');
-  const guaranteeText = get('hero', 'guarantee_text', 'Arrives Alive');
   const mediaType = get('hero', 'hero_media_type', 'image');
   const imageUrl = get('hero', 'image_url', 'https://picsum.photos/seed/urbanfarm/800/1000');
   const videoUrl = get('hero', 'hero_video_url', '');
@@ -105,15 +103,6 @@ const Hero: React.FC<HeroProps> = ({ onShopClick, onAboutClick }) => {
             ) : (
               <img src={imageUrl || 'https://picsum.photos/seed/urbanfarm/800/1000'} alt="Healthy seedlings" className="w-full h-auto object-cover" />
             )}
-          </div>
-          <div className="absolute -bottom-6 -left-6 glass p-6 rounded-3xl shadow-xl border border-white z-20 flex items-center gap-4 max-w-[240px]">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center brand-bg-light brand-text">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{guaranteeLabel}</p>
-              <p className="font-heading font-bold text-gray-900">{guaranteeText}</p>
-            </div>
           </div>
         </motion.div>
       </div>

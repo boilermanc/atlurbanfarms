@@ -34,6 +34,8 @@ interface RawProduct {
   price: number;
   compare_at_price?: number | null;
   quantity_available?: number;
+  track_inventory?: boolean;
+  stock_status?: string;
   growing_instructions?: string;
   days_to_maturity?: number;
   sun_requirements?: string;
@@ -161,7 +163,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const currentImage = allImages[selectedImageIndex] || allImages[0];
   const imageUrl = currentImage?.url || 'https://placehold.co/600x600?text=No+Image';
   const categoryName = product.category?.name || 'Uncategorized';
-  const inStock = (product.quantity_available || 0) > 0;
+  const inStock = product.track_inventory === false
+    ? product.stock_status === 'in_stock'
+    : (product.quantity_available || 0) > 0;
   const isExternal = product.product_type === 'external' && !!product.external_url;
   const hasMultipleImages = allImages.length > 1;
 
@@ -360,7 +364,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                             ${numPrice.toFixed(2)}
                           </span>
                         )}
-                        {inStock && (
+                        {inStock && product.track_inventory !== false && (product.quantity_available || 0) > 0 && (
                           <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-xl">
                             {product.quantity_available} in stock
                           </span>
@@ -588,14 +592,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                                 {quantity}
                               </span>
                               <button
-                                onClick={() => setQuantity(q => Math.min(product.quantity_available || 99, q + 1))}
+                                onClick={() => setQuantity(q => Math.min(product.track_inventory === false ? 99 : (product.quantity_available || 99), q + 1))}
                                 className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 hover:text-emerald-600 transition-colors font-black border border-gray-100 active:scale-90"
                               >
                                 +
                               </button>
                             </div>
                             <span className="text-sm text-gray-400">
-                              Total: <span className={`font-bold ${isOnSale ? 'text-red-500' : 'text-emerald-600'}`}>${(product.price * quantity).toFixed(2)}</span>
+                              Total: <span className={`font-bold ${isOnSale ? 'text-red-500' : 'text-emerald-600'}`}>${(salePrice * quantity).toFixed(2)}</span>
                             </span>
                           </div>
                         )}

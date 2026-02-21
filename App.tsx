@@ -19,6 +19,7 @@ import OutageBanner from './components/OutageBanner';
 import FAQPage from './components/FAQPage';
 import AboutPage from './components/AboutPage';
 import SchoolsPage from './components/SchoolsPage';
+import LeadMagnetPopup from './components/LeadMagnetPopup';
 import ContentPage from './components/ContentPage';
 import CalendarPage from './components/CalendarPage';
 import ToolsPage from './components/ToolsPage';
@@ -36,6 +37,7 @@ import { AdminLayout } from './src/admin';
 import AdminLogin from './src/admin/pages/AdminLogin';
 import { useBrandingSettings } from './src/hooks/useSupabase';
 import { Product, CartItem } from './types';
+import { useCartSync } from './src/hooks/useCartSync';
 
 // Helper function to convert hex color to RGB values
 function hexToRgb(hex: string): string {
@@ -123,8 +125,6 @@ const getPathForView = (view: ViewType): string => {
   }
 };
 
-const CART_STORAGE_KEY = 'atl-urban-farms-cart';
-
 // Schools Promo Section Component - uses CMS content
 interface SchoolsPromoSectionProps {
   onNavigate: (view: string) => void;
@@ -169,15 +169,7 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
 };
 
 const App: React.FC = () => {
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    // Initialize cart from localStorage
-    try {
-      const saved = localStorage.getItem(CART_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { cart, setCart, addToCart, updateQuantity, removeFromCart, clearCart } = useCartSync();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -217,6 +209,12 @@ const App: React.FC = () => {
     const bgSecondary = brandingSettings?.secondary_background_color || '#ffffff';
     document.documentElement.style.setProperty('--bg-secondary', bgSecondary);
 
+    // Apply font sizes
+    const headingFontSize = brandingSettings?.heading_font_size || 28;
+    const bodyFontSize = brandingSettings?.body_font_size || 16;
+    document.documentElement.style.setProperty('--heading-font-size', `${headingFontSize}px`);
+    document.documentElement.style.setProperty('--body-font-size', `${bodyFontSize}px`);
+
     // Cache brand settings in localStorage for instant apply on next page load
     try {
       localStorage.setItem('atluf_brand_colors', JSON.stringify({
@@ -225,12 +223,14 @@ const App: React.FC = () => {
         secondary: secondaryColor,
         secondaryRgb: hexToRgb(secondaryColor),
         headingFont: brandingSettings?.heading_font || 'Plus Jakarta Sans',
+        headingFontSize: headingFontSize,
         bodyFont: brandingSettings?.body_font || 'Inter',
+        bodyFontSize: bodyFontSize,
         backgroundColor: bgColor,
         secondaryBackgroundColor: bgSecondary,
       }));
     } catch {}
-  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.secondary_background_color, brandingSettings?.heading_font, brandingSettings?.body_font]);
+  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.secondary_background_color, brandingSettings?.heading_font, brandingSettings?.body_font, brandingSettings?.heading_font_size, brandingSettings?.body_font_size]);
 
   // Dynamically load Google Fonts and apply font CSS variables
   useEffect(() => {
@@ -301,15 +301,6 @@ const App: React.FC = () => {
     return { trackingNumber, carrierCode };
   });
 
-  // Persist cart to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-    } catch {
-      // localStorage might be full or disabled
-    }
-  }, [cart]);
-
   // Handle browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
@@ -328,31 +319,17 @@ const App: React.FC = () => {
   }, []);
 
   const handleAddToCart = useCallback((product: Product, quantity: number = 1) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
-        );
-      }
-      return [...prev, { ...product, quantity }];
-    });
+    addToCart(product, quantity);
     setIsCartOpen(true);
-  }, []);
+  }, [addToCart]);
 
   const handleUpdateQuantity = useCallback((id: string, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
-  }, []);
+    updateQuantity(id, delta);
+  }, [updateQuantity]);
 
   const handleRemoveFromCart = useCallback((id: string) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-  }, []);
+    removeFromCart(id);
+  }, [removeFromCart]);
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
@@ -402,17 +379,17 @@ const App: React.FC = () => {
   }, []);
 
   const handleCompleteOrder = useCallback(() => {
-    setCart([]);
+    clearCart();
     setView('home');
     window.scrollTo(0, 0);
-  }, []);
+  }, [clearCart]);
 
   const handleOrderComplete = useCallback((orderData: OrderData) => {
     setCompletedOrder(orderData);
-    setCart([]);
+    clearCart();
     setView('order-confirmation');
     window.scrollTo(0, 0);
-  }, []);
+  }, [clearCart]);
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -632,6 +609,7 @@ const App: React.FC = () => {
 
             <Footer onNavigate={handleNavigate} />
             <SageAssistant />
+            <LeadMagnetPopup />
           </div>
         );
     }

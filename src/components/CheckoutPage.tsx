@@ -10,13 +10,15 @@ import { useStripePayment } from '../hooks/useStripePayment';
 import { useSeedlingCredit } from '../hooks/useSeedlingCredit';
 import { calculateTax } from '../lib/tax';
 import { useTaxConfig } from '../hooks/useTaxConfig';
-import { useAutoApplyPromotion, useRecordPromotionUsage } from '../hooks/usePromotions';
+import { useAutoApplyPromotion, useRecordPromotionUsage, useCartDiscount } from '../hooks/usePromotions';
+import { CartDiscountResult } from '../admin/types/promotions';
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
 import AddressAutocomplete, { ParsedAddress } from './ui/AddressAutocomplete';
 import InsufficientStockModal, { StockIssue } from './InsufficientStockModal';
 import { supabase } from '../lib/supabase';
 import { useGrowingSystems } from '../admin/hooks/useGrowingSystems';
+import { ChevronDown } from 'lucide-react';
 
 type DeliveryMethod = 'shipping' | 'pickup';
 
@@ -90,6 +92,7 @@ interface CheckoutFormData {
   state: string;
   zip: string;
   country: string;
+  shippingPhone: string;
 }
 
 interface FormErrors {
@@ -230,6 +233,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { discount: autoPromotion, loading: promoLoading } = useAutoApplyPromotion(items, user?.id, user?.email);
   const { recordUsage: recordPromotionUsage } = useRecordPromotionUsage();
 
+  // Manual promo code
+  const { calculateDiscount, loading: manualPromoLoading } = useCartDiscount();
+  const [manualPromoCode, setManualPromoCode] = useState('');
+  const [manualPromoExpanded, setManualPromoExpanded] = useState(false);
+  const [appliedManualPromo, setAppliedManualPromo] = useState<CartDiscountResult | null>(null);
+  const [manualPromoError, setManualPromoError] = useState<string | null>(null);
+
   // ShipEngine address validation and rates
   const {
     validateAddress,
@@ -309,7 +319,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     city: '',
     state: '',
     zip: '',
-    country: 'United States'
+    country: 'United States',
+    shippingPhone: ''
   });
 
   // Auto-select first rate when rates are loaded
@@ -352,6 +363,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       firstName: profile?.first_name || defaultAddress?.first_name || prev.firstName,
       lastName: profile?.last_name || defaultAddress?.last_name || prev.lastName,
       phone: profile?.phone || defaultAddress?.phone || prev.phone,
+      // Shipping phone from default address (recipient phone, may differ from contact phone)
+      shippingPhone: defaultAddress?.phone || prev.shippingPhone,
       // Company from default address
       company: defaultAddress?.company || prev.company,
       // Address from default address
@@ -366,16 +379,28 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   }, [user, profile, addresses, hasPrefilledForm, profileLoading, addressesLoading]);
 
   // Shipping cost is 0 for pickup, otherwise use selected rate
-  const shippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
+  const rawShippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const lifetimeDiscount = isLifetime ? Math.round(subtotal * 0.10 * 100) / 100 : 0;
-  const promoDiscount = autoPromotion?.valid ? autoPromotion.discount : 0;
+  const autoPromoDiscount = autoPromotion?.valid ? autoPromotion.discount : 0;
+  const manualPromoDiscount = appliedManualPromo?.valid ? appliedManualPromo.discount : 0;
+  // Best promo wins between auto and manual
+  const promoDiscount = Math.max(autoPromoDiscount, manualPromoDiscount);
+  const activePromo = manualPromoDiscount >= autoPromoDiscount && manualPromoDiscount > 0
+    ? appliedManualPromo
+    : (autoPromoDiscount > 0 ? autoPromotion : null);
   // Best discount wins — no stacking between lifetime and promo
   const bestDiscount = Math.max(lifetimeDiscount, promoDiscount);
   const activeDiscountLabel = bestDiscount > 0
-    ? (lifetimeDiscount >= promoDiscount ? 'Lifetime Member 10% Off' : (autoPromotion?.description || 'Promotion'))
+    ? (lifetimeDiscount >= promoDiscount
+        ? 'Lifetime Member 10% Off'
+        : (activePromo?.description || activePromo?.promotion_name || 'Promotion'))
     : '';
+  // Free shipping from promo code
+  const promoFreeShipping = activePromo?.free_shipping === true && promoDiscount >= lifetimeDiscount;
+  const shippingCost = promoFreeShipping ? 0 : rawShippingCost;
+
   const taxResult = calculateTax({
     subtotal,
     shippingState: formData.state,
@@ -387,6 +412,39 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const totalBeforeCredit = subtotal - bestDiscount + shippingCost + tax;
   const appliedCredit = hasCredit ? Math.min(creditAmount, totalBeforeCredit) : 0;
   const total = totalBeforeCredit - appliedCredit;
+
+  // Manual promo code handlers
+  const handleApplyManualPromo = useCallback(async () => {
+    if (!manualPromoCode.trim()) return;
+    setManualPromoError(null);
+
+    const cartItems = items.map(item => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    const result = await calculateDiscount(
+      cartItems,
+      manualPromoCode.trim(),
+      user?.id || undefined,
+      user?.email || formData.email || undefined
+    );
+
+    if (result.valid && result.discount > 0) {
+      setAppliedManualPromo(result);
+      setManualPromoError(null);
+    } else {
+      setAppliedManualPromo(null);
+      setManualPromoError(result.message || 'Invalid promo code');
+    }
+  }, [manualPromoCode, items, calculateDiscount, user, formData.email]);
+
+  const handleRemoveManualPromo = useCallback(() => {
+    setAppliedManualPromo(null);
+    setManualPromoCode('');
+    setManualPromoError(null);
+  }, []);
 
   // Build shipping address for validation/rates
   const buildShippingAddress = useCallback((): ShippingAddress => ({
@@ -597,12 +655,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       firstName: address.first_name || prev.firstName,
       lastName: address.last_name || prev.lastName,
       company: address.company || '',
-      phone: address.phone || prev.phone,
       address1: address.street || '',
       address2: address.unit || '',
       city: address.city || '',
       state: address.state || '',
       zip: address.zip || '',
+      shippingPhone: address.phone || prev.shippingPhone,
     }));
 
     // Clear validation state for new address
@@ -896,7 +954,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           city: formData.city,
           state: formData.state,
           zip: formData.zip,
-          country: formData.country
+          country: formData.country,
+          phone: formData.shippingPhone || formData.phone
         } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
           // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
           firstName: formData.firstName,
@@ -907,7 +966,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           city: selectedPickupLocation.city,
           state: selectedPickupLocation.state,
           zip: selectedPickupLocation.postal_code,
-          country: 'US'
+          country: 'US',
+          phone: formData.phone
         } : null,
         shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
         shippingCost: shippingCost,
@@ -919,6 +979,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           bestDiscount > 0 ? activeDiscountLabel : '',
           appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
         ].filter(Boolean).join(', ') || undefined,
+        promotionId: activePromo?.promotion_id || null,
+        promotionCode: activePromo?.promotion_code || null,
         customerNotes: customerNotes.trim() || null,
         growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
         tax,
@@ -1012,7 +1074,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         city: formData.city,
         state: formData.state,
         zip: formData.zip,
-        country: formData.country
+        country: formData.country,
+        phone: formData.shippingPhone || formData.phone
       } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
         // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
         firstName: formData.firstName,
@@ -1023,7 +1086,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         city: selectedPickupLocation.city,
         state: selectedPickupLocation.state,
         zip: selectedPickupLocation.postal_code,
-        country: 'US'
+        country: 'US',
+        phone: formData.phone
       } : null,
       shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
       shippingCost: shippingCost,
@@ -1034,6 +1098,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         bestDiscount > 0 ? activeDiscountLabel : '',
         appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
       ].filter(Boolean).join(', ') || undefined,
+      promotionId: activePromo?.promotion_id || null,
+      promotionCode: activePromo?.promotion_code || null,
       customerNotes: customerNotes.trim() || null,
       growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
       tax,
@@ -1097,21 +1163,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
     }
 
-    // Record promotion usage if a promo discount was applied
-    if (promoDiscount > 0 && autoPromotion?.promotion_id) {
-      try {
-        await recordPromotionUsage(
-          autoPromotion.promotion_id,
-          order.id || order.order_id || pendingOrderId,
-          user?.id || null,
-          formData.email,
-          promoDiscount
-        );
-      } catch (e) {
-        console.error('Failed to record promotion usage:', e);
-        // Don't block order flow
-      }
-    }
+    // Promotion usage is recorded by createOrder when promotionId is passed
 
     // Prepare order data for confirmation page
     const orderData: OrderData = {
@@ -1263,6 +1315,52 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Contact Information</h3>
                 </div>
+
+                {/* Name: read-only display for logged-in users, editable for guests */}
+                {user && profile?.first_name ? (
+                  <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl mb-4">
+                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">{profile.first_name} {profile.last_name || ''}</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                        First Name <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        type="text"
+                        placeholder="Jane"
+                        className={getInputClassName('firstName')}
+                      />
+                      {formErrors.firstName && submitAttempted && (
+                        <p className="text-xs text-red-500 mt-1">{formErrors.firstName}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                        Last Name <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        type="text"
+                        placeholder="Doe"
+                        className={getInputClassName('lastName')}
+                      />
+                      {formErrors.lastName && submitAttempted && (
+                        <p className="text-xs text-red-500 mt-1">{formErrors.lastName}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-gray-400">
@@ -1767,6 +1865,22 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <p className="text-xs text-gray-400">Currently shipping within the United States only</p>
                 </div>
 
+                {/* Shipping Phone */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                    Recipient Phone <span className="text-gray-300">(optional)</span>
+                  </label>
+                  <input
+                    name="shippingPhone"
+                    value={formData.shippingPhone}
+                    onChange={handleInputChange}
+                    type="tel"
+                    placeholder="(404) 555-0123"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                  />
+                  <p className="text-xs text-gray-400">Phone number for shipping carrier delivery notifications</p>
+                </div>
+
                 {/* Save Address Checkbox - only show for logged in users */}
                 {user && (
                   <div className="flex items-center gap-3 pt-4">
@@ -2077,21 +2191,24 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Growing System</h3>
                 </div>
                 <p className="text-sm text-gray-500">To help us support you better, what growing system are you using?</p>
-                <select
-                  value={growingSystem}
-                  onChange={(e) => {
-                    setGrowingSystem(e.target.value);
-                    if (e.target.value !== 'Other') setGrowingSystemOther('');
-                  }}
-                  className={`w-full bg-white border-2 rounded-2xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all appearance-none cursor-pointer ${
-                    submitAttempted && !growingSystem ? 'border-red-300' : 'border-gray-200'
-                  }`}
-                >
-                  <option value="">Select your growing system...</option>
-                  {growingSystemOptions.map((system) => (
-                    <option key={system} value={system}>{system}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={growingSystem}
+                    onChange={(e) => {
+                      setGrowingSystem(e.target.value);
+                      if (e.target.value !== 'Other') setGrowingSystemOther('');
+                    }}
+                    className={`w-full bg-white border-2 rounded-2xl px-4 pr-10 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm transition-all appearance-none cursor-pointer ${
+                      submitAttempted && !growingSystem ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                  >
+                    <option value="">Select your growing system...</option>
+                    {growingSystemOptions.map((system) => (
+                      <option key={system} value={system}>{system}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
                 {submitAttempted && !growingSystem && (
                   <p className="text-sm text-red-500">Please select your growing system</p>
                 )}
@@ -2303,6 +2420,77 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   ))}
                 </div>
 
+                {/* Promo Code Section */}
+                <div className="py-4 border-t border-gray-100">
+                  {appliedManualPromo?.valid ? (
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>"{appliedManualPromo.promotion_code}" applied</span>
+                      </div>
+                      <button
+                        onClick={handleRemoveManualPromo}
+                        className="text-xs text-emerald-600 hover:text-red-500 font-bold transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setManualPromoExpanded(!manualPromoExpanded)}
+                        className="text-sm text-gray-500 hover:text-emerald-600 font-medium transition-colors flex items-center gap-1.5"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                          <line x1="7" x2="7.01" y1="7" y2="7"/>
+                        </svg>
+                        Have a promo code?
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className={`w-3 h-3 transition-transform ${manualPromoExpanded ? 'rotate-180' : ''}`}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                        >
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                      {manualPromoExpanded && (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={manualPromoCode}
+                              onChange={(e) => setManualPromoCode(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyManualPromo(); } }}
+                              placeholder="Enter code"
+                              disabled={manualPromoLoading}
+                              className="flex-1 px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all placeholder:text-gray-300 disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleApplyManualPromo}
+                              disabled={manualPromoLoading || !manualPromoCode.trim()}
+                              className="px-5 py-3 text-sm font-bold bg-emerald-600 text-white rounded-2xl transition-all hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            >
+                              {manualPromoLoading ? (
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                              ) : 'Apply'}
+                            </button>
+                          </div>
+                          {manualPromoError && (
+                            <p className="text-xs text-red-500 font-medium">{manualPromoError}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Totals */}
                 <div className="space-y-3 pt-6 border-t border-gray-100">
                   <div className="flex justify-between text-gray-500 text-sm">
@@ -2314,6 +2502,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     <span className="font-bold">
                       {fetchingRates ? (
                         <span className="text-gray-400">Calculating...</span>
+                      ) : promoFreeShipping ? (
+                        <span className="text-emerald-600">FREE</span>
                       ) : shippingCost > 0 ? (
                         `$${shippingCost.toFixed(2)}`
                       ) : shipEngineEnabled && !addressValidated ? (
