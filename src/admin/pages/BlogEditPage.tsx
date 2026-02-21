@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Save, Code, Eye, ImagePlus, MonitorPlay } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Save, Code, Eye, ImagePlus, MonitorPlay, Copy, Check } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import RichTextEditor from '../components/RichTextEditor';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -41,7 +41,11 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const [deleting, setDeleting] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>('visual');
   const [uploadingHtmlImage, setUploadingHtmlImage] = useState(false);
+  const [uploadingForUrl, setUploadingForUrl] = useState(false);
+  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const htmlImageInputRef = useRef<HTMLInputElement>(null);
+  const urlImageInputRef = useRef<HTMLInputElement>(null);
   const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [formData, setFormData] = useState<BlogFormData>({
@@ -223,6 +227,63 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
     } finally {
       setUploadingHtmlImage(false);
       e.target.value = '';
+    }
+  };
+
+  const handleUploadForUrl = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingForUrl(true);
+    setError(null);
+
+    try {
+      const file = files[0];
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image file is too large. Maximum size is 5MB.');
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `blog/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('blog-media').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('blog-media').getPublicUrl(filePath);
+      setUploadedUrls(prev => [publicUrl, ...prev]);
+
+      // Auto-copy to clipboard
+      await navigator.clipboard.writeText(publicUrl);
+      setCopiedUrl(publicUrl);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to upload image');
+    } finally {
+      setUploadingForUrl(false);
+      e.target.value = '';
+    }
+  };
+
+  const copyToClipboard = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
+    } catch {
+      // Fallback: select a temporary input
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(null), 2000);
     }
   };
 
@@ -452,7 +513,8 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
 
               {editorMode === 'html' && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  {/* Toolbar */}
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <input
                       ref={htmlImageInputRef}
                       type="file"
@@ -460,11 +522,19 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                       onChange={handleHtmlImageUpload}
                       className="hidden"
                     />
+                    <input
+                      ref={urlImageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleUploadForUrl}
+                      className="hidden"
+                    />
                     <button
                       type="button"
                       onClick={() => htmlImageInputRef.current?.click()}
                       disabled={uploadingHtmlImage}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                      title="Upload and insert <img> tag at cursor"
                     >
                       {uploadingHtmlImage ? (
                         <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -473,15 +543,62 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                       )}
                       Insert Image
                     </button>
+                    <div className="w-px h-5 bg-slate-200" />
+                    <button
+                      type="button"
+                      onClick={() => urlImageInputRef.current?.click()}
+                      disabled={uploadingForUrl}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                      title="Upload image and copy URL to clipboard"
+                    >
+                      {uploadingForUrl ? (
+                        <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload size={14} />
+                      )}
+                      Upload &amp; Copy URL
+                    </button>
                     <span className="text-[10px] text-slate-400">
-                      Uploads to blog-media bucket and inserts an img tag at cursor
+                      Upload an image and get the URL to paste into your HTML
                     </span>
                   </div>
+
+                  {/* Uploaded URLs list */}
+                  {uploadedUrls.length > 0 && (
+                    <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                        Uploaded Images ({uploadedUrls.length})
+                      </p>
+                      <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                        {uploadedUrls.map((url) => (
+                          <div key={url} className="flex items-center gap-2 group">
+                            <img src={url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 border border-slate-200" />
+                            <code className="flex-1 text-[11px] text-slate-500 truncate font-mono">
+                              {url}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(url)}
+                              className="flex-shrink-0 p-1 text-slate-400 hover:text-emerald-600 rounded transition-colors"
+                              title="Copy URL"
+                            >
+                              {copiedUrl === url ? (
+                                <Check size={14} className="text-emerald-500" />
+                              ) : (
+                                <Copy size={14} />
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <textarea
                     ref={htmlTextareaRef}
                     value={formData.content}
                     onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                    placeholder="<p>Write your HTML content here...</p>"
+                    placeholder="<p>Paste your HTML content here...</p>"
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-mono text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-y"
                     rows={20}
                     spellCheck={false}
