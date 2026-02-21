@@ -27,9 +27,24 @@ export function useTestIntegration() {
       console.log('🟢 testConnection - Response:', data, 'Error:', invokeError)
 
       if (invokeError) {
-        const errorMsg = invokeError.message || 'Test failed'
+        // FunctionsHttpError buries the real message in error.context (a Response object)
+        let errorMsg = invokeError.message || 'Test failed'
+        let details: Record<string, any> = { error: invokeError }
+        try {
+          if (invokeError.context && typeof invokeError.context.json === 'function') {
+            const body = await invokeError.context.json()
+            if (body?.message) errorMsg = body.message
+            if (body?.details) details = body.details
+            if (body?.success === false) {
+              setError(errorMsg)
+              return { success: false, message: errorMsg, details }
+            }
+          }
+        } catch {
+          // context parsing failed, use original message
+        }
         setError(errorMsg)
-        return { success: false, message: errorMsg, details: { error: invokeError } }
+        return { success: false, message: errorMsg, details }
       }
 
       if (!data.success) {
