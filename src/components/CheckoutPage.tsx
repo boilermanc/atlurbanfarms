@@ -24,6 +24,7 @@ interface SelectedShippingRate {
   rate_id: string;
   carrier_id: string;
   carrier_code: string;
+  carrier_friendly_name: string;
   service_code: string;
   service_type: string;
   shipping_amount: number;
@@ -319,6 +320,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         rate_id: firstRate.rate_id,
         carrier_id: firstRate.carrier_id,
         carrier_code: firstRate.carrier_code,
+        carrier_friendly_name: firstRate.carrier_friendly_name,
         service_code: firstRate.service_code,
         service_type: firstRate.service_type,
         shipping_amount: firstRate.shipping_amount,
@@ -857,7 +859,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingRateId: selectedShippingRate.rate_id,
       shippingCarrierId: selectedShippingRate.carrier_id,
       shippingServiceCode: selectedShippingRate.service_code,
-      shippingMethodName: selectedShippingRate.service_type,
+      shippingMethodName: `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`,
       estimatedDeliveryDate: selectedShippingRate.estimated_delivery_date,
       addressValidated: addressValidated,
       addressOriginal: buildShippingAddress(),
@@ -975,7 +977,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingRateId: selectedShippingRate.rate_id,
       shippingCarrierId: selectedShippingRate.carrier_id,
       shippingServiceCode: selectedShippingRate.service_code,
-      shippingMethodName: selectedShippingRate.service_type,
+      shippingMethodName: `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`,
       estimatedDeliveryDate: selectedShippingRate.estimated_delivery_date,
       addressValidated: addressValidated,
       addressOriginal: buildShippingAddress(),
@@ -1934,6 +1936,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                               rate_id: rate.rate_id,
                               carrier_id: rate.carrier_id,
                               carrier_code: rate.carrier_code,
+                              carrier_friendly_name: rate.carrier_friendly_name,
                               service_code: rate.service_code,
                               service_type: rate.service_type,
                               shipping_amount: rate.shipping_amount,

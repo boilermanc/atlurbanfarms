@@ -449,6 +449,51 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
   })
 }
 
+// Format a number as USD currency string
+function formatCurrency(value: any): string {
+  const num = typeof value === 'number' ? value : parseFloat(value)
+  if (isNaN(num)) return '$0.00'
+  return `$${num.toFixed(2)}`
+}
+
+// Format order items array into an HTML string for the email template
+function formatOrderItems(items: any[]): string {
+  if (!items || !Array.isArray(items) || items.length === 0) return ''
+  return items.map((item: any) => {
+    const name = item.name || 'Item'
+    const qty = item.quantity || 1
+    const price = item.price || 0
+    const lineTotal = price * qty
+    return `${name} x${qty} — ${formatCurrency(lineTotal)}`
+  }).join('<br>')
+}
+
+// Normalize templateData keys from camelCase (client) to snake_case (DB templates)
+// Also formats values (currency, item lists, dates) for direct template substitution
+function normalizeTemplateData(templateKey: string, data: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = { ...data }
+
+  if (templateKey === 'order_confirmation') {
+    // Map camelCase → snake_case for order confirmation template variables
+    if (data.orderNumber !== undefined) normalized.order_id = data.orderNumber
+    if (data.customerName !== undefined) normalized.customer_first_name = data.customerName
+    if (data.items !== undefined) normalized.order_items = formatOrderItems(data.items)
+    if (data.subtotal !== undefined) normalized.order_subtotal = formatCurrency(data.subtotal)
+    if (data.shipping !== undefined) normalized.order_shipping = formatCurrency(data.shipping)
+    if (data.tax !== undefined) normalized.order_tax = formatCurrency(data.tax)
+    if (data.total !== undefined) normalized.order_total = formatCurrency(data.total)
+
+    // Add order_date if not provided
+    if (!data.order_date) {
+      normalized.order_date = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      })
+    }
+  }
+
+  return normalized
+}
+
 // Map old template names to new ones
 const templateKeyMap: Record<string, string> = {
   'shipping_update': 'shipping_notification',
@@ -517,10 +562,13 @@ serve(async (req) => {
         // Get brand settings for global variables
         const brandSettings = await getBrandSettings(supabaseClient)
 
+        // Normalize camelCase client data to snake_case template variables
+        const normalizedData = normalizeTemplateData(templateKey, templateData || {})
+
         // Merge template data with brand settings
         const allVariables = {
           ...brandSettings,
-          ...templateData,
+          ...normalizedData,
         }
 
         // Replace variables in subject and content

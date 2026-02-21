@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAttributionOptions } from '../hooks/useSupabase';
 import { supabase } from '../lib/supabase';
+import { submitNewsletterPreference } from '../services/newsletter';
 
 interface OrderItem {
   id: string;
@@ -76,6 +77,8 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   const [attributionSubmitted, setAttributionSubmitted] = useState(false);
   const [attributionSaving, setAttributionSaving] = useState(false);
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
+  const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
 
   const { options: attributionOptions, loading: attributionLoading } = useAttributionOptions();
 
@@ -500,32 +503,73 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Newsletter Opt-in */}
             <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50">
-              <label className="flex items-start gap-4 cursor-pointer group">
-                <div className="relative mt-1">
-                  <input
-                    type="checkbox"
-                    checked={newsletterOptIn}
-                    onChange={(e) => setNewsletterOptIn(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-6 h-6 border-2 border-gray-200 rounded-lg peer-checked:bg-emerald-600 peer-checked:border-emerald-600 transition-all group-hover:border-gray-300" />
-                  <svg
-                    className="absolute inset-0 m-auto w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                  </svg>
+              {newsletterSubmitted ? (
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 mt-1 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-1">
+                      You're subscribed!
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium leading-relaxed">
+                      Growing tips & early access coming to {customerEmail}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-1">
-                    Send me growing tips & early access
-                  </h3>
-                  <p className="text-xs text-gray-400 font-medium leading-relaxed">
-                    (We email ~2x/month. No spam, ever.)
-                  </p>
-                </div>
-              </label>
+              ) : (
+                <label className={`flex items-start gap-4 cursor-pointer group ${newsletterSubmitting ? 'pointer-events-none opacity-60' : ''}`}>
+                  <div className="relative mt-1">
+                    <input
+                      type="checkbox"
+                      checked={newsletterOptIn}
+                      disabled={newsletterSubmitting}
+                      onChange={async (e) => {
+                        if (e.target.checked) {
+                          setNewsletterOptIn(true);
+                          setNewsletterSubmitting(true);
+                          try {
+                            await submitNewsletterPreference({
+                              email: customerEmail,
+                              firstName: customerFirstName,
+                              source: 'order_confirmation',
+                              status: 'active',
+                              tags: ['order-confirmation-optin'],
+                            });
+                            setNewsletterSubmitted(true);
+                          } catch (err) {
+                            console.error('Newsletter subscribe failed:', err);
+                            setNewsletterOptIn(false);
+                          } finally {
+                            setNewsletterSubmitting(false);
+                          }
+                        } else {
+                          setNewsletterOptIn(false);
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-6 h-6 border-2 border-gray-200 rounded-lg peer-checked:bg-emerald-600 peer-checked:border-emerald-600 transition-all group-hover:border-gray-300" />
+                    <svg
+                      className="absolute inset-0 m-auto w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-1">
+                      Send me growing tips & early access
+                    </h3>
+                    <p className="text-xs text-gray-400 font-medium leading-relaxed">
+                      (We email ~2x/month. No spam, ever.)
+                    </p>
+                  </div>
+                </label>
+              )}
             </div>
 
             {/* Account Creation (for guests) */}

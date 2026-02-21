@@ -1,8 +1,9 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../types';
-import { useAutoApplyPromotion } from '../src/hooks/usePromotions';
+import { useAutoApplyPromotion, useCartDiscount } from '../src/hooks/usePromotions';
+import { CartDiscountResult } from '../src/admin/types/promotions';
 import { useSetting } from '../src/admin/hooks/useSettings';
 import { supabase } from '../src/lib/supabase';
 
@@ -22,6 +23,48 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
   // Check for automatic promotions
   const { discount: autoDiscount } = useAutoApplyPromotion(items);
 
+  // Manual promo code
+  const { calculateDiscount, loading: promoLoading } = useCartDiscount();
+  const [promoCode, setPromoCode] = useState('');
+  const [promoExpanded, setPromoExpanded] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<CartDiscountResult | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  const handleApplyPromo = useCallback(async () => {
+    if (!promoCode.trim()) return;
+    setPromoError(null);
+
+    const cartItems = items.map(item => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    const result = await calculateDiscount(cartItems, promoCode.trim());
+
+    if (result.valid && result.discount > 0) {
+      setAppliedPromo(result);
+      setPromoError(null);
+    } else {
+      setAppliedPromo(null);
+      setPromoError(result.message || 'Invalid promo code');
+    }
+  }, [promoCode, items, calculateDiscount]);
+
+  const handleRemovePromo = useCallback(() => {
+    setAppliedPromo(null);
+    setPromoCode('');
+    setPromoError(null);
+  }, []);
+
+  // Clear manual promo when cart empties
+  useEffect(() => {
+    if (items.length === 0) {
+      handleRemovePromo();
+      setPromoExpanded(false);
+    }
+  }, [items.length, handleRemovePromo]);
+
   // Free shipping config from admin settings
   const [freeShippingConfig, setFreeShippingConfig] = useState<{ enabled: boolean; threshold: number } | null>(null);
 
@@ -40,7 +83,12 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
       });
   }, []);
 
-  const discountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
+  const autoDiscountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
+  const manualDiscountAmount = appliedPromo?.valid ? appliedPromo.discount : 0;
+  // Best discount wins — no stacking
+  const useManual = manualDiscountAmount > 0 && manualDiscountAmount >= autoDiscountAmount;
+  const discountAmount = Math.max(autoDiscountAmount, manualDiscountAmount);
+  const activePromo = useManual ? appliedPromo : (autoDiscountAmount > 0 ? autoDiscount : null);
   const isFreeShipping = freeShippingConfig?.enabled && subtotal >= freeShippingConfig.threshold;
   const total = subtotal - discountAmount;
 
@@ -125,14 +173,75 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
 
             {items.length > 0 && (
               <div className="p-8 bg-gray-50 border-t border-gray-100 space-y-4">
+                {/* Promo Code Section */}
+                <div className="space-y-2">
+                  {appliedPromo?.valid ? (
+                    <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>"{appliedPromo.promotion_code}" applied</span>
+                      </div>
+                      <button
+                        onClick={handleRemovePromo}
+                        className="text-xs text-green-600 hover:text-red-500 font-medium transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setPromoExpanded(!promoExpanded)}
+                        className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                          <line x1="7" x2="7.01" y1="7" y2="7"/>
+                        </svg>
+                        Have a promo code?
+                      </button>
+                      {promoExpanded && (
+                        <div className="space-y-1.5">
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={promoCode}
+                              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                              placeholder="Enter code"
+                              disabled={promoLoading}
+                              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:opacity-50"
+                            />
+                            <button
+                              onClick={handleApplyPromo}
+                              disabled={promoLoading || !promoCode.trim()}
+                              className="px-4 py-2 text-sm font-bold bg-gray-900 text-white rounded-xl transition-all hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            >
+                              {promoLoading ? (
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                </svg>
+                              ) : 'Apply'}
+                            </button>
+                          </div>
+                          {promoError && (
+                            <p className="text-xs text-red-500 font-medium">{promoError}</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
-                  {discountAmount > 0 && autoDiscount && (
+                  {discountAmount > 0 && activePromo && (
                     <div className="flex justify-between text-sm brand-text font-medium">
-                      <span>{autoDiscount.description}</span>
+                      <span>{activePromo.description || activePromo.promotion_name || 'Discount'}</span>
                       <span>-${discountAmount.toFixed(2)}</span>
                     </div>
                   )}

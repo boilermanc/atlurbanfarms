@@ -268,10 +268,10 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `blog/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from('blog-media').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from('blog-media').getPublicUrl(filePath);
       editor.chain().focus().setImage({ src: publicUrl, alt: file.name }).run();
     } catch (err: any) {
       alert(err?.message || 'Failed to upload image');

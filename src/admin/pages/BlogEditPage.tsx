@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Save, Code, Eye, ImagePlus, MonitorPlay } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import RichTextEditor from '../components/RichTextEditor';
 import { useAdminAuth } from '../hooks/useAdminAuth';
+
+type EditorMode = 'visual' | 'html' | 'preview';
 
 interface BlogFormData {
   title: string;
@@ -36,6 +39,10 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const [uploading, setUploading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>('visual');
+  const [uploadingHtmlImage, setUploadingHtmlImage] = useState(false);
+  const htmlImageInputRef = useRef<HTMLInputElement>(null);
+  const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [formData, setFormData] = useState<BlogFormData>({
     title: '',
@@ -143,10 +150,10 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `blog/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage.from('product-images').upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from('blog-media').upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from('blog-media').getPublicUrl(filePath);
       setFormData(prev => ({ ...prev, featured_image_url: publicUrl }));
     } catch (err: any) {
       const message = err?.message || 'Failed to upload image';
@@ -165,6 +172,58 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
 
   const handleRemoveImage = () => {
     setFormData(prev => ({ ...prev, featured_image_url: null }));
+  };
+
+  const handleHtmlImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingHtmlImage(true);
+    setError(null);
+
+    try {
+      const file = files[0];
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Invalid file type. Please upload JPG, PNG, GIF, or WebP images.');
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image file is too large. Maximum size is 5MB.');
+      }
+
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `blog/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage.from('blog-media').upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('blog-media').getPublicUrl(filePath);
+      const imgTag = `<img src="${publicUrl}" alt="${file.name}" />`;
+
+      // Insert at cursor position in textarea
+      const textarea = htmlTextareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const currentContent = formData.content;
+        const newContent = currentContent.substring(0, start) + imgTag + currentContent.substring(end);
+        setFormData(prev => ({ ...prev, content: newContent }));
+        // Restore cursor position after React re-renders
+        requestAnimationFrame(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + imgTag.length;
+          textarea.focus();
+        });
+      } else {
+        // Fallback: append to end
+        setFormData(prev => ({ ...prev, content: prev.content + imgTag }));
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to upload image');
+    } finally {
+      setUploadingHtmlImage(false);
+      e.target.value = '';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -341,12 +400,124 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
 
             {/* Content */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Content</label>
-              <RichTextEditor
-                value={formData.content}
-                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
-                placeholder="Write your blog post content..."
-              />
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-slate-700">Content</label>
+                <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode('visual')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      editorMode === 'visual'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Eye size={14} />
+                    Visual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode('html')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      editorMode === 'html'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <Code size={14} />
+                    HTML
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditorMode('preview')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      editorMode === 'preview'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    <MonitorPlay size={14} />
+                    Preview
+                  </button>
+                </div>
+              </div>
+
+              {editorMode === 'visual' && (
+                <RichTextEditor
+                  value={formData.content}
+                  onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                  placeholder="Write your blog post content..."
+                />
+              )}
+
+              {editorMode === 'html' && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      ref={htmlImageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleHtmlImageUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => htmlImageInputRef.current?.click()}
+                      disabled={uploadingHtmlImage}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {uploadingHtmlImage ? (
+                        <div className="w-3.5 h-3.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ImagePlus size={14} />
+                      )}
+                      Insert Image
+                    </button>
+                    <span className="text-[10px] text-slate-400">
+                      Uploads to blog-media bucket and inserts an img tag at cursor
+                    </span>
+                  </div>
+                  <textarea
+                    ref={htmlTextareaRef}
+                    value={formData.content}
+                    onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="<p>Write your HTML content here...</p>"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-mono text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-y"
+                    rows={20}
+                    spellCheck={false}
+                  />
+                </div>
+              )}
+
+              {editorMode === 'preview' && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  {formData.content ? (
+                    <div className="p-6 md:p-8 bg-white min-h-[300px]">
+                      <div
+                        className="prose prose-lg max-w-none
+                          prose-headings:font-bold prose-headings:text-gray-900
+                          prose-p:text-gray-600 prose-p:leading-relaxed
+                          prose-a:text-emerald-600 prose-a:no-underline hover:prose-a:underline
+                          prose-strong:text-gray-800
+                          prose-img:rounded-2xl prose-img:shadow-md
+                          prose-ul:text-gray-600 prose-ol:text-gray-600
+                          prose-blockquote:border-emerald-500 prose-blockquote:text-gray-500
+                          prose-code:text-emerald-700 prose-code:bg-emerald-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm
+                          [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:h-auto [&_iframe]:rounded-2xl [&_iframe]:my-4"
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formData.content, {
+                          ADD_TAGS: ['iframe'],
+                          ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'src', 'width', 'height', 'title', 'style'],
+                          ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+                        }) }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center text-slate-400 text-sm">
+                      No content to preview. Switch to Visual or HTML mode to add content.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
