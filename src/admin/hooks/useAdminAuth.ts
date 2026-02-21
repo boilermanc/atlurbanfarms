@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -28,13 +28,19 @@ export function useAdminAuth(): UseAdminAuthReturn {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const initialCheckDoneRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function checkAdminAuth() {
+    async function checkAdminAuth(isInitial: boolean) {
       try {
-        setLoading(true);
+        // Only show loading spinner on the initial check.
+        // Subsequent checks (e.g. TOKEN_REFRESHED) run silently
+        // so the admin UI isn't unmounted mid-edit.
+        if (isInitial) {
+          setLoading(true);
+        }
         setError(null);
 
         // First check session
@@ -111,11 +117,18 @@ export function useAdminAuth(): UseAdminAuthReturn {
       }
     }
 
-    checkAdminAuth();
+    checkAdminAuth(true).then(() => {
+      initialCheckDoneRef.current = true;
+    });
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkAdminAuth();
+    // Listen for auth state changes (TOKEN_REFRESHED, SIGNED_OUT, etc.)
+    // Only re-check on SIGNED_OUT (session lost) — token refreshes
+    // don't need a full re-query since the user hasn't changed.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        checkAdminAuth(false);
+      }
+      // TOKEN_REFRESHED and SIGNED_IN with same user don't need re-auth
     });
 
     return () => {
