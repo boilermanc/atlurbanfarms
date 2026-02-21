@@ -259,13 +259,8 @@ async function testTrellis(supabaseClient: any): Promise<TestResult> {
 
 async function testGemini(supabaseClient: any): Promise<TestResult> {
   const settings = await getIntegrationSettings(supabaseClient, [
-    'gemini_enabled',
     'gemini_api_key'
   ])
-
-  if (!settings.gemini_enabled) {
-    return { success: false, message: 'Gemini is not enabled' }
-  }
 
   if (!settings.gemini_api_key) {
     return { success: false, message: 'Gemini API key is not configured' }
