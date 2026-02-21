@@ -272,6 +272,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const selectedPickupLocation = pickupLocations.find(l => l.id === selectedPickupLocationId);
   const hasPickupLocations = pickupLocations.length > 0;
 
+  // Per-product fulfillment constraints
+  const hasMustPickup = items.some(item => item.localPickup === 'must_be_picked_up');
+  const allCannotPickup = items.length > 0 && items.every(item => item.localPickup === 'cannot_be_picked_up');
+  const hasCannotPickup = items.some(item => item.localPickup === 'cannot_be_picked_up');
+  const hasPickupConflict = hasMustPickup && hasCannotPickup;
+
   const [selectedShippingRate, setSelectedShippingRate] = useState<SelectedShippingRate | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
@@ -322,6 +328,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     country: 'United States',
     shippingPhone: ''
   });
+
+  // Auto-force delivery method based on product fulfillment constraints
+  useEffect(() => {
+    if (hasMustPickup) {
+      setDeliveryMethod('pickup');
+      setSelectedShippingRate(null);
+    } else if (allCannotPickup) {
+      setDeliveryMethod('shipping');
+      setSelectedPickupLocationId(null);
+      setSelectedPickupSlot(null);
+    }
+  }, [hasMustPickup, allCannotPickup]);
 
   // Auto-select first rate when rates are loaded
   useEffect(() => {
@@ -864,6 +882,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setSubmitAttempted(true);
     setOrderError(null);
 
+    if (hasPickupConflict) {
+      setOrderError('Your cart contains items that must be picked up and items that cannot be picked up. Please remove one or the other to proceed.');
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -1400,8 +1423,75 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
               <hr className="my-10 border-gray-100" />
 
-              {/* Delivery Method Selector */}
-              {hasPickupLocations && (
+              {/* Pickup conflict warning */}
+              {hasPickupConflict && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                    <h3 className="text-xl font-heading font-extrabold text-gray-900">Delivery Method</h3>
+                  </div>
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
+                    <p className="font-bold text-red-900 text-sm">Fulfillment Conflict</p>
+                    <p className="text-red-700 text-sm mt-1">
+                      Your cart contains items that must be picked up and items that cannot be picked up.
+                      Please remove one or the other to proceed.
+                    </p>
+                  </div>
+                  <hr className="my-10 border-gray-100" />
+                </motion.section>
+              )}
+
+              {/* Must pickup notice */}
+              {hasMustPickup && !hasPickupConflict && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                    <h3 className="text-xl font-heading font-extrabold text-gray-900">Delivery Method</h3>
+                  </div>
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                    <p className="font-bold text-amber-900 text-sm">Local Pickup Required</p>
+                    <p className="text-amber-700 text-sm mt-1">
+                      Your cart contains items that require local pickup. This order will be available for pickup only.
+                    </p>
+                  </div>
+                  <hr className="my-10 border-gray-100" />
+                </motion.section>
+              )}
+
+              {/* Shipping only notice (when pickup locations exist but all items cannot be picked up) */}
+              {allCannotPickup && hasPickupLocations && (
+                <motion.section
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                    <h3 className="text-xl font-heading font-extrabold text-gray-900">Delivery Method</h3>
+                  </div>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                    <p className="font-bold text-blue-900 text-sm">Shipping Only</p>
+                    <p className="text-blue-700 text-sm mt-1">
+                      All items in your cart require shipping and are not available for local pickup.
+                    </p>
+                  </div>
+                  <hr className="my-10 border-gray-100" />
+                </motion.section>
+              )}
+
+              {/* Delivery Method Selector - shown when both options are available */}
+              {hasPickupLocations && !allCannotPickup && !hasMustPickup && !hasPickupConflict && (
                 <motion.section
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

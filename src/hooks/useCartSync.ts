@@ -25,6 +25,7 @@ function mapDbProductToCartItem(dbProduct: any, quantity: number): CartItem {
     productType: dbProduct.product_type || null,
     externalUrl: dbProduct.external_url || null,
     externalButtonText: dbProduct.external_button_text || null,
+    localPickup: dbProduct.local_pickup || 'can_be_picked_up',
     quantity,
   };
 }

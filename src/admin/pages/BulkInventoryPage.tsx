@@ -163,7 +163,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
-    if (newPrice !== product.price) {
+    if (newPrice !== product.compare_at_price) {
       const next = new Map(priceChanges);
       next.set(productId, newPrice);
       setPriceChanges(next);
@@ -180,7 +180,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
   const getDisplaySalePrice = (product: ProductInventory): string => {
     if (priceChanges.has(product.id)) return priceChanges.get(product.id)!.toString();
-    return product.price != null ? product.price.toString() : '';
+    return product.compare_at_price != null ? product.compare_at_price.toString() : '';
   };
 
   const hasChanges = () => changes.size > 0 || priceChanges.size > 0;
@@ -212,7 +212,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
           updatePayload.quantity_available = changes.get(productId);
         }
         if (priceChanges.has(productId)) {
-          updatePayload.price = priceChanges.get(productId);
+          updatePayload.compare_at_price = priceChanges.get(productId);
         }
 
         const { error: updateError } = await supabase
@@ -442,7 +442,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className="text-slate-500">
-                            {product.compare_at_price != null ? `$${product.compare_at_price.toFixed(2)}` : '-'}
+                            {product.price != null ? `$${Number(product.price).toFixed(2)}` : '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">

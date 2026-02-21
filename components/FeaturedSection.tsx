@@ -33,6 +33,7 @@ const mapProduct = (p: any): Product => {
     productType: p.product_type || null,
     externalUrl: p.external_url || null,
     externalButtonText: p.external_button_text || null,
+    localPickup: p.local_pickup || 'can_be_picked_up',
   };
 };
 

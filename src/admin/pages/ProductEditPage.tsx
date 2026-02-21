@@ -63,6 +63,7 @@ interface ProductFormData {
   product_type: ProductType;
   external_url: string;
   external_button_text: string;
+  local_pickup: 'can_be_picked_up' | 'cannot_be_picked_up' | 'must_be_picked_up';
 }
 
 interface ProductEditPageProps {
@@ -136,6 +137,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     product_type: 'simple',
     external_url: '',
     external_button_text: 'Buy Now',
+    local_pickup: 'can_be_picked_up',
   });
 
   // State for product relationships (grouped/bundle)
@@ -288,6 +290,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           product_type: data.product_type || 'simple',
           external_url: data.external_url || '',
           external_button_text: data.external_button_text || 'Buy Now',
+          local_pickup: data.local_pickup || 'can_be_picked_up',
         }));
         setImages(data.images?.sort((a: ProductImage, b: ProductImage) => a.sort_order - b.sort_order) || []);
       }
@@ -498,6 +501,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         product_type: formData.product_type,
         external_url: formData.product_type === 'external' ? formData.external_url : null,
         external_button_text: formData.product_type === 'external' ? formData.external_button_text : null,
+        local_pickup: formData.local_pickup,
       };
 
       let savedProductId = productId;
@@ -934,6 +938,29 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               </p>
             </div>
           )}
+        </div>
+
+        {/* Fulfillment Section */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Fulfillment</h2>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Local Pickup</label>
+            <select
+              name="local_pickup"
+              value={formData.local_pickup}
+              onChange={handleChange}
+              className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            >
+              <option value="can_be_picked_up">Can be picked up</option>
+              <option value="cannot_be_picked_up">Cannot be picked up</option>
+              <option value="must_be_picked_up">Must be picked up</option>
+            </select>
+            <p className="text-slate-500 text-sm mt-1">
+              {formData.local_pickup === 'can_be_picked_up' && 'Customers can choose shipping or local pickup for this product.'}
+              {formData.local_pickup === 'cannot_be_picked_up' && 'This product can only be shipped. Customers cannot select local pickup.'}
+              {formData.local_pickup === 'must_be_picked_up' && 'This product is pickup only and cannot be shipped. If in cart, the entire order must be picked up.'}
+            </p>
+          </div>
         </div>
 
         {/* External/Affiliate Product Fields */}
