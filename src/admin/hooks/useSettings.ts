@@ -82,17 +82,14 @@ export function useSetting(category: string, key: string) {
         .select('*')
         .eq('category', category)
         .eq('key', key)
-        .single();
+        .maybeSingle();
 
-      if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-          // No rows returned - setting doesn't exist yet
-          setValue(null);
-        } else {
-          throw fetchError;
-        }
-      } else {
+      if (fetchError) throw fetchError;
+
+      if (data) {
         setValue(parseValue(data.value, data.data_type));
+      } else {
+        setValue(null);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch setting');
