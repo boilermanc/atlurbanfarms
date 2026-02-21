@@ -14,6 +14,7 @@ import { useAutoApplyPromotion, useRecordPromotionUsage } from '../hooks/useProm
 import { useEmailService } from '../hooks/useIntegrations';
 import StripePaymentWrapper from './StripePaymentForm';
 import AddressAutocomplete, { ParsedAddress } from './ui/AddressAutocomplete';
+import InsufficientStockModal, { StockIssue } from './InsufficientStockModal';
 import { supabase } from '../lib/supabase';
 import { useGrowingSystems } from '../admin/hooks/useGrowingSystems';
 
@@ -73,6 +74,7 @@ interface CheckoutPageProps {
   onBack: () => void;
   onNavigate: (view: string) => void;
   onOrderComplete?: (orderData: OrderData) => void;
+  onUpdateCart?: (updatedItems: CartItem[]) => void;
 }
 
 interface CheckoutFormData {
@@ -199,7 +201,7 @@ function getNextShipDate(cutoffDay: number, cutoffTime: string, shipDay: number)
   return shipDate;
 }
 
-const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete }) => {
+const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete, onUpdateCart }) => {
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
   const { profile, loading: profileLoading } = useCustomerProfile(user?.id);
@@ -276,6 +278,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [customerNotes, setCustomerNotes] = useState('');
   const [growingSystem, setGrowingSystem] = useState('');
   const [growingSystemOther, setGrowingSystemOther] = useState('');
+
+  // Stock validation state
+  const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
+  const [showStockModal, setShowStockModal] = useState(false);
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
@@ -639,6 +645,81 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   };
 
+  // Parse "Insufficient stock for: Name (requested: X, available: Y), ..." from RPC error
+  const parseStockError = (errorMsg: string): StockIssue[] => {
+    const issues: StockIssue[] = [];
+    const match = errorMsg.match(/Insufficient stock for:\s*(.+)/i);
+    if (!match) return issues;
+
+    // Split items by "), " pattern
+    const itemParts = match[1].split(/\),\s*/);
+    for (const part of itemParts) {
+      const itemMatch = part.match(/(.+?)\s*\(requested:\s*(\d+),\s*available:\s*(\d+)/i);
+      if (itemMatch) {
+        const name = itemMatch[1].trim();
+        const cartItem = items.find(i => i.name === name);
+        issues.push({
+          productId: cartItem?.id || '',
+          name,
+          requested: parseInt(itemMatch[2], 10),
+          available: parseInt(itemMatch[3], 10),
+        });
+      }
+    }
+    return issues;
+  };
+
+  // Check current stock levels for all cart items before order creation
+  const validateStock = async (): Promise<StockIssue[]> => {
+    const productIds = items.map(item => item.id);
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('id, name, quantity_available')
+      .in('id', productIds);
+
+    if (error || !products) {
+      console.error('Stock validation query failed:', error);
+      return [];
+    }
+
+    const issues: StockIssue[] = [];
+    for (const item of items) {
+      const product = products.find((p: any) => p.id === item.id);
+      const available = product?.quantity_available ?? 0;
+      if (available < item.quantity) {
+        issues.push({
+          productId: item.id,
+          name: product?.name || item.name,
+          requested: item.quantity,
+          available,
+        });
+      }
+    }
+    return issues;
+  };
+
+  // Handle "Remove Unavailable Items" from stock modal
+  const handleRemoveUnavailable = () => {
+    if (!onUpdateCart) {
+      setShowStockModal(false);
+      onBack();
+      return;
+    }
+
+    const updatedItems = items
+      .map(item => {
+        const issue = stockIssues.find(i => i.productId === item.id);
+        if (!issue) return item;
+        if (issue.available === 0) return null;
+        return { ...item, quantity: issue.available };
+      })
+      .filter((item): item is CartItem => item !== null);
+
+    onUpdateCart(updatedItems);
+    setShowStockModal(false);
+    setStockIssues([]);
+  };
+
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
 
@@ -724,6 +805,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setOrderError(null);
 
     if (!validateForm()) {
+      return;
+    }
+
+    // Check stock levels before proceeding
+    const issues = await validateStock();
+    if (issues.length > 0) {
+      setStockIssues(issues);
+      setShowStockModal(true);
       return;
     }
 
@@ -838,7 +927,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       });
 
       if (!result.success || !result.order) {
-        setOrderError(result.error || 'Failed to create order. Please try again.');
+        const errorMsg = result.error || 'Failed to create order. Please try again.';
+        // If RPC caught insufficient stock (pre-check was bypassed), show the modal
+        if (errorMsg.toLowerCase().includes('insufficient stock')) {
+          const parsed = parseStockError(errorMsg);
+          if (parsed.length > 0) {
+            setStockIssues(parsed);
+            setShowStockModal(true);
+            return;
+          }
+        }
+        setOrderError(errorMsg);
         return;
       }
 
@@ -945,7 +1044,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     if (result.success && result.order) {
       await handleOrderSuccess(result.order);
     } else {
-      setOrderError(result.error || 'Failed to create order. Please try again.');
+      const errorMsg = result.error || 'Failed to create order. Please try again.';
+      if (errorMsg.toLowerCase().includes('insufficient stock')) {
+        const parsed = parseStockError(errorMsg);
+        if (parsed.length > 0) {
+          setStockIssues(parsed);
+          setShowStockModal(true);
+          return;
+        }
+      }
+      setOrderError(errorMsg);
     }
   };
 
@@ -2103,7 +2211,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 )}
               </motion.section>
 
-              {/* Order Error */}
+              {/* Order Error (non-stock errors only; stock errors use the modal) */}
               {orderError && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -2114,14 +2222,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <div className="flex flex-col gap-2">
-                      <span>{orderError}</span>
-                      {orderError.toLowerCase().includes('insufficient stock') && (
-                        <span className="text-red-600">
-                          Please update your cart quantities and try again.
-                        </span>
-                      )}
-                    </div>
+                    <span>{orderError}</span>
                   </div>
                 </motion.div>
               )}
@@ -2304,6 +2405,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         </div>
       </div>
 
+      {/* Insufficient Stock Modal */}
+      <InsufficientStockModal
+        isOpen={showStockModal}
+        stockIssues={stockIssues}
+        onClose={() => setShowStockModal(false)}
+        onUpdateCart={() => {
+          setShowStockModal(false);
+          onBack();
+        }}
+        onRemoveUnavailable={handleRemoveUnavailable}
+      />
     </div>
   );
 };

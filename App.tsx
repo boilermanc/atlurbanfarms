@@ -429,6 +429,7 @@ const App: React.FC = () => {
             }}
             onNavigate={(newView: string) => handleNavigate(newView as any)}
             onOrderComplete={handleOrderComplete}
+            onUpdateCart={setCart}
           />
         );
       case 'order-confirmation':
