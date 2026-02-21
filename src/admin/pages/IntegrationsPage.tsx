@@ -120,33 +120,60 @@ const HealthCard = memo<{
   icon: React.ReactNode;
   health: IntegrationHealth;
   onClick: () => void;
-}>(({ title, icon, health, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`p-4 rounded-xl border transition-all hover:scale-[1.02] text-left w-full ${getStatusBgColor(health.status)}`}
-  >
-    <div className="flex items-start justify-between mb-3">
-      <div className="flex items-center gap-3">
-        <div className="text-slate-600">{icon}</div>
-        <div>
-          <h3 className="text-slate-800 font-medium">{title}</h3>
-          <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
-            <span className="text-sm text-slate-500">{health.label}</span>
+  mode?: 'test' | 'sandbox' | 'live' | 'production';
+}>(({ title, icon, health, onClick, mode }) => {
+  const isTestMode = mode === 'test' || mode === 'sandbox';
+  const isLiveMode = mode === 'live' || mode === 'production';
+
+  // When mode is present, override card colors based on mode
+  const cardBg = mode
+    ? isTestMode
+      ? 'bg-orange-50 border-orange-200'
+      : 'bg-emerald-50 border-emerald-200'
+    : getStatusBgColor(health.status);
+
+  const modeLabel = mode === 'test' ? 'Test Mode' : mode === 'sandbox' ? 'Sandbox' : mode === 'production' ? 'Production' : mode === 'live' ? 'Live' : null;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`p-4 rounded-xl border transition-all hover:scale-[1.02] text-left w-full ${cardBg}`}
+    >
+      {modeLabel && (
+        <div className="mb-2">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+            isTestMode
+              ? 'bg-orange-500 text-white'
+              : 'bg-emerald-500 text-white'
+          }`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            {modeLabel}
+          </span>
+        </div>
+      )}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className={mode ? (isTestMode ? 'text-orange-600' : 'text-emerald-600') : 'text-slate-600'}>{icon}</div>
+          <div>
+            <h3 className="text-slate-800 font-medium">{title}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <div className={`w-2 h-2 rounded-full ${getStatusColor(health.status)}`} />
+              <span className="text-sm text-slate-500">{health.label}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div className="flex flex-col gap-1 mt-3">
-      {health.metrics.map((metric, idx) => (
-        <div key={idx} className="text-xs truncate">
-          <span className="text-slate-500">{metric.label}:</span>
-          <span className="text-slate-700 ml-1">{metric.value}</span>
-        </div>
-      ))}
-    </div>
-  </button>
-));
+      <div className="flex flex-col gap-1 mt-3">
+        {health.metrics.map((metric, idx) => (
+          <div key={idx} className="text-xs truncate">
+            <span className="text-slate-500">{metric.label}:</span>
+            <span className="text-slate-700 ml-1">{metric.value}</span>
+          </div>
+        ))}
+      </div>
+    </button>
+  );
+});
 HealthCard.displayName = 'HealthCard';
 
 // Expandable Section Component - moved outside
@@ -968,12 +995,14 @@ const IntegrationsPage: React.FC = () => {
             icon={<CreditCard size={24} />}
             health={health.stripe}
             onClick={() => scrollToSection('stripe')}
+            mode={formData.stripe_enabled ? (formData.stripe_mode === 'live' ? 'live' : 'test') : undefined}
           />
           <HealthCard
             title="ShipEngine"
             icon={<Package size={24} />}
             health={health.shipstation}
             onClick={() => scrollToSection('shipstation')}
+            mode={formData.shipstation_enabled ? (formData.shipengine_mode === 'production' ? 'production' : 'sandbox') : undefined}
           />
           <HealthCard
             title="Resend"
