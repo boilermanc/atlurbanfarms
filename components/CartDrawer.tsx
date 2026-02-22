@@ -118,7 +118,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            <div className="flex-1 overflow-y-auto py-8 pl-8 pr-10 space-y-8">
               {items.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center">
                   <div className="w-20 h-20 bg-gray-50 rounded-[2rem] flex items-center justify-center text-gray-300 mb-4">
@@ -143,7 +143,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                       <div>
                         <div className="flex justify-between items-start mb-1">
                           <h4 className="font-bold text-gray-900 leading-tight">{item.name}</h4>
-                          <button onClick={() => onRemove(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
+                          <button onClick={() => onRemove(item.id)} className="flex-shrink-0 text-gray-400 hover:text-red-500 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                           </button>
                         </div>

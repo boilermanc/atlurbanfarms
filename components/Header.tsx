@@ -512,7 +512,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
             </div>
 
             {/* Right Actions: Search, Account, Cart */}
-            <div className="flex items-center gap-1 lg:gap-1.5 lg:bg-white lg:rounded-full lg:px-1.5 lg:py-1 lg:shadow-lg">
+            <div className="flex items-center gap-1 lg:gap-1.5 lg:bg-white lg:rounded-full lg:px-1.5 lg:py-1 lg:shadow-lg overflow-visible">
               {/* Search Icon / Expanded Search */}
               <div className="relative hidden sm:block">
                 <AnimatePresence mode="wait">

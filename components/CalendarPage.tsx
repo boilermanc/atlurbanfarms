@@ -252,7 +252,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-site pt-36 pb-20">
+      <div className="min-h-screen bg-site pt-40 pb-20">
         <div className="max-w-7xl mx-auto px-4 md:px-12">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
@@ -263,7 +263,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ onBack, initialFilter }) =>
   }
 
   return (
-    <div className="min-h-screen bg-site pt-36 pb-20">
+    <div className="min-h-screen bg-site pt-40 pb-20">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Header */}
         <motion.div

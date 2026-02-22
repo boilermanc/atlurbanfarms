@@ -303,6 +303,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
 
+  // Ref for scrolling to error banner on validation failure
+  const orderErrorRef = useRef<HTMLDivElement>(null);
+
   // Abandoned cart tracking: session ID for deduplication across re-renders
   const [abandonedCartSessionId] = useState<string>(() => {
     let sid = sessionStorage.getItem('checkout-session-id');
@@ -340,6 +343,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       setSelectedPickupSlot(null);
     }
   }, [hasMustPickup, allCannotPickup]);
+
+  // Scroll to error banner when orderError is set (especially important on mobile
+  // where the error renders far above the submit button in the order summary)
+  useEffect(() => {
+    if (orderError && orderErrorRef.current) {
+      orderErrorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [orderError]);
 
   // Auto-select first rate when rates are loaded
   useEffect(() => {
@@ -442,9 +453,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const promoFreeShipping = activePromo?.free_shipping === true && promoDiscount >= lifetimeDiscount;
   const shippingCost = promoFreeShipping ? 0 : rawShippingCost;
 
+  // For pickup orders, use the pickup location's state for tax (always in-state);
+  // for shipping orders, use the customer's shipping address state.
+  const taxState = deliveryMethod === 'pickup'
+    ? (selectedPickupLocation?.state || 'GA')
+    : formData.state;
+
   const taxResult = calculateTax({
     subtotal,
-    shippingState: formData.state,
+    shippingState: taxState,
     isTaxExempt: profile?.is_tax_exempt || false,
     taxExemptReason: profile?.tax_exempt_reason || undefined,
     config: taxConfig,
@@ -922,7 +939,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   }, [formData.email, formData.firstName, items, abandonedCartSessionId, user?.id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
 
     // Prevent duplicate submissions if order was already completed
@@ -930,6 +947,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       return;
     }
 
+    try {
     setSubmitAttempted(true);
     setOrderError(null);
 
@@ -1104,6 +1122,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     } else {
       // Test mode - create order without payment
       await completeOrder();
+    }
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setOrderError(err.message || 'An unexpected error occurred. Please try again.');
     }
   };
 
@@ -1378,7 +1400,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
           {/* Left Column: Form */}
           <div className="lg:col-span-7 space-y-10">
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
 
               {/* Contact Information */}
               <motion.section
@@ -2476,6 +2498,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
               {/* Order Error (non-stock errors only; stock errors use the modal) */}
               {orderError && (
                 <motion.div
+                  ref={orderErrorRef}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm"

@@ -91,8 +91,8 @@ const ProductSection: React.FC<ProductSectionProps> = ({
   onRequireLogin
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const displayProducts = expanded ? products : products.slice(0, 8);
-  const hasMore = products.length > 8;
+  const displayProducts = expanded ? products : products.slice(0, 4);
+  const hasMore = products.length > 4;
 
   if (products.length === 0) return null;
 
@@ -114,10 +114,10 @@ const ProductSection: React.FC<ProductSectionProps> = ({
         {hasMore && showViewAll && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`flex-shrink-0 px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+            className={`flex-shrink-0 px-5 py-2 text-sm font-bold rounded-full transition-colors ${
               expanded
-                ? `bg-${accentColor}-600 text-white border-${accentColor}-600`
-                : `border-${accentColor}-600 text-${accentColor}-600 hover:bg-${accentColor}-600 hover:text-white`
+                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-emerald-700 text-white hover:bg-emerald-800'
             }`}
           >
             {expanded ? 'Show Less' : `View All (${products.length})`}
@@ -166,7 +166,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
         <div className="mt-8 text-center">
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`px-6 py-2.5 rounded-2xl text-sm font-bold transition-all border bg-${accentColor}-50 text-${accentColor}-600 border-${accentColor}-200 hover:bg-${accentColor}-100`}
+            className="px-6 py-2.5 rounded-full text-sm font-bold transition-colors bg-emerald-700 text-white hover:bg-emerald-800"
           >
             {expanded ? 'Show Less' : `View All ${products.length} Items`}
           </button>
@@ -216,13 +216,13 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
         {hasMore && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`flex-shrink-0 px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+            className={`flex-shrink-0 px-5 py-2 text-sm font-bold rounded-full transition-colors ${
               expanded
-                ? 'bg-emerald-600 text-white border-emerald-600'
-                : 'border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-emerald-700 text-white hover:bg-emerald-800'
             }`}
           >
-            {expanded ? 'Show Less' : 'View All'}
+            {expanded ? 'Show Less' : `View All (${products.length})`}
           </button>
         )}
       </div>
@@ -638,7 +638,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites && !showOnSale && !activeTagId;
 
   return (
-    <div className="min-h-screen pt-36 pb-10 bg-site">
+    <div className="min-h-screen pt-40 pb-10 bg-site">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">

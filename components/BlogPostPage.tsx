@@ -53,7 +53,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-36 pb-16 bg-site">
+      <div className="min-h-screen pt-40 pb-16 bg-site">
         <div className="max-w-3xl mx-auto px-4 md:px-12 flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
@@ -66,7 +66,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
 
   if (error || !post) {
     return (
-      <div className="min-h-screen pt-36 pb-16 bg-site">
+      <div className="min-h-screen pt-40 pb-16 bg-site">
         <div className="max-w-3xl mx-auto px-4 md:px-12 text-center">
           <h1 className="text-4xl font-heading font-bold text-gray-900 mb-4">Post Not Found</h1>
           <p className="text-gray-500 mb-8">The article you're looking for doesn't exist or has been removed.</p>
@@ -82,7 +82,7 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen pt-36 pb-20 bg-site">
+    <div className="min-h-screen pt-40 pb-20 bg-site">
       <div className="max-w-3xl mx-auto px-4 md:px-12">
         {/* Back Link */}
         <motion.div

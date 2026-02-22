@@ -76,7 +76,7 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-36 pb-20 bg-site">
+      <div className="min-h-screen pt-40 pb-20 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
@@ -89,7 +89,7 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
 
   if (error || !page) {
     return (
-      <div className="min-h-screen pt-36 pb-20 bg-site">
+      <div className="min-h-screen pt-40 pb-20 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
@@ -114,7 +114,7 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen pt-36 pb-16 bg-site">
+    <div className="min-h-screen pt-40 pb-16 bg-site">
       <div className="max-w-4xl mx-auto px-4 md:px-12">
         {/* Back button */}
         <button

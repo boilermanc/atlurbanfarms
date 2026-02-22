@@ -167,7 +167,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-36 pb-16 bg-site">
+      <div className="min-h-screen pt-40 pb-16 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 flex items-center justify-center">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
@@ -180,7 +180,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
 
   if (error) {
     return (
-      <div className="min-h-screen pt-36 pb-16 bg-site">
+      <div className="min-h-screen pt-40 pb-16 bg-site">
         <div className="max-w-4xl mx-auto px-4 md:px-12 text-center">
           <p className="text-red-500 mb-4">{error}</p>
           <button
@@ -195,7 +195,7 @@ const FAQPage: React.FC<FAQPageProps> = ({ onBack, onOpenSage }) => {
   }
 
   return (
-    <div className="min-h-screen pt-36 pb-20 bg-site">
+    <div className="min-h-screen pt-40 pb-20 bg-site">
       <div className="max-w-4xl mx-auto px-4 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
