@@ -898,6 +898,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       errors.zip = 'Please enter a valid ZIP code';
     }
 
+    if (Object.keys(errors).length > 0) {
+      console.log('[Checkout] validateForm errors:', errors, 'formData:', { email: formData.email, phone: formData.phone, firstName: formData.firstName, lastName: formData.lastName });
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
