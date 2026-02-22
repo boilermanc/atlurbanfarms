@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS idx_newsletter_pending_expires
 -- 5. Generate unsubscribe tokens for existing active subscribers
 -- so they can receive unsubscribe links in future emails
 UPDATE public.newsletter_subscribers
-SET unsubscribe_token = encode(gen_random_bytes(32), 'hex')
+SET unsubscribe_token = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')
 WHERE status = 'active' AND unsubscribe_token IS NULL;
 
 -- 6. Create consent log table

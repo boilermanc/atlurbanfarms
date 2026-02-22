@@ -103,7 +103,7 @@ export function useCartSync() {
       .from('carts')
       .select('id')
       .eq('customer_id', userId)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       cartIdRef.current = existing.id;
@@ -126,7 +126,7 @@ export function useCartSync() {
       .from('carts')
       .select('id')
       .eq('customer_id', userId)
-      .single();
+      .maybeSingle();
 
     if (!cartRow) return [];
     cartIdRef.current = cartRow.id;
