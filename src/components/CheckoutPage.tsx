@@ -2688,9 +2688,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     <span className="font-bold">${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-gray-500 text-sm">
-                    <span>Shipping</span>
+                    <span>{deliveryMethod === 'pickup' ? 'Pickup' : 'Shipping'}</span>
                     <span className="font-bold">
-                      {fetchingRates ? (
+                      {deliveryMethod === 'pickup' ? (
+                        <span className="text-emerald-600">FREE</span>
+                      ) : fetchingRates ? (
                         <span className="text-gray-400">Calculating...</span>
                       ) : promoFreeShipping ? (
                         <span className="text-emerald-600">FREE</span>
