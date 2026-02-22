@@ -118,10 +118,10 @@ const LeadMagnetPopup: React.FC = () => {
                   </svg>
                 </div>
                 <h3 className="text-2xl font-heading font-extrabold text-gray-900 mb-2">
-                  Check Your Inbox!
+                  Check Your Email!
                 </h3>
                 <p className="text-gray-500">
-                  Your free 2026 Tower Garden Cost Comparison is on its way.
+                  Confirm your email to receive your free 2026 Tower Garden Cost Comparison.
                 </p>
               </div>
             ) : (
@@ -189,7 +189,7 @@ const LeadMagnetPopup: React.FC = () => {
                   </button>
 
                   <p className="text-xs text-center text-gray-400">
-                    No spam. Unsubscribe anytime.
+                    By subscribing, you agree to receive newsletters and promotional content. Unsubscribe anytime.
                   </p>
                 </form>
               </>

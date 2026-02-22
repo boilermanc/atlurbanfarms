@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
+import { enrichBundleStock } from '../../hooks/useSupabase';
 import { Plus, Search, Edit2, Trash2, Package, Image } from 'lucide-react';
 
 interface ProductImage {
@@ -95,7 +96,9 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
         primary_image: product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0] || null,
         purchase_count: purchaseCounts[product.id] || 0
       }));
-      setProducts(productsWithPrimaryImage);
+      // Enrich bundle products with computed stock from component items
+      const enrichedProducts = await enrichBundleStock(productsWithPrimaryImage);
+      setProducts(enrichedProducts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load products');
     } finally {

@@ -11,13 +11,14 @@ interface OrderHistoryProps {
 interface OrderItem {
   id: string;
   quantity: number;
-  unit_price: number;
-  total_price: number;
+  product_price: number;
+  line_total: number;
+  product_name: string;
   product: {
     name: string;
     slug: string;
     primary_image_url: string | null;
-  };
+  } | null;
 }
 
 interface Shipment {
@@ -37,9 +38,30 @@ interface Order {
   status: string;
   subtotal: number;
   tax: number;
-  delivery_fee: number;
+  shipping_cost: number;
   total: number;
-  delivery_address: any;
+  shipping_first_name: string | null;
+  shipping_last_name: string | null;
+  shipping_address_line1: string | null;
+  shipping_address_line2: string | null;
+  shipping_city: string | null;
+  shipping_state: string | null;
+  shipping_zip: string | null;
+  shipping_address: {
+    name: string;
+    street: string;
+    street2?: string;
+    city: string;
+    state: string;
+    zip: string;
+  } | null;
+  is_pickup: boolean;
+  pickup_location_id: string | null;
+  pickup_date: string | null;
+  pickup_time_start: string | null;
+  pickup_time_end: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
   order_items: OrderItem[];
   shipments?: Shipment[];
   isLegacy: false;
@@ -201,11 +223,11 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   // Helper to get display order number
-  const getOrderNumber = (order: CombinedOrder) => {
+  const getOrderNumber = (order: CombinedOrder): string => {
     if (order.isLegacy) {
       return `WC-${order.woo_order_id}`;
     }
-    return order.order_number;
+    return (order as Order).order_number;
   };
 
   // Helper to get display status for legacy orders
@@ -276,7 +298,140 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-    }).format(amount);
+    }).format(amount || 0);
+  };
+
+  const handlePrintInvoice = (order: CombinedOrder) => {
+    const orderNum = getOrderNumber(order);
+    const orderDate = formatDate(order.orderDate);
+
+    // Build items HTML
+    let itemsHtml = '';
+    if (!order.isLegacy && (order as Order).order_items?.length > 0) {
+      (order as Order).order_items.forEach((item: OrderItem) => {
+        itemsHtml += `
+          <tr>
+            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb;">${item.product?.name || item.product_name || 'Product'}</td>
+            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.product_price)}</td>
+            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.line_total)}</td>
+          </tr>`;
+      });
+    }
+
+    // Build address
+    let addressHtml = '';
+    if (!order.isLegacy) {
+      const o = order as Order;
+      const addr = o.shipping_address;
+      const name = addr?.name || `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim();
+      const street = addr?.street || o.shipping_address_line1;
+      const street2 = addr?.street2 || o.shipping_address_line2;
+      const city = addr?.city || o.shipping_city;
+      const state = addr?.state || o.shipping_state;
+      const zip = addr?.zip || o.shipping_zip;
+      if (street) {
+        addressHtml = `
+          <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 8px;">Shipping Address</h3>
+            ${name ? `<p style="margin: 0; font-weight: 600;">${name}</p>` : ''}
+            <p style="margin: 0;">${street}</p>
+            ${street2 ? `<p style="margin: 0;">${street2}</p>` : ''}
+            <p style="margin: 0;">${city || ''}${city && state ? ', ' : ''}${state || ''} ${zip || ''}</p>
+          </div>`;
+      }
+    } else {
+      const lo = order as LegacyOrder;
+      if (lo.shipping_address || lo.shipping_city) {
+        const name = `${lo.shipping_first_name || ''} ${lo.shipping_last_name || ''}`.trim();
+        addressHtml = `
+          <div style="margin-bottom: 24px;">
+            <h3 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 8px;">Shipping Address</h3>
+            ${name ? `<p style="margin: 0; font-weight: 600;">${name}</p>` : ''}
+            ${lo.shipping_address ? `<p style="margin: 0;">${lo.shipping_address}</p>` : ''}
+            <p style="margin: 0;">${lo.shipping_city || ''}${lo.shipping_city && lo.shipping_state ? ', ' : ''}${lo.shipping_state || ''} ${lo.shipping_zip || ''}</p>
+          </div>`;
+      }
+    }
+
+    // Shipping cost
+    const shippingCost = order.isLegacy
+      ? (order as LegacyOrder).shipping
+      : (order as Order).shipping_cost;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice #${orderNum} - ATL Urban Farms</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #111827; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 700px; margin: 0 auto;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #10b981; padding-bottom: 24px;">
+            <div>
+              <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #111827;">INVOICE</h1>
+              <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">ATL Urban Farms</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0; font-weight: 700;">Order #${orderNum}</p>
+              <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">${orderDate}</p>
+            </div>
+          </div>
+
+          ${addressHtml}
+
+          ${itemsHtml ? `
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="padding: 8px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Item</th>
+                <th style="padding: 8px; text-align: center; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
+                <th style="padding: 8px; text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Price</th>
+                <th style="padding: 8px; text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          ` : '<p style="color: #6b7280; font-style: italic;">Item details not available for this order.</p>'}
+
+          <div style="margin-left: auto; width: 250px;">
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Subtotal</span>
+              <span>${formatCurrency(order.subtotal)}</span>
+            </div>
+            ${shippingCost > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Shipping</span>
+              <span>${formatCurrency(shippingCost)}</span>
+            </div>` : ''}
+            ${(order.tax || 0) > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Tax</span>
+              <span>${formatCurrency(order.tax)}</span>
+            </div>` : ''}
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 16px;">
+              <span>Total</span>
+              <span>${formatCurrency(order.total)}</span>
+            </div>
+          </div>
+
+          <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
+            <p style="margin: 0;">Thank you for your order!</p>
+            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; atlurbanfarms.com</p>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (loading) {
@@ -475,14 +630,14 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-gray-900 truncate">
-                                    {item.product?.name || 'Product'}
+                                    {item.product?.name || item.product_name || 'Product'}
                                   </p>
                                   <p className="text-sm text-gray-500">
-                                    Qty: {item.quantity} × {formatCurrency(item.unit_price)}
+                                    Qty: {item.quantity} × {formatCurrency(item.product_price)}
                                   </p>
                                 </div>
                                 <span className="font-medium text-gray-900">
-                                  {formatCurrency(item.total_price)}
+                                  {formatCurrency(item.line_total)}
                                 </span>
                               </div>
                             ))}
@@ -509,10 +664,10 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                               </div>
                             )
                           ) : (
-                            (order as Order).delivery_fee > 0 && (
+                            (order as Order).shipping_cost > 0 && (
                               <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Delivery</span>
-                                <span className="text-gray-900">{formatCurrency((order as Order).delivery_fee)}</span>
+                                <span className="text-gray-500">Shipping</span>
+                                <span className="text-gray-900">{formatCurrency((order as Order).shipping_cost)}</span>
                               </div>
                             )
                           )}
@@ -552,21 +707,36 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                         </div>
                       )}
 
-                      {/* Delivery Address - New Orders */}
-                      {!order.isLegacy && (order as Order).delivery_address && (
-                        <div className="border-t border-gray-100 pt-4">
-                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
-                            Delivery Address
-                          </h4>
-                          <div className="text-sm text-gray-600">
-                            {(order as Order).delivery_address.street && <p>{(order as Order).delivery_address.street}</p>}
-                            {(order as Order).delivery_address.unit && <p>{(order as Order).delivery_address.unit}</p>}
-                            <p>
-                              {(order as Order).delivery_address.city}, {(order as Order).delivery_address.state} {(order as Order).delivery_address.zip}
-                            </p>
+                      {/* Shipping Address - New Orders */}
+                      {!order.isLegacy && (() => {
+                        const o = order as Order;
+                        const addr = o.shipping_address;
+                        const hasIndividualFields = o.shipping_address_line1;
+                        if (!addr && !hasIndividualFields) return null;
+                        const name = addr?.name || `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim();
+                        const street = addr?.street || o.shipping_address_line1;
+                        const street2 = addr?.street2 || o.shipping_address_line2;
+                        const city = addr?.city || o.shipping_city;
+                        const state = addr?.state || o.shipping_state;
+                        const zip = addr?.zip || o.shipping_zip;
+                        return (
+                          <div className="border-t border-gray-100 pt-4">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                              Shipping Address
+                            </h4>
+                            <div className="text-sm text-gray-600">
+                              {name && <p className="font-medium text-gray-900">{name}</p>}
+                              {street && <p>{street}</p>}
+                              {street2 && <p>{street2}</p>}
+                              {(city || state || zip) && (
+                                <p>
+                                  {city}{city && state ? ', ' : ''}{state} {zip}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Payment Method - Legacy Orders */}
                       {order.isLegacy && (order as LegacyOrder).payment_method && (
@@ -642,6 +812,19 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                           </div>
                         </div>
                       )}
+
+                      {/* Print Invoice Button */}
+                      <div className="border-t border-gray-100 pt-4">
+                        <button
+                          onClick={() => handlePrintInvoice(order)}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          Print Invoice
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 )}

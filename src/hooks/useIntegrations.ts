@@ -74,6 +74,7 @@ export function useEmailService() {
 
   const sendEmail = useCallback(async (params: {
     to: string | string[]
+    from?: string
     subject?: string
     html?: string
     text?: string
@@ -133,7 +134,7 @@ export function useEmailService() {
       shipping: number
       tax: number
       total: number
-      shippingAddress: {
+      shippingAddress?: {
         name: string
         address: string
         city: string
@@ -142,9 +143,10 @@ export function useEmailService() {
       } | null
       pickupInfo?: {
         locationName: string
-        address: string
+        address?: string
         date: string
-        timeRange: string
+        timeRange?: string
+        time?: string
         instructions?: string
       }
       shippingMethodName?: string
@@ -153,8 +155,12 @@ export function useEmailService() {
   ) => {
     return sendEmail({
       to,
+      from: 'ATL Urban Farms Orders <Orders@atlurbanfarms.com>',
       template: 'order_confirmation',
-      templateData: orderData
+      templateData: {
+        ...orderData,
+        siteUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      }
     })
   }, [sendEmail])
 

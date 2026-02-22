@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAttributionOptions } from '../hooks/useSupabase';
 import { supabase } from '../lib/supabase';
-import { submitNewsletterPreference } from '../services/newsletter';
 
 interface OrderItem {
   id: string;
@@ -53,6 +52,7 @@ interface OrderConfirmationPageProps {
   estimatedDeliveryDate?: string | null;
   onContinueShopping: () => void;
   onCreateAccount?: () => void;
+  onViewOrders?: () => void;
 }
 
 const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
@@ -69,17 +69,14 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   shippingMethodName,
   estimatedDeliveryDate,
   onContinueShopping,
-  onCreateAccount
+  onCreateAccount,
+  onViewOrders
 }) => {
   const [showConfetti, setShowConfetti] = useState(true);
   const [attributionValue, setAttributionValue] = useState('');
   const [attributionOtherText, setAttributionOtherText] = useState('');
   const [attributionSubmitted, setAttributionSubmitted] = useState(false);
   const [attributionSaving, setAttributionSaving] = useState(false);
-  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
-  const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
-  const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
-
   const { options: attributionOptions, loading: attributionLoading } = useAttributionOptions();
 
   // Generate order number once on mount
@@ -393,7 +390,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                     </div>
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        {estimatedDeliveryDate ? 'Estimated Delivery' : 'Estimated Arrival'}
+                        Ship Date
                       </p>
                       <p className="text-sm font-bold text-gray-900">{estimatedArrival}</p>
                     </div>
@@ -499,81 +496,9 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             </div>
           </motion.div>
 
-          {/* Newsletter & Account Section */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Newsletter Opt-in */}
-            <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-lg shadow-gray-100/50">
-              {newsletterSubmitted ? (
-                <div className="flex items-start gap-4">
-                  <div className="w-6 h-6 mt-1 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-1">
-                      You're subscribed!
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium leading-relaxed">
-                      Growing tips & early access coming to {customerEmail}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <label className={`flex items-start gap-4 cursor-pointer group ${newsletterSubmitting ? 'pointer-events-none opacity-60' : ''}`}>
-                  <div className="relative mt-1">
-                    <input
-                      type="checkbox"
-                      checked={newsletterOptIn}
-                      disabled={newsletterSubmitting}
-                      onChange={async (e) => {
-                        if (e.target.checked) {
-                          setNewsletterOptIn(true);
-                          setNewsletterSubmitting(true);
-                          try {
-                            await submitNewsletterPreference({
-                              email: customerEmail,
-                              firstName: customerFirstName,
-                              source: 'order_confirmation',
-                              status: 'active',
-                              tags: ['order-confirmation-optin'],
-                            });
-                            setNewsletterSubmitted(true);
-                          } catch (err) {
-                            console.error('Newsletter subscribe failed:', err);
-                            setNewsletterOptIn(false);
-                          } finally {
-                            setNewsletterSubmitting(false);
-                          }
-                        } else {
-                          setNewsletterOptIn(false);
-                        }
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className="w-6 h-6 border-2 border-gray-200 rounded-lg peer-checked:bg-emerald-600 peer-checked:border-emerald-600 transition-all group-hover:border-gray-300" />
-                    <svg
-                      className="absolute inset-0 m-auto w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-1">
-                      Send me growing tips & early access
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium leading-relaxed">
-                      (We email ~2x/month. No spam, ever.)
-                    </p>
-                  </div>
-                </label>
-              )}
-            </div>
-
-            {/* Account Creation (for guests) */}
-            {isGuest && (
+          {/* Account Creation (for guests) */}
+          {isGuest && (
+            <motion.div variants={itemVariants}>
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-[2.5rem] p-8 border-2 border-dashed border-gray-200">
                 <div className="text-center">
                   <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">
@@ -590,8 +515,8 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                   </button>
                 </div>
               </div>
-            )}
-          </motion.div>
+            </motion.div>
+          )}
 
           {/* Order Summary */}
           <motion.div variants={itemVariants} className="border-t border-gray-100 pt-10">
@@ -724,8 +649,8 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             </div>
           </motion.div>
 
-          {/* Continue Shopping Button */}
-          <motion.div variants={itemVariants} className="pt-8 flex justify-center">
+          {/* Action Buttons */}
+          <motion.div variants={itemVariants} className="pt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={onContinueShopping}
               className="px-12 py-5 bg-gray-900 text-white rounded-[2rem] font-black text-lg hover:bg-emerald-600 hover:scale-[1.03] transition-all shadow-2xl shadow-gray-200 flex items-center gap-4"
@@ -736,6 +661,21 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                 <polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
+            {onViewOrders && (
+              <button
+                onClick={onViewOrders}
+                className="px-8 py-4 bg-white text-gray-700 rounded-[2rem] font-bold text-base hover:bg-gray-50 transition-all border-2 border-gray-200 flex items-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                View Order History
+              </button>
+            )}
           </motion.div>
         </motion.div>
       </div>

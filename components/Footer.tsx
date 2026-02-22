@@ -130,7 +130,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         source: 'footer',
       });
       setStatus('success');
-      setMessage('Thanks for joining! Check your inbox for a confirmation.');
+      setMessage('Check your email to confirm your subscription!');
       setEmail('');
     } catch (err: any) {
       setStatus('error');
@@ -286,6 +286,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   )}
                 </button>
               </form>
+              <p className="mt-3 text-xs text-gray-500">
+                By subscribing, you agree to receive newsletters and promotional content. Unsubscribe anytime.
+              </p>
               {message && (
                 <p
                   className={`mt-4 text-sm ${status === 'success' ? 'text-emerald-300' : 'text-rose-200'}`}

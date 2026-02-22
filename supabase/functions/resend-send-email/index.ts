@@ -5,6 +5,7 @@ import { getIntegrationSettings } from '../_shared/settings.ts'
 
 interface EmailRequest {
   to: string | string[]
+  from?: string
   subject?: string
   html?: string
   text?: string
@@ -95,6 +96,8 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .footer { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; }
+          .btn { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
         </style>
       </head>
       <body>
@@ -105,12 +108,17 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
           </div>
           <div class="content">
             <p>Hi ${data.customerName || data.customer_first_name || 'there'},</p>
-            <p>We've received your order and are getting it ready. We'll notify you when it ships!</p>
-            ${data.shippingMethodName ? `<p style="margin-top: 20px;"><strong>Ships via:</strong> ${data.shippingMethodName}</p>` : ''}
-            ${data.estimatedDeliveryDate ? `<p><strong>Estimated delivery:</strong> ${new Date(data.estimatedDeliveryDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>` : ''}
+            <p>We've received your order and are getting it ready!</p>
+            ${data.items ? formatOrderItems(data.items) : ''}
+            ${generateDeliveryInfoHtml(data)}
             <p style="margin-top: 30px; color: #6b7280; font-size: 0.875rem;">
               Remember: We ship live plants Monday through Wednesday only to ensure they arrive fresh!
             </p>
+            ${data.siteUrl ? `<p style="text-align: center; margin-top: 30px;"><a href="${data.siteUrl}/account/orders" class="btn">View Invoice</a></p>` : ''}
+          </div>
+          <div class="footer">
+            <p style="margin: 0 0 5px; font-size: 14px;">www.AtlUrbanFarms.com</p>
+            <p style="margin: 0; font-size: 12px;">ATL Urban Farms, a Sweetwater Urban Farms company – Powered by Sweetwater Technology</p>
           </div>
         </div>
       </body>
@@ -408,6 +416,45 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
+  newsletter_confirmation: (data: any) => ({
+    subject: 'Confirm your ATL Urban Farms newsletter subscription',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
+          .button { display: inline-block; background: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+          .footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">Almost There!</h1>
+          </div>
+          <div class="content">
+            <p>Hi ${data.first_name || 'there'},</p>
+            <p>Thanks for signing up for the ATL Urban Farms newsletter! Please confirm your email address by clicking the button below:</p>
+            <div style="text-align: center;">
+              <a href="${data.confirmation_url}" class="button">Confirm My Subscription</a>
+            </div>
+            <p style="color: #6b7280; font-size: 0.875rem; margin-top: 20px;">
+              This link expires in 48 hours. If you didn't sign up for our newsletter, you can safely ignore this email.
+            </p>
+          </div>
+          <div class="footer">
+            <p>ATL Urban Farms<br>${data.business_address || 'Atlanta, GA'}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
+
   pickup_reminder: (data: any) => ({
     subject: 'Reminder: Pick up your plants tomorrow!',
     html: `
@@ -456,16 +503,71 @@ function formatCurrency(value: any): string {
   return `$${num.toFixed(2)}`
 }
 
-// Format order items array into an HTML string for the email template
+// Format order items array into an HTML table for the email template
 function formatOrderItems(items: any[]): string {
   if (!items || !Array.isArray(items) || items.length === 0) return ''
-  return items.map((item: any) => {
-    const name = item.name || 'Item'
+
+  let html = '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 20px 0;">'
+  html += '<tr style="background-color: #f0fdf4;">'
+  html += '<td style="text-align: left; padding: 10px 12px; color: #166534; font-size: 13px; font-weight: bold;">Product</td>'
+  html += '<td style="text-align: center; padding: 10px 12px; color: #166534; font-size: 13px; font-weight: bold; width: 60px;">Qty</td>'
+  html += '<td style="text-align: right; padding: 10px 12px; color: #166534; font-size: 13px; font-weight: bold; width: 80px;">Price</td>'
+  html += '</tr>'
+
+  for (const item of items) {
+    const name = item.name || item.product_name || 'Item'
     const qty = item.quantity || 1
-    const price = item.price || 0
+    const price = item.price || item.unit_price || 0
     const lineTotal = price * qty
-    return `${name} x${qty} — ${formatCurrency(lineTotal)}`
-  }).join('<br>')
+    html += '<tr style="border-bottom: 1px solid #e5e7eb;">'
+    html += `<td style="padding: 10px 12px; color: #333; font-size: 14px;">${name}</td>`
+    html += `<td style="text-align: center; padding: 10px 12px; color: #333; font-size: 14px;">${qty}</td>`
+    html += `<td style="text-align: right; padding: 10px 12px; color: #333; font-size: 14px;">${formatCurrency(lineTotal)}</td>`
+    html += '</tr>'
+  }
+
+  html += '</table>'
+  return html
+}
+
+// Generate delivery info HTML (shipping address or pickup details)
+function generateDeliveryInfoHtml(data: Record<string, any>): string {
+  if (data.pickupInfo) {
+    const p = data.pickupInfo
+    const parts: string[] = []
+    parts.push('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f3ff; border-radius: 8px; margin: 25px 0;"><tr><td style="padding: 20px;">')
+    parts.push('<h3 style="color: #7c3aed; margin: 0 0 15px; font-size: 16px;">Pickup Details</h3>')
+    parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px; font-weight: bold;">${p.locationName || 'Pickup Location'}</p>`)
+    if (p.address) parts.push(`<p style="color: #666; font-size: 14px; margin: 0 0 10px;">${p.address}</p>`)
+    if (p.date) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px;"><strong>Date:</strong> ${p.date}</p>`)
+    const time = p.timeRange || p.time
+    if (time) parts.push(`<p style="color: #333; font-size: 14px; margin: 0;"><strong>Time:</strong> ${time}</p>`)
+    if (p.instructions) parts.push(`<p style="color: #666; font-size: 13px; margin: 10px 0 0; font-style: italic;">${p.instructions}</p>`)
+    parts.push('</td></tr></table>')
+    return parts.join('')
+  }
+
+  if (data.shippingAddress) {
+    const a = data.shippingAddress
+    const parts: string[] = []
+    parts.push('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f0fdf4; border-radius: 8px; margin: 25px 0;"><tr><td style="padding: 20px;">')
+    parts.push('<h3 style="color: #166534; margin: 0 0 15px; font-size: 16px;">Shipping To</h3>')
+    if (a.name) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px; font-weight: bold;">${a.name}</p>`)
+    if (a.address) parts.push(`<p style="color: #666; font-size: 14px; margin: 0 0 3px;">${a.address}</p>`)
+    const cityStateZip = [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ' ' + a.zip : '')
+    if (cityStateZip.trim()) parts.push(`<p style="color: #666; font-size: 14px; margin: 0;">${cityStateZip}</p>`)
+    if (data.shippingMethodName) parts.push(`<p style="color: #333; font-size: 14px; margin: 10px 0 0;"><strong>Ships via:</strong> ${data.shippingMethodName}</p>`)
+    if (data.estimatedDeliveryDate) {
+      try {
+        const d = new Date(data.estimatedDeliveryDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        parts.push(`<p style="color: #333; font-size: 14px; margin: 5px 0 0;"><strong>Ship Date:</strong> ${d}</p>`)
+      } catch { /* ignore date parse errors */ }
+    }
+    parts.push('</td></tr></table>')
+    return parts.join('')
+  }
+
+  return ''
 }
 
 // Normalize templateData keys from camelCase (client) to snake_case (DB templates)
@@ -489,6 +591,13 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
       })
     }
+
+    // Generate delivery info HTML (shipping address or pickup details)
+    normalized.delivery_info = generateDeliveryInfoHtml(data)
+
+    // Invoice URL — constructed from siteUrl passed by the client
+    const siteUrl = data.siteUrl || ''
+    normalized.invoice_url = siteUrl ? `${siteUrl}/account/orders` : '#'
   }
 
   return normalized
@@ -498,6 +607,14 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
 const templateKeyMap: Record<string, string> = {
   'shipping_update': 'shipping_notification',
 }
+
+// Templates that are marketing emails (need List-Unsubscribe headers + unsubscribe link)
+const MARKETING_TEMPLATES = new Set([
+  'newsletter_confirmation',
+  'newsletter_welcome',
+  'abandoned_cart',
+  'abandoned-cart-reminder',
+])
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -540,7 +657,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { to, subject, html, text, template, templateData }: EmailRequest = await req.json()
+    const { to, from: fromOverride, subject, html, text, template, templateData }: EmailRequest = await req.json()
 
     // Build email content
     let emailSubject = subject
@@ -571,6 +688,65 @@ serve(async (req) => {
           ...normalizedData,
         }
 
+        // For order_confirmation, enrich with config_settings (branding, shipping note)
+        if (templateKey === 'order_confirmation') {
+          // Fetch branding logo and primary color from config_settings
+          const { data: brandingConfig } = await supabaseClient
+            .from('config_settings')
+            .select('key, value')
+            .eq('category', 'branding')
+            .in('key', ['logo_url', 'primary_brand_color'])
+
+          if (brandingConfig) {
+            for (const s of brandingConfig) {
+              if (s.key === 'logo_url' && s.value) allVariables.logo_url = s.value
+              if (s.key === 'primary_brand_color' && s.value) allVariables.primary_color = s.value
+            }
+          }
+
+          // Fetch shipping customer message from config_settings
+          const { data: shippingNote } = await supabaseClient
+            .from('config_settings')
+            .select('value')
+            .eq('category', 'shipping')
+            .eq('key', 'customer_message')
+            .maybeSingle()
+
+          allVariables.shipping_note = shippingNote?.value
+            || allVariables.shipping_note
+            || 'We ship live plants Monday through Wednesday only to ensure they arrive fresh and healthy!'
+
+          // Generate header content — use logo image if available, otherwise text
+          if (allVariables.logo_url) {
+            allVariables.header_content = `<img src="${allVariables.logo_url}" alt="ATL Urban Farms" style="max-height: 60px; max-width: 200px;">`
+          } else {
+            allVariables.header_content = '<h1 style="color: #ffffff; margin: 0; font-size: 24px;">ATL Urban Farms</h1>'
+          }
+
+          // Ensure primary_color default
+          if (!allVariables.primary_color) {
+            allVariables.primary_color = '#10b981'
+          }
+        }
+
+        // Auto-populate unsubscribe_url for marketing emails if not already set
+        if (!allVariables.unsubscribe_url && MARKETING_TEMPLATES.has(templateKey)) {
+          const recipientEmail = (Array.isArray(to) ? to[0] : to)?.toLowerCase()
+          if (recipientEmail) {
+            const { data: subscriber } = await supabaseClient
+              .from('newsletter_subscribers')
+              .select('unsubscribe_token')
+              .eq('email', recipientEmail)
+              .not('unsubscribe_token', 'is', null)
+              .maybeSingle()
+
+            if (subscriber?.unsubscribe_token) {
+              const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+              allVariables.unsubscribe_url = `${supabaseUrl}/functions/v1/newsletter-unsubscribe?token=${subscriber.unsubscribe_token}`
+            }
+          }
+        }
+
         // Replace variables in subject and content
         emailSubject = emailSubject || replaceVariables(dbTemplate.subject_line, allVariables)
         emailHtml = emailHtml || replaceVariables(dbTemplate.html_content, allVariables)
@@ -599,6 +775,33 @@ serve(async (req) => {
     // Prepare email recipients
     const recipients = Array.isArray(to) ? to : [to]
 
+    // Determine if this is a marketing email that needs List-Unsubscribe headers
+    const templateKey = template ? (templateKeyMap[template] || template) : null
+    const isMarketingEmail = templateKey && MARKETING_TEMPLATES.has(templateKey)
+
+    // Build unsubscribe URL for List-Unsubscribe header
+    let listUnsubscribeHeaders: Record<string, string> | undefined
+    if (isMarketingEmail) {
+      const recipientEmail = recipients[0]?.toLowerCase()
+      if (recipientEmail) {
+        const { data: subscriber } = await supabaseClient
+          .from('newsletter_subscribers')
+          .select('unsubscribe_token')
+          .eq('email', recipientEmail)
+          .not('unsubscribe_token', 'is', null)
+          .maybeSingle()
+
+        if (subscriber?.unsubscribe_token) {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+          const unsubUrl = `${supabaseUrl}/functions/v1/newsletter-unsubscribe?token=${subscriber.unsubscribe_token}`
+          listUnsubscribeHeaders = {
+            'List-Unsubscribe': `<${unsubUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          }
+        }
+      }
+    }
+
     // Send email via Resend API
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -607,13 +810,14 @@ serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: settings.resend_from_name
+        from: fromOverride || (settings.resend_from_name
           ? `${settings.resend_from_name} <${settings.resend_from_email}>`
-          : settings.resend_from_email,
+          : settings.resend_from_email),
         to: recipients,
         subject: emailSubject,
         html: emailHtml,
-        text: emailText
+        text: emailText,
+        ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
       })
     })
 

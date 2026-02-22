@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DOMPurify from 'dompurify';
+import { Share2, Check } from 'lucide-react';
 import { useBackInStockAlert } from '../src/hooks/useSupabase';
 import { useAuth } from '../src/hooks/useAuth';
 import { supabase } from '../src/lib/supabase';
@@ -86,6 +87,9 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [notifyEmail, setNotifyEmail] = useState('');
   const { subscribe, loading: notifyLoading, error: notifyError, success: notifySuccess, reset: resetNotify } = useBackInStockAlert();
   const { user } = useAuth();
+
+  // Share button state
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Bundle items state
   const [bundleItems, setBundleItems] = useState<BundleItem[]>([]);
@@ -197,6 +201,32 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     e.preventDefault();
     if (!notifyEmail || !notifyEmail.includes('@') || !product) return;
     await subscribe({ productId: product.id, email: notifyEmail });
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: product.name,
+      text: product.description
+        ? product.name + ' - ' + product.description.replace(/<[^>]*>/g, '').slice(0, 120)
+        : product.name,
+      url: window.location.href,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // User cancelled or share failed silently
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch {
+        // Clipboard API not available
+      }
+    }
   };
 
   return (
@@ -346,9 +376,34 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   >
                     {/* Header */}
                     <div className="mb-6">
-                      <h2 className="text-3xl lg:text-4xl font-heading font-extrabold text-gray-900 mb-2">
-                        {product.name}
-                      </h2>
+                      <div className="flex items-start gap-3 mb-2">
+                        <h2 className="text-3xl lg:text-4xl font-heading font-extrabold text-gray-900 flex-1">
+                          {product.name}
+                        </h2>
+                        <button
+                          onClick={handleShare}
+                          className="relative flex-shrink-0 mt-1 w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                          aria-label="Share product"
+                        >
+                          {shareCopied ? (
+                            <Check size={20} strokeWidth={2.5} className="text-emerald-600" />
+                          ) : (
+                            <Share2 size={20} strokeWidth={2} />
+                          )}
+                          <AnimatePresence>
+                            {shareCopied && (
+                              <motion.span
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200"
+                              >
+                                Link copied!
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
+                        </button>
+                      </div>
                       <div className="flex items-center gap-4">
                         {isOnSale ? (
                           <div className="flex items-center gap-3">

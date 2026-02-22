@@ -35,6 +35,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { SiteContentProvider, usePageContent } from './src/hooks/useSiteContent';
 import { AdminLayout } from './src/admin';
 import AdminLogin from './src/admin/pages/AdminLogin';
+import NewsletterStatusPage from './src/components/NewsletterStatusPage';
 import { useBrandingSettings } from './src/hooks/useSupabase';
 import { Product, CartItem } from './types';
 import { useCartSync } from './src/hooks/useCartSync';
@@ -91,7 +92,7 @@ interface OrderData {
   estimatedDeliveryDate?: string | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -105,6 +106,8 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/calendar') return 'calendar';
   if (pathname === '/tools') return 'tools';
   if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
+  if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
+  if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
   return 'home';
 };
 
@@ -121,6 +124,8 @@ const getPathForView = (view: ViewType): string => {
     case 'calendar': return '/calendar';
     case 'tools': return '/tools';
     case 'blog': return '/blog';
+    case 'newsletter-confirmed': return '/newsletter/confirmed';
+    case 'newsletter-unsubscribed': return '/newsletter/unsubscribed';
     default: return '/';
   }
 };
@@ -429,6 +434,7 @@ const App: React.FC = () => {
             estimatedDeliveryDate={completedOrder.estimatedDeliveryDate}
             onContinueShopping={() => handleNavigate('shop')}
             onCreateAccount={() => handleNavigate('register')}
+            onViewOrders={!completedOrder.isGuest ? () => handleNavigate('account') : undefined}
           />
         );
       case 'tracking':
@@ -538,6 +544,14 @@ const App: React.FC = () => {
             <ContentPage slug="terms" onBack={() => handleNavigate('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
+        );
+      case 'newsletter-confirmed':
+        return (
+          <NewsletterStatusPage type="confirmed" onNavigate={(v) => handleNavigate(v as ViewType)} />
+        );
+      case 'newsletter-unsubscribed':
+        return (
+          <NewsletterStatusPage type="unsubscribed" onNavigate={(v) => handleNavigate(v as ViewType)} />
         );
       case 'login':
         return (

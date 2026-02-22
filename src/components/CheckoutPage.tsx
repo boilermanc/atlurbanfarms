@@ -17,6 +17,7 @@ import StripePaymentWrapper from './StripePaymentForm';
 import AddressAutocomplete, { ParsedAddress } from './ui/AddressAutocomplete';
 import InsufficientStockModal, { StockIssue } from './InsufficientStockModal';
 import { supabase } from '../lib/supabase';
+import { submitNewsletterPreference } from '../services/newsletter';
 import { useGrowingSystems } from '../admin/hooks/useGrowingSystems';
 import { ChevronDown } from 'lucide-react';
 
@@ -293,6 +294,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [showAddressSuggestion, setShowAddressSuggestion] = useState(false);
   const [addressWarningAcknowledged, setAddressWarningAcknowledged] = useState(false);
   const [customerNotes, setCustomerNotes] = useState('');
+  const [growingTipsOptIn, setGrowingTipsOptIn] = useState(true);
   const [growingSystem, setGrowingSystem] = useState('');
   const [growingSystemOther, setGrowingSystemOther] = useState('');
 
@@ -961,6 +963,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
 
     if (!validateForm()) {
+      // Field-level errors are shown via submitAttempted flag, but they're at the
+      // top of the form in the Contact section. If the user is scrolled down (e.g.,
+      // after selecting pickup), they see nothing. Scroll to the form so errors
+      // are visible.
+      const formEl = document.querySelector('form');
+      if (formEl) {
+        formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       return;
     }
 
@@ -1323,6 +1333,23 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
       // Don't block the order flow if email fails
+    }
+
+    // Save newsletter preference (non-blocking)
+    try {
+      if (growingTipsOptIn) {
+        await submitNewsletterPreference({
+          email: formData.email,
+          firstName: formData.firstName,
+          customerId: user?.id || null,
+          source: 'checkout',
+          status: 'active',
+          tags: ['checkout-optin'],
+        });
+      }
+    } catch (err) {
+      console.error('Newsletter preference save failed:', err);
+      // Don't block the order flow
     }
 
     // Navigate to order confirmation
@@ -2113,19 +2140,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
                     {/* Loading rates */}
                     {fetchingRates && (
-                      <div className="grid grid-cols-1 gap-4">
-                        {[1, 2, 3].map(i => (
-                          <div key={i} className="p-6 rounded-[2rem] border-2 border-gray-100 bg-gray-50 animate-pulse">
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="flex items-center gap-3">
-                                <div className="w-5 h-5 bg-gray-200 rounded-full"></div>
-                                <div className="h-5 bg-gray-200 rounded w-32"></div>
-                              </div>
-                              <div className="h-5 bg-gray-200 rounded w-16"></div>
-                            </div>
-                            <div className="h-4 bg-gray-200 rounded w-48 ml-8"></div>
-                          </div>
-                        ))}
+                      <div className="p-6 rounded-[2rem] border-2 border-gray-100 bg-gray-50 text-center">
+                        <p className="text-gray-500 font-medium text-sm">Calculating...</p>
                       </div>
                     )}
 
@@ -2432,6 +2448,29 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 </div>
               </motion.section>
 
+              {/* Growing Tips Opt-in */}
+              <label className="flex items-center gap-3 mt-6 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={growingTipsOptIn}
+                    onChange={(e) => setGrowingTipsOptIn(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-5 h-5 border-2 border-gray-200 rounded-md peer-checked:bg-emerald-600 peer-checked:border-emerald-600 transition-all group-hover:border-gray-300" />
+                  <svg
+                    className="absolute inset-0 m-auto w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                  </svg>
+                </div>
+                <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
+                  Send me growing tips and seasonal updates
+                </span>
+              </label>
+
               <hr className="my-10 border-gray-100" />
 
               {/* Payment Section */}
@@ -2451,6 +2490,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 {/* Show Stripe payment form if we have a client secret */}
                 {paymentStep === 'payment' && clientSecret ? (
                   <div className="p-6 rounded-[2rem] border-2 border-emerald-200 bg-emerald-50/30">
+                    <p className="text-xs text-gray-400 mb-4">We accept US credit and debit cards only.</p>
                     <StripePaymentWrapper
                       clientSecret={clientSecret}
                       onSuccess={handlePaymentSuccess}
@@ -2471,6 +2511,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                         <p className="text-sm text-gray-600">
                           Your payment will be processed securely through Stripe. Click "Continue to Payment" to enter your card details.
                         </p>
+                        <p className="text-xs text-gray-400 mt-2">We accept US credit and debit cards only.</p>
                       </div>
                     </div>
                   </div>

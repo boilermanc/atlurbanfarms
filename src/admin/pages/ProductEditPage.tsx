@@ -940,7 +940,8 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           )}
         </div>
 
-        {/* Fulfillment Section */}
+        {/* Fulfillment Section - not applicable for external products */}
+        {formData.product_type !== 'external' && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
           <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Fulfillment</h2>
           <div>
@@ -962,6 +963,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
             </p>
           </div>
         </div>
+        )}
 
         {/* External/Affiliate Product Fields */}
         {formData.product_type === 'external' && (
@@ -1069,11 +1071,16 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               </div>
             ) : (
               <div className="space-y-2">
-                {relationships.map((rel) => (
+                {relationships.map((rel) => {
+                  const isItemOos = (rel.product?.quantity_available ?? 0) <= 0;
+                  return (
                   <div key={rel.child_product_id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                    <div className="flex-1">
+                    <div className="flex-1 flex items-center gap-2">
                       <span className="font-medium text-slate-800">{rel.product?.name}</span>
-                      <span className="text-slate-500 ml-2">${rel.product?.price?.toFixed(2)} each</span>
+                      {isItemOos && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Out of Stock</span>
+                      )}
+                      <span className="text-slate-500">${rel.product?.price?.toFixed(2)} each</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -1095,7 +1102,8 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div className="mt-4 pt-4 border-t border-slate-200 space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-600">Items in bundle:</span>
