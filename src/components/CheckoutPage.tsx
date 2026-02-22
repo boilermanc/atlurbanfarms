@@ -407,15 +407,19 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setHasPrefilledForm(true);
   }, [user, profile, addresses, hasPrefilledForm, profileLoading, addressesLoading]);
 
-  // Sync contact phone from customer profile when it loads.
+  // Sync contact fields from customer profile when it loads.
   // Handles race condition where profile data arrives after initial pre-fill
   // (useCustomerProfile's loading state can be stale for one render cycle when
   // userId changes, causing the pre-fill effect to run with null profile).
   useEffect(() => {
-    if (!profile?.phone) return;
+    if (!profile) return;
     setFormData(prev => {
-      if (prev.phone) return prev; // Don't override user input
-      return { ...prev, phone: profile.phone };
+      const updates: Partial<CheckoutFormData> = {};
+      if (profile.first_name && !prev.firstName) updates.firstName = profile.first_name;
+      if (profile.last_name && !prev.lastName) updates.lastName = profile.last_name;
+      if (profile.phone && !prev.phone) updates.phone = profile.phone;
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
     });
   }, [profile]);
 
@@ -898,9 +902,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       errors.zip = 'Please enter a valid ZIP code';
     }
 
-    if (Object.keys(errors).length > 0) {
-      console.log('[Checkout] validateForm errors:', errors, 'formData:', { email: formData.email, phone: formData.phone, firstName: formData.firstName, lastName: formData.lastName });
-    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -944,11 +945,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   const handleSubmit = async (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
-    console.log('[Checkout] handleSubmit called, deliveryMethod:', deliveryMethod);
 
     // Prevent duplicate submissions if order was already completed
     if (orderCompletedRef.current) {
-      console.log('[Checkout] Blocked: orderCompletedRef is true');
       return;
     }
 
@@ -957,21 +956,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setOrderError(null);
 
     if (hasPickupConflict) {
-      console.log('[Checkout] Blocked: pickup conflict');
       setOrderError('Your cart contains items that must be picked up and items that cannot be picked up. Please remove one or the other to proceed.');
       return;
     }
 
     if (!validateForm()) {
-      console.log('[Checkout] Blocked: form validation failed, errors:', formErrors);
       return;
     }
 
-    console.log('[Checkout] Form valid, checking stock...');
     // Check stock levels before proceeding
     const issues = await validateStock();
     if (issues.length > 0) {
-      console.log('[Checkout] Blocked: stock issues', issues);
       setStockIssues(issues);
       setShowStockModal(true);
       return;
@@ -980,7 +975,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     // For pickup orders, validate pickup selection
     if (deliveryMethod === 'pickup') {
       if (!selectedPickupLocationId || !selectedPickupSlot) {
-        console.log('[Checkout] Blocked: pickup not selected', { selectedPickupLocationId, selectedPickupSlot });
         setOrderError('Please select a pickup location and time slot.');
         return;
       }
@@ -1001,17 +995,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
     // Validate growing system selection
     if (!growingSystem) {
-      console.log('[Checkout] Blocked: no growing system selected');
       setOrderError('Please select your growing system.');
       return;
     }
     if (growingSystem === 'Other' && !growingSystemOther.trim()) {
-      console.log('[Checkout] Blocked: growing system Other not specified');
       setOrderError('Please specify your growing system.');
       return;
     }
-
-    console.log('[Checkout] All validation passed, stripeEnabled:', stripeEnabled);
 
     // Ensure abandoned cart is captured before attempting order (covers autofill)
     if (!abandonedCartSavedRef.current) {
@@ -1041,7 +1031,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     } : { isPickup: false };
 
     // If Stripe is enabled, create payment intent and show payment form
-    console.log('[Checkout] Creating order...', { stripeEnabled, deliveryMethod, pickupDetails });
     if (stripeEnabled) {
       // Create order first with pending payment status
       const result = await createOrder({
@@ -1097,7 +1086,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         ...pickupDetails
       });
 
-      console.log('[Checkout] createOrder result:', { success: result.success, orderId: result.order?.id, error: result.error });
       if (!result.success || !result.order) {
         const errorMsg = result.error || 'Failed to create order. Please try again.';
         // If RPC caught insufficient stock (pre-check was bypassed), show the modal
@@ -1127,13 +1115,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined
       });
 
-      console.log('[Checkout] createPaymentIntent result:', { paymentResult, paymentError });
       if (!paymentResult) {
         setOrderError(paymentError || 'Failed to initialize payment. Please try again.');
         return;
       }
 
-      console.log('[Checkout] Setting payment step to payment, clientSecret received');
       setPendingOrderId(result.order.id);
       setClientSecret(paymentResult.clientSecret);
       setPaymentStep('payment');
