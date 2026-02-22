@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useCustomerProfile } from '../../hooks/useSupabase';
 import { useGrowingSystems } from '../../admin/hooks/useGrowingSystems';
+import { useGrowingInterests } from '../../admin/hooks/useGrowingInterests';
 import { supabase } from '../../lib/supabase';
 import { submitNewsletterPreference } from '../../services/newsletter';
 
@@ -15,6 +16,7 @@ const GROWING_ENVIRONMENTS = [
   { value: 'indoor', label: 'Indoor' },
   { value: 'outdoor', label: 'Outdoor' },
   { value: 'both', label: 'Both Indoor & Outdoor' },
+  { value: 'none', label: 'Not Growing Yet' },
 ];
 
 const EXPERIENCE_LEVELS = [
@@ -24,21 +26,13 @@ const EXPERIENCE_LEVELS = [
   { value: 'expert', label: 'Expert', description: 'Professional or long-time grower' },
 ];
 
-const GROWING_INTERESTS = [
-  { value: 'vegetables', label: 'Vegetables' },
-  { value: 'herbs', label: 'Herbs' },
-  { value: 'fruits', label: 'Fruits' },
-  { value: 'flowers', label: 'Flowers' },
-  { value: 'microgreens', label: 'Microgreens' },
-  { value: 'mushrooms', label: 'Mushrooms' },
-  { value: 'native_plants', label: 'Native Plants' },
-  { value: 'succulents', label: 'Succulents' },
-];
 
 const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, onNavigateToSettings }) => {
   const { profile, loading, updateProfile } = useCustomerProfile(userId);
   const { systems: growingSystems } = useGrowingSystems();
   const activeGrowingSystems = growingSystems.filter(s => s.is_active);
+  const { interests: growingInterestOptions } = useGrowingInterests();
+  const activeGrowingInterests = growingInterestOptions.filter(i => i.is_active);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -48,6 +42,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
     first_name: '',
     last_name: '',
     phone: '',
+    company: '',
     growing_environment: '',
     experience_level: '',
     growing_systems: [] as string[],
@@ -63,6 +58,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
         first_name: profile.first_name || '',
         last_name: profile.last_name || '',
         phone: profile.phone || '',
+        company: profile.company || '',
         growing_environment: profile.growing_environment || '',
         experience_level: profile.experience_level || '',
         growing_systems: profile.growing_systems || [],
@@ -267,6 +263,21 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
               />
             </div>
+
+            {/* Company / Organization */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                Company / Organization
+              </label>
+              <input
+                type="text"
+                name="company"
+                value={formData.company}
+                onChange={handleInputChange}
+                placeholder="Company or organization name"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+              />
+            </div>
           </div>
         </div>
 
@@ -283,7 +294,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
               <label className="text-xs font-black uppercase tracking-widest text-gray-400">
                 Growing Environment
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {GROWING_ENVIRONMENTS.map((env) => (
                   <button
                     key={env.value}
@@ -310,24 +321,24 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
               <label className="text-xs font-black uppercase tracking-widest text-gray-400">
                 Experience Level
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-wrap gap-3">
                 {EXPERIENCE_LEVELS.map((level) => (
                   <button
                     key={level.value}
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, experience_level: level.value }))}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    title={level.description}
+                    className={`px-4 py-3 rounded-xl border-2 text-center transition-all ${
                       formData.experience_level === level.value
                         ? 'border-emerald-600 bg-emerald-50'
                         : 'border-gray-100 hover:border-gray-200'
                     }`}
                   >
-                    <span className={`font-medium block ${
+                    <span className={`font-medium ${
                       formData.experience_level === level.value ? 'text-emerald-600' : 'text-gray-900'
                     }`}>
                       {level.label}
                     </span>
-                    <span className="text-sm text-gray-500">{level.description}</span>
                   </button>
                 ))}
               </div>
@@ -367,7 +378,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                 Growing Interests (Select all that apply)
               </label>
               <div className="flex flex-wrap gap-2">
-                {GROWING_INTERESTS.map((interest) => (
+                {activeGrowingInterests.map((interest) => (
                   <button
                     key={interest.value}
                     type="button"
@@ -388,6 +399,44 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Communication Preferences */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <h2 className="font-heading font-bold text-gray-900 mb-2">Communication Preferences</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Choose how you'd like to hear from us.
+          </p>
+
+          <div className="space-y-4">
+            <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                name="newsletter_subscribed"
+                checked={formData.newsletter_subscribed}
+                onChange={handleInputChange}
+                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+              />
+              <div>
+                <span className="text-gray-900 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
+                <p className="text-xs text-gray-400">Receive newsletters, growing tips, and promotional content</p>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                name="sms_opt_in"
+                checked={formData.sms_opt_in}
+                onChange={handleInputChange}
+                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
+              />
+              <div>
+                <span className="text-gray-900 font-medium group-hover:text-emerald-600 transition-colors">SMS Updates</span>
+                <p className="text-xs text-gray-400">Receive text messages for order updates and important announcements</p>
+              </div>
+            </label>
           </div>
         </div>
 

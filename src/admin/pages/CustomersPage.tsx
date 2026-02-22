@@ -205,7 +205,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         .order(sortField, { ascending: sortDirection === 'asc' });
 
       if (customerSearch) {
-        query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%`);
+        query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%,company.ilike.%${customerSearch}%`);
       }
 
       if (tagFilterIds !== null) {
@@ -591,6 +591,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                           Email
                           <SortIndicator field="email" />
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Company</th>
                         <th
                           className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
                           onClick={() => handleSort('phone')}
@@ -612,7 +613,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                     <tbody className="divide-y divide-slate-100">
                       {customers.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center">
+                          <td colSpan={8} className="px-6 py-12 text-center">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <Users size={32} className="text-slate-400" />
                             </div>
@@ -669,6 +670,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-slate-600">{customer.email}</td>
+                              <td className="px-6 py-4 text-slate-600">{customer.company || '-'}</td>
                               <td className="px-6 py-4 text-slate-600">{customer.phone || '-'}</td>
                               <td className="px-6 py-4 text-right text-slate-800 font-semibold">{customer.order_count}</td>
                               <td className="px-6 py-4 text-right text-emerald-600 font-semibold">

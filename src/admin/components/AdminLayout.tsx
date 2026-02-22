@@ -63,6 +63,7 @@ const SproutifyCreditsPage = lazy(() => import('../pages/SproutifyCreditsPage'))
 const BlogListPage = lazy(() => import('../pages/BlogListPage'));
 const BlogEditPage = lazy(() => import('../pages/BlogEditPage'));
 const GrowingSystemsPage = lazy(() => import('../pages/GrowingSystemsPage'));
+const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -119,6 +120,7 @@ const PAGE_TITLES: Record<string, string> = {
   'blog': 'Blog',
   'blog-edit': 'Edit Blog Post',
   'growing-systems': 'Growing Systems',
+  'growing-interests': 'Growing Interests',
 };
 
 // Dashboard Stats Interface
@@ -869,6 +871,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <BlogListPage onEditPost={handleEditBlogPost} onCreatePost={handleCreateBlogPost} />;
       case 'growing-systems':
         return <GrowingSystemsPage />;
+      case 'growing-interests':
+        return <GrowingInterestsPage />;
       case 'blog-edit':
         return (
           <BlogEditPage

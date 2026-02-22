@@ -47,16 +47,32 @@ function saveLocalCart(items: CartItem[]) {
   }
 }
 
-/** Merge two cart arrays. Union of products; higher quantity wins. */
+/**
+ * Merge two cart arrays. Union of products; higher quantity wins.
+ * Always prefers DB cart prices (freshly calculated from products table)
+ * over local cart prices (may be stale from localStorage).
+ */
 function mergeCarts(dbCart: CartItem[], localCart: CartItem[]): CartItem[] {
+  const dbMap = new Map<string, CartItem>();
+  for (const item of dbCart) {
+    dbMap.set(item.id, item);
+  }
+
   const merged = new Map<string, CartItem>();
 
+  // Start with DB items (have fresh prices from products table)
   for (const item of dbCart) {
     merged.set(item.id, item);
   }
+
   for (const item of localCart) {
-    const existing = merged.get(item.id);
-    if (!existing || item.quantity > existing.quantity) {
+    const dbItem = dbMap.get(item.id);
+    if (dbItem) {
+      // Item exists in both: use DB prices (fresh) with max quantity
+      const qty = Math.max(dbItem.quantity, item.quantity);
+      merged.set(item.id, { ...dbItem, quantity: qty });
+    } else {
+      // Item only in local cart: keep it (new item not yet synced)
       merged.set(item.id, item);
     }
   }
@@ -75,6 +91,8 @@ export function useCartSync() {
   // Track whether we've completed the initial DB load so we don't sync
   // the stale localStorage cart back to DB before the real data arrives.
   const initialLoadDoneRef = useRef(false);
+  // Track whether we've reconciled prices for the current session
+  const priceReconciledRef = useRef(false);
 
   // ── DB helpers ──────────────────────────────────────────────
 
@@ -150,6 +168,45 @@ export function useCartSync() {
     }
   }
 
+  // ── Reconcile localStorage prices against current DB prices ──
+  // Fixes stale prices when a sale starts/ends after items were added to cart.
+
+  async function reconcileCartPrices(localItems: CartItem[]): Promise<CartItem[]> {
+    if (localItems.length === 0) return localItems;
+
+    const productIds = localItems.map(item => item.id);
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('id, price, compare_at_price')
+      .in('id', productIds);
+
+    if (error || !products) return localItems;
+
+    const priceMap = new Map<string, { price: number; compareAtPrice: number | null }>();
+    for (const p of products) {
+      const rawPrice = Number(p.price) || 0;
+      const rawCompareAt = p.compare_at_price != null ? Number(p.compare_at_price) : null;
+      const isOnSale = rawCompareAt != null && rawCompareAt > 0 && rawPrice > 0 && rawCompareAt !== rawPrice;
+      priceMap.set(p.id, {
+        price: isOnSale ? Math.min(rawPrice, rawCompareAt!) : rawPrice,
+        compareAtPrice: isOnSale ? Math.max(rawPrice, rawCompareAt!) : rawCompareAt,
+      });
+    }
+
+    let changed = false;
+    const updated = localItems.map(item => {
+      const fresh = priceMap.get(item.id);
+      if (!fresh) return item; // product deleted, keep as-is
+      if (item.price !== fresh.price || item.compareAtPrice !== fresh.compareAtPrice) {
+        changed = true;
+        return { ...item, price: fresh.price, compareAtPrice: fresh.compareAtPrice };
+      }
+      return item;
+    });
+
+    return changed ? updated : localItems;
+  }
+
   // ── Sync effect: debounced write to DB on cart change ──────
 
   useEffect(() => {
@@ -210,13 +267,27 @@ export function useCartSync() {
       setLoading(true);
       isSyncingRef.current = true;
       try {
+        const localCart = getLocalCart();
         const dbCart = await fetchCartFromDb(userId);
+
+        // Always ensure a DB cart row exists so cartIdRef is set
+        // and the debounced sync effect can write future changes
+        const cartId = await getOrCreateCart(userId);
+
+        const merged = mergeCarts(dbCart, localCart);
+
+        // Only write to DB if local has items not already in DB
+        // (avoids unnecessary delete+reinsert on every page load)
+        const needsSync = localCart.some(localItem => {
+          const dbItem = dbCart.find(d => d.id === localItem.id);
+          return !dbItem || localItem.quantity > dbItem.quantity;
+        });
+        if (needsSync) {
+          await writeCartToDb(cartId, merged);
+        }
+
         if (mounted) {
-          if (dbCart.length > 0) {
-            setCart(dbCart);
-          }
-          // If DB cart is empty, keep whatever was in localStorage
-          // (edge case: user had items before tables existed)
+          setCart(merged);
           initialLoadDoneRef.current = true;
         }
       } catch (err) {
@@ -229,13 +300,25 @@ export function useCartSync() {
     }
 
     // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       const uid = session?.user?.id ?? null;
       userIdRef.current = uid;
       if (uid) {
         loadFromDb(uid);
       } else {
+        // Guest user: reconcile localStorage prices against current DB data.
+        // This catches stale prices when a sale starts/ends after items were cached.
+        if (!priceReconciledRef.current) {
+          priceReconciledRef.current = true;
+          const localItems = getLocalCart();
+          if (localItems.length > 0) {
+            const reconciled = await reconcileCartPrices(localItems);
+            if (mounted && reconciled !== localItems) {
+              setCart(reconciled);
+            }
+          }
+        }
         initialLoadDoneRef.current = true;
       }
     });

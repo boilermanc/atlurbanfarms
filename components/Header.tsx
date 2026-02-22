@@ -696,7 +696,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       initial={{ scale: 0.5, opacity: 0 }}
                       animate={{ scale: [1.2, 1], opacity: 1 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute -top-0.5 -right-0.5 brand-bg text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1"
+                      className="absolute -top-1 -right-1 brand-bg text-white text-[11px] font-bold min-w-[20px] h-[20px] flex items-center justify-center rounded-full px-1.5"
                     >
                       {cartCount > 99 ? '99+' : cartCount}
                     </motion.span>

@@ -104,6 +104,7 @@ export function useCustomerProfile(userId) {
         first_name: updates.first_name,
         last_name: updates.last_name,
         phone: updates.phone,
+        company: updates.company || null,
         newsletter_subscribed: updates.newsletter_subscribed,
         sms_opt_in: updates.sms_opt_in,
         updated_at: new Date().toISOString()

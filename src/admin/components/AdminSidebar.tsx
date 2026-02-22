@@ -27,6 +27,7 @@ import {
   UsersRound,
   Newspaper,
   Sprout,
+  Heart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -78,16 +79,17 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'faqs', label: 'FAQs', icon: HelpCircle },
       { id: 'content-pages', label: 'Content Pages', icon: FileText },
       { id: 'blog', label: 'Blog', icon: Newspaper },
-      { id: 'product-tags', label: 'Product Tags', icon: Tag },
-      { id: 'customer-tags', label: 'Customer Tags', icon: Users },
-      { id: 'growing-systems', label: 'Growing Systems', icon: Sprout },
-      { id: 'attribution', label: 'Attribution', icon: Megaphone },
     ],
   },
   {
     title: 'CONFIGURATION',
     items: [
       { id: 'settings', label: 'Settings', icon: Settings },
+      { id: 'product-tags', label: 'Product Tags', icon: Tag },
+      { id: 'customer-tags', label: 'Customer Tags', icon: Users },
+      { id: 'growing-systems', label: 'Growing Systems', icon: Sprout },
+      { id: 'growing-interests', label: 'Growing Interests', icon: Heart },
+      { id: 'attribution', label: 'Attribution', icon: Megaphone },
       { id: 'feature-flags', label: 'Feature Flags', icon: ToggleLeft },
       { id: 'integrations', label: 'Integrations', icon: Plug },
       { id: 'email-templates', label: 'Email Templates', icon: Mail },

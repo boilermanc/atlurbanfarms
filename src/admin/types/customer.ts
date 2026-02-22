@@ -4,7 +4,6 @@ export type SubscriberStatus = 'active' | 'unsubscribed' | 'bounced';
 
 export type GrowingEnvironment = 'indoor' | 'outdoor' | 'both' | 'none';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
-export type GrowingInterest = 'microgreens' | 'herbs' | 'vegetables' | 'flowers' | 'mushrooms';
 
 export type CustomerRole = 'customer' | 'admin';
 
@@ -36,7 +35,7 @@ export interface CustomerProfile {
   growing_environment: GrowingEnvironment | null;
   experience_level: ExperienceLevel | null;
   growing_systems: string[] | null;
-  growing_interests: GrowingInterest[] | null;
+  growing_interests: string[] | null;
   usda_zone: string | null;
   created_at: string;
   updated_at: string;
@@ -145,14 +144,6 @@ export const ENVIRONMENT_OPTIONS: { value: GrowingEnvironment; label: string }[]
   { value: 'outdoor', label: 'Outdoor' },
   { value: 'both', label: 'Both' },
   { value: 'none', label: 'Not Growing Yet' },
-];
-
-export const INTEREST_OPTIONS: { value: GrowingInterest; label: string }[] = [
-  { value: 'microgreens', label: 'Microgreens' },
-  { value: 'herbs', label: 'Herbs' },
-  { value: 'vegetables', label: 'Vegetables' },
-  { value: 'flowers', label: 'Flowers' },
-  { value: 'mushrooms', label: 'Mushrooms' },
 ];
 
 // Tag color configurations for badge display

@@ -44,6 +44,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
     if (result.valid && result.discount > 0) {
       setAppliedPromo(result);
       setPromoError(null);
+      try { sessionStorage.setItem('atluf_promo_code', promoCode.trim()); } catch {}
     } else {
       setAppliedPromo(null);
       setPromoError(result.message || 'Invalid promo code');
@@ -54,6 +55,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
     setAppliedPromo(null);
     setPromoCode('');
     setPromoError(null);
+    try { sessionStorage.removeItem('atluf_promo_code'); } catch {}
   }, []);
 
   // Clear manual promo when cart empties
@@ -145,7 +147,14 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                           </button>
                         </div>
-                        <p className="brand-text font-bold">${item.price.toFixed(2)}</p>
+                        {item.compareAtPrice != null && item.compareAtPrice > item.price ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-gray-400 text-sm line-through">${item.compareAtPrice.toFixed(2)}</span>
+                            <span className="text-red-500 font-bold">${item.price.toFixed(2)}</span>
+                          </div>
+                        ) : (
+                          <p className="brand-text font-bold">${item.price.toFixed(2)}</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">

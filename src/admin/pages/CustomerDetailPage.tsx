@@ -5,7 +5,6 @@ import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin, Trash2, Al
 import {
   Customer,
   CustomerProfile,
-  CustomerPreferences,
   CustomerAddress,
   CustomerOrder,
   CustomerAttribution,
@@ -13,9 +12,9 @@ import {
   TAG_COLOR_CONFIG,
   EXPERIENCE_LEVEL_CONFIG,
   ENVIRONMENT_OPTIONS,
-  INTEREST_OPTIONS,
 } from '../types/customer';
 import { useGrowingSystems } from '../hooks/useGrowingSystems';
+import { useGrowingInterests } from '../hooks/useGrowingInterests';
 import { useCustomerRole } from '../hooks/useCustomerRole';
 import { useDeleteCustomer } from '../hooks/useDeleteCustomer';
 import { useCustomerTagAssignments } from '../hooks/useCustomerTagAssignments';
@@ -38,7 +37,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
-  const [preferences, setPreferences] = useState<CustomerPreferences | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [attribution, setAttribution] = useState<CustomerAttribution | null>(null);
@@ -52,7 +50,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [isEditingAddresses, setIsEditingAddresses] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isEditingPreferences, setIsEditingPreferences] = useState(false);
   const [isEditingAttribution, setIsEditingAttribution] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -87,7 +84,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     is_default: false,
   });
   const [editedProfile, setEditedProfile] = useState<Partial<CustomerProfile>>({});
-  const [editedPreferences, setEditedPreferences] = useState<Partial<CustomerPreferences>>({});
   const [editedAttribution, setEditedAttribution] = useState<Partial<CustomerAttribution>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -113,6 +109,8 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const { tags: allTags } = useCustomerTags();
   const { systems: growingSystems } = useGrowingSystems();
   const activeGrowingSystems = growingSystems.filter(s => s.is_active).sort((a, b) => a.sort_order - b.sort_order);
+  const { interests: growingInterestOptions } = useGrowingInterests();
+  const activeGrowingInterests = growingInterestOptions.filter(i => i.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
   useEffect(() => {
     fetchCustomerData();
@@ -139,14 +137,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         .single();
 
       setProfile(profileData);
-
-      const { data: preferencesData } = await supabase
-        .from('customer_preferences')
-        .select('*')
-        .eq('customer_id', customerId)
-        .single();
-
-      setPreferences(preferencesData);
 
       const { data: addressesData } = await supabase
         .from('customer_addresses')
@@ -413,21 +403,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     setValidationErrors({});
   };
 
-  const startEditingPreferences = () => {
-    setEditedPreferences({
-      email_notifications: preferences?.email_notifications ?? true,
-      sms_notifications: preferences?.sms_notifications ?? false,
-      newsletter_subscribed: preferences?.newsletter_subscribed ?? false,
-    });
-    setIsEditingPreferences(true);
-    setValidationErrors({});
-  };
-
-  const cancelEditingPreferences = () => {
-    setIsEditingPreferences(false);
-    setValidationErrors({});
-  };
-
   const startEditingAttribution = () => {
     setEditedAttribution({
       source: attribution?.source || '',
@@ -627,51 +602,26 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     }
   };
 
-  const savePreferences = async () => {
-    setIsSaving(true);
+  // Helper: sync newsletter_subscribers when toggling newsletter in admin
+  const syncNewsletterSubscriber = async (subscribed: boolean) => {
+    if (!customer) return;
     try {
-      const preferencesData = {
-        email_notifications: editedPreferences.email_notifications ?? true,
-        sms_notifications: editedPreferences.sms_notifications ?? false,
-        newsletter_subscribed: editedPreferences.newsletter_subscribed ?? false,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (preferences?.id) {
-        // Update existing preferences
-        const { data, error } = await supabase
-          .from('customer_preferences')
-          .update(preferencesData)
-          .eq('id', preferences.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-        setPreferences(data);
-      } else {
-        // Create new preferences
-        const { data, error } = await supabase
-          .from('customer_preferences')
-          .insert({
-            customer_id: customerId,
-            ...preferencesData,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        setPreferences(data);
-      }
-
-      setIsEditingPreferences(false);
-      setValidationErrors({});
-      setToast({ message: 'Preferences updated successfully', type: 'success' });
+      const now = new Date().toISOString();
+      await supabase
+        .from('newsletter_subscribers')
+        .upsert({
+          email: customer.email.toLowerCase(),
+          customer_id: customerId,
+          first_name: customer.first_name,
+          last_name: customer.last_name,
+          status: subscribed ? 'active' : 'unsubscribed',
+          source: 'admin',
+          ...(subscribed
+            ? { subscribed_at: now }
+            : { unsubscribed_at: now }),
+        }, { onConflict: 'email' });
     } catch (err) {
-      console.error('Error updating preferences:', err);
-      setValidationErrors({ general: 'Failed to update preferences' });
-      setToast({ message: 'Failed to update preferences', type: 'error' });
-    } finally {
-      setIsSaving(false);
+      console.error('Error syncing newsletter_subscribers:', err);
     }
   };
 
@@ -759,7 +709,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const getInterestLabels = (interests: string[] | null) => {
     if (!interests || interests.length === 0) return '-';
     return interests
-      .map((int) => INTEREST_OPTIONS.find((opt) => opt.value === int)?.label || int)
+      .map((int) => activeGrowingInterests.find((opt) => opt.value === int)?.label || int)
       .join(', ');
   };
 
@@ -944,20 +894,10 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="email"
-                        value={editedCustomer.email}
-                        onChange={(e) =>
-                          setEditedCustomer({ ...editedCustomer, email: e.target.value })
-                        }
-                        className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
-                          validationErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200'
-                        }`}
-                      />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider">
+                        Email <span className="text-red-500">*</span>
+                      </label>
                       <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -971,6 +911,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                                 .eq('id', customerId);
                               if (!error) {
                                 setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
+                                syncNewsletterSubscriber(newValue);
                                 setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
                               }
                             } catch (err) {
@@ -983,24 +924,26 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">Newsletter</span>
                       </label>
                     </div>
+                    <input
+                      type="email"
+                      value={editedCustomer.email}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, email: e.target.value })
+                      }
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                        validationErrors.email ? 'border-red-300 bg-red-50' : 'border-slate-200'
+                      }`}
+                    />
                     {validationErrors.email && (
                       <p className="mt-1 text-xs text-red-600">{validationErrors.email}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-400 uppercase tracking-wider mb-1 block">
-                      Phone
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="tel"
-                        value={editedCustomer.phone}
-                        onChange={(e) =>
-                          setEditedCustomer({ ...editedCustomer, phone: e.target.value })
-                        }
-                        className="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                      />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-slate-400 uppercase tracking-wider">
+                        Phone
+                      </label>
                       <label className="flex items-center gap-2 cursor-pointer group whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -1026,6 +969,14 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">SMS Updates</span>
                       </label>
                     </div>
+                    <input
+                      type="tel"
+                      value={editedCustomer.phone}
+                      onChange={(e) =>
+                        setEditedCustomer({ ...editedCustomer, phone: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
                   </div>
 
                   <div className="flex gap-2 pt-2">
@@ -1064,9 +1015,8 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     </div>
                   )}
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Email</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-slate-800">{customer.email}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider">Email</p>
                       <label className="flex items-center gap-2 cursor-pointer group">
                         <input
                           type="checkbox"
@@ -1080,6 +1030,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                                 .eq('id', customerId);
                               if (!error) {
                                 setCustomer(prev => prev ? { ...prev, newsletter_subscribed: newValue } : null);
+                                syncNewsletterSubscriber(newValue);
                                 setToast({ message: newValue ? 'Subscribed to newsletter' : 'Unsubscribed from newsletter', type: 'success' });
                               }
                             } catch (err) {
@@ -1092,11 +1043,11 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">Newsletter</span>
                       </label>
                     </div>
+                    <p className="text-slate-800">{customer.email}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Phone</p>
-                    <div className="flex items-center justify-between">
-                      <p className="text-slate-800">{customer.phone || '-'}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-slate-400 uppercase tracking-wider">Phone</p>
                       <label className="flex items-center gap-2 cursor-pointer group">
                         <input
                           type="checkbox"
@@ -1122,6 +1073,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                         <span className="text-sm text-slate-600 group-hover:text-emerald-600 transition-colors">SMS Updates</span>
                       </label>
                     </div>
+                    <p className="text-slate-800">{customer.phone || '-'}</p>
                   </div>
                 </div>
               )}
@@ -1992,7 +1944,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                       Interests
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {INTEREST_OPTIONS.map((opt) => (
+                      {activeGrowingInterests.map((opt) => (
                         <label
                           key={opt.value}
                           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border cursor-pointer transition-colors text-xs ${
@@ -2117,130 +2069,6 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   <p className="text-2xl font-bold text-slate-800">{formatCurrency(averageOrderValue)}</p>
                 </div>
               </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Preferences</h2>
-                {!isEditingPreferences && (
-                  <button
-                    onClick={startEditingPreferences}
-                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 text-sm font-medium transition-colors"
-                  >
-                    <Edit2 size={14} />
-                    Edit
-                  </button>
-                )}
-              </div>
-
-              {isEditingPreferences ? (
-                <div className="space-y-4">
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.email_notifications ?? true}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, email_notifications: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Email Notifications</span>
-                      <p className="text-xs text-slate-400">Receive order updates and announcements via email</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.sms_notifications ?? false}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, sms_notifications: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">SMS Notifications</span>
-                      <p className="text-xs text-slate-400">Receive text messages for important updates</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={editedPreferences.newsletter_subscribed ?? false}
-                      onChange={(e) =>
-                        setEditedPreferences({ ...editedPreferences, newsletter_subscribed: e.target.checked })
-                      }
-                      className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-                    />
-                    <div>
-                      <span className="text-slate-800 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
-                      <p className="text-xs text-slate-400">Receive newsletters and promotional content</p>
-                    </div>
-                  </label>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      onClick={savePreferences}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <Save size={14} />
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      onClick={cancelEditingPreferences}
-                      disabled={isSaving}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-                    >
-                      <XCircle size={14} />
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : preferences ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Email Notifications</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.email_notifications
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.email_notifications ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">SMS Notifications</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.sms_notifications
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.sms_notifications ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Newsletter</span>
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
-                        preferences.newsletter_subscribed
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
-                    >
-                      {preferences.newsletter_subscribed ? 'Subscribed' : 'Not Subscribed'}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-slate-500">No preferences set</p>
-              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">

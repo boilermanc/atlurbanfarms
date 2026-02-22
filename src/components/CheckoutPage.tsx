@@ -396,6 +396,29 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setHasPrefilledForm(true);
   }, [user, profile, addresses, hasPrefilledForm, profileLoading, addressesLoading]);
 
+  // Sync contact phone from customer profile when it loads.
+  // Handles race condition where profile data arrives after initial pre-fill
+  // (useCustomerProfile's loading state can be stale for one render cycle when
+  // userId changes, causing the pre-fill effect to run with null profile).
+  useEffect(() => {
+    if (!profile?.phone) return;
+    setFormData(prev => {
+      if (prev.phone) return prev; // Don't override user input
+      return { ...prev, phone: profile.phone };
+    });
+  }, [profile]);
+
+  // Sync recipient phone from default address when addresses load late
+  useEffect(() => {
+    if (!addresses?.length) return;
+    const defaultAddr = addresses.find((addr: any) => addr.is_default) || addresses[0];
+    if (!defaultAddr?.phone) return;
+    setFormData(prev => {
+      if (prev.shippingPhone) return prev; // Don't override user input
+      return { ...prev, shippingPhone: defaultAddr.phone };
+    });
+  }, [addresses]);
+
   // Shipping cost is 0 for pickup, otherwise use selected rate
   const rawShippingCost = deliveryMethod === 'pickup' ? 0 : (selectedShippingRate?.shipping_amount || 0);
 
@@ -452,6 +475,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     if (result.valid && result.discount > 0) {
       setAppliedManualPromo(result);
       setManualPromoError(null);
+      try { sessionStorage.setItem('atluf_promo_code', manualPromoCode.trim()); } catch {}
     } else {
       setAppliedManualPromo(null);
       setManualPromoError(result.message || 'Invalid promo code');
@@ -462,7 +486,34 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     setAppliedManualPromo(null);
     setManualPromoCode('');
     setManualPromoError(null);
+    try { sessionStorage.removeItem('atluf_promo_code'); } catch {}
   }, []);
+
+  // Auto-apply promo code carried over from cart drawer via sessionStorage
+  const promoAutoAppliedRef = useRef(false);
+  useEffect(() => {
+    if (promoAutoAppliedRef.current || items.length === 0) return;
+    const saved = sessionStorage.getItem('atluf_promo_code');
+    if (!saved) return;
+    promoAutoAppliedRef.current = true;
+
+    const cartItems = items.map(item => ({
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    calculateDiscount(cartItems, saved, user?.id || undefined, user?.email || undefined).then(result => {
+      if (result.valid && result.discount > 0) {
+        setManualPromoCode(saved);
+        setAppliedManualPromo(result);
+        setManualPromoExpanded(true);
+      } else {
+        // Promo no longer valid — clean up
+        try { sessionStorage.removeItem('atluf_promo_code'); } catch {}
+      }
+    });
+  }, [items, calculateDiscount, user]);
 
   // Build shipping address for validation/rates
   const buildShippingAddress = useCallback((): ShippingAddress => ({
@@ -678,7 +729,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       city: address.city || '',
       state: address.state || '',
       zip: address.zip || '',
-      shippingPhone: address.phone || prev.shippingPhone,
+      shippingPhone: address.phone || profile?.phone || prev.shippingPhone,
     }));
 
     // Clear validation state for new address
@@ -1152,6 +1203,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     // IMMEDIATELY clear cart from localStorage to prevent duplicates on back navigation
     localStorage.removeItem('atl-urban-farms-cart');
     localStorage.removeItem('cart');
+    try { sessionStorage.removeItem('atluf_promo_code'); } catch {}
     orderCompletedRef.current = true;
 
     // Mark abandoned cart as converted so no reminder is sent
@@ -2502,9 +2554,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-gray-900 text-sm truncate">{item.name} ({item.quantity})</h4>
                         <p className="text-xs text-gray-400 font-medium">{item.category || 'Plant'}</p>
-                        <p className="text-sm font-black text-emerald-600 mt-0.5">
-                          ${(item.price * item.quantity).toFixed(2)}
-                        </p>
+                        {item.compareAtPrice != null && item.compareAtPrice > item.price ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs text-gray-400 line-through">${(item.compareAtPrice * item.quantity).toFixed(2)}</span>
+                            <span className="text-sm font-black text-red-500">${(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-black text-emerald-600 mt-0.5">
+                            ${(item.price * item.quantity).toFixed(2)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}

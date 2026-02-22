@@ -52,7 +52,7 @@ const TOOLS = [
 const ToolsPage: React.FC<ToolsPageProps> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-site">
-      <div className="pt-32 pb-20 px-4 md:px-8">
+      <div className="pt-36 pb-20 px-4 md:px-8">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <motion.div

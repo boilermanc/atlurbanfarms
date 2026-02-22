@@ -114,7 +114,7 @@ const ProductSection: React.FC<ProductSectionProps> = ({
         {hasMore && showViewAll && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+            className={`flex-shrink-0 px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
               expanded
                 ? `bg-${accentColor}-600 text-white border-${accentColor}-600`
                 : `border-${accentColor}-600 text-${accentColor}-600 hover:bg-${accentColor}-600 hover:text-white`
@@ -216,7 +216,7 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
         {hasMore && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
+            className={`flex-shrink-0 px-4 py-1.5 text-sm font-semibold rounded-full border transition-colors ${
               expanded
                 ? 'bg-emerald-600 text-white border-emerald-600'
                 : 'border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white'
@@ -638,7 +638,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites && !showOnSale && !activeTagId;
 
   return (
-    <div className="min-h-screen pt-32 pb-10 bg-site">
+    <div className="min-h-screen pt-36 pb-10 bg-site">
       <div className="max-w-7xl mx-auto px-4 md:px-12">
         {/* Shop Header */}
         <div className="mb-8">
