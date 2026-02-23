@@ -255,7 +255,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Total seedlings</span>
-                    <span>{items.reduce((acc, item) => acc + item.quantity, 0)}</span>
+                    <span>{items.reduce((acc, item) => acc + item.quantity * (item.seedlingsPerUnit || 1), 0)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Subtotal</span>
