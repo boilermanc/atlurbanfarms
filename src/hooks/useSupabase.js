@@ -193,7 +193,7 @@ export function useOrders(customerId) {
             *,
             order_items:order_items(
               *,
-              product:products(name, slug, primary_image_url)
+              product:products(name, slug, images:product_images(url, is_primary, sort_order))
             ),
             shipments:shipments(
               id,
@@ -209,7 +209,21 @@ export function useOrders(customerId) {
           .order('created_at', { ascending: false })
 
         if (supabaseError) throw supabaseError
-        setOrders(data || [])
+        // Flatten product images to a single primary_image_url for convenience
+        const processed = (data || []).map(order => ({
+          ...order,
+          order_items: order.order_items?.map(item => ({
+            ...item,
+            product: item.product ? {
+              name: item.product.name,
+              slug: item.product.slug,
+              primary_image_url: item.product.images?.find(img => img.is_primary)?.url
+                || item.product.images?.[0]?.url
+                || null
+            } : null
+          }))
+        }))
+        setOrders(processed)
       } catch (err) {
         setError(err.message)
         setOrders([])
@@ -353,7 +367,7 @@ export function useCombinedOrders(customerId) {
             *,
             order_items:order_items(
               *,
-              product:products(name, slug, primary_image_url)
+              product:products(name, slug, images:product_images(url, is_primary, sort_order))
             ),
             shipments:shipments(
               id,
@@ -376,7 +390,17 @@ export function useCombinedOrders(customerId) {
         const newOrders = (newOrdersResult.data || []).map(order => ({
           ...order,
           isLegacy: false,
-          orderDate: order.created_at
+          orderDate: order.created_at,
+          order_items: order.order_items?.map(item => ({
+            ...item,
+            product: item.product ? {
+              name: item.product.name,
+              slug: item.product.slug,
+              primary_image_url: item.product.images?.find(img => img.is_primary)?.url
+                || item.product.images?.[0]?.url
+                || null
+            } : null
+          }))
         }))
 
         // Fetch legacy orders separately - don't let this fail the whole request
@@ -593,7 +617,7 @@ export async function enrichBundleStock(products) {
   if (uniqueMissingIds.length > 0) {
     const { data: missingProducts } = await supabase
       .from('products')
-      .select('id, quantity_available, track_inventory, stock_status')
+      .select('id, name, quantity_available, track_inventory, stock_status')
       .in('id', uniqueMissingIds)
 
     if (missingProducts) {
@@ -631,10 +655,21 @@ export async function enrichBundleStock(products) {
       })
     )
 
+    // Build bundleItems array with component names and quantities
+    const bundleItems = rels
+      .map(r => {
+        const child = productMap.get(r.child_product_id)
+        return child?.name
+          ? { name: child.name, quantity: r.quantity || 1 }
+          : null
+      })
+      .filter(Boolean)
+
     return {
       ...product,
       quantity_available: effectiveQty,
-      stock_status: effectiveQty > 0 ? 'in_stock' : 'out_of_stock'
+      stock_status: effectiveQty > 0 ? 'in_stock' : 'out_of_stock',
+      bundleItems
     }
   })
 }
@@ -1350,7 +1385,8 @@ export function useCreateOrder() {
             price: item.price || item.product?.price,
             quantity: item.quantity,
             image: item.image || item.product?.primary_image_url || item.product?.image,
-            category: item.category || item.product?.category?.name
+            category: item.category || item.product?.category?.name,
+            bundleItems: item.bundleItems || undefined
           }))
         }
       }

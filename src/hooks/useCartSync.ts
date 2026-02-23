@@ -30,6 +30,41 @@ function mapDbProductToCartItem(dbProduct: any, quantity: number): CartItem {
   };
 }
 
+/** Fetch bundle component names for any bundle items in the cart. */
+async function enrichCartBundleItems(cartItems: CartItem[]): Promise<CartItem[]> {
+  const bundleItems = cartItems.filter(item => item.productType === 'bundle' && !item.bundleItems);
+  if (bundleItems.length === 0) return cartItems;
+
+  const bundleIds = bundleItems.map(item => item.id);
+  const { data: relationships } = await supabase
+    .from('product_relationships')
+    .select(`
+      parent_product_id,
+      quantity,
+      product:products!child_product_id(name)
+    `)
+    .in('parent_product_id', bundleIds)
+    .eq('relationship_type', 'bundle')
+    .order('sort_order');
+
+  if (!relationships || relationships.length === 0) return cartItems;
+
+  const bundleMap = new Map<string, Array<{ name: string; quantity: number }>>();
+  for (const rel of relationships as any[]) {
+    const pid = rel.parent_product_id;
+    if (!bundleMap.has(pid)) bundleMap.set(pid, []);
+    bundleMap.get(pid)!.push({
+      name: rel.product?.name || 'Unknown item',
+      quantity: rel.quantity || 1,
+    });
+  }
+
+  return cartItems.map(item => {
+    const components = bundleMap.get(item.id);
+    return components ? { ...item, bundleItems: components } : item;
+  });
+}
+
 function getLocalCart(): CartItem[] {
   try {
     const saved = localStorage.getItem(CART_STORAGE_KEY);
@@ -147,9 +182,11 @@ export function useCartSync() {
     if (error) throw error;
     if (!items) return [];
 
-    return items
+    const mapped = items
       .filter((item: any) => item.product) // skip deleted products
       .map((item: any) => mapDbProductToCartItem(item.product, item.quantity));
+
+    return enrichCartBundleItems(mapped);
   }
 
   async function writeCartToDb(cartId: string, items: CartItem[]) {

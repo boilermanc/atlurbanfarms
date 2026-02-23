@@ -63,6 +63,7 @@ interface OrderData {
     quantity: number;
     image: string;
     category?: string;
+    bundleItems?: Array<{ name: string; quantity: number }>;
   }>;
   customerFirstName: string;
   customerEmail: string;

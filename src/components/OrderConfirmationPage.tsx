@@ -10,6 +10,7 @@ interface OrderItem {
   quantity: number;
   image: string;
   category?: string;
+  bundleItems?: Array<{ name: string; quantity: number }>;
 }
 
 interface OrderTotals {
@@ -569,9 +570,9 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                     key={item.id}
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex gap-5 items-center bg-white p-4 rounded-2xl border border-gray-100"
+                    className="flex gap-5 items-start bg-white p-4 rounded-2xl border border-gray-100"
                   >
-                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0 border border-gray-100 mt-0.5">
                       <img
                         src={item.image}
                         alt={item.name}
@@ -579,14 +580,28 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 text-sm truncate">{item.name}</h4>
-                      <p className="text-xs text-gray-400 font-medium">
-                        {item.category && `${item.category} • `}Qty: {item.quantity}
-                      </p>
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-gray-900 text-sm truncate">{item.name}</h4>
+                          <p className="text-xs text-gray-400 font-medium">
+                            {item.category && `${item.category} • `}Qty: {item.quantity}
+                          </p>
+                        </div>
+                        <p className="font-black text-gray-900 text-sm flex-shrink-0 ml-3">
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </p>
+                      </div>
+                      {item.bundleItems && item.bundleItems.length > 0 && (
+                        <div className="mt-2 space-y-0.5">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Includes:</p>
+                          {item.bundleItems.map((bi, idx) => (
+                            <p key={idx} className="text-[11px] text-gray-400">
+                              {bi.quantity > 1 ? `${bi.quantity}x ` : ''}{bi.name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="font-black text-gray-900 text-sm flex-shrink-0">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </p>
                   </motion.div>
                 ))}
               </div>

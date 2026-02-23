@@ -155,10 +155,20 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                         ) : (
                           <p className="brand-text font-bold">${item.price.toFixed(2)}</p>
                         )}
+                        {item.bundleItems && item.bundleItems.length > 0 && (
+                          <div className="mt-1.5 space-y-0.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Includes:</p>
+                            {item.bundleItems.map((bi: { name: string; quantity: number }, idx: number) => (
+                              <p key={idx} className="text-xs text-gray-500">
+                                {bi.quantity > 1 ? `${bi.quantity}x ` : ''}{bi.name}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                          <button 
+                          <button
                             onClick={() => onUpdateQuantity(item.id, -1)}
                             className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 transition-colors"
                           >

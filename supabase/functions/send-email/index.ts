@@ -525,6 +525,17 @@ function formatOrderItems(items: any[]): string {
     html += `<td style="text-align: center; padding: 10px 12px; color: #333; font-size: 14px;">${qty}</td>`
     html += `<td style="text-align: right; padding: 10px 12px; color: #333; font-size: 14px;">${formatCurrency(lineTotal)}</td>`
     html += '</tr>'
+
+    // Render bundle component sub-items
+    if (item.bundleItems && Array.isArray(item.bundleItems) && item.bundleItems.length > 0) {
+      for (const bi of item.bundleItems) {
+        html += '<tr>'
+        html += `<td colspan="3" style="padding: 2px 12px 2px 28px; color: #9ca3af; font-size: 12px; font-style: italic;">`
+        html += `${bi.quantity > 1 ? bi.quantity + 'x ' : ''}${bi.name}`
+        html += '</td>'
+        html += '</tr>'
+      }
+    }
   }
 
   html += '</table>'
@@ -713,7 +724,7 @@ serve(async (req) => {
             .from('config_settings')
             .select('value')
             .eq('category', 'shipping')
-            .eq('key', 'customer_message')
+            .eq('key', 'customer_shipping_message')
             .maybeSingle()
 
           allVariables.shipping_note = shippingNote?.value

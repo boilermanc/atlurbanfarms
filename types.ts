@@ -13,6 +13,7 @@ export interface Product {
   externalUrl?: string | null;
   externalButtonText?: string | null;
   localPickup?: 'can_be_picked_up' | 'cannot_be_picked_up' | 'must_be_picked_up' | null;
+  bundleItems?: Array<{ name: string; quantity: number }>;
 }
 
 export interface CartItem extends Product {

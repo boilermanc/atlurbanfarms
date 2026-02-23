@@ -44,6 +44,7 @@ interface OrderData {
     quantity: number;
     image: string;
     category?: string;
+    bundleItems?: Array<{ name: string; quantity: number }>;
   }>;
   customerFirstName: string;
   customerEmail: string;
@@ -2632,6 +2633,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-gray-900 text-sm truncate">{item.name} ({item.quantity})</h4>
                         <p className="text-xs text-gray-400 font-medium">{item.category || 'Plant'}</p>
+                        {item.bundleItems && item.bundleItems.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {item.bundleItems.map((bi, idx) => (
+                              <p key={idx} className="text-[11px] text-gray-400">
+                                {bi.quantity > 1 ? `${bi.quantity}x ` : ''}{bi.name}
+                              </p>
+                            ))}
+                          </div>
+                        )}
                         {item.compareAtPrice != null && item.compareAtPrice > item.price ? (
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-xs text-gray-400 line-through">${(item.compareAtPrice * item.quantity).toFixed(2)}</span>
