@@ -208,19 +208,32 @@ export async function getAllIntegrationSettings(
   return settings
 }
 
-function parseValue(value: string, dataType: string): any {
+function parseValue(value: any, dataType: string): any {
+  // JSONB column: Supabase client may return native JS types (boolean, number)
+  // or JSON-encoded strings depending on how the value was stored.
+  if (value === null || value === undefined) return value
+
   switch (dataType) {
     case 'number':
-      return parseFloat(value)
+      return typeof value === 'number' ? value : parseFloat(value)
     case 'boolean':
-      return value === 'true'
+      return typeof value === 'boolean' ? value : value === 'true'
     case 'json':
+      if (typeof value === 'object') return value
       try {
         return JSON.parse(value)
       } catch {
         return value
       }
     default:
+      // Strip double-encoding: '"smtp.gmail.com"' → 'smtp.gmail.com'
+      if (typeof value === 'string' && value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        try {
+          return JSON.parse(value)
+        } catch {
+          return value
+        }
+      }
       return value
   }
 }
