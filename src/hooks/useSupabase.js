@@ -369,21 +369,8 @@ export function useCombinedOrders(customerId) {
           .order('created_at', { ascending: false })
 
         if (newOrdersResult.error) {
-          console.error('Error fetching orders:', newOrdersResult.error)
-          // Retry with a simpler query without joins
-          console.warn('Retrying orders query without joins...')
-          const simpleResult = await supabase
-            .from('orders')
-            .select('*')
-            .eq('customer_id', customerId)
-            .order('created_at', { ascending: false })
-
-          if (simpleResult.error) {
-            console.error('Simple orders query also failed:', simpleResult.error)
-            throw simpleResult.error
-          }
-          newOrdersResult.data = simpleResult.data
-          newOrdersResult.error = null
+          console.error('Error fetching orders with items:', newOrdersResult.error)
+          throw newOrdersResult.error
         }
 
         const newOrders = (newOrdersResult.data || []).map(order => ({

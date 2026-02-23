@@ -71,6 +71,11 @@ interface OrderData {
   isPickup: boolean;
   shippingMethodName?: string;
   estimatedDeliveryDate?: string | null;
+  packageBreakdown?: {
+    total_packages: number;
+    packages: Array<{ name: string; item_count: number }>;
+    summary: string;
+  } | null;
 }
 
 interface CheckoutPageProps {
@@ -286,6 +291,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [orderError, setOrderError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const pendingOrderItemsRef = useRef<any[]>([]);
   const [paymentStep, setPaymentStep] = useState<'form' | 'payment'>('form');
   const [saveAddress, setSaveAddress] = useState(false);
   const [hasPrefilledForm, setHasPrefilledForm] = useState(false);
@@ -1131,6 +1137,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
 
       setPendingOrderId(result.order.id);
+      pendingOrderItemsRef.current = result.order.items || [];
       setClientSecret(paymentResult.clientSecret);
       setPaymentStep('payment');
     } else {
@@ -1309,7 +1316,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingMethodName: selectedShippingRate
         ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
         : undefined,
-      estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date || null
+      estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date || null,
+      packageBreakdown: packageBreakdown || null
     };
 
     // Send order confirmation email
@@ -1369,6 +1377,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         .single();
 
       if (order) {
+        // Attach items saved before payment (orders table doesn't have items)
+        order.items = pendingOrderItemsRef.current;
         await handleOrderSuccess(order);
       }
     }
@@ -2660,10 +2670,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                         onClick={() => setManualPromoExpanded(!manualPromoExpanded)}
                         className="text-sm text-gray-500 hover:text-emerald-600 font-medium transition-colors flex items-center gap-1.5"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                          <line x1="7" x2="7.01" y1="7" y2="7"/>
-                        </svg>
                         Have a promo code?
                         <svg
                           xmlns="http://www.w3.org/2000/svg"

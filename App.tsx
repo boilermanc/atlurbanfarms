@@ -90,6 +90,11 @@ interface OrderData {
   isPickup: boolean;
   shippingMethodName?: string;
   estimatedDeliveryDate?: string | null;
+  packageBreakdown?: {
+    total_packages: number;
+    packages: Array<{ name: string; item_count: number }>;
+    summary: string;
+  } | null;
 }
 
 type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed';
@@ -432,6 +437,7 @@ const App: React.FC = () => {
             isPickup={completedOrder.isPickup}
             shippingMethodName={completedOrder.shippingMethodName}
             estimatedDeliveryDate={completedOrder.estimatedDeliveryDate}
+            packageBreakdown={completedOrder.packageBreakdown}
             onContinueShopping={() => handleNavigate('shop')}
             onCreateAccount={() => handleNavigate('register')}
             onViewOrders={!completedOrder.isGuest ? () => handleNavigate('account') : undefined}
