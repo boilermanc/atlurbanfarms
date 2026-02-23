@@ -1,6 +1,7 @@
 import React, { useState, Suspense, lazy, useEffect } from 'react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
+import ErrorBoundary from './ErrorBoundary';
 import { AdminProvider } from '../context/AdminContext';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { supabase } from '../../lib/supabase';
@@ -902,20 +903,24 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
           {/* Main content */}
           <main className="flex-1 p-8 overflow-auto max-w-[1600px]">
-            <Suspense fallback={<PageLoader />}>
-              {renderPage()}
-            </Suspense>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                {renderPage()}
+              </Suspense>
+            </ErrorBoundary>
           </main>
         </div>
 
         {/* Gift Card Create Modal */}
-        <Suspense fallback={null}>
-          <GiftCardCreateModal
-            isOpen={showGiftCardCreateModal}
-            onClose={() => setShowGiftCardCreateModal(false)}
-            onSuccess={handleGiftCardCreated}
-          />
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={null}>
+            <GiftCardCreateModal
+              isOpen={showGiftCardCreateModal}
+              onClose={() => setShowGiftCardCreateModal(false)}
+              onSuccess={handleGiftCardCreated}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </AdminProvider>
   );

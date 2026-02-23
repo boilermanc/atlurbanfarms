@@ -20,6 +20,9 @@ export interface Customer {
   tax_exempt_certificate: string | null;
   newsletter_subscribed: boolean;
   sms_opt_in: boolean;
+  is_deactivated: boolean;
+  deactivated_at: string | null;
+  deactivated_by: string | null;
   created_at: string;
   updated_at: string;
 }

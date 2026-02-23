@@ -598,6 +598,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
           quantity: item.quantity,
           weight_per_item: 0.5 // Default weight per seedling in pounds
         }));
+        const totalQty = orderItems.reduce((sum, oi) => sum + oi.quantity, 0);
+        console.log('[Checkout] Fetching rates for', orderItems.length, 'line items, total quantity:', totalQty, 'items:', orderItems);
         await fetchRates(rateAddress, orderItems);
       }
     }
@@ -666,7 +668,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       };
       setAddressValidated(true);
       const orderItems = items.map(item => ({
-        quantity: item.quantity,
+        quantity: item.quantity * (item.seedlingsPerUnit || 1),
         weight_per_item: 0.5,
       }));
       await fetchRates(address, orderItems);
@@ -718,7 +720,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       setAddressValidated(true);
 
       const orderItems = items.map(item => ({
-        quantity: item.quantity,
+        quantity: item.quantity * (item.seedlingsPerUnit || 1),
         weight_per_item: 0.5,
       }));
       await fetchRates(address, orderItems);
@@ -797,7 +799,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
       setAddressValidated(true);
       const orderItems = items.map(item => ({
-        quantity: item.quantity,
+        quantity: item.quantity * (item.seedlingsPerUnit || 1),
         weight_per_item: 0.5,
       }));
       await fetchRates(shippingAddress, orderItems);
@@ -2325,7 +2327,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                                 {packageBreakdown.packages.map((pkg, idx) => (
                                   <span key={idx}>
                                     {idx > 0 && ', '}
-                                    {pkg.name} ({pkg.item_count} items)
+                                    {pkg.name} ({pkg.item_count} {pkg.item_count === 1 ? 'item' : 'items'})
                                   </span>
                                 ))}
                               </div>

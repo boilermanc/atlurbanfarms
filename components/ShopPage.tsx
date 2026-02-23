@@ -56,6 +56,7 @@ const mapProduct = (p: any): Product => {
     externalUrl: p.external_url || null,
     externalButtonText: p.external_button_text || null,
     localPickup: p.local_pickup || 'can_be_picked_up',
+    seedlingsPerUnit: p.seedlings_per_unit || 1,
   };
 };
 

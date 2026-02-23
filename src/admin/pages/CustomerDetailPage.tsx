@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, User, Tag, X, Plus, Edit2, Save, XCircle, MapPin, Trash2, AlertTriangle, ShieldOff, Shield, UserX } from 'lucide-react';
 import {
   Customer,
   CustomerProfile,
@@ -17,6 +17,7 @@ import { useGrowingSystems } from '../hooks/useGrowingSystems';
 import { useGrowingInterests } from '../hooks/useGrowingInterests';
 import { useCustomerRole } from '../hooks/useCustomerRole';
 import { useDeleteCustomer } from '../hooks/useDeleteCustomer';
+import { useCustomerManagement } from '../hooks/useCustomerManagement';
 import { useCustomerTagAssignments } from '../hooks/useCustomerTagAssignments';
 import { useCustomerTags } from '../hooks/useCustomerTags';
 import { ORDER_STATUS_CONFIG, ViewOrderHandler } from '../hooks/useOrders';
@@ -95,6 +96,18 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   const [canDelete, setCanDelete] = useState<boolean | null>(null);
   const [orderCount, setOrderCount] = useState(0);
   const { deleteCustomer, checkCanDelete, deleting: isDeleting } = useDeleteCustomer();
+
+  // Deactivate / Wipe
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
+  const [showWipeConfirm, setShowWipeConfirm] = useState(false);
+  const [wipeConfirmEmail, setWipeConfirmEmail] = useState('');
+  const {
+    deactivateCustomer,
+    reactivateCustomer,
+    wipeCustomerData,
+    loading: managementLoading,
+  } = useCustomerManagement();
 
   // Auto-dismiss toast after 3 seconds
   useEffect(() => {
@@ -246,6 +259,43 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
     } else {
       setToast({ message: result.error || 'Failed to delete customer', type: 'error' });
       setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    const result = await deactivateCustomer(customerId);
+    if (result.success) {
+      setShowDeactivateConfirm(false);
+      setToast({ message: 'Customer account deactivated', type: 'success' });
+      setCustomer(prev => prev ? { ...prev, is_deactivated: true, deactivated_at: new Date().toISOString() } : prev);
+    } else {
+      setToast({ message: result.error || 'Failed to deactivate', type: 'error' });
+      setShowDeactivateConfirm(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    const result = await reactivateCustomer(customerId);
+    if (result.success) {
+      setShowReactivateConfirm(false);
+      setToast({ message: 'Customer account reactivated', type: 'success' });
+      setCustomer(prev => prev ? { ...prev, is_deactivated: false, deactivated_at: null, deactivated_by: null } : prev);
+    } else {
+      setToast({ message: result.error || 'Failed to reactivate', type: 'error' });
+      setShowReactivateConfirm(false);
+    }
+  };
+
+  const handleWipe = async () => {
+    const result = await wipeCustomerData(customerId);
+    if (result.success) {
+      setShowWipeConfirm(false);
+      setWipeConfirmEmail('');
+      onBack?.();
+    } else {
+      setToast({ message: result.error || 'Failed to wipe data', type: 'error' });
+      setShowWipeConfirm(false);
+      setWipeConfirmEmail('');
     }
   };
 
@@ -809,7 +859,15 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
             {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 font-admin-display">{getCustomerName()}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-800 font-admin-display">{getCustomerName()}</h1>
+              {customer.is_deactivated && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                  <ShieldOff size={12} />
+                  Deactivated
+                </span>
+              )}
+            </div>
             <p className="text-slate-500">{customer.email}</p>
             <p className="text-slate-400 text-sm">Customer since {formatDate(customer.created_at)}</p>
           </div>
@@ -2305,27 +2363,97 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
 
         {/* Danger Zone */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-red-200/60">
-          <h2 className="text-lg font-semibold text-red-700 mb-2 font-admin-display flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-red-700 mb-4 font-admin-display flex items-center gap-2">
             <AlertTriangle size={20} />
             Danger Zone
           </h2>
-          <p className="text-sm text-slate-500 mb-4">
-            Permanently delete this customer and all associated data. This action cannot be undone.
-          </p>
-          <button
-            onClick={handleDeleteClick}
-            disabled={isDeleting}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
-          >
-            <Trash2 size={16} />
-            {isDeleting ? 'Deleting...' : 'Delete Customer'}
-          </button>
+
+          <div className="space-y-5">
+            {/* Deactivate / Reactivate */}
+            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50/30">
+              {customer.is_deactivated ? (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldOff size={16} className="text-amber-600" />
+                    <h3 className="font-semibold text-sm text-amber-800">Account Deactivated</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">
+                    This account is disabled. The customer cannot log in. Reactivate to restore access.
+                  </p>
+                  <button
+                    onClick={() => setShowReactivateConfirm(true)}
+                    disabled={managementLoading}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                  >
+                    <Shield size={14} />
+                    {managementLoading ? 'Processing...' : 'Reactivate Account'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldOff size={16} className="text-amber-600" />
+                    <h3 className="font-semibold text-sm text-slate-700">Deactivate Account</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Disable this customer's ability to log in. Their data will be preserved. This can be reversed.
+                  </p>
+                  <button
+                    onClick={() => setShowDeactivateConfirm(true)}
+                    disabled={managementLoading}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                  >
+                    <ShieldOff size={14} />
+                    {managementLoading ? 'Processing...' : 'Deactivate Account'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Delete Customer (existing — only for zero-order customers) */}
+            <div className="border border-slate-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Trash2 size={16} className="text-red-500" />
+                <h3 className="font-semibold text-sm text-slate-700">Delete Customer</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                Remove this customer record and associated data. Only available if the customer has no orders.
+              </p>
+              <button
+                onClick={handleDeleteClick}
+                disabled={isDeleting || managementLoading}
+                className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              >
+                <Trash2 size={14} />
+                {isDeleting ? 'Deleting...' : 'Delete Customer'}
+              </button>
+            </div>
+
+            {/* Wipe All Data (GDPR) */}
+            <div className="border border-red-300 rounded-xl p-4 bg-red-50/30">
+              <div className="flex items-center gap-2 mb-1">
+                <UserX size={16} className="text-red-700" />
+                <h3 className="font-semibold text-sm text-red-800">Wipe All Customer Data</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                Permanently erase all personal data and anonymize order records. This works even if the customer has orders. <strong>This cannot be undone.</strong>
+              </p>
+              <button
+                onClick={() => { setWipeConfirmEmail(''); setShowWipeConfirm(true); }}
+                disabled={managementLoading}
+                className="flex items-center gap-2 px-3 py-1.5 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+              >
+                <UserX size={14} />
+                {managementLoading ? 'Processing...' : 'Wipe All Data'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
               {canDelete ? (
                 <>
                   <div className="flex items-center gap-3 mb-4">
@@ -2366,7 +2494,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                     <h3 className="text-lg font-semibold text-slate-800">Cannot Delete Customer</h3>
                   </div>
                   <p className="text-slate-600 mb-6">
-                    <strong>{getCustomerName()}</strong> has {orderCount} existing order{orderCount !== 1 ? 's' : ''} and cannot be deleted. Remove or reassign all orders first.
+                    <strong>{getCustomerName()}</strong> has {orderCount} existing order{orderCount !== 1 ? 's' : ''} and cannot be deleted. Remove or reassign all orders first, or use <strong>Wipe All Data</strong> instead.
                   </p>
                   <div className="flex justify-end">
                     <button
@@ -2378,6 +2506,145 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Deactivate Confirmation Modal */}
+        {showDeactivateConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <ShieldOff size={20} className="text-amber-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">Deactivate Account</h3>
+              </div>
+              <p className="text-slate-600 mb-2">
+                Deactivate <strong>{getCustomerName()}</strong>'s account?
+              </p>
+              <p className="text-sm text-slate-500 mb-6">
+                This will prevent the customer from logging in. All their data will be preserved, and you can reactivate the account at any time.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeactivateConfirm(false)}
+                  disabled={managementLoading}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeactivate}
+                  disabled={managementLoading}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 font-medium text-sm"
+                >
+                  {managementLoading ? 'Deactivating...' : 'Yes, Deactivate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reactivate Confirmation Modal */}
+        {showReactivateConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <Shield size={20} className="text-emerald-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">Reactivate Account</h3>
+              </div>
+              <p className="text-slate-600 mb-2">
+                Reactivate <strong>{getCustomerName()}</strong>'s account?
+              </p>
+              <p className="text-sm text-slate-500 mb-6">
+                This will restore the customer's ability to log in and access their account.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowReactivateConfirm(false)}
+                  disabled={managementLoading}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReactivate}
+                  disabled={managementLoading}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 font-medium text-sm"
+                >
+                  {managementLoading ? 'Reactivating...' : 'Yes, Reactivate'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Wipe All Data Confirmation Modal */}
+        {showWipeConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <UserX size={20} className="text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800">Wipe All Customer Data</h3>
+              </div>
+              <p className="text-slate-600 mb-3">
+                This will permanently erase all data for <strong>{getCustomerName()}</strong>.
+              </p>
+
+              <div className="bg-slate-50 rounded-lg p-3 mb-4 text-sm">
+                <p className="font-medium text-slate-700 mb-2">What happens:</p>
+                <ul className="space-y-1 text-slate-600">
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-500 mt-0.5">&#x2717;</span>
+                    <span>Customer record, addresses, preferences, tags — <strong>deleted</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-500 mt-0.5">&#x2717;</span>
+                    <span>Cart, favorites, alerts — <strong>deleted</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-500 mt-0.5">&#x2717;</span>
+                    <span>Login account — <strong>deleted</strong></span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-amber-500 mt-0.5">&#x25CB;</span>
+                    <span>Orders kept for records but <strong>anonymized</strong> (PII removed)</span>
+                  </li>
+                </ul>
+              </div>
+
+              <p className="text-sm text-slate-600 mb-2">
+                Type <strong>{customer.email}</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                value={wipeConfirmEmail}
+                onChange={(e) => setWipeConfirmEmail(e.target.value)}
+                placeholder={customer.email}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setShowWipeConfirm(false); setWipeConfirmEmail(''); }}
+                  disabled={managementLoading}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleWipe}
+                  disabled={managementLoading || wipeConfirmEmail !== customer.email}
+                  className="px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                >
+                  {managementLoading ? 'Wiping...' : 'Permanently Wipe Data'}
+                </button>
+              </div>
             </div>
           </div>
         )}

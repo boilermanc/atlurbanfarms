@@ -385,7 +385,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           country_code: 'US'
         },
         order_items: lineItems.map(item => ({
-          quantity: item.quantity,
+          quantity: item.quantity * (item.seedlings_per_unit || 1),
           weight_per_item: 0.5 // Default weight per plant
         }))
       };

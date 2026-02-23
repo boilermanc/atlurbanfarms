@@ -712,12 +712,21 @@ serve(async (req) => {
             .eq('category', 'branding')
             .in('key', ['logo_url', 'primary_brand_color'])
 
+          console.log('Branding config from DB:', JSON.stringify(brandingConfig))
           if (brandingConfig) {
             for (const s of brandingConfig) {
-              if (s.key === 'logo_url' && s.value) allVariables.logo_url = s.value
+              if (s.key === 'logo_url' && s.value) {
+                // JSONB may return a quoted string — strip if so
+                let url = typeof s.value === 'string' ? s.value : String(s.value)
+                if (url.startsWith('"') && url.endsWith('"')) {
+                  url = url.slice(1, -1)
+                }
+                allVariables.logo_url = url
+              }
               if (s.key === 'primary_brand_color' && s.value) allVariables.primary_color = s.value
             }
           }
+          console.log('Logo URL resolved:', allVariables.logo_url || '(none)')
 
           // Fetch shipping customer message from config_settings
           const { data: shippingNote } = await supabaseClient
@@ -734,8 +743,10 @@ serve(async (req) => {
           // Generate header content — use logo image if available, otherwise text
           if (allVariables.logo_url) {
             allVariables.header_content = `<img src="${allVariables.logo_url}" alt="ATL Urban Farms" style="max-height: 60px; max-width: 200px;">`
+            console.log('Header content: using logo image')
           } else {
             allVariables.header_content = '<h1 style="color: #ffffff; margin: 0; font-size: 24px;">ATL Urban Farms</h1>'
+            console.log('Header content: using text fallback (no logo URL)')
           }
 
           // Ensure primary_color default

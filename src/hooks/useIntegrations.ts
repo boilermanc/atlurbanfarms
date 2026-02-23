@@ -155,7 +155,6 @@ export function useEmailService() {
   ) => {
     return sendEmail({
       to,
-      from: 'ATL Urban Farms Orders <Orders@atlurbanfarms.com>',
       template: 'order_confirmation',
       templateData: {
         ...orderData,

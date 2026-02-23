@@ -80,6 +80,26 @@
         }, 4000);
       })();
     </script>
+    <script>
+      // Auto-reload on stale chunk load failures after deployments
+      (function() {
+        var RELOAD_KEY = 'atluf_chunk_reload';
+        var RELOAD_TIMEOUT = 60000;
+        window.addEventListener('error', function(e) {
+          var target = e.target;
+          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+            var src = target.src || target.href || '';
+            if (src.indexOf('/assets/') === -1) return;
+            try {
+              var lastReload = sessionStorage.getItem(RELOAD_KEY);
+              if (lastReload && (Date.now() - parseInt(lastReload, 10)) < RELOAD_TIMEOUT) return;
+              sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+            } catch(err) { return; }
+            window.location.reload();
+          }
+        }, true);
+      })();
+    </script>
   <script type="importmap">
 {
   "imports": {

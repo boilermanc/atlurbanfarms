@@ -638,6 +638,11 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                                     {(customer.first_name?.[0] || customer.email[0]).toUpperCase()}
                                   </div>
                                   <span className="text-slate-800 font-medium">{getCustomerName(customer)}</span>
+                                  {customer.is_deactivated && (
+                                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600 border border-red-200">
+                                      Deactivated
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-6 py-4">

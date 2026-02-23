@@ -64,6 +64,7 @@ interface ProductFormData {
   external_url: string;
   external_button_text: string;
   local_pickup: 'can_be_picked_up' | 'cannot_be_picked_up' | 'must_be_picked_up';
+  seedlings_per_unit: string;
 }
 
 interface ProductEditPageProps {
@@ -138,6 +139,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     external_url: '',
     external_button_text: 'Buy Now',
     local_pickup: 'can_be_picked_up',
+    seedlings_per_unit: '1',
   });
 
   // State for product relationships (grouped/bundle)
@@ -146,6 +148,17 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
   const [relationships, setRelationships] = useState<ProductRelationship[]>([]);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+
+  // Auto-sync seedlings_per_unit from bundle relationships
+  useEffect(() => {
+    if (formData.product_type === 'bundle' && relationships.length > 0) {
+      const totalSeedlings = relationships.reduce((sum, rel) => sum + rel.quantity, 0);
+      setFormData(prev => ({
+        ...prev,
+        seedlings_per_unit: totalSeedlings.toString(),
+      }));
+    }
+  }, [relationships, formData.product_type]);
 
   const fetchCategories = useCallback(async () => {
     const { data } = await supabase.from('product_categories').select('id, name, slug, parent_id').eq('is_active', true).order('sort_order');
@@ -291,6 +304,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
           external_url: data.external_url || '',
           external_button_text: data.external_button_text || 'Buy Now',
           local_pickup: data.local_pickup || 'can_be_picked_up',
+          seedlings_per_unit: data.seedlings_per_unit?.toString() || '1',
         }));
         setImages(data.images?.sort((a: ProductImage, b: ProductImage) => a.sort_order - b.sort_order) || []);
       }
@@ -502,6 +516,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
         external_url: formData.product_type === 'external' ? formData.external_url : null,
         external_button_text: formData.product_type === 'external' ? formData.external_button_text : null,
         local_pickup: formData.local_pickup,
+        seedlings_per_unit: parseInt(formData.seedlings_per_unit) || 1,
       };
 
       let savedProductId = productId;
@@ -960,6 +975,21 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               {formData.local_pickup === 'can_be_picked_up' && 'Customers can choose shipping or local pickup for this product.'}
               {formData.local_pickup === 'cannot_be_picked_up' && 'This product can only be shipped. Customers cannot select local pickup.'}
               {formData.local_pickup === 'must_be_picked_up' && 'This product is pickup only and cannot be shipped. If in cart, the entire order must be picked up.'}
+            </p>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-slate-600 mb-1">Seedlings Per Unit</label>
+            <input
+              type="number"
+              name="seedlings_per_unit"
+              value={formData.seedlings_per_unit}
+              onChange={handleChange}
+              min="1"
+              className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+            />
+            <p className="text-slate-500 text-sm mt-1">
+              Number of physical seedlings per unit. Used for shipping weight calculation.
+              {formData.product_type === 'bundle' && ' For bundles, this auto-syncs with bundle contents.'}
             </p>
           </div>
         </div>

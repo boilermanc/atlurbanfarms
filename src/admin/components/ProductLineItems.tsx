@@ -10,6 +10,7 @@ export interface OrderLineItem {
   quantity: number;
   line_total: number;
   available_stock: number;
+  seedlings_per_unit: number;
 }
 
 interface Product {
@@ -18,6 +19,7 @@ interface Product {
   slug: string;
   price: number;
   quantity_available: number;
+  seedlings_per_unit?: number;
   images?: { url: string; is_primary: boolean }[];
   primary_image?: { url: string } | null;
 }
@@ -86,6 +88,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
           slug,
           price,
           quantity_available,
+          seedlings_per_unit,
           images:product_images(url, is_primary)
         `)
         .or(`name.ilike.%${searchQuery}%,slug.ilike.%${searchQuery}%`)
@@ -153,6 +156,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
         quantity: 1,
         line_total: product.price,
         available_stock: product.quantity_available,
+        seedlings_per_unit: product.seedlings_per_unit || 1,
       };
 
       onChange([...lineItems, newItem]);

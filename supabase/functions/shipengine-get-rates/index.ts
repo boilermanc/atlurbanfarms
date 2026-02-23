@@ -427,7 +427,19 @@ async function getShippingPackageConfigs(supabaseClient: any): Promise<ShippingP
     console.error('Error fetching shipping packages:', error)
     return []
   }
-  return data
+
+  // Coerce DB values to numbers — Supabase decimal/numeric columns can return strings
+  return data.map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    length: Number(row.length),
+    width: Number(row.width),
+    height: Number(row.height),
+    empty_weight: Number(row.empty_weight),
+    min_quantity: Number(row.min_quantity),
+    max_quantity: Number(row.max_quantity),
+    is_default: !!row.is_default,
+  }))
 }
 
 /**
@@ -458,17 +470,23 @@ function calculateOrderPackages(
   }
 
   const sortedConfigs = [...packageConfigs].sort((a, b) => b.max_quantity - a.max_quantity)
+  const largest = sortedConfigs[0]
   const packages: PackageDetails[] = []
   const breakdown: CalculatedPackageInfo['breakdown'] = []
   let remaining = totalQuantity
 
   const findPackage = (qty: number): ShippingPackageConfig => {
-    // First try to find exact fit
-    const exactFit = packageConfigs.find(p => qty >= p.min_quantity && qty <= p.max_quantity)
-    if (exactFit) return exactFit
+    // Find ALL configs where qty falls within [min, max] range
+    const fits = packageConfigs.filter(p => qty >= p.min_quantity && qty <= p.max_quantity)
+    if (fits.length > 0) {
+      // Prefer the best fit: smallest max_quantity that still contains qty
+      // This prevents a Small Box (1-999) from matching when Large Box (13-24) is more appropriate
+      fits.sort((a, b) => a.max_quantity - b.max_quantity)
+      const bestFit = fits.find(p => p.max_quantity >= qty) || fits[fits.length - 1]
+      return bestFit
+    }
 
     // If quantity is larger than any package, use largest
-    const largest = sortedConfigs[0]
     if (qty > largest.max_quantity) return largest
 
     // Find smallest package that can fit
@@ -479,7 +497,7 @@ function calculateOrderPackages(
   while (remaining > 0) {
     const pkg = findPackage(remaining)
     const itemsInPackage = Math.min(remaining, pkg.max_quantity)
-    const totalWeight = pkg.empty_weight + (itemsInPackage * weightPerItem)
+    const totalWeight = Number(pkg.empty_weight) + (itemsInPackage * weightPerItem)
 
     packages.push({
       weight: {
@@ -512,10 +530,11 @@ function calculateOrderPackages(
     remaining -= itemsInPackage
   }
 
-  // Generate summary
+  // Generate summary (always include item count for transparency)
+  const totalItems = breakdown.reduce((sum, b) => sum + b.item_count, 0)
   let summary: string
   if (packages.length === 1) {
-    summary = `Ships in: 1 ${breakdown[0].name}`
+    summary = `Ships in: 1 ${breakdown[0].name} (${totalItems} items)`
   } else {
     const counts = breakdown.reduce((acc, p) => {
       acc[p.name] = (acc[p.name] || 0) + 1
@@ -525,8 +544,17 @@ function calculateOrderPackages(
     const parts = Object.entries(counts)
       .map(([name, count]) => count > 1 ? `${count} ${name}` : name)
 
-    summary = `Ships in: ${packages.length} packages (${parts.join(' + ')})`
+    summary = `Ships in: ${packages.length} packages (${parts.join(' + ')}) — ${totalItems} items`
   }
+
+  console.log('[calculateOrderPackages] Result:', JSON.stringify({
+    totalQuantity,
+    weightPerItem,
+    configCount: packageConfigs.length,
+    configs: packageConfigs.map(c => `${c.name}(${c.min_quantity}-${c.max_quantity})`),
+    result: breakdown.map(b => `${b.name}:${b.item_count}`),
+    summary
+  }))
 
   return { packages, breakdown, summary }
 }
@@ -750,15 +778,25 @@ serve(async (req) => {
     } else if (order_items && order_items.length > 0) {
       // Calculate packages based on order items using shipping_packages config
       const packageConfigs = await getShippingPackageConfigs(supabaseClient)
-      const totalQuantity = order_items.reduce((sum, item) => sum + item.quantity, 0)
+      const totalQuantity = order_items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
       const avgWeight = order_items.length > 0
-        ? order_items.reduce((sum, item) => sum + (item.weight_per_item || 0.5), 0) / order_items.length
+        ? order_items.reduce((sum, item) => sum + (Number(item.weight_per_item) || 0.5), 0) / order_items.length
         : 0.5
+
+      console.log('[shipengine-get-rates] Package calculation input:', JSON.stringify({
+        order_items_count: order_items.length,
+        order_items_quantities: order_items.map((item: any) => ({ qty: item.quantity, type: typeof item.quantity })),
+        totalQuantity,
+        avgWeight,
+        packageConfigs_count: packageConfigs.length,
+        packageConfigs: packageConfigs.map(c => ({ name: c.name, min: c.min_quantity, max: c.max_quantity }))
+      }))
 
       if (packageConfigs.length > 0) {
         packageBreakdown = calculateOrderPackages(totalQuantity, avgWeight, packageConfigs)
         packageList = packageBreakdown.packages
       } else {
+        console.warn('[shipengine-get-rates] No active package configs found, using default package')
         packageList = [defaultPackage]
       }
     } else {
