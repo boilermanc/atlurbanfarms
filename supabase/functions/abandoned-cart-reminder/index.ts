@@ -128,7 +128,7 @@ serve(async (req) => {
         const cartTotal = `$${Number(reminder.cartTotal).toFixed(2)}`
 
         const { error: emailError } = await supabaseClient
-          .functions.invoke('resend-send-email', {
+          .functions.invoke('send-email', {
             body: {
               to: reminder.email,
               template: 'abandoned_cart',

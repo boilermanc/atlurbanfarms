@@ -12,10 +12,13 @@ export interface IntegrationSettings {
   stripe_webhook_secret?: string
   stripe_webhook_secret_live?: string
   stripe_webhook_secret_test?: string
-  resend_enabled?: boolean
-  resend_api_key?: string
-  resend_from_email?: string
-  resend_from_name?: string
+  smtp_enabled?: boolean
+  smtp_host?: string
+  smtp_port?: number
+  smtp_username?: string
+  smtp_password?: string
+  smtp_from_email?: string
+  smtp_from_name?: string
   shipstation_enabled?: boolean
   shipengine_api_key?: string
   shipengine_mode?: 'sandbox' | 'production'

@@ -66,7 +66,7 @@ export function useTestIntegration() {
 }
 
 /**
- * Hook for sending emails via Resend
+ * Hook for sending emails via SMTP
  */
 export function useEmailService() {
   const [sending, setSending] = useState(false)
@@ -85,7 +85,7 @@ export function useEmailService() {
     setError(null)
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('resend-send-email', {
+      const { data, error: invokeError } = await supabase.functions.invoke('send-email', {
         body: params
       })
 

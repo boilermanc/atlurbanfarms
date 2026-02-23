@@ -349,7 +349,7 @@ export async function sendShippingEmail(
 
     console.log(`Sending ${templateSlug} email to ${customerEmail}`)
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/resend-send-email`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,

@@ -50,7 +50,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/resend-send-email",
+        "url": "https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/send-email",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -79,11 +79,11 @@
         }
       },
       "id": "send-email",
-      "name": "Send PDF Email via Resend",
+      "name": "Send PDF Email via SMTP",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [720, 220],
-      "notes": "Calls the existing resend-send-email edge function to deliver the PDF guide.\n\nBEFORE ACTIVATING:\n1. Replace https://povudgtvzggnxwgtjexa.supabase.co/storage/v1/object/public/site-media/pdf/Comparison%20Chart%20ATL%202026.pdf with the actual PDF URL (Supabase Storage public URL or external host)\n2. Set the SUPABASE_ANON_KEY environment variable in n8n, or hardcode the apikey header value\n3. If using HTTP Header Auth credential, configure it with: Name: 'Authorization', Value: 'Bearer <anon-key>'"
+      "notes": "Calls the send-email edge function to deliver the PDF guide.\n\nBEFORE ACTIVATING:\n1. Replace https://povudgtvzggnxwgtjexa.supabase.co/storage/v1/object/public/site-media/pdf/Comparison%20Chart%20ATL%202026.pdf with the actual PDF URL (Supabase Storage public URL or external host)\n2. Set the SUPABASE_ANON_KEY environment variable in n8n, or hardcode the apikey header value\n3. If using HTTP Header Auth credential, configure it with: Name: 'Authorization', Value: 'Bearer <anon-key>'"
     },
     {
       "parameters": {},
@@ -96,7 +96,7 @@
     },
     {
       "parameters": {
-        "content": "## Lead Magnet Email Delivery\n\n**Trigger:** Supabase database webhook fires on every INSERT to `newsletter_subscribers`.\n\n**Filter:** Only rows with `source = 'lead_magnet'` proceed to email delivery.\n\n**Email:** Calls the existing `resend-send-email` Supabase Edge Function with a branded HTML email containing the PDF download link.\n\n### Setup Checklist\n1. ☐ Upload the PDF to Supabase Storage (bucket: `media`) or external host\n2. ☐ Replace `https://povudgtvzggnxwgtjexa.supabase.co/storage/v1/object/public/site-media/pdf/Comparison%20Chart%20ATL%202026.pdf` in the email HTML with the actual URL\n3. ☐ Create the Supabase Database Webhook (see Webhook node notes)\n4. ☐ Set `SUPABASE_ANON_KEY` as an n8n environment variable\n5. ☐ Test with a manual webhook trigger\n6. ☐ Activate the workflow",
+        "content": "## Lead Magnet Email Delivery\n\n**Trigger:** Supabase database webhook fires on every INSERT to `newsletter_subscribers`.\n\n**Filter:** Only rows with `source = 'lead_magnet'` proceed to email delivery.\n\n**Email:** Calls the `send-email` Supabase Edge Function with a branded HTML email containing the PDF download link.\n\n### Setup Checklist\n1. ☐ Upload the PDF to Supabase Storage (bucket: `media`) or external host\n2. ☐ Replace `https://povudgtvzggnxwgtjexa.supabase.co/storage/v1/object/public/site-media/pdf/Comparison%20Chart%20ATL%202026.pdf` in the email HTML with the actual URL\n3. ☐ Create the Supabase Database Webhook (see Webhook node notes)\n4. ☐ Set `SUPABASE_ANON_KEY` as an n8n environment variable\n5. ☐ Test with a manual webhook trigger\n6. ☐ Activate the workflow",
         "height": 380,
         "width": 340
       },
@@ -123,7 +123,7 @@
       "main": [
         [
           {
-            "node": "Send PDF Email via Resend",
+            "node": "Send PDF Email via SMTP",
             "type": "main",
             "index": 0
           }

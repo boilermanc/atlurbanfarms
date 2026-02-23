@@ -1,10 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
+import nodemailer from 'npm:nodemailer@6.9.10'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
 
-type IntegrationType = 'stripe' | 'resend' | 'shipstation' | 'trellis' | 'gemini'
+type IntegrationType = 'stripe' | 'email' | 'shipstation' | 'trellis' | 'gemini'
 
 interface TestRequest {
   integration: IntegrationType
@@ -36,8 +37,8 @@ serve(async (req) => {
       case 'stripe':
         result = await testStripe(supabaseClient)
         break
-      case 'resend':
-        result = await testResend(supabaseClient)
+      case 'email':
+        result = await testEmail(supabaseClient)
         break
       case 'shipstation':
         result = await testShipStation(supabaseClient)
@@ -111,42 +112,49 @@ async function testStripe(supabaseClient: any): Promise<TestResult> {
   }
 }
 
-async function testResend(supabaseClient: any): Promise<TestResult> {
+async function testEmail(supabaseClient: any): Promise<TestResult> {
   const settings = await getIntegrationSettings(supabaseClient, [
-    'resend_enabled',
-    'resend_api_key'
+    'smtp_enabled',
+    'smtp_host',
+    'smtp_port',
+    'smtp_username',
+    'smtp_password'
   ])
 
-  if (!settings.resend_enabled) {
-    return { success: false, message: 'Resend is not enabled' }
+  if (!settings.smtp_enabled) {
+    return { success: false, message: 'Email (SMTP) is not enabled' }
   }
 
-  if (!settings.resend_api_key) {
-    return { success: false, message: 'Resend API key is not configured' }
+  if (!settings.smtp_username || !settings.smtp_password) {
+    return { success: false, message: 'SMTP credentials are not configured' }
   }
 
   try {
-    // Test by fetching API key info
-    const response = await fetch('https://api.resend.com/api-keys', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${settings.resend_api_key}`
-      }
+    // Test SMTP connection by creating a transport and verifying
+    const transport = nodemailer.createTransport({
+      host: settings.smtp_host || 'smtp.gmail.com',
+      port: Number(settings.smtp_port) || 465,
+      secure: (Number(settings.smtp_port) || 465) === 465,
+      auth: {
+        user: settings.smtp_username,
+        pass: settings.smtp_password,
+      },
     })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Invalid API key')
-    }
+    await transport.verify()
 
     return {
       success: true,
-      message: 'Connected to Resend successfully'
+      message: 'Connected to SMTP server successfully',
+      details: {
+        host: settings.smtp_host || 'smtp.gmail.com',
+        port: Number(settings.smtp_port) || 465,
+      }
     }
   } catch (error) {
     return {
       success: false,
-      message: `Resend connection failed: ${error.message}`
+      message: `SMTP connection failed: ${error.message}`
     }
   }
 }

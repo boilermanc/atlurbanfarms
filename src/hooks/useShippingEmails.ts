@@ -214,7 +214,7 @@ export function useShippingEmails() {
       }
 
       // Send email via edge function
-      const { data, error: invokeError } = await supabase.functions.invoke('resend-send-email', {
+      const { data, error: invokeError } = await supabase.functions.invoke('send-email', {
         body: {
           to: customerEmail,
           template: templateSlug,

@@ -52,7 +52,7 @@ async function sendConfirmationEmail(
 ) {
   const confirmUrl = `${supabaseUrl}/functions/v1/newsletter-confirm?token=${confirmationToken}`;
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/resend-send-email`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${serviceKey}`,

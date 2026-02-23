@@ -115,7 +115,7 @@ serve(async (req) => {
     // If this was a lead magnet signup, send the lead magnet email now
     if (subscriber.source === 'lead_magnet' && subscriber.tags?.includes('tower_garden_guide_2026')) {
       try {
-        await fetch(`${supabaseUrl}/functions/v1/resend-send-email`, {
+        await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${serviceKey}`,

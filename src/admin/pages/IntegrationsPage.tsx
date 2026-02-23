@@ -351,11 +351,14 @@ const DEFAULT_INTEGRATION_SETTINGS = {
   shipengine_api_key_production: { value: '', dataType: 'string' as const },
   shipengine_api_key_sandbox: { value: '', dataType: 'string' as const },
   shipstation_store_id: { value: '', dataType: 'string' as const },
-  // Resend
-  resend_enabled: { value: false, dataType: 'boolean' as const },
-  resend_api_key: { value: '', dataType: 'string' as const },
-  resend_from_email: { value: '', dataType: 'string' as const },
-  resend_from_name: { value: '', dataType: 'string' as const },
+  // Email (SMTP)
+  smtp_enabled: { value: false, dataType: 'boolean' as const },
+  smtp_host: { value: 'smtp.gmail.com', dataType: 'string' as const },
+  smtp_port: { value: '465', dataType: 'string' as const },
+  smtp_username: { value: '', dataType: 'string' as const },
+  smtp_password: { value: '', dataType: 'string' as const },
+  smtp_from_email: { value: '', dataType: 'string' as const },
+  smtp_from_name: { value: '', dataType: 'string' as const },
   // Trellis
   trellis_enabled: { value: false, dataType: 'boolean' as const },
   trellis_api_endpoint: { value: '', dataType: 'string' as const },
@@ -375,7 +378,7 @@ const IntegrationsPage: React.FC = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     stripe: false,
     shipstation: false,
-    resend: false,
+    email: false,
     trellis: false,
     gemini: false,
     ups: false,
@@ -666,7 +669,7 @@ const IntegrationsPage: React.FC = () => {
     // Map display name to integration key
     const integrationMap: Record<string, string> = {
       'Stripe': 'stripe',
-      'Resend': 'resend',
+      'Email': 'email',
       'ShipEngine': 'shipstation',
       'Trellis': 'trellis',
       'Gemini': 'gemini'
@@ -717,10 +720,10 @@ const IntegrationsPage: React.FC = () => {
   };
 
   const sendTestEmail = async () => {
-    const recipient = testEmailAddress || formData.resend_from_email || 'test@example.com';
+    const recipient = testEmailAddress || formData.smtp_from_email || 'test@example.com';
     console.log('🔵 sendTestEmail called');
     console.log('🔵 Sending to:', recipient);
-    setTestingConnection('ResendEmail');
+    setTestingConnection('SmtpEmail');
 
     try {
       const result = await sendEmail({
@@ -732,14 +735,14 @@ const IntegrationsPage: React.FC = () => {
 
       setTestingConnection(null);
       setTestModal({
-        integration: 'Resend Email',
+        integration: 'Email (SMTP)',
         success: result.success,
         message: result.success ? `Test email sent to ${recipient}` : (result.error || 'Failed to send email'),
         details: result.details ? { details: result.details } : undefined,
       });
       if (!result.success) {
         setLastError({
-          integration: 'Resend Email',
+          integration: 'Email (SMTP)',
           error: result.error || 'Unknown error',
           details: result.details,
           timestamp: new Date()
@@ -752,12 +755,12 @@ const IntegrationsPage: React.FC = () => {
       setTestingConnection(null);
       const errorMsg = err.message || String(err);
       setTestModal({
-        integration: 'Resend Email',
+        integration: 'Email (SMTP)',
         success: false,
         message: errorMsg,
       });
       setLastError({
-        integration: 'Resend Email',
+        integration: 'Email (SMTP)',
         error: errorMsg,
         timestamp: new Date()
       });
@@ -851,9 +854,9 @@ const IntegrationsPage: React.FC = () => {
       ? (Array.isArray(enabledCarriers) ? enabledCarriers[0] : String(enabledCarriers))
       : 'Not set';
 
-    // Resend
-    const resendStatus = getConnectionStatus(formData.resend_enabled, !!formData.resend_api_key);
-    const resendFrom = formData.resend_from_email || 'Not set';
+    // Email (SMTP)
+    const emailStatus = getConnectionStatus(formData.smtp_enabled, !!(formData.smtp_username && formData.smtp_password));
+    const emailFrom = formData.smtp_from_email || 'Not set';
 
     // Trellis
     const trellisStatus = getConnectionStatus(
@@ -887,11 +890,11 @@ const IntegrationsPage: React.FC = () => {
           { label: 'Carrier', value: carrierDisplay },
         ],
       },
-      resend: {
-        status: getHealthStatus(resendStatus),
-        label: resendStatus === 'connected' ? 'Connected' : resendStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
+      email: {
+        status: getHealthStatus(emailStatus),
+        label: emailStatus === 'connected' ? 'Connected' : emailStatus === 'disconnected' ? 'Disabled' : 'Not Configured',
         metrics: [
-          { label: 'From', value: resendFrom },
+          { label: 'From', value: emailFrom },
         ],
       },
       trellis: {
@@ -1005,10 +1008,10 @@ const IntegrationsPage: React.FC = () => {
             mode={formData.shipstation_enabled ? (formData.shipengine_mode === 'production' ? 'production' : 'sandbox') : undefined}
           />
           <HealthCard
-            title="Resend"
+            title="Email (SMTP)"
             icon={<Mail size={24} />}
-            health={health.resend}
-            onClick={() => scrollToSection('resend')}
+            health={health.email}
+            onClick={() => scrollToSection('email')}
           />
           <HealthCard
             title="Trellis"
@@ -1400,62 +1403,101 @@ const IntegrationsPage: React.FC = () => {
             </div>
           </IntegrationSection>
 
-          {/* RESEND Section */}
+          {/* EMAIL (SMTP) Section */}
           <IntegrationSection
-            id="resend"
-            title="Resend"
+            id="email"
+            title="Email (SMTP)"
             icon={<Mail size={24} />}
-            expanded={expandedSections.resend}
-            onToggle={() => toggleSection('resend')}
-            health={health.resend}
+            expanded={expandedSections.email}
+            onToggle={() => toggleSection('email')}
+            health={health.email}
           >
             <div className="space-y-6">
               {/* Enable Toggle */}
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <h4 className="text-slate-800 font-medium">Enable Resend</h4>
-                  <p className="text-sm text-slate-500">Send transactional emails via Resend</p>
+                  <h4 className="text-slate-800 font-medium">Enable Email (SMTP)</h4>
+                  <p className="text-sm text-slate-500">Send transactional emails via SMTP (Google Workspace)</p>
                 </div>
                 <button
-                  onClick={() => updateField('resend_enabled', !formData.resend_enabled)}
+                  onClick={() => updateField('smtp_enabled', !formData.smtp_enabled)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    formData.resend_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                    formData.smtp_enabled ? 'bg-emerald-500' : 'bg-slate-300'
                   }`}
                 >
                   <span
                     className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      formData.resend_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                      formData.smtp_enabled ? 'translate-x-5' : 'translate-x-0.5'
                     }`}
                   />
                 </button>
               </div>
 
-              <SecretInput
-                label="API Key"
-                value={formData.resend_api_key || ''}
-                onChange={(v) => updateField('resend_api_key', v)}
-                placeholder="re_..."
-                helpText="Your Resend API key (starts with re_)"
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-600">SMTP Host</label>
+                  <input
+                    type="text"
+                    value={formData.smtp_host || 'smtp.gmail.com'}
+                    onChange={(e) => updateField('smtp_host', e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    placeholder="smtp.gmail.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-600">SMTP Port</label>
+                  <input
+                    type="text"
+                    value={formData.smtp_port || '465'}
+                    onChange={(e) => updateField('smtp_port', e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    placeholder="465"
+                  />
+                  <p className="text-xs text-slate-500">Use 465 for SSL (required for Google Workspace)</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-600">SMTP Username</label>
+                  <input
+                    type="email"
+                    value={formData.smtp_username || ''}
+                    onChange={(e) => updateField('smtp_username', e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    placeholder="you@atlurbanfarms.com"
+                  />
+                  <p className="text-xs text-slate-500">Your Google Workspace email address</p>
+                </div>
+                <div className="space-y-2">
+                  <SecretInput
+                    label="SMTP Password"
+                    value={formData.smtp_password || ''}
+                    onChange={(v) => updateField('smtp_password', v)}
+                    placeholder="App password..."
+                    helpText="Google Workspace App Password (16 characters, no spaces)"
+                  />
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-600">From Email</label>
                   <input
                     type="email"
-                    value={formData.resend_from_email || ''}
-                    onChange={(e) => updateField('resend_from_email', e.target.value)}
+                    value={formData.smtp_from_email || ''}
+                    onChange={(e) => updateField('smtp_from_email', e.target.value)}
                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                    placeholder="orders@yourdomain.com"
+                    placeholder="orders@atlurbanfarms.com"
                   />
-                  <p className="text-xs text-slate-500">Must be a verified domain in Resend</p>
+                  <p className="text-xs text-slate-500">Must be a valid alias in your Google Workspace</p>
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-600">From Name</label>
                   <input
                     type="text"
-                    value={formData.resend_from_name || ''}
-                    onChange={(e) => updateField('resend_from_name', e.target.value)}
+                    value={formData.smtp_from_name || ''}
+                    onChange={(e) => updateField('smtp_from_name', e.target.value)}
                     className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     placeholder="ATL Urban Farms"
                   />
@@ -1465,11 +1507,11 @@ const IntegrationsPage: React.FC = () => {
               {/* Test Connection Button */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => testConnection('Resend')}
-                  disabled={testingConnection === 'Resend' || !formData.resend_api_key}
+                  onClick={() => testConnection('Email')}
+                  disabled={testingConnection === 'Email' || !formData.smtp_username || !formData.smtp_password}
                   className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {testingConnection === 'Resend' ? (
+                  {testingConnection === 'Email' ? (
                     <>
                       <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
                       Testing...
@@ -1491,15 +1533,15 @@ const IntegrationsPage: React.FC = () => {
                     type="email"
                     value={testEmailAddress}
                     onChange={(e) => setTestEmailAddress(e.target.value)}
-                    placeholder={formData.resend_from_email || 'Enter email address'}
+                    placeholder={formData.smtp_from_email || 'Enter email address'}
                     className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   />
                   <button
                     onClick={sendTestEmail}
-                    disabled={testingConnection === 'ResendEmail' || !formData.resend_api_key || !formData.resend_from_email}
+                    disabled={testingConnection === 'SmtpEmail' || !formData.smtp_username || !formData.smtp_password || !formData.smtp_from_email}
                     className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   >
-                    {testingConnection === 'ResendEmail' ? (
+                    {testingConnection === 'SmtpEmail' ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Sending...

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
+import nodemailer from 'npm:nodemailer@6.9.10'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
 
@@ -628,17 +629,20 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get Resend settings from database
+    // Get SMTP settings from database
     const settings = await getIntegrationSettings(supabaseClient, [
-      'resend_enabled',
-      'resend_api_key',
-      'resend_from_email',
-      'resend_from_name'
+      'smtp_enabled',
+      'smtp_host',
+      'smtp_port',
+      'smtp_username',
+      'smtp_password',
+      'smtp_from_email',
+      'smtp_from_name'
     ])
 
-    if (!settings.resend_enabled) {
+    if (!settings.smtp_enabled) {
       return new Response(
-        JSON.stringify({ error: 'Resend is not enabled' }),
+        JSON.stringify({ error: 'Email sending is not enabled' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -646,9 +650,9 @@ serve(async (req) => {
       )
     }
 
-    if (!settings.resend_api_key) {
+    if (!settings.smtp_username || !settings.smtp_password) {
       return new Response(
-        JSON.stringify({ error: 'Resend API key is not configured' }),
+        JSON.stringify({ error: 'SMTP credentials are not configured' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -802,40 +806,32 @@ serve(async (req) => {
       }
     }
 
-    // Send email via Resend API
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.resend_api_key}`,
-        'Content-Type': 'application/json'
+    // Send email via SMTP (Google Workspace)
+    const fromAddress = fromOverride || (settings.smtp_from_name
+      ? `${settings.smtp_from_name} <${settings.smtp_from_email}>`
+      : settings.smtp_from_email)
+
+    const transport = nodemailer.createTransport({
+      host: settings.smtp_host || 'smtp.gmail.com',
+      port: Number(settings.smtp_port) || 465,
+      secure: (Number(settings.smtp_port) || 465) === 465,
+      auth: {
+        user: settings.smtp_username,
+        pass: settings.smtp_password,
       },
-      body: JSON.stringify({
-        from: fromOverride || (settings.resend_from_name
-          ? `${settings.resend_from_name} <${settings.resend_from_email}>`
-          : settings.resend_from_email),
-        to: recipients,
-        subject: emailSubject,
-        html: emailHtml,
-        text: emailText,
-        ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
-      })
     })
 
-    const result = await response.json()
-
-    if (!response.ok) {
-      console.error('Resend API error:', result)
-      return new Response(
-        JSON.stringify({ error: result.message || 'Failed to send email' }),
-        {
-          status: response.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
+    const info = await transport.sendMail({
+      from: fromAddress,
+      to: recipients.join(', '),
+      subject: emailSubject,
+      html: emailHtml,
+      text: emailText,
+      ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
+    })
 
     return new Response(
-      JSON.stringify({ success: true, id: result.id }),
+      JSON.stringify({ success: true, id: info.messageId || crypto.randomUUID() }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
