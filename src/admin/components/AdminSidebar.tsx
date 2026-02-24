@@ -117,12 +117,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate }) 
       {/* Logo */}
       <div className="px-6 py-6 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          <span className="p-2 bg-emerald-100 rounded-xl">
-            <Leaf className="text-emerald-600" size={24} />
+          <span className="p-2 brand-bg-light rounded-xl">
+            <Leaf className="brand-text" size={24} />
           </span>
           <div>
             <span className="font-bold text-slate-800 text-lg tracking-tight font-admin-display">
-              ATL <span className="text-emerald-600">Urban Farms</span>
+              ATL <span className="brand-text">Urban Farms</span>
             </span>
             <p className="text-xs text-slate-500 font-medium">Admin Portal</p>
           </div>
@@ -146,18 +146,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate }) 
                       onClick={() => onNavigate(item.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${
                         isActive
-                          ? 'bg-emerald-50 text-emerald-700'
+                          ? 'brand-bg-subtle brand-secondary-text'
                           : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                       }`}
                       whileHover={{ x: 4 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                     >
-                      <Icon size={20} className={isActive ? 'text-emerald-600' : ''} />
+                      <Icon size={20} className={isActive ? 'brand-text' : ''} />
                       <span className="font-medium text-sm">{item.label}</span>
                       {isActive && (
                         <motion.div
                           layoutId="activeIndicator"
-                          className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500"
+                          className="ml-auto w-1.5 h-1.5 rounded-full brand-bg"
                           initial={false}
                           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                         />

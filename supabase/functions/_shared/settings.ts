@@ -208,6 +208,58 @@ export async function getAllIntegrationSettings(
   return settings
 }
 
+/**
+ * Fetch branding + business settings from config_settings and map them
+ * to the variable names used by email templates.
+ *
+ * This is the single source of truth for brand colors in emails.
+ */
+export async function getBrandingSettings(
+  supabaseClient: SupabaseClient
+): Promise<Record<string, string>> {
+  // Fetch branding settings
+  const { data: brandingData, error: brandingError } = await supabaseClient
+    .from('config_settings')
+    .select('key, value, data_type')
+    .eq('category', 'branding')
+
+  if (brandingError) {
+    console.error('Failed to fetch branding settings:', brandingError)
+  }
+
+  // Fetch business settings for name/email/phone/address
+  const { data: businessData, error: businessError } = await supabaseClient
+    .from('config_settings')
+    .select('key, value, data_type')
+    .eq('category', 'business')
+    .in('key', ['company_name', 'support_email', 'support_phone', 'business_address'])
+
+  if (businessError) {
+    console.error('Failed to fetch business settings:', businessError)
+  }
+
+  const raw: Record<string, string> = {}
+  for (const row of [...(brandingData || []), ...(businessData || [])]) {
+    raw[row.key] = String(parseValue(row.value, row.data_type) ?? '')
+  }
+
+  // Map to email template variable names
+  const companyName = raw.company_name || 'ATL Urban Farms'
+  return {
+    primary_color: raw.primary_brand_color || '#10b981',
+    secondary_color: raw.secondary_brand_color || '#047857',
+    logo_url: raw.logo_url || '',
+    business_name: companyName,
+    business_email: raw.support_email || 'hello@atlurbanfarms.com',
+    business_phone: raw.support_phone || '',
+    business_address: raw.business_address || 'Atlanta, GA',
+    footer_text: `\u00a9 ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+    facebook_url: raw.social_facebook || '',
+    instagram_url: raw.social_instagram || '',
+    current_year: new Date().getFullYear().toString(),
+  }
+}
+
 function parseValue(value: any, dataType: string): any {
   // JSONB column: Supabase client may return native JS types (boolean, number)
   // or JSON-encoded strings depending on how the value was stored.

@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 import nodemailer from 'npm:nodemailer@6.9.10'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
-import { getIntegrationSettings } from '../_shared/settings.ts'
+import { getIntegrationSettings, getBrandingSettings } from '../_shared/settings.ts'
 
 interface EmailRequest {
   to: string | string[]
@@ -22,11 +22,6 @@ interface EmailTemplate {
   html_content: string
   plain_text_content: string | null
   is_active: boolean
-}
-
-interface BrandSetting {
-  setting_key: string
-  setting_value: string | null
 }
 
 // Replace {{variable}} placeholders with actual values
@@ -60,33 +55,10 @@ async function getEmailTemplate(
   return data
 }
 
-// Fetch brand settings from database
-async function getBrandSettings(supabase: any): Promise<Record<string, string>> {
-  const { data, error } = await supabase
-    .from('email_brand_settings')
-    .select('setting_key, setting_value')
-
-  if (error) {
-    console.error('Failed to fetch brand settings:', error)
-    return {}
-  }
-
-  const settings: Record<string, string> = {}
-  data?.forEach((s: BrandSetting) => {
-    if (s.setting_value) {
-      settings[s.setting_key] = s.setting_value
-    }
-  })
-
-  // Add computed values
-  settings.current_year = new Date().getFullYear().toString()
-
-  return settings
-}
-
 // Fallback templates (used if database templates not available)
-const fallbackTemplates: Record<string, (data: any) => { subject: string; html: string }> = {
-  order_confirmation: (data: any) => ({
+// The `brand` parameter carries colors from config_settings so fallback emails use the configured brand.
+const fallbackTemplates: Record<string, (data: any, brand: Record<string, string>) => { subject: string; html: string }> = {
+  order_confirmation: (data: any, brand: Record<string, string>) => ({
     subject: `Order Confirmation - #${data.orderNumber || data.order_id}`,
     html: `
       <!DOCTYPE html>
@@ -95,10 +67,10 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-          .footer { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; }
-          .btn { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+          .footer { background: ${brand.primary_color}; color: white; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; }
+          .btn { display: inline-block; background: ${brand.primary_color}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
         </style>
       </head>
       <body>
@@ -127,7 +99,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  shipping_notification: (data: any) => ({
+  shipping_notification: (data: any, brand: Record<string, string>) => ({
     subject: `Your Order Has Shipped - #${data.orderNumber || data.order_id}`,
     html: `
       <!DOCTYPE html>
@@ -136,7 +108,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
         </style>
       </head>
@@ -156,7 +128,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  welcome: (data: any) => ({
+  welcome: (data: any, brand: Record<string, string>) => ({
     subject: 'Welcome to ATL Urban Farms!',
     html: `
       <!DOCTYPE html>
@@ -165,7 +137,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
         </style>
       </head>
@@ -186,7 +158,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  password_reset: (data: any) => ({
+  password_reset: (data: any, brand: Record<string, string>) => ({
     subject: 'Reset Your Password - ATL Urban Farms',
     html: `
       <!DOCTYPE html>
@@ -196,7 +168,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .content { background: #f9fafb; padding: 30px; border-radius: 12px; }
-          .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
+          .button { display: inline-block; background: ${brand.primary_color}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 20px 0; }
         </style>
       </head>
       <body>
@@ -216,7 +188,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
   }),
 
   // New shipping email fallback templates
-  shipping_label_created: (data: any) => ({
+  shipping_label_created: (data: any, brand: Record<string, string>) => ({
     subject: 'Your ATL Urban Farms order has shipped!',
     html: `
       <!DOCTYPE html>
@@ -225,10 +197,10 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
           .tracking-box { background: #f0fdf4; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
-          .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0; }
+          .button { display: inline-block; background: ${brand.primary_color}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin: 10px 0; }
         </style>
       </head>
       <body>
@@ -241,7 +213,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
             <p>Great news! Your order <strong>#${data.order_number}</strong> has been shipped.</p>
             <div class="tracking-box">
               <p style="color: #166534; margin: 0 0 10px;">Tracking Number</p>
-              <p style="font-size: 1.25rem; font-weight: bold; color: #10b981; margin: 0 0 10px;">${data.tracking_number}</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: ${brand.primary_color}; margin: 0 0 10px;">${data.tracking_number}</p>
               <p style="color: #666; margin: 0 0 15px;">Carrier: ${data.carrier}</p>
               <a href="${data.tracking_url}" class="button">Track Your Package</a>
             </div>
@@ -255,7 +227,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  shipping_in_transit: (data: any) => ({
+  shipping_in_transit: (data: any, _brand: Record<string, string>) => ({
     subject: 'Your plants are on the way!',
     html: `
       <!DOCTYPE html>
@@ -292,7 +264,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  shipping_out_for_delivery: (data: any) => ({
+  shipping_out_for_delivery: (data: any, _brand: Record<string, string>) => ({
     subject: 'Your plants are out for delivery today!',
     html: `
       <!DOCTYPE html>
@@ -331,7 +303,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  shipping_delivered: (data: any) => ({
+  shipping_delivered: (data: any, brand: Record<string, string>) => ({
     subject: 'Your plants have been delivered!',
     html: `
       <!DOCTYPE html>
@@ -340,7 +312,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
           .delivered-box { background: #f0fdf4; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
           .tips { background: #f3f4f6; border-radius: 8px; padding: 20px; margin: 20px 0; }
@@ -357,10 +329,10 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
             <p>Your order <strong>#${data.order_number}</strong> has been delivered!</p>
             <div class="delivered-box">
               <p style="color: #166534; margin: 0 0 10px;">Delivered On</p>
-              <p style="font-size: 1.25rem; font-weight: bold; color: #10b981; margin: 0;">${data.delivery_date || 'Today'}</p>
+              <p style="font-size: 1.25rem; font-weight: bold; color: ${brand.primary_color}; margin: 0;">${data.delivery_date || 'Today'}</p>
             </div>
             <div class="tips">
-              <h3 style="color: #10b981; margin: 0 0 15px;">Getting Started with Your Plants</h3>
+              <h3 style="color: ${brand.primary_color}; margin: 0 0 15px;">Getting Started with Your Plants</h3>
               <ul style="margin: 0; padding-left: 20px; color: #666;">
                 <li>Unbox carefully - Remove packaging gently</li>
                 <li>Water if dry - Check soil moisture</li>
@@ -376,7 +348,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  pickup_ready: (data: any) => ({
+  pickup_ready: (data: any, _brand: Record<string, string>) => ({
     subject: 'Your order is ready for pickup!',
     html: `
       <!DOCTYPE html>
@@ -417,7 +389,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  newsletter_confirmation: (data: any) => ({
+  newsletter_confirmation: (data: any, brand: Record<string, string>) => ({
     subject: 'Confirm your ATL Urban Farms newsletter subscription',
     html: `
       <!DOCTYPE html>
@@ -426,9 +398,9 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #10b981; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-          .button { display: inline-block; background: #10b981; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+          .button { display: inline-block; background: ${brand.primary_color}; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; font-size: 16px; }
           .footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 12px; }
         </style>
       </head>
@@ -456,7 +428,7 @@ const fallbackTemplates: Record<string, (data: any) => { subject: string; html: 
     `
   }),
 
-  pickup_reminder: (data: any) => ({
+  pickup_reminder: (data: any, _brand: Record<string, string>) => ({
     subject: 'Reminder: Pick up your plants tomorrow!',
     html: `
       <!DOCTYPE html>
@@ -687,47 +659,25 @@ serve(async (req) => {
       // Try to get template from database
       const dbTemplate = await getEmailTemplate(supabaseClient, templateKey)
 
+      // Fetch brand settings once — used by both DB templates and fallbacks
+      const brandSettings = await getBrandingSettings(supabaseClient)
+
       if (dbTemplate) {
         // Use database template
         console.log(`Using database template: ${templateKey}`)
 
-        // Get brand settings for global variables
-        const brandSettings = await getBrandSettings(supabaseClient)
-
         // Normalize camelCase client data to snake_case template variables
         const normalizedData = normalizeTemplateData(templateKey, templateData || {})
 
-        // Merge template data with brand settings
+        // Merge template data with brand settings (brand settings provide
+        // primary_color, secondary_color, logo_url, business_name, etc.)
         const allVariables = {
           ...brandSettings,
           ...normalizedData,
         }
 
-        // For order_confirmation, enrich with config_settings (branding, shipping note)
+        // Order confirmation enrichment (shipping note, header content)
         if (templateKey === 'order_confirmation') {
-          // Fetch branding logo and primary color from config_settings
-          const { data: brandingConfig } = await supabaseClient
-            .from('config_settings')
-            .select('key, value')
-            .eq('category', 'branding')
-            .in('key', ['logo_url', 'primary_brand_color'])
-
-          console.log('Branding config from DB:', JSON.stringify(brandingConfig))
-          if (brandingConfig) {
-            for (const s of brandingConfig) {
-              if (s.key === 'logo_url' && s.value) {
-                // JSONB may return a quoted string — strip if so
-                let url = typeof s.value === 'string' ? s.value : String(s.value)
-                if (url.startsWith('"') && url.endsWith('"')) {
-                  url = url.slice(1, -1)
-                }
-                allVariables.logo_url = url
-              }
-              if (s.key === 'primary_brand_color' && s.value) allVariables.primary_color = s.value
-            }
-          }
-          console.log('Logo URL resolved:', allVariables.logo_url || '(none)')
-
           // Fetch shipping customer message from config_settings
           const { data: shippingNote } = await supabaseClient
             .from('config_settings')
@@ -742,16 +692,9 @@ serve(async (req) => {
 
           // Generate header content — use logo image if available, otherwise text
           if (allVariables.logo_url) {
-            allVariables.header_content = `<img src="${allVariables.logo_url}" alt="ATL Urban Farms" style="max-height: 60px; max-width: 200px;">`
-            console.log('Header content: using logo image')
+            allVariables.header_content = `<img src="${allVariables.logo_url}" alt="${allVariables.business_name}" style="max-height: 60px; max-width: 200px;">`
           } else {
-            allVariables.header_content = '<h1 style="color: #ffffff; margin: 0; font-size: 24px;">ATL Urban Farms</h1>'
-            console.log('Header content: using text fallback (no logo URL)')
-          }
-
-          // Ensure primary_color default
-          if (!allVariables.primary_color) {
-            allVariables.primary_color = '#10b981'
+            allVariables.header_content = `<h1 style="color: #ffffff; margin: 0; font-size: 24px;">${allVariables.business_name}</h1>`
           }
         }
 
@@ -778,9 +721,9 @@ serve(async (req) => {
         emailHtml = emailHtml || replaceVariables(dbTemplate.html_content, allVariables)
         emailText = emailText || (dbTemplate.plain_text_content ? replaceVariables(dbTemplate.plain_text_content, allVariables) : undefined)
       } else if (fallbackTemplates[templateKey]) {
-        // Use fallback template
+        // Use fallback template with brand colors
         console.log(`Using fallback template: ${templateKey}`)
-        const generated = fallbackTemplates[templateKey](templateData || {})
+        const generated = fallbackTemplates[templateKey](templateData || {}, brandSettings)
         emailSubject = emailSubject || generated.subject
         emailHtml = emailHtml || generated.html
       } else {

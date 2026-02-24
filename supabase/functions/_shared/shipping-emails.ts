@@ -5,6 +5,8 @@
  * from within Supabase Edge Functions.
  */
 
+import { getBrandingSettings } from './settings.ts'
+
 export type ShippingEmailTemplate =
   | 'shipping_label_created'
   | 'shipping_in_transit'
@@ -126,10 +128,11 @@ export function getProgressStepForTemplate(templateSlug: string): number {
 /**
  * Generate progress bar HTML for email templates
  * @param activeStep - Number of completed steps (1-4)
+ * @param primaryColor - Optional brand primary color (defaults to #8dc63f)
  */
-export function generateProgressBarHtml(activeStep: number): string {
+export function generateProgressBarHtml(activeStep: number, primaryColor?: string): string {
   const steps = ['Order<br>Placed', 'Shipped', 'In<br>Transit', 'Delivered']
-  const activeColor = '#8dc63f'
+  const activeColor = primaryColor || '#8dc63f'
   const inactiveColor = '#d1d5db'
   const activeTextColor = '#333333'
   const inactiveTextColor = '#999999'
@@ -308,6 +311,9 @@ export async function sendShippingEmail(
       }
     }
 
+    // Fetch brand settings for progress bar color
+    const brandSettings = await getBrandingSettings(supabaseClient)
+
     // Build template data
     const carrierCode = shipmentData.carrier_code || additionalData?.carrier_code || ''
     const trackingNumber = additionalData?.tracking_number || shipmentData.tracking_number || ''
@@ -315,7 +321,7 @@ export async function sendShippingEmail(
     const shippingAddress = additionalData?.shipping_address || buildShippingAddress(order)
     const statusText = additionalData?.status || getStatusTextForTemplate(templateSlug)
     const progressStep = getProgressStepForTemplate(templateSlug)
-    const progressBarHtml = additionalData?.progress_bar || generateProgressBarHtml(progressStep)
+    const progressBarHtml = additionalData?.progress_bar || generateProgressBarHtml(progressStep, brandSettings.primary_color)
 
     // Format order date
     const orderDate = additionalData?.order_date || formatDateForEmail(order.created_at)

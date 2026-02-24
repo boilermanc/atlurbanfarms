@@ -57,31 +57,69 @@ h4 { font-size: calc(var(--heading-font-size, 28px) * 0.6); }
    ============================================ */
 
 :root {
-  /* Default brand color (emerald-500) - overridden by JS */
+  /* ── Brand Colors ── */
   --brand-primary: #10b981;
   --brand-primary-rgb: 16, 185, 129;
-  /* Default secondary brand color (emerald-700) - overridden by JS */
   --brand-secondary: #047857;
   --brand-secondary-rgb: 4, 120, 87;
-  /* Default fonts - overridden by JS from branding settings */
+  --color-brand-light: #ecfdf5;
+
+  /* ── Text Colors ── */
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+
+  /* ── Background Colors ── */
+  --bg-color: #fafafa;
+  --bg-secondary: #ffffff;
+  --color-bg-muted: #f9fafb;
+  --color-bg-dark: #111827;
+
+  /* ── Border Colors ── */
+  --color-border-default: #e5e7eb;
+  --color-border-light: #f3f4f6;
+
+  /* ── Status Colors ── */
+  --color-success: #10b981;
+  --color-success-light: #ecfdf5;
+  --color-error: #ef4444;
+  --color-error-light: #fef2f2;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fffbeb;
+  --color-info: #3b82f6;
+  --color-info-light: #eff6ff;
+
+  /* ── Accent Colors ── */
+  --color-sale: #ef4444;
+  --color-link: #10b981;
+
+  /* ── Typography ── */
   --font-heading: 'Plus Jakarta Sans', sans-serif;
   --font-body: 'Inter', sans-serif;
-  /* Default font sizes - overridden by JS from branding settings */
   --heading-font-size: 28px;
   --body-font-size: 16px;
-  /* Default background color - overridden by JS */
-  --bg-color: #fafafa;
-  /* Default secondary background (alternating sections) - overridden by JS */
-  --bg-secondary: #ffffff;
+
+  /* ── Component Shapes ── */
+  --radius-button: 16px;
+  --radius-card: 24px;
+  --radius-input: 12px;
 }
 
-/* Brand color utility classes for customer-facing site */
+/* Brand color utility classes */
 .brand-bg {
   background-color: var(--brand-primary);
 }
 
 .brand-bg-light {
   background-color: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.brand-bg-subtle {
+  background-color: rgba(var(--brand-primary-rgb), 0.05);
+}
+
+.brand-gradient-subtle {
+  background: linear-gradient(to bottom right, #f8fafc, white, rgba(var(--brand-primary-rgb), 0.03));
 }
 
 .brand-bg-hover:hover {
@@ -104,6 +142,17 @@ h4 { font-size: calc(var(--heading-font-size, 28px) * 0.6); }
 .brand-ring:focus {
   --tw-ring-color: rgba(var(--brand-primary-rgb), 0.2);
   box-shadow: 0 0 0 3px var(--tw-ring-color);
+}
+
+.brand-focus:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--brand-primary-rgb), 0.2);
+  border-color: var(--brand-primary);
+}
+
+.brand-spinner {
+  border-color: var(--brand-primary);
+  border-top-color: transparent;
 }
 
 /* Primary button with brand color */
@@ -154,6 +203,45 @@ h4 { font-size: calc(var(--heading-font-size, 28px) * 0.6); }
 .bg-site-secondary {
   background-color: var(--bg-secondary, #ffffff);
 }
+
+/* ============================================
+   Semantic Design Token Utilities
+   ============================================ */
+
+/* Text */
+.text-theme-primary { color: var(--color-text-primary); }
+.text-theme-secondary { color: var(--color-text-secondary); }
+.text-theme-muted { color: var(--color-text-muted); }
+.text-theme-link { color: var(--color-link); }
+
+/* Backgrounds */
+.bg-theme-page { background-color: var(--bg-color); }
+.bg-theme-surface { background-color: var(--bg-secondary); }
+.bg-theme-muted { background-color: var(--color-bg-muted); }
+.bg-theme-dark { background-color: var(--color-bg-dark); }
+.bg-brand-light { background-color: var(--color-brand-light); }
+
+/* Borders */
+.border-theme-default { border-color: var(--color-border-default); }
+.border-theme-light { border-color: var(--color-border-light); }
+
+/* Status — text */
+.text-theme-success { color: var(--color-success); }
+.text-theme-error { color: var(--color-error); }
+.text-theme-warning { color: var(--color-warning); }
+.text-theme-info { color: var(--color-info); }
+.text-theme-sale { color: var(--color-sale); }
+
+/* Status — backgrounds */
+.bg-theme-success-light { background-color: var(--color-success-light); }
+.bg-theme-error-light { background-color: var(--color-error-light); }
+.bg-theme-warning-light { background-color: var(--color-warning-light); }
+.bg-theme-info-light { background-color: var(--color-info-light); }
+
+/* Component shapes */
+.rounded-theme-button { border-radius: var(--radius-button); }
+.rounded-theme-card { border-radius: var(--radius-card); }
+.rounded-theme-input { border-radius: var(--radius-input); }
 
 /* Admin-specific font families */
 .font-admin-body {

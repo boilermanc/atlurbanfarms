@@ -1408,18 +1408,49 @@ export function useCreateOrder() {
  */
 export function useBrandingSettings() {
   const [settings, setSettings] = useState({
+    // Brand identity
     announcement_bar_enabled: false,
     announcement_bar_text: '',
     homepage_announcement: '',
     logo_url: '',
+    // Brand colors
     primary_brand_color: '#10b981',
     secondary_brand_color: '#047857',
+    color_brand_light: '#ecfdf5',
+    // Text colors
+    color_text_primary: '#111827',
+    color_text_secondary: '#6b7280',
+    color_text_muted: '#9ca3af',
+    // Background colors
+    background_color: '#fafafa',
+    secondary_background_color: '#ffffff',
+    color_bg_muted: '#f9fafb',
+    color_bg_dark: '#111827',
+    // Border colors
+    color_border_default: '#e5e7eb',
+    color_border_light: '#f3f4f6',
+    // Status colors
+    color_success: '#10b981',
+    color_success_light: '#ecfdf5',
+    color_error: '#ef4444',
+    color_error_light: '#fef2f2',
+    color_warning: '#f59e0b',
+    color_warning_light: '#fffbeb',
+    color_info: '#3b82f6',
+    color_info_light: '#eff6ff',
+    // Accent colors
+    color_sale: '#ef4444',
+    color_link: '#10b981',
+    // Typography
     heading_font: 'Plus Jakarta Sans',
     heading_font_size: 28,
     body_font: 'Inter',
     body_font_size: 16,
-    background_color: '#fafafa',
-    secondary_background_color: '#ffffff'
+    // Component shapes
+    radius_button: 16,
+    radius_card: 24,
+    radius_input: 12,
+    shadow_style: 'medium',
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)

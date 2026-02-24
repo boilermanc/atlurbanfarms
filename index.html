@@ -12,13 +12,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Apply cached brand settings immediately to prevent FOUC on reload
+      // Apply cached design tokens immediately to prevent FOUC on reload
       (function() {
         try {
           var cached = localStorage.getItem('atluf_brand_colors');
           if (cached) {
             var c = JSON.parse(cached);
             var root = document.documentElement;
+
+            // Brand colors
             if (c.primary) {
               root.style.setProperty('--brand-primary', c.primary);
               root.style.setProperty('--brand-primary-rgb', c.primaryRgb);
@@ -27,25 +29,54 @@
               root.style.setProperty('--brand-secondary', c.secondary);
               root.style.setProperty('--brand-secondary-rgb', c.secondaryRgb);
             }
-            // Apply cached background colors
+            if (c.brandLight) root.style.setProperty('--color-brand-light', c.brandLight);
+
+            // Text colors
+            if (c.textPrimary) root.style.setProperty('--color-text-primary', c.textPrimary);
+            if (c.textSecondary) root.style.setProperty('--color-text-secondary', c.textSecondary);
+            if (c.textMuted) root.style.setProperty('--color-text-muted', c.textMuted);
+
+            // Background colors
             if (c.backgroundColor) {
               root.style.setProperty('--bg-color', c.backgroundColor);
               document.addEventListener('DOMContentLoaded', function() {
                 document.body.style.backgroundColor = c.backgroundColor;
               });
             }
-            if (c.secondaryBackgroundColor) {
-              root.style.setProperty('--bg-secondary', c.secondaryBackgroundColor);
-            }
-            // Apply cached fonts
+            if (c.secondaryBackgroundColor) root.style.setProperty('--bg-secondary', c.secondaryBackgroundColor);
+            if (c.bgMuted) root.style.setProperty('--color-bg-muted', c.bgMuted);
+            if (c.bgDark) root.style.setProperty('--color-bg-dark', c.bgDark);
+
+            // Border colors
+            if (c.borderDefault) root.style.setProperty('--color-border-default', c.borderDefault);
+            if (c.borderLight) root.style.setProperty('--color-border-light', c.borderLight);
+
+            // Status colors
+            if (c.success) root.style.setProperty('--color-success', c.success);
+            if (c.successLight) root.style.setProperty('--color-success-light', c.successLight);
+            if (c.error) root.style.setProperty('--color-error', c.error);
+            if (c.errorLight) root.style.setProperty('--color-error-light', c.errorLight);
+            if (c.warning) root.style.setProperty('--color-warning', c.warning);
+            if (c.warningLight) root.style.setProperty('--color-warning-light', c.warningLight);
+            if (c.info) root.style.setProperty('--color-info', c.info);
+            if (c.infoLight) root.style.setProperty('--color-info-light', c.infoLight);
+
+            // Accent colors
+            if (c.sale) root.style.setProperty('--color-sale', c.sale);
+            if (c.link) root.style.setProperty('--color-link', c.link);
+
+            // Component shapes
+            if (c.radiusButton != null) root.style.setProperty('--radius-button', c.radiusButton + 'px');
+            if (c.radiusCard != null) root.style.setProperty('--radius-card', c.radiusCard + 'px');
+            if (c.radiusInput != null) root.style.setProperty('--radius-input', c.radiusInput + 'px');
+
+            // Fonts
             if (c.headingFont) {
               root.style.setProperty('--font-heading', "'" + c.headingFont + "', sans-serif");
-              // Inject heading font override immediately
               var s = document.createElement('style');
               s.id = 'cached-heading-font-style';
               s.textContent = "h1,h2,h3,h4,.font-heading{font-family:'" + c.headingFont + "',sans-serif!important}";
               document.head.appendChild(s);
-              // Load the font from Google Fonts if not preloaded
               var preloaded = ['Inter','Plus Jakarta Sans','DM Sans','Space Grotesk','Caveat','Patrick Hand'];
               var fontsToLoad = [];
               if (preloaded.indexOf(c.headingFont) === -1) fontsToLoad.push(c.headingFont);
@@ -65,13 +96,8 @@
                 document.body.style.fontFamily = "'" + c.bodyFont + "', sans-serif";
               });
             }
-            // Apply cached font sizes
-            if (c.headingFontSize) {
-              root.style.setProperty('--heading-font-size', c.headingFontSize + 'px');
-            }
-            if (c.bodyFontSize) {
-              root.style.setProperty('--body-font-size', c.bodyFontSize + 'px');
-            }
+            if (c.headingFontSize) root.style.setProperty('--heading-font-size', c.headingFontSize + 'px');
+            if (c.bodyFontSize) root.style.setProperty('--body-font-size', c.bodyFontSize + 'px');
           }
         } catch(e) {}
         // Failsafe: reveal page after 4s even if JS fails to load

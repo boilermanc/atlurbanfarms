@@ -53,16 +53,16 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 flex items-center justify-center px-4 py-12 font-admin-body">
+    <div className="min-h-screen brand-gradient-subtle flex items-center justify-center px-4 py-12 font-admin-body">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-6">
-            <span className="p-3 bg-emerald-100 rounded-xl">
-              <Leaf className="text-emerald-600" size={28} />
+            <span className="p-3 brand-bg-light rounded-xl">
+              <Leaf className="brand-text" size={28} />
             </span>
             <span className="font-bold text-2xl text-slate-800 font-admin-display">
-              ATL <span className="text-emerald-600">Urban Farms</span>
+              ATL <span className="brand-text">Urban Farms</span>
             </span>
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2 font-admin-display">
@@ -95,7 +95,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                 placeholder="admin@atlurbanfarms.com"
                 required
                 autoComplete="email"
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 brand-focus transition-all"
               />
             </div>
 
@@ -112,7 +112,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
-                  className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 brand-focus transition-all"
                 />
                 <button
                   type="button"
@@ -131,7 +131,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
               className={`w-full py-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 ${
                 isLoading
                   ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-600/40'
+                  : 'btn-brand shadow-lg brand-shadow'
               }`}
             >
               {isLoading ? (

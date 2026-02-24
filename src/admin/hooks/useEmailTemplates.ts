@@ -121,6 +121,57 @@ export function useEmailTemplate(templateKey: string | null) {
 }
 
 /**
+ * Hook for creating a new email template
+ */
+export function useCreateEmailTemplate() {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createTemplate = useCallback(async (
+    template: Pick<EmailTemplate, 'template_key' | 'name' | 'description' | 'category' | 'subject_line'> & {
+      html_content?: string
+      plain_text_content?: string
+      variables_schema?: VariableSchema[]
+      is_active?: boolean
+    }
+  ): Promise<{ success: boolean; error?: string; template?: EmailTemplate }> => {
+    setSaving(true)
+    setError(null)
+
+    try {
+      const { data, error: insertError } = await supabase
+        .from('email_templates')
+        .insert({
+          template_key: template.template_key,
+          name: template.name,
+          description: template.description || null,
+          category: template.category || 'general',
+          subject_line: template.subject_line,
+          html_content: template.html_content || '',
+          plain_text_content: template.plain_text_content || null,
+          variables_schema: template.variables_schema || [],
+          is_active: template.is_active ?? true,
+        })
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+
+      return { success: true, template: data }
+    } catch (err: any) {
+      console.error('Error creating email template:', err)
+      const errorMsg = err.message || 'Failed to create template'
+      setError(errorMsg)
+      return { success: false, error: errorMsg }
+    } finally {
+      setSaving(false)
+    }
+  }, [])
+
+  return { createTemplate, saving, error }
+}
+
+/**
  * Hook for updating an email template
  */
 export function useUpdateEmailTemplate() {
@@ -241,7 +292,8 @@ export function useTemplateVersions(templateId: string | null) {
 }
 
 /**
- * Hook for fetching brand settings
+ * Hook for fetching brand settings from config_settings (single source of truth).
+ * Maps config_settings keys to email template variable names.
  */
 export function useBrandSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({})
@@ -253,16 +305,48 @@ export function useBrandSettings() {
     setError(null)
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('email_brand_settings')
-        .select('*')
+      // Fetch branding settings
+      const { data: brandingData, error: brandingError } = await supabase
+        .from('config_settings')
+        .select('key, value, data_type')
+        .eq('category', 'branding')
 
-      if (fetchError) throw fetchError
+      if (brandingError) throw brandingError
 
-      const settingsMap: Record<string, string> = {}
-      data?.forEach((s: BrandSetting) => {
-        settingsMap[s.setting_key] = s.setting_value || ''
-      })
+      // Fetch business settings for name/email/phone
+      const { data: businessData, error: businessError } = await supabase
+        .from('config_settings')
+        .select('key, value, data_type')
+        .eq('category', 'business')
+        .in('key', ['company_name', 'support_email', 'support_phone', 'business_address'])
+
+      if (businessError) throw businessError
+
+      const raw: Record<string, string> = {}
+      for (const row of [...(brandingData || []), ...(businessData || [])]) {
+        // Strip double-encoded JSONB strings
+        let val = row.value
+        if (typeof val === 'string' && val.startsWith('"') && val.endsWith('"')) {
+          try { val = JSON.parse(val) } catch { /* keep as-is */ }
+        }
+        raw[row.key] = String(val ?? '')
+      }
+
+      // Map to email template variable names (same mapping as edge function)
+      const companyName = raw.company_name || 'ATL Urban Farms'
+      const settingsMap: Record<string, string> = {
+        primary_color: raw.primary_brand_color || '#10b981',
+        secondary_color: raw.secondary_brand_color || '#047857',
+        logo_url: raw.logo_url || '',
+        business_name: companyName,
+        business_email: raw.support_email || 'hello@atlurbanfarms.com',
+        business_phone: raw.support_phone || '',
+        business_address: raw.business_address || 'Atlanta, GA',
+        footer_text: `\u00a9 ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+        facebook_url: raw.social_facebook || '',
+        instagram_url: raw.social_instagram || '',
+        current_year: new Date().getFullYear().toString(),
+      }
 
       setSettings(settingsMap)
     } catch (err: any) {
@@ -278,44 +362,6 @@ export function useBrandSettings() {
   }, [fetchSettings])
 
   return { settings, loading, error, refetch: fetchSettings }
-}
-
-/**
- * Hook for updating brand settings
- */
-export function useUpdateBrandSettings() {
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const updateSettings = useCallback(async (
-    updates: Record<string, string>
-  ): Promise<{ success: boolean; error?: string }> => {
-    setSaving(true)
-    setError(null)
-
-    try {
-      // Update each setting
-      for (const [key, value] of Object.entries(updates)) {
-        const { error: updateError } = await supabase
-          .from('email_brand_settings')
-          .update({ setting_value: value })
-          .eq('setting_key', key)
-
-        if (updateError) throw updateError
-      }
-
-      return { success: true }
-    } catch (err: any) {
-      console.error('Error updating brand settings:', err)
-      const errorMsg = err.message || 'Failed to update brand settings'
-      setError(errorMsg)
-      return { success: false, error: errorMsg }
-    } finally {
-      setSaving(false)
-    }
-  }, [])
-
-  return { updateSettings, saving, error }
 }
 
 /**

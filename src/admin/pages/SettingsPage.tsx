@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useSettings, useBulkUpdateSettings, ConfigSetting } from '../hooks/useSettings';
 import { supabase } from '../../lib/supabase';
-import { Building2, ShoppingCart, Package, Bell, Palette, Save, Upload, Trash2, Receipt } from 'lucide-react';
+import { Building2, ShoppingCart, Package, Bell, Paintbrush, Save, Upload, Trash2, Receipt, ChevronDown } from 'lucide-react';
 
 type TabType = 'business' | 'checkout' | 'tax' | 'inventory' | 'notifications' | 'branding';
 
@@ -41,22 +41,54 @@ const DEFAULT_SETTINGS: Record<string, Record<string, { value: any; dataType: Co
     admin_notification_emails: { value: '', dataType: 'string' },
   },
   branding: {
+    // Brand Identity
     logo_url: { value: '', dataType: 'string' },
-    primary_brand_color: { value: '#10b981', dataType: 'string' },
-    secondary_brand_color: { value: '#047857', dataType: 'string' },
-    heading_font: { value: 'Plus Jakarta Sans', dataType: 'string' },
-    heading_font_size: { value: 28, dataType: 'number' },
-    body_font: { value: 'Inter', dataType: 'string' },
-    body_font_size: { value: 16, dataType: 'number' },
-    background_color: { value: '#fafafa', dataType: 'string' },
-    secondary_background_color: { value: '#ffffff', dataType: 'string' },
-    announcement_bar_enabled: { value: false, dataType: 'boolean' },
-    announcement_bar_text: { value: '', dataType: 'string' },
     social_facebook: { value: '', dataType: 'string' },
     social_instagram: { value: '', dataType: 'string' },
     social_twitter: { value: '', dataType: 'string' },
     social_youtube: { value: '', dataType: 'string' },
     social_tiktok: { value: '', dataType: 'string' },
+    // Brand Colors
+    primary_brand_color: { value: '#10b981', dataType: 'string' },
+    secondary_brand_color: { value: '#047857', dataType: 'string' },
+    color_brand_light: { value: '#ecfdf5', dataType: 'string' },
+    // Text Colors
+    color_text_primary: { value: '#111827', dataType: 'string' },
+    color_text_secondary: { value: '#6b7280', dataType: 'string' },
+    color_text_muted: { value: '#9ca3af', dataType: 'string' },
+    // Background Colors
+    background_color: { value: '#fafafa', dataType: 'string' },
+    secondary_background_color: { value: '#ffffff', dataType: 'string' },
+    color_bg_muted: { value: '#f9fafb', dataType: 'string' },
+    color_bg_dark: { value: '#111827', dataType: 'string' },
+    // Border Colors
+    color_border_default: { value: '#e5e7eb', dataType: 'string' },
+    color_border_light: { value: '#f3f4f6', dataType: 'string' },
+    // Status Colors
+    color_success: { value: '#10b981', dataType: 'string' },
+    color_success_light: { value: '#ecfdf5', dataType: 'string' },
+    color_error: { value: '#ef4444', dataType: 'string' },
+    color_error_light: { value: '#fef2f2', dataType: 'string' },
+    color_warning: { value: '#f59e0b', dataType: 'string' },
+    color_warning_light: { value: '#fffbeb', dataType: 'string' },
+    color_info: { value: '#3b82f6', dataType: 'string' },
+    color_info_light: { value: '#eff6ff', dataType: 'string' },
+    // Accent Colors
+    color_sale: { value: '#ef4444', dataType: 'string' },
+    color_link: { value: '#10b981', dataType: 'string' },
+    // Typography
+    heading_font: { value: 'Plus Jakarta Sans', dataType: 'string' },
+    heading_font_size: { value: 28, dataType: 'number' },
+    body_font: { value: 'Inter', dataType: 'string' },
+    body_font_size: { value: 16, dataType: 'number' },
+    // Component Styles
+    radius_button: { value: 16, dataType: 'number' },
+    radius_card: { value: 24, dataType: 'number' },
+    radius_input: { value: 12, dataType: 'number' },
+    shadow_style: { value: 'medium', dataType: 'string' },
+    // Announcement Bar
+    announcement_bar_enabled: { value: false, dataType: 'boolean' },
+    announcement_bar_text: { value: '', dataType: 'string' },
   },
   tax: {
     tax_enabled: { value: true, dataType: 'boolean' },
@@ -168,7 +200,7 @@ const SettingsPage: React.FC = () => {
     { id: 'tax', label: 'Tax', icon: <Receipt size={20} /> },
     { id: 'inventory', label: 'Inventory', icon: <Package size={20} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={20} /> },
-    { id: 'branding', label: 'Branding', icon: <Palette size={20} /> },
+    { id: 'branding', label: 'Design', icon: <Paintbrush size={20} /> },
   ];
 
   const updateField = useCallback((category: string, key: string, value: any) => {
@@ -582,391 +614,440 @@ const SettingsPage: React.FC = () => {
     </div>
   );
 
-  const renderBrandingTab = () => (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <label className="block text-sm font-medium text-slate-700">Logo</label>
+  // Collapsible section state for Design tab
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    identity: true,
+    colors: true,
+    typography: true,
+    components: false,
+    announcement: false,
+  });
 
-        {/* Logo Error */}
-        {logoError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-sm text-red-700">{logoError}</p>
-          </div>
-        )}
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
-        {/* Current Logo Preview */}
-        {formData.branding?.logo_url ? (
-          <div className="flex items-start gap-4">
-            <div className="relative group">
-              <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-                <img
-                  src={formData.branding.logo_url}
-                  alt="Current logo"
-                  className="max-w-full max-h-full object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '';
-                    (e.target as HTMLImageElement).alt = 'Failed to load';
-                  }}
-                />
-              </div>
-              {/* Overlay with actions on hover */}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  className="p-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-                  title="Replace logo"
-                >
-                  <Upload size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogoDelete}
-                  className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                  title="Remove logo"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm text-slate-600 mb-2">Current logo</p>
-              <p className="text-xs text-slate-400 break-all">{formData.branding.logo_url}</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  disabled={logoUploading}
-                  className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-                >
-                  Replace
-                </button>
-                <span className="text-slate-300">|</span>
-                <button
-                  type="button"
-                  onClick={handleLogoDelete}
-                  className="text-sm text-red-600 hover:text-red-700 font-medium"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Upload Zone when no logo exists */
-          <div
-            className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
-            onClick={() => logoInputRef.current?.click()}
-          >
-            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              {logoUploading ? (
-                <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Upload size={24} className="text-slate-400" />
-              )}
-            </div>
-            <p className="text-slate-700 font-medium">Click to upload your logo</p>
-            <p className="text-slate-400 text-sm mt-1">PNG, JPG, GIF, WebP, or SVG up to 5MB</p>
-          </div>
-        )}
-
-        {/* Hidden file input */}
+  // Reusable color field component
+  const ColorField = ({ label, settingKey, defaultValue, description }: { label: string; settingKey: string; defaultValue: string; description?: string }) => (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-slate-700">{label}</label>
+      <div className="flex items-center gap-3">
         <input
-          ref={logoInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
-          onChange={handleLogoUpload}
-          className="hidden"
-          disabled={logoUploading}
+          type="color"
+          value={formData.branding?.[settingKey] || defaultValue}
+          onChange={(e) => updateField('branding', settingKey, e.target.value)}
+          className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer bg-transparent p-0.5"
         />
+        <input
+          type="text"
+          value={formData.branding?.[settingKey] || defaultValue}
+          onChange={(e) => updateField('branding', settingKey, e.target.value)}
+          className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+          placeholder={defaultValue}
+        />
+      </div>
+      {description && <p className="text-xs text-slate-500">{description}</p>}
+    </div>
+  );
 
-        {/* Upload loading indicator (shown when replacing) */}
-        {logoUploading && formData.branding?.logo_url && (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            Uploading...
+  // Section header component
+  const SectionHeader = ({ title, description, section }: { title: string; description: string; section: string }) => (
+    <button
+      type="button"
+      onClick={() => toggleSection(section)}
+      className="w-full flex items-center justify-between py-3 text-left"
+    >
+      <div>
+        <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+        <p className="text-sm text-slate-500">{description}</p>
+      </div>
+      <ChevronDown
+        size={20}
+        className={`text-slate-400 transition-transform ${expandedSections[section] ? 'rotate-180' : ''}`}
+      />
+    </button>
+  );
+
+  const renderDesignTab = () => (
+    <div className="space-y-2">
+      {/* ── Brand Identity ── */}
+      <div className="border-b border-slate-200">
+        <SectionHeader title="Brand Identity" description="Logo and social media links" section="identity" />
+        {expandedSections.identity && (
+          <div className="pb-6 space-y-6">
+            {/* Logo */}
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-slate-700">Logo</label>
+              {logoError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-700">{logoError}</p>
+                </div>
+              )}
+              {formData.branding?.logo_url ? (
+                <div className="flex items-start gap-4">
+                  <div className="relative group">
+                    <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
+                      <img
+                        src={formData.branding.logo_url}
+                        alt="Current logo"
+                        className="max-w-full max-h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '';
+                          (e.target as HTMLImageElement).alt = 'Failed to load';
+                        }}
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center gap-2">
+                      <button type="button" onClick={() => logoInputRef.current?.click()} className="p-2 bg-white text-slate-700 rounded-lg hover:bg-slate-100 transition-colors" title="Replace logo">
+                        <Upload size={18} />
+                      </button>
+                      <button type="button" onClick={handleLogoDelete} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors" title="Remove logo">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-600 mb-2">Current logo</p>
+                    <p className="text-xs text-slate-400 break-all">{formData.branding.logo_url}</p>
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={() => logoInputRef.current?.click()} disabled={logoUploading} className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Replace</button>
+                      <span className="text-slate-300">|</span>
+                      <button type="button" onClick={handleLogoDelete} className="text-sm text-red-600 hover:text-red-700 font-medium">Remove</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-emerald-500/50 transition-colors cursor-pointer"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    {logoUploading ? (
+                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload size={24} className="text-slate-400" />
+                    )}
+                  </div>
+                  <p className="text-slate-700 font-medium">Click to upload your logo</p>
+                  <p className="text-slate-400 text-sm mt-1">PNG, JPG, GIF, WebP, or SVG up to 5MB</p>
+                </div>
+              )}
+              <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" onChange={handleLogoUpload} className="hidden" disabled={logoUploading} />
+              {logoUploading && formData.branding?.logo_url && (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  Uploading...
+                </div>
+              )}
+              <p className="text-xs text-slate-500">Upload your brand logo (recommended size: 200x200px or larger)</p>
+            </div>
+
+            {/* Social Media */}
+            <div>
+              <h4 className="text-sm font-medium text-slate-700 mb-3">Social Media Links</h4>
+              <p className="text-xs text-slate-500 mb-4">Add your social media URLs to display icons in the website footer. Leave blank to hide.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { key: 'social_facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourpage' },
+                  { key: 'social_instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourpage' },
+                  { key: 'social_twitter', label: 'Twitter/X', placeholder: 'https://twitter.com/yourpage' },
+                  { key: 'social_tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@yourpage' },
+                  { key: 'social_youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourchannel' },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-600">{label}</label>
+                    <input
+                      type="url"
+                      value={formData.branding?.[key] || ''}
+                      onChange={(e) => updateField('branding', key, e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder={placeholder}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
-
-        <p className="text-xs text-slate-500">Upload your brand logo (recommended size: 200x200px or larger)</p>
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Primary Brand Color</label>
-        <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={formData.branding?.primary_brand_color || '#10b981'}
-            onChange={(e) => updateField('branding', 'primary_brand_color', e.target.value)}
-            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
-          />
-          <input
-            type="text"
-            value={formData.branding?.primary_brand_color || '#10b981'}
-            onChange={(e) => updateField('branding', 'primary_brand_color', e.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            placeholder="#10b981"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Secondary Brand Color</label>
-        <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={formData.branding?.secondary_brand_color || '#047857'}
-            onChange={(e) => updateField('branding', 'secondary_brand_color', e.target.value)}
-            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
-          />
-          <input
-            type="text"
-            value={formData.branding?.secondary_brand_color || '#047857'}
-            onChange={(e) => updateField('branding', 'secondary_brand_color', e.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            placeholder="#047857"
-          />
-        </div>
-        <p className="text-xs text-slate-500">Used for hover states, accents, and secondary buttons</p>
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Website Background Color</label>
-        <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={formData.branding?.background_color || '#fafafa'}
-            onChange={(e) => updateField('branding', 'background_color', e.target.value)}
-            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
-          />
-          <input
-            type="text"
-            value={formData.branding?.background_color || '#fafafa'}
-            onChange={(e) => updateField('branding', 'background_color', e.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            placeholder="#fafafa"
-          />
-        </div>
-        <p className="text-xs text-slate-500">Background color for the main website pages</p>
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700">Secondary Background Color</label>
-        <div className="flex items-center gap-4">
-          <input
-            type="color"
-            value={formData.branding?.secondary_background_color || '#ffffff'}
-            onChange={(e) => updateField('branding', 'secondary_background_color', e.target.value)}
-            className="w-16 h-12 rounded-xl border border-slate-200 cursor-pointer bg-transparent"
-          />
-          <input
-            type="text"
-            value={formData.branding?.secondary_background_color || '#ffffff'}
-            onChange={(e) => updateField('branding', 'secondary_background_color', e.target.value)}
-            className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            placeholder="#ffffff"
-          />
-        </div>
-        <p className="text-xs text-slate-500">Used for alternating sections (hero, categories, etc.) to create visual contrast</p>
-      </div>
-
-      <div className="border-t border-slate-200 pt-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Typography</h3>
-        <p className="text-sm text-slate-500 mb-6">Choose fonts for headings and body text. Fonts are loaded from Google Fonts.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Heading Font</label>
-            <select
-              value={formData.branding?.heading_font || 'Plus Jakarta Sans'}
-              onChange={(e) => updateField('branding', 'heading_font', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              <option value="Plus Jakarta Sans">Plus Jakarta Sans (Default)</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Playfair Display">Playfair Display</option>
-              <option value="Poppins">Poppins</option>
-              <option value="Raleway">Raleway</option>
-              <option value="Open Sans">Open Sans</option>
-              <option value="Lato">Lato</option>
-              <option value="Inter">Inter</option>
-              <option value="Roboto">Roboto</option>
-              <option value="Oswald">Oswald</option>
-              <option value="Merriweather">Merriweather</option>
-              <option value="Nunito">Nunito</option>
-              <option value="Space Grotesk">Space Grotesk</option>
-            </select>
-            <p className="text-xs text-slate-500">Used for h1, h2, h3, h4, and .font-heading elements</p>
-            <div className="space-y-1 mt-2">
-              <label className="block text-sm font-medium text-slate-700">Size (px)</label>
-              <select
-                value={formData.branding?.heading_font_size ?? 28}
-                onChange={(e) => updateField('branding', 'heading_font_size', parseInt(e.target.value))}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              >
-                {FONT_SIZES.map((size) => (
-                  <option key={size} value={size}>{size}px{size === 28 ? ' (Default)' : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-              <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p key={`heading-${formData.branding?.heading_font}-${fontLoadKey}`} className="font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif`, fontSize: `${formData.branding?.heading_font_size ?? 28}px` }}>
-                The Quick Brown Fox
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Body Font</label>
-            <select
-              value={formData.branding?.body_font || 'Inter'}
-              onChange={(e) => updateField('branding', 'body_font', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-            >
-              <option value="Inter">Inter (Default)</option>
-              <option value="DM Sans">DM Sans</option>
-              <option value="Open Sans">Open Sans</option>
-              <option value="Roboto">Roboto</option>
-              <option value="Lato">Lato</option>
-              <option value="Poppins">Poppins</option>
-              <option value="Nunito">Nunito</option>
-              <option value="Source Sans Pro">Source Sans Pro</option>
-              <option value="Raleway">Raleway</option>
-              <option value="Montserrat">Montserrat</option>
-              <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
-              <option value="Space Grotesk">Space Grotesk</option>
-            </select>
-            <p className="text-xs text-slate-500">Used for body text, paragraphs, and general content</p>
-            <div className="space-y-1 mt-2">
-              <label className="block text-sm font-medium text-slate-700">Size (px)</label>
-              <select
-                value={formData.branding?.body_font_size ?? 16}
-                onChange={(e) => updateField('branding', 'body_font_size', parseInt(e.target.value))}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              >
-                {FONT_SIZES.map((size) => (
-                  <option key={size} value={size}>{size}px{size === 16 ? ' (Default)' : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-              <p className="text-sm text-slate-500 mb-1">Preview:</p>
-              <p key={`body-${formData.branding?.body_font}-${fontLoadKey}`} className="text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif`, fontSize: `${formData.branding?.body_font_size ?? 16}px` }}>
-                Fresh seedlings delivered to your doorstep every week.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-200 pt-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-1">Site-Wide Announcement Bar</h3>
-        <p className="text-sm text-slate-500 mb-4">Display a dismissible banner at the top of every page. Great for promotions, shipping deadlines, or important notices.</p>
-
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-            <button
-              onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                formData.branding?.announcement_bar_enabled ? 'bg-emerald-500' : 'bg-slate-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                  formData.branding?.announcement_bar_enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+      {/* ── Color Palette ── */}
+      <div className="border-b border-slate-200">
+        <SectionHeader title="Color Palette" description="All colors used across the storefront" section="colors" />
+        {expandedSections.colors && (
+          <div className="pb-6 space-y-8">
+            {/* Brand Colors */}
             <div>
-              <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
-              <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Brand Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ColorField label="Primary" settingKey="primary_brand_color" defaultValue="#10b981" description="Main CTA buttons, links, brand accent" />
+                <ColorField label="Secondary" settingKey="secondary_brand_color" defaultValue="#047857" description="Hover states, secondary accents" />
+                <ColorField label="Light Tint" settingKey="color_brand_light" defaultValue="#ecfdf5" description="Badges, highlight backgrounds" />
+              </div>
+            </div>
+
+            {/* Text Colors */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Text Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ColorField label="Primary Text" settingKey="color_text_primary" defaultValue="#111827" description="Headings, strong text" />
+                <ColorField label="Secondary Text" settingKey="color_text_secondary" defaultValue="#6b7280" description="Body text, descriptions" />
+                <ColorField label="Muted Text" settingKey="color_text_muted" defaultValue="#9ca3af" description="Placeholders, hints" />
+              </div>
+            </div>
+
+            {/* Background Colors */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Background Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ColorField label="Page Background" settingKey="background_color" defaultValue="#fafafa" description="Main site background" />
+                <ColorField label="Surface (Cards)" settingKey="secondary_background_color" defaultValue="#ffffff" description="Cards, panels, modals" />
+                <ColorField label="Muted Background" settingKey="color_bg_muted" defaultValue="#f9fafb" description="Alternating sections, hover states" />
+                <ColorField label="Dark Background" settingKey="color_bg_dark" defaultValue="#111827" description="Footer, dark sections" />
+              </div>
+            </div>
+
+            {/* Border Colors */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Border Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ColorField label="Default Border" settingKey="color_border_default" defaultValue="#e5e7eb" description="Input fields, card borders" />
+                <ColorField label="Light Border" settingKey="color_border_light" defaultValue="#f3f4f6" description="Subtle dividers, separators" />
+              </div>
+            </div>
+
+            {/* Status Colors */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Status Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ColorField label="Success" settingKey="color_success" defaultValue="#10b981" description="Success messages, validation" />
+                <ColorField label="Success Background" settingKey="color_success_light" defaultValue="#ecfdf5" />
+                <ColorField label="Error" settingKey="color_error" defaultValue="#ef4444" description="Error messages, alerts" />
+                <ColorField label="Error Background" settingKey="color_error_light" defaultValue="#fef2f2" />
+                <ColorField label="Warning" settingKey="color_warning" defaultValue="#f59e0b" description="Warnings, cautions" />
+                <ColorField label="Warning Background" settingKey="color_warning_light" defaultValue="#fffbeb" />
+                <ColorField label="Info" settingKey="color_info" defaultValue="#3b82f6" description="Information, tips" />
+                <ColorField label="Info Background" settingKey="color_info_light" defaultValue="#eff6ff" />
+              </div>
+            </div>
+
+            {/* Accent Colors */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">Accent Colors</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ColorField label="Sale / Promotion" settingKey="color_sale" defaultValue="#ef4444" description="Sale badges, discounted prices" />
+                <ColorField label="Link Color" settingKey="color_link" defaultValue="#10b981" description="Hyperlinks in body text" />
+              </div>
             </div>
           </div>
-
-          <AnimatePresence>
-            {formData.branding?.announcement_bar_enabled && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="space-y-2"
-              >
-                <label className="block text-sm font-medium text-slate-700">Announcement Message</label>
-                <input
-                  type="text"
-                  value={formData.branding?.announcement_bar_text || ''}
-                  onChange={(e) => updateField('branding', 'announcement_bar_text', e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                  placeholder="Free shipping on orders over $50!"
-                />
-                <p className="text-xs text-slate-500">This text appears in the green bar at the very top of your website</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        )}
       </div>
 
-      <div className="border-t border-slate-200 pt-6">
-        <h3 className="text-lg font-medium text-slate-800 mb-4">Social Media Links</h3>
-        <p className="text-sm text-slate-500 mb-6">Add your social media URLs to display icons in the website footer. Leave blank to hide.</p>
+      {/* ── Typography ── */}
+      <div className="border-b border-slate-200">
+        <SectionHeader title="Typography" description="Fonts and text sizes" section="typography" />
+        {expandedSections.typography && (
+          <div className="pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Heading Font</label>
+                <select
+                  value={formData.branding?.heading_font || 'Plus Jakarta Sans'}
+                  onChange={(e) => updateField('branding', 'heading_font', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="Plus Jakarta Sans">Plus Jakarta Sans (Default)</option>
+                  <option value="Montserrat">Montserrat</option>
+                  <option value="Playfair Display">Playfair Display</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Raleway">Raleway</option>
+                  <option value="Open Sans">Open Sans</option>
+                  <option value="Lato">Lato</option>
+                  <option value="Inter">Inter</option>
+                  <option value="Roboto">Roboto</option>
+                  <option value="Oswald">Oswald</option>
+                  <option value="Merriweather">Merriweather</option>
+                  <option value="Nunito">Nunito</option>
+                  <option value="Space Grotesk">Space Grotesk</option>
+                </select>
+                <p className="text-xs text-slate-500">Used for h1, h2, h3, h4, and .font-heading elements</p>
+                <div className="space-y-1 mt-2">
+                  <label className="block text-sm font-medium text-slate-700">Size (px)</label>
+                  <select
+                    value={formData.branding?.heading_font_size ?? 28}
+                    onChange={(e) => updateField('branding', 'heading_font_size', parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  >
+                    {FONT_SIZES.map((size) => (
+                      <option key={size} value={size}>{size}px{size === 28 ? ' (Default)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+                  <p className="text-sm text-slate-500 mb-1">Preview:</p>
+                  <p key={`heading-${formData.branding?.heading_font}-${fontLoadKey}`} className="font-bold text-slate-800" style={{ fontFamily: `'${formData.branding?.heading_font || 'Plus Jakarta Sans'}', sans-serif`, fontSize: `${formData.branding?.heading_font_size ?? 28}px` }}>
+                    The Quick Brown Fox
+                  </p>
+                </div>
+              </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Facebook URL</label>
-            <input
-              type="url"
-              value={formData.branding?.social_facebook || ''}
-              onChange={(e) => updateField('branding', 'social_facebook', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="https://facebook.com/yourpage"
-            />
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Body Font</label>
+                <select
+                  value={formData.branding?.body_font || 'Inter'}
+                  onChange={(e) => updateField('branding', 'body_font', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="Inter">Inter (Default)</option>
+                  <option value="DM Sans">DM Sans</option>
+                  <option value="Open Sans">Open Sans</option>
+                  <option value="Roboto">Roboto</option>
+                  <option value="Lato">Lato</option>
+                  <option value="Poppins">Poppins</option>
+                  <option value="Nunito">Nunito</option>
+                  <option value="Source Sans Pro">Source Sans Pro</option>
+                  <option value="Raleway">Raleway</option>
+                  <option value="Montserrat">Montserrat</option>
+                  <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                  <option value="Space Grotesk">Space Grotesk</option>
+                </select>
+                <p className="text-xs text-slate-500">Used for body text, paragraphs, and general content</p>
+                <div className="space-y-1 mt-2">
+                  <label className="block text-sm font-medium text-slate-700">Size (px)</label>
+                  <select
+                    value={formData.branding?.body_font_size ?? 16}
+                    onChange={(e) => updateField('branding', 'body_font_size', parseInt(e.target.value))}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  >
+                    {FONT_SIZES.map((size) => (
+                      <option key={size} value={size}>{size}px{size === 16 ? ' (Default)' : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200/60">
+                  <p className="text-sm text-slate-500 mb-1">Preview:</p>
+                  <p key={`body-${formData.branding?.body_font}-${fontLoadKey}`} className="text-slate-800" style={{ fontFamily: `'${formData.branding?.body_font || 'Inter'}', sans-serif`, fontSize: `${formData.branding?.body_font_size ?? 16}px` }}>
+                    Fresh seedlings delivered to your doorstep every week.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+      </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Instagram URL</label>
-            <input
-              type="url"
-              value={formData.branding?.social_instagram || ''}
-              onChange={(e) => updateField('branding', 'social_instagram', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="https://instagram.com/yourpage"
-            />
-          </div>
+      {/* ── Component Styles ── */}
+      <div className="border-b border-slate-200">
+        <SectionHeader title="Component Styles" description="Border radius, shadows, and shape" section="components" />
+        {expandedSections.components && (
+          <div className="pb-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { key: 'radius_button', label: 'Button Radius', defaultVal: 16 },
+                { key: 'radius_card', label: 'Card Radius', defaultVal: 24 },
+                { key: 'radius_input', label: 'Input Radius', defaultVal: 12 },
+              ].map(({ key, label, defaultVal }) => (
+                <div key={key} className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">{label}</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="32"
+                      value={formData.branding?.[key] ?? defaultVal}
+                      onChange={(e) => updateField('branding', key, parseInt(e.target.value))}
+                      className="flex-1 accent-emerald-500"
+                    />
+                    <span className="text-sm font-mono text-slate-600 w-12 text-right">{formData.branding?.[key] ?? defaultVal}px</span>
+                  </div>
+                  {/* Preview */}
+                  <div className="flex items-center gap-3 mt-1">
+                    <div
+                      className="w-full h-10 bg-slate-100 border border-slate-200"
+                      style={{ borderRadius: `${formData.branding?.[key] ?? defaultVal}px` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Twitter/X URL</label>
-            <input
-              type="url"
-              value={formData.branding?.social_twitter || ''}
-              onChange={(e) => updateField('branding', 'social_twitter', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="https://twitter.com/yourpage"
-            />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">Shadow Intensity</label>
+              <select
+                value={formData.branding?.shadow_style || 'medium'}
+                onChange={(e) => updateField('branding', 'shadow_style', e.target.value)}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              >
+                <option value="none">None</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium (Default)</option>
+                <option value="heavy">Heavy</option>
+              </select>
+              {/* Shadow preview */}
+              <div className="flex gap-4 mt-3">
+                <div
+                  className="flex-1 h-16 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-sm text-slate-500"
+                  style={{
+                    boxShadow: formData.branding?.shadow_style === 'none' ? 'none'
+                      : formData.branding?.shadow_style === 'light' ? '0 1px 3px rgba(0,0,0,0.08)'
+                      : formData.branding?.shadow_style === 'heavy' ? '0 10px 25px rgba(0,0,0,0.15), 0 4px 10px rgba(0,0,0,0.08)'
+                      : '0 4px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)'
+                  }}
+                >
+                  Shadow Preview
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+      </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">TikTok URL</label>
-            <input
-              type="url"
-              value={formData.branding?.social_tiktok || ''}
-              onChange={(e) => updateField('branding', 'social_tiktok', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="https://tiktok.com/@yourpage"
-            />
-          </div>
+      {/* ── Announcement Bar ── */}
+      <div>
+        <SectionHeader title="Announcement Bar" description="Site-wide banner for promotions and notices" section="announcement" />
+        {expandedSections.announcement && (
+          <div className="pb-6 space-y-4">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/60">
+              <button
+                onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                  formData.branding?.announcement_bar_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                    formData.branding?.announcement_bar_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <div>
+                <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
+                <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">YouTube URL</label>
-            <input
-              type="url"
-              value={formData.branding?.social_youtube || ''}
-              onChange={(e) => updateField('branding', 'social_youtube', e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-              placeholder="https://youtube.com/@yourchannel"
-            />
+            <AnimatePresence>
+              {formData.branding?.announcement_bar_enabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <label className="block text-sm font-medium text-slate-700">Announcement Message</label>
+                  <input
+                    type="text"
+                    value={formData.branding?.announcement_bar_text || ''}
+                    onChange={(e) => updateField('branding', 'announcement_bar_text', e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    placeholder="Free shipping on orders over $50!"
+                  />
+                  <p className="text-xs text-slate-500">This text appears in the banner bar at the very top of your website</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1065,7 +1146,7 @@ const SettingsPage: React.FC = () => {
       case 'notifications':
         return renderNotificationsTab();
       case 'branding':
-        return renderBrandingTab();
+        return renderDesignTab();
       default:
         return null;
     }

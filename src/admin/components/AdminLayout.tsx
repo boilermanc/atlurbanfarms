@@ -69,7 +69,7 @@ const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'))
 // Loading component for Suspense
 const PageLoader = () => (
   <div className="flex items-center justify-center py-12">
-    <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+    <div className="w-8 h-8 border-2 brand-spinner rounded-full animate-spin" />
   </div>
 );
 
@@ -315,7 +315,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-3 brand-spinner rounded-full animate-spin" />
       </div>
     );
   }
@@ -420,7 +420,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
             <h3 className="text-lg font-semibold text-slate-800 font-admin-display">Recent Orders</h3>
             <button
               onClick={() => onNavigate('orders')}
-              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+              className="text-sm font-medium brand-text hover:opacity-80 flex items-center gap-1"
             >
               View all <ArrowRight size={16} />
             </button>
@@ -587,9 +587,9 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   // Show loading while checking auth
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 flex items-center justify-center font-admin-body">
+      <div className="min-h-screen brand-gradient-subtle flex items-center justify-center font-admin-body">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-4 brand-spinner rounded-full animate-spin" />
           <p className="text-slate-500 text-sm">Verifying access...</p>
         </div>
       </div>
@@ -605,7 +605,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   // Authenticated but not an admin - show access denied
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 flex items-center justify-center font-admin-body">
+      <div className="min-h-screen brand-gradient-subtle flex items-center justify-center font-admin-body">
         <div className="bg-white rounded-2xl p-8 max-w-md text-center border border-slate-200 shadow-lg">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg
@@ -635,7 +635,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             </button>
             <a
               href="/"
-              className="inline-block px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-colors"
+              className="inline-block px-4 py-2 btn-brand font-medium rounded-xl transition-colors"
             >
               Return to Home
             </a>
@@ -892,7 +892,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
   return (
     <AdminProvider currentPage={currentPage} navigate={handleNavigate}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 flex font-admin-body">
+      <div className="min-h-screen brand-gradient-subtle flex font-admin-body">
         {/* Sidebar */}
         <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} />
 

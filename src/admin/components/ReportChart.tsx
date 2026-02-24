@@ -139,13 +139,13 @@ const LineChart: React.FC<{
         ))}
 
         {/* Area fill */}
-        <path d={areaD} fill="rgba(16, 185, 129, 0.1)" />
+        <path d={areaD} style={{ fill: 'rgba(var(--brand-primary-rgb), 0.1)' }} />
 
         {/* Line */}
         <path
           d={pathD}
           fill="none"
-          stroke="#10b981"
+          style={{ stroke: 'var(--brand-primary)' }}
           strokeWidth="0.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -158,7 +158,7 @@ const LineChart: React.FC<{
             cx={p.x}
             cy={p.y}
             r="0.8"
-            fill="#10b981"
+            style={{ fill: 'var(--brand-primary)' }}
             className="hover:r-[1.2] transition-all cursor-pointer"
           >
             <title>{`${p.label}: ${formatValue(p.value)}`}</title>

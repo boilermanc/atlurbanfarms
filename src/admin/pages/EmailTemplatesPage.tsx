@@ -4,6 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper'
 import {
   useEmailTemplates,
   useEmailTemplate,
+  useCreateEmailTemplate,
   useUpdateEmailTemplate,
   useTemplateVersions,
   useBrandSettings,
@@ -13,7 +14,7 @@ import {
   VariableSchema
 } from '../hooks/useEmailTemplates'
 import { useEmailService } from '../../hooks/useIntegrations'
-import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Info } from 'lucide-react'
+import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Plus } from 'lucide-react'
 
 // Template icons mapping
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
@@ -122,11 +123,20 @@ const DetailRow: React.FC<{
 
 const EmailTemplatesPage: React.FC = () => {
   const { templates, loading: loadingTemplates, refetch: refetchTemplates } = useEmailTemplates()
+  const { createTemplate, saving: creating } = useCreateEmailTemplate()
   const { updateTemplate, saving } = useUpdateEmailTemplate()
   const { settings: brandSettings } = useBrandSettings()
   const { sendEmail } = useEmailService()
 
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newTemplate, setNewTemplate] = useState({
+    name: '',
+    template_key: '',
+    description: '',
+    category: 'general',
+    subject_line: '',
+  })
   const { template: selectedTemplate, loading: loadingTemplate, refetch: refetchTemplate } = useEmailTemplate(selectedTemplateKey)
   const { versions } = useTemplateVersions(selectedTemplate?.id || null)
 
@@ -285,6 +295,34 @@ const EmailTemplatesPage: React.FC = () => {
     setSendingTest(false)
   }
 
+  const handleCreateTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.template_key || !newTemplate.subject_line) return
+
+    const result = await createTemplate(newTemplate)
+
+    if (result.success && result.template) {
+      setShowCreateModal(false)
+      setNewTemplate({ name: '', template_key: '', description: '', category: 'general', subject_line: '' })
+      await refetchTemplates()
+      setSelectedTemplateKey(result.template.template_key)
+      setSaveMessage('Template created!')
+      setTimeout(() => setSaveMessage(null), 3000)
+    } else {
+      setSaveMessage(`Error: ${result.error}`)
+      setTimeout(() => setSaveMessage(null), 5000)
+    }
+  }
+
+  // Auto-generate template_key from name
+  const handleNewTemplateName = (name: string) => {
+    const key = name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '_')
+      .substring(0, 50)
+    setNewTemplate(prev => ({ ...prev, name, template_key: key }))
+  }
+
   const insertVariable = useCallback((key: string) => {
     const textarea = document.querySelector('textarea[data-editor="html"]') as HTMLTextAreaElement
     if (textarea) {
@@ -375,6 +413,15 @@ const EmailTemplatesPage: React.FC = () => {
         <div className="flex gap-6 flex-1 min-h-0">
           {/* Template list sidebar */}
           <div className="w-64 flex-shrink-0 overflow-y-auto">
+            {/* Add new template button */}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-medium text-sm transition-colors"
+            >
+              <Plus size={18} />
+              New Template
+            </button>
+
             {/* Group templates by category */}
             {Object.entries(CATEGORY_CONFIG)
               .sort(([, a], [, b]) => a.order - b.order)
@@ -709,6 +756,123 @@ const EmailTemplatesPage: React.FC = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Create template modal */}
+        <AnimatePresence>
+          {showCreateModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+              onClick={() => setShowCreateModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-800">New Email Template</h2>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="p-2 text-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Template Name *</label>
+                    <input
+                      type="text"
+                      value={newTemplate.name}
+                      onChange={(e) => handleNewTemplateName(e.target.value)}
+                      placeholder="e.g. Back in Stock Notification"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Template Key</label>
+                    <input
+                      type="text"
+                      value={newTemplate.template_key}
+                      onChange={(e) => setNewTemplate(prev => ({ ...prev, template_key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                      placeholder="auto_generated_from_name"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Used to reference this template in code</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                    <select
+                      value={newTemplate.category}
+                      onChange={(e) => setNewTemplate(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    >
+                      {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
+                        <option key={key} value={key}>{config.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={newTemplate.description}
+                      onChange={(e) => setNewTemplate(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Brief description of when this email is sent"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Subject Line *</label>
+                    <input
+                      type="text"
+                      value={newTemplate.subject_line}
+                      onChange={(e) => setNewTemplate(prev => ({ ...prev, subject_line: e.target.value }))}
+                      placeholder="e.g. {{customer_first_name}}, your item is back!"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateTemplate}
+                    disabled={creating || !newTemplate.name || !newTemplate.template_key || !newTemplate.subject_line}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={16} />
+                        Create Template
+                      </>
+                    )}
+                  </button>
                 </div>
               </motion.div>
             </motion.div>

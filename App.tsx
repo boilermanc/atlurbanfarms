@@ -199,49 +199,95 @@ const App: React.FC = () => {
   // Fetch branding settings and apply primary brand color
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
-  // Apply brand colors as CSS custom properties
+  // Apply all design tokens as CSS custom properties
   useEffect(() => {
-    if (brandingSettings?.primary_brand_color) {
-      const color = brandingSettings.primary_brand_color;
-      document.documentElement.style.setProperty('--brand-primary', color);
-      document.documentElement.style.setProperty('--brand-primary-rgb', hexToRgb(color));
-    }
-    // Apply secondary brand color
-    const secondaryColor = brandingSettings?.secondary_brand_color || '#047857';
-    document.documentElement.style.setProperty('--brand-secondary', secondaryColor);
-    document.documentElement.style.setProperty('--brand-secondary-rgb', hexToRgb(secondaryColor));
+    const s = brandingSettings;
+    const doc = document.documentElement.style;
 
-    // Apply background color
-    const bgColor = brandingSettings?.background_color || '#fafafa';
-    document.documentElement.style.setProperty('--bg-color', bgColor);
+    // Brand colors
+    const primary = s?.primary_brand_color || '#10b981';
+    const secondary = s?.secondary_brand_color || '#047857';
+    doc.setProperty('--brand-primary', primary);
+    doc.setProperty('--brand-primary-rgb', hexToRgb(primary));
+    doc.setProperty('--brand-secondary', secondary);
+    doc.setProperty('--brand-secondary-rgb', hexToRgb(secondary));
+    doc.setProperty('--color-brand-light', s?.color_brand_light || '#ecfdf5');
+
+    // Text colors
+    doc.setProperty('--color-text-primary', s?.color_text_primary || '#111827');
+    doc.setProperty('--color-text-secondary', s?.color_text_secondary || '#6b7280');
+    doc.setProperty('--color-text-muted', s?.color_text_muted || '#9ca3af');
+
+    // Background colors
+    const bgColor = s?.background_color || '#fafafa';
+    const bgSecondary = s?.secondary_background_color || '#ffffff';
+    doc.setProperty('--bg-color', bgColor);
     document.body.style.backgroundColor = bgColor;
+    doc.setProperty('--bg-secondary', bgSecondary);
+    doc.setProperty('--color-bg-muted', s?.color_bg_muted || '#f9fafb');
+    doc.setProperty('--color-bg-dark', s?.color_bg_dark || '#111827');
 
-    // Apply secondary background color (alternating sections)
-    const bgSecondary = brandingSettings?.secondary_background_color || '#ffffff';
-    document.documentElement.style.setProperty('--bg-secondary', bgSecondary);
+    // Border colors
+    doc.setProperty('--color-border-default', s?.color_border_default || '#e5e7eb');
+    doc.setProperty('--color-border-light', s?.color_border_light || '#f3f4f6');
 
-    // Apply font sizes
-    const headingFontSize = brandingSettings?.heading_font_size || 28;
-    const bodyFontSize = brandingSettings?.body_font_size || 16;
-    document.documentElement.style.setProperty('--heading-font-size', `${headingFontSize}px`);
-    document.documentElement.style.setProperty('--body-font-size', `${bodyFontSize}px`);
+    // Status colors
+    doc.setProperty('--color-success', s?.color_success || '#10b981');
+    doc.setProperty('--color-success-light', s?.color_success_light || '#ecfdf5');
+    doc.setProperty('--color-error', s?.color_error || '#ef4444');
+    doc.setProperty('--color-error-light', s?.color_error_light || '#fef2f2');
+    doc.setProperty('--color-warning', s?.color_warning || '#f59e0b');
+    doc.setProperty('--color-warning-light', s?.color_warning_light || '#fffbeb');
+    doc.setProperty('--color-info', s?.color_info || '#3b82f6');
+    doc.setProperty('--color-info-light', s?.color_info_light || '#eff6ff');
 
-    // Cache brand settings in localStorage for instant apply on next page load
+    // Accent colors
+    doc.setProperty('--color-sale', s?.color_sale || '#ef4444');
+    doc.setProperty('--color-link', s?.color_link || '#10b981');
+
+    // Font sizes
+    const headingFontSize = s?.heading_font_size || 28;
+    const bodyFontSize = s?.body_font_size || 16;
+    doc.setProperty('--heading-font-size', `${headingFontSize}px`);
+    doc.setProperty('--body-font-size', `${bodyFontSize}px`);
+
+    // Component shapes
+    doc.setProperty('--radius-button', `${s?.radius_button ?? 16}px`);
+    doc.setProperty('--radius-card', `${s?.radius_card ?? 24}px`);
+    doc.setProperty('--radius-input', `${s?.radius_input ?? 12}px`);
+
+    // Cache all design tokens in localStorage for FOUC prevention
     try {
       localStorage.setItem('atluf_brand_colors', JSON.stringify({
-        primary: brandingSettings?.primary_brand_color || '#10b981',
-        primaryRgb: hexToRgb(brandingSettings?.primary_brand_color || '#10b981'),
-        secondary: secondaryColor,
-        secondaryRgb: hexToRgb(secondaryColor),
-        headingFont: brandingSettings?.heading_font || 'Plus Jakarta Sans',
-        headingFontSize: headingFontSize,
-        bodyFont: brandingSettings?.body_font || 'Inter',
-        bodyFontSize: bodyFontSize,
-        backgroundColor: bgColor,
-        secondaryBackgroundColor: bgSecondary,
+        primary, primaryRgb: hexToRgb(primary),
+        secondary, secondaryRgb: hexToRgb(secondary),
+        brandLight: s?.color_brand_light || '#ecfdf5',
+        textPrimary: s?.color_text_primary || '#111827',
+        textSecondary: s?.color_text_secondary || '#6b7280',
+        textMuted: s?.color_text_muted || '#9ca3af',
+        headingFont: s?.heading_font || 'Plus Jakarta Sans',
+        headingFontSize, bodyFont: s?.body_font || 'Inter', bodyFontSize,
+        backgroundColor: bgColor, secondaryBackgroundColor: bgSecondary,
+        bgMuted: s?.color_bg_muted || '#f9fafb',
+        bgDark: s?.color_bg_dark || '#111827',
+        borderDefault: s?.color_border_default || '#e5e7eb',
+        borderLight: s?.color_border_light || '#f3f4f6',
+        success: s?.color_success || '#10b981',
+        successLight: s?.color_success_light || '#ecfdf5',
+        error: s?.color_error || '#ef4444',
+        errorLight: s?.color_error_light || '#fef2f2',
+        warning: s?.color_warning || '#f59e0b',
+        warningLight: s?.color_warning_light || '#fffbeb',
+        info: s?.color_info || '#3b82f6',
+        infoLight: s?.color_info_light || '#eff6ff',
+        sale: s?.color_sale || '#ef4444',
+        link: s?.color_link || '#10b981',
+        radiusButton: s?.radius_button ?? 16,
+        radiusCard: s?.radius_card ?? 24,
+        radiusInput: s?.radius_input ?? 12,
       }));
     } catch {}
-  }, [brandingSettings?.primary_brand_color, brandingSettings?.secondary_brand_color, brandingSettings?.background_color, brandingSettings?.secondary_background_color, brandingSettings?.heading_font, brandingSettings?.body_font, brandingSettings?.heading_font_size, brandingSettings?.body_font_size]);
+  }, [brandingSettings]);
 
   // Dynamically load Google Fonts and apply font CSS variables
   useEffect(() => {
