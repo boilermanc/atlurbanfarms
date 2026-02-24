@@ -121,16 +121,26 @@ const DetailRow: React.FC<{
   </div>
 )
 
-// Convert HTML to plain text for auto-generating text version
+// Convert HTML to clean plain text for auto-generating text version
 function htmlToPlainText(html: string): string {
   let text = html
-    // Replace <br> and block-level closing tags with newlines
+    // Remove style and script blocks entirely
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    // Remove HTML comments
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Replace <br> with newlines
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<\/(td|th)>/gi, '\t')
-    // Remove remaining tags
+    // Block-level elements get newlines
+    .replace(/<\/(p|div|tr|li|h[1-6]|table|section|article|header|footer)>/gi, '\n')
+    .replace(/<(p|div|tr|h[1-6]|table|section|article|header|footer)[\s>]/gi, '\n')
+    // List items get a dash prefix
+    .replace(/<li[\s>]/gi, '\n- ')
+    // Table cells get a space separator
+    .replace(/<\/(td|th)>/gi, ' ')
+    // Remove all remaining tags
     .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities
+    // Decode HTML entities
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -138,7 +148,12 @@ function htmlToPlainText(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ')
     .replace(/&copy;/g, '\u00a9')
-    // Collapse multiple blank lines
+    .replace(/&#\d+;/g, '')
+    // Clean up whitespace: collapse spaces/tabs on each line
+    .replace(/[ \t]+/g, ' ')
+    // Remove leading/trailing spaces on each line
+    .replace(/^ +| +$/gm, '')
+    // Collapse 3+ newlines into 2
     .replace(/\n{3,}/g, '\n\n')
     .trim()
   return text
