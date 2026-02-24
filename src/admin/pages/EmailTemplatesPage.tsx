@@ -142,7 +142,8 @@ const EmailTemplatesPage: React.FC = () => {
 
   const [editedSubject, setEditedSubject] = useState('')
   const [editedHtml, setEditedHtml] = useState('')
-  const [editorMode, setEditorMode] = useState<'html' | 'preview'>('html')
+  const [editedPlainText, setEditedPlainText] = useState('')
+  const [editorMode, setEditorMode] = useState<'html' | 'text' | 'preview'>('html')
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop')
   const [hasChanges, setHasChanges] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -168,6 +169,7 @@ const EmailTemplatesPage: React.FC = () => {
     if (selectedTemplate) {
       setEditedSubject(selectedTemplate.subject_line)
       setEditedHtml(selectedTemplate.html_content)
+      setEditedPlainText(selectedTemplate.plain_text_content || '')
       setHasChanges(false)
     }
   }, [selectedTemplate])
@@ -177,9 +179,10 @@ const EmailTemplatesPage: React.FC = () => {
     if (selectedTemplate) {
       const subjectChanged = editedSubject !== selectedTemplate.subject_line
       const htmlChanged = editedHtml !== selectedTemplate.html_content
-      setHasChanges(subjectChanged || htmlChanged)
+      const plainTextChanged = editedPlainText !== (selectedTemplate.plain_text_content || '')
+      setHasChanges(subjectChanged || htmlChanged || plainTextChanged)
     }
-  }, [editedSubject, editedHtml, selectedTemplate])
+  }, [editedSubject, editedHtml, editedPlainText, selectedTemplate])
 
   // Select first template on load
   useEffect(() => {
@@ -194,6 +197,7 @@ const EmailTemplatesPage: React.FC = () => {
     const result = await updateTemplate(selectedTemplate.id, {
       subject_line: editedSubject,
       html_content: editedHtml,
+      plain_text_content: editedPlainText || null,
     })
 
     if (result.success) {
@@ -480,6 +484,14 @@ const EmailTemplatesPage: React.FC = () => {
                       HTML
                     </button>
                     <button
+                      onClick={() => setEditorMode('text')}
+                      className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                        editorMode === 'text' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Text
+                    </button>
+                    <button
                       onClick={() => setEditorMode('preview')}
                       className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                         editorMode === 'preview' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
@@ -532,9 +544,9 @@ const EmailTemplatesPage: React.FC = () => {
                 />
               </div>
 
-              {/* Editor / Preview */}
+              {/* Editor / Text / Preview */}
               <div className="flex-1 min-h-0 overflow-hidden">
-                {editorMode === 'html' ? (
+                {editorMode === 'html' && (
                   <div className="h-full flex">
                     {/* HTML Editor */}
                     <div className="flex-1 flex flex-col">
@@ -576,8 +588,19 @@ const EmailTemplatesPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ) : (
-                  /* Preview mode */
+                )}
+                {editorMode === 'text' && (
+                  <div className="h-full flex flex-col">
+                    <textarea
+                      value={editedPlainText}
+                      onChange={(e) => setEditedPlainText(e.target.value)}
+                      className="flex-1 w-full p-4 bg-slate-50 text-slate-700 text-sm resize-none focus:outline-none"
+                      placeholder="Plain text version of this email (shown by email clients that don't support HTML)..."
+                      spellCheck={true}
+                    />
+                  </div>
+                )}
+                {editorMode === 'preview' && (
                   <div className="h-full overflow-y-auto p-6 bg-slate-100">
                     <DeviceFrame mode={previewMode}>
                       <iframe
