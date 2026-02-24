@@ -121,6 +121,29 @@ const DetailRow: React.FC<{
   </div>
 )
 
+// Convert HTML to plain text for auto-generating text version
+function htmlToPlainText(html: string): string {
+  let text = html
+    // Replace <br> and block-level closing tags with newlines
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<\/(td|th)>/gi, '\t')
+    // Remove remaining tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&copy;/g, '\u00a9')
+    // Collapse multiple blank lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return text
+}
+
 const EmailTemplatesPage: React.FC = () => {
   const { templates, loading: loadingTemplates, refetch: refetchTemplates } = useEmailTemplates()
   const { createTemplate, saving: creating } = useCreateEmailTemplate()
@@ -169,7 +192,9 @@ const EmailTemplatesPage: React.FC = () => {
     if (selectedTemplate) {
       setEditedSubject(selectedTemplate.subject_line)
       setEditedHtml(selectedTemplate.html_content)
-      setEditedPlainText(selectedTemplate.plain_text_content || '')
+      setEditedPlainText(
+        selectedTemplate.plain_text_content || htmlToPlainText(selectedTemplate.html_content)
+      )
       setHasChanges(false)
     }
   }, [selectedTemplate])
