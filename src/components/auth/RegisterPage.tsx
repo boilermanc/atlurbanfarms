@@ -20,6 +20,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingAccount, setExistingAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -49,6 +50,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setExistingAccount(false);
 
     const validationError = validateForm();
     if (validationError) {
@@ -73,6 +75,14 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
 
       if (signUpError) {
         throw signUpError;
+      }
+
+      // Supabase doesn't error on duplicate emails (to prevent enumeration).
+      // Instead it returns a user with an empty identities array.
+      if (data.user?.identities?.length === 0) {
+        setError(null);
+        setExistingAccount(true);
+        return;
       }
 
       // Update the customer record with name and newsletter preference
@@ -146,8 +156,28 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
           className="bg-white rounded-[2rem] p-8 shadow-xl shadow-gray-100/50 border border-gray-100"
         >
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Existing Account Notice */}
+            {existingAccount && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-4 bg-amber-50 border border-amber-200 rounded-xl"
+              >
+                <p className="text-sm text-amber-800 font-medium mb-2">
+                  An account with this email already exists.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('login')}
+                  className="text-sm text-emerald-600 font-semibold hover:text-emerald-700 transition-colors underline"
+                >
+                  Log in to your account
+                </button>
+              </motion.div>
+            )}
+
             {/* Error Message */}
-            {error && (
+            {error && !existingAccount && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

@@ -14,7 +14,7 @@ import {
   VariableSchema
 } from '../hooks/useEmailTemplates'
 import { useEmailService } from '../../hooks/useIntegrations'
-import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Plus } from 'lucide-react'
+import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Plus, ShoppingCart } from 'lucide-react'
 
 // Template icons mapping
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
@@ -29,14 +29,16 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   welcome: <UserPlus size={20} />,
   password_reset: <Key size={20} />,
   order_ready_pickup: <MapPin size={20} />,
+  abandoned_cart: <ShoppingCart size={20} />,
 }
 
 // Category labels and order
 const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; order: number }> = {
   shipping: { label: 'Shipping', icon: <Package size={16} />, order: 1 },
   orders: { label: 'Orders', icon: <Mail size={16} />, order: 2 },
-  account: { label: 'Account', icon: <UserPlus size={16} />, order: 3 },
-  general: { label: 'General', icon: <Mail size={16} />, order: 4 },
+  marketing: { label: 'Marketing', icon: <ShoppingCart size={16} />, order: 3 },
+  account: { label: 'Account', icon: <UserPlus size={16} />, order: 4 },
+  general: { label: 'General', icon: <Mail size={16} />, order: 5 },
 }
 
 // Template card component
