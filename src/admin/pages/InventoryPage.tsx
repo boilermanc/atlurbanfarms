@@ -24,7 +24,27 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
       setPrintReportLoading(true);
       setPrintReportError(null);
 
-      const { data: productsData, error: productsError } = await supabase
+      // Fetch Seedlings parent category and all its subcategories
+      const { data: seedlingsParent } = await supabase
+        .from('product_categories')
+        .select('id')
+        .eq('slug', 'seedlings')
+        .single();
+
+      let seedlingCategoryIds: string[] = [];
+      if (seedlingsParent) {
+        const { data: childCategories } = await supabase
+          .from('product_categories')
+          .select('id')
+          .eq('parent_id', seedlingsParent.id);
+
+        seedlingCategoryIds = [
+          seedlingsParent.id,
+          ...(childCategories || []).map((c: any) => c.id),
+        ];
+      }
+
+      let query = supabase
         .from('products')
         .select(`
           id,
@@ -34,8 +54,13 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
           quantity_available,
           category:product_categories(name)
         `)
-        .eq('is_active', true)
-        .order('name');
+        .eq('is_active', true);
+
+      if (seedlingCategoryIds.length > 0) {
+        query = query.in('category_id', seedlingCategoryIds);
+      }
+
+      const { data: productsData, error: productsError } = await query.order('name');
 
       if (productsError) throw productsError;
 
@@ -53,6 +78,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
 
       const productIds = mappedProducts.map((product) => product.id);
       const pendingMap = new Map<string, number>();
+      const alertCountMap = new Map<string, number>();
 
       if (productIds.length > 0) {
         const { data: pendingData, error: pendingError } = await supabase
@@ -68,6 +94,18 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
           const current = pendingMap.get(item.product_id) || 0;
           pendingMap.set(item.product_id, current + qty);
         });
+
+        // Fetch pending back-in-stock alert counts
+        const { data: alertData } = await supabase
+          .from('back_in_stock_alerts')
+          .select('product_id')
+          .eq('status', 'pending');
+
+        if (alertData) {
+          alertData.forEach((a: any) => {
+            alertCountMap.set(a.product_id, (alertCountMap.get(a.product_id) || 0) + 1);
+          });
+        }
       }
 
       const rows: InventoryReportRow[] = mappedProducts
@@ -79,6 +117,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
           salePrice: product.compare_at_price,
           pendingOrders: pendingMap.get(product.id) || 0,
           currentInventory: product.quantity_available,
+          alertCount: alertCountMap.get(product.id) || 0,
         }))
         .sort((a, b) => {
           const categoryCompare = a.category.localeCompare(b.category);

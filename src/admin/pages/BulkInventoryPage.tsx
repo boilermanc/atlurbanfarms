@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth } from '../hooks/useAdminAuth';
-import { Package, Save, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Package, Save, AlertCircle, CheckCircle, RefreshCw, Bell } from 'lucide-react';
 
 interface ProductInventory {
   id: string;
@@ -14,6 +14,7 @@ interface ProductInventory {
   low_stock_threshold: number;
   price: number | null;
   compare_at_price: number | null;
+  alert_count: number;
 }
 
 
@@ -31,6 +32,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   const [products, setProducts] = useState<ProductInventory[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<ProductInventory[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryHierarchy, setCategoryHierarchy] = useState<{ id: string; name: string; parent_id: string | null }[]>([]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
@@ -46,7 +48,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
   useEffect(() => {
     applyFilters();
-  }, [products, statusFilter, categoryFilter]);
+  }, [products, statusFilter, categoryFilter, categoryHierarchy]);
 
   const fetchProducts = async () => {
     try {
@@ -70,6 +72,19 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
       if (fetchError) throw fetchError;
 
+      // Fetch pending back-in-stock alert counts per product
+      const alertCountMap = new Map<string, number>();
+      const { data: alertData } = await supabase
+        .from('back_in_stock_alerts')
+        .select('product_id')
+        .eq('status', 'pending');
+
+      if (alertData) {
+        alertData.forEach((a: any) => {
+          alertCountMap.set(a.product_id, (alertCountMap.get(a.product_id) || 0) + 1);
+        });
+      }
+
       // Map data to flat structure
       const mappedProducts: ProductInventory[] = (data || []).map((p: any) => ({
         id: p.id,
@@ -81,6 +96,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         category_name: p.category?.name || 'Uncategorized',
         price: p.price,
         compare_at_price: p.compare_at_price,
+        alert_count: alertCountMap.get(p.id) || 0,
       }));
 
       // Sort by category name, then product name
@@ -96,6 +112,13 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         new Set(mappedProducts.map((p) => p.category_name))
       ).sort();
       setCategories(uniqueCategories);
+
+      // Fetch category hierarchy for parent-child filter support
+      const { data: catHierarchy } = await supabase
+        .from('product_categories')
+        .select('id, name, parent_id')
+        .eq('is_active', true);
+      setCategoryHierarchy(catHierarchy || []);
     } catch (err: any) {
       console.error('Error fetching products:', err);
       setError('Failed to load products');
@@ -114,9 +137,18 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       filtered = filtered.filter((p) => !p.is_active);
     }
 
-    // Apply category filter
+    // Apply category filter (include child categories when a parent is selected)
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter((p) => p.category_name === categoryFilter);
+      const selectedCat = categoryHierarchy.find((c) => c.name === categoryFilter);
+      if (selectedCat) {
+        const childNames = categoryHierarchy
+          .filter((c) => c.parent_id === selectedCat.id)
+          .map((c) => c.name);
+        const matchNames = new Set([categoryFilter, ...childNames]);
+        filtered = filtered.filter((p) => matchNames.has(p.category_name));
+      } else {
+        filtered = filtered.filter((p) => p.category_name === categoryFilter);
+      }
     }
 
     setFilteredProducts(filtered);
@@ -424,7 +456,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                         }`}
                       >
                         <td className="px-6 py-4">
-                          <div>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => onEditProduct?.(product.id)}
@@ -433,7 +465,16 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                               {product.name}
                             </button>
                             {!product.is_active && (
-                              <span className="text-xs text-slate-400 italic ml-2">Inactive</span>
+                              <span className="text-xs text-slate-400 italic">Inactive</span>
+                            )}
+                            {product.alert_count > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"
+                                title={`${product.alert_count} customer${product.alert_count !== 1 ? 's' : ''} waiting for back-in-stock notification`}
+                              >
+                                <Bell size={12} />
+                                {product.alert_count} waiting
+                              </span>
                             )}
                           </div>
                         </td>

@@ -73,6 +73,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [showExcludedCategorySelector, setShowExcludedCategorySelector] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
   const [showCustomerSelector, setShowCustomerSelector] = useState(false);
@@ -141,6 +142,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
         is_active: promotion.is_active,
         product_ids: promotion.products?.map((p) => p.id) || [],
         category_ids: promotion.categories?.map((c) => c.id) || [],
+        excluded_category_ids: promotion.excluded_categories?.map((c) => c.id) || [],
         customer_ids: promotion.customers?.filter((c) => c.id).map((c) => c.id!) || [],
         customer_emails: promotion.customers?.filter((c) => !c.id && c.email).map((c) => c.email) || [],
       });
@@ -284,6 +286,23 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
     }));
   };
 
+  const addExcludedCategory = (categoryId: string) => {
+    if (!formData.excluded_category_ids.includes(categoryId)) {
+      setFormData((prev) => ({
+        ...prev,
+        excluded_category_ids: [...prev.excluded_category_ids, categoryId],
+      }));
+    }
+    setShowExcludedCategorySelector(false);
+  };
+
+  const removeExcludedCategory = (categoryId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      excluded_category_ids: prev.excluded_category_ids.filter((id) => id !== categoryId),
+    }));
+  };
+
   // Customer search with debounce
   useEffect(() => {
     if (customerSearch.length < 2) {
@@ -368,6 +387,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
 
   const selectedProducts = products.filter((p) => formData.product_ids.includes(p.id));
   const selectedCategories = categories.filter((c) => formData.category_ids.includes(c.id));
+  const selectedExcludedCategories = categories.filter((c) => formData.excluded_category_ids.includes(c.id));
 
   if (isEditMode && loadingPromotion) {
     return (
@@ -979,6 +999,60 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
               )}
             </div>
           )}
+
+          {/* Exclude Categories (available for all scopes) */}
+          <div className="border-t border-slate-100 pt-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Exclude Categories
+            </label>
+            <p className="text-xs text-slate-400 mb-2">
+              Products in these categories will not receive this discount, even if otherwise eligible.
+            </p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {selectedExcludedCategories.map((cat) => (
+                <span
+                  key={cat.id}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium"
+                >
+                  <FolderTree size={14} />
+                  {cat.name}
+                  <button
+                    type="button"
+                    onClick={() => removeExcludedCategory(cat.id)}
+                    className="ml-1 hover:text-red-900"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowExcludedCategorySelector(!showExcludedCategorySelector)}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                <Plus size={16} />
+                Exclude Category
+              </button>
+              {showExcludedCategorySelector && (
+                <div className="absolute z-10 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg py-2 max-h-64 overflow-y-auto">
+                  {categories
+                    .filter((c) => !formData.excluded_category_ids.includes(c.id))
+                    .map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => addExcludedCategory(cat.id)}
+                        className="w-full px-4 py-2 text-left hover:bg-slate-50 text-sm"
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Activation & Conditions */}

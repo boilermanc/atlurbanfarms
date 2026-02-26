@@ -10,9 +10,12 @@ interface RegisterPageProps {
 
 const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) => {
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
+    newsletterSubscribed: true,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,11 +26,17 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const validateForm = (): string | null => {
+    if (!formData.firstName.trim()) {
+      return 'First name is required.';
+    }
+    if (!formData.lastName.trim()) {
+      return 'Last name is required.';
+    }
     if (formData.password.length < 8) {
       return 'Password must be at least 8 characters long.';
     }
@@ -50,13 +59,34 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
     setIsLoading(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            newsletter_subscribed: formData.newsletterSubscribed,
+          },
+        },
       });
 
       if (signUpError) {
         throw signUpError;
+      }
+
+      // Update the customer record with name and newsletter preference
+      // The handle_new_user trigger creates the record with id + email;
+      // we patch in the remaining fields here.
+      if (data.user) {
+        await supabase
+          .from('customers')
+          .update({
+            first_name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            newsletter_subscribed: formData.newsletterSubscribed,
+          })
+          .eq('id', data.user.id);
       }
 
       onSuccess();
@@ -126,6 +156,38 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
                 <p className="text-sm text-red-600 font-medium">{error}</p>
               </motion.div>
             )}
+
+            {/* Name Fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  placeholder="First name"
+                  required
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  placeholder="Last name"
+                  required
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                />
+              </div>
+            </div>
 
             {/* Email */}
             <div className="space-y-2">
@@ -219,6 +281,20 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
                 </p>
               )}
             </div>
+
+            {/* Newsletter Checkbox */}
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                name="newsletterSubscribed"
+                checked={formData.newsletterSubscribed}
+                onChange={handleInputChange}
+                className="mt-1 w-5 h-5 rounded-md border-gray-300 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer"
+              />
+              <span className="text-sm text-gray-500 group-hover:text-gray-700 transition-colors">
+                Send me growing tips, new arrivals, and exclusive offers. You can unsubscribe anytime.
+              </span>
+            </label>
 
             {/* Submit Button */}
             <button

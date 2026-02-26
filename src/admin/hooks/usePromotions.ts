@@ -34,6 +34,7 @@ export function usePromotions(filters: PromotionFilters = {}) {
           *,
           promotion_products(product_id, products(id, name)),
           promotion_categories(category_id, product_categories(id, name)),
+          promotion_excluded_categories(category_id, product_categories(id, name)),
           promotion_customers(customer_id, customer_email, customers(id, first_name, last_name, email))
         `,
           { count: 'exact' }
@@ -90,6 +91,8 @@ export function usePromotions(filters: PromotionFilters = {}) {
         products: p.promotion_products?.map((pp: any) => pp.products).filter(Boolean) || [],
         categories:
           p.promotion_categories?.map((pc: any) => pc.product_categories).filter(Boolean) || [],
+        excluded_categories:
+          p.promotion_excluded_categories?.map((pec: any) => pec.product_categories).filter(Boolean) || [],
         customers:
           p.promotion_customers
             ?.map((pc: any) => ({
@@ -153,6 +156,7 @@ export function usePromotion(promotionId: string | null) {
           *,
           promotion_products(product_id, products(id, name)),
           promotion_categories(category_id, product_categories(id, name)),
+          promotion_excluded_categories(category_id, product_categories(id, name)),
           promotion_customers(customer_id, customer_email, customers(id, first_name, last_name, email))
         `
         )
@@ -166,6 +170,8 @@ export function usePromotion(promotionId: string | null) {
         products: data.promotion_products?.map((pp: any) => pp.products).filter(Boolean) || [],
         categories:
           data.promotion_categories?.map((pc: any) => pc.product_categories).filter(Boolean) || [],
+        excluded_categories:
+          data.promotion_excluded_categories?.map((pec: any) => pec.product_categories).filter(Boolean) || [],
         customers:
           data.promotion_customers
             ?.map((pc: any) => ({
@@ -291,6 +297,19 @@ export function useSavePromotion() {
             );
             if (categoriesError)
               console.error('Error saving promotion categories:', categoriesError);
+          }
+
+          // Update promotion_excluded_categories
+          await supabase.from('promotion_excluded_categories').delete().eq('promotion_id', savedPromotionId);
+          if (formData.excluded_category_ids.length > 0) {
+            const { error: excludedCategoriesError } = await supabase.from('promotion_excluded_categories').insert(
+              formData.excluded_category_ids.map((categoryId) => ({
+                promotion_id: savedPromotionId,
+                category_id: categoryId,
+              }))
+            );
+            if (excludedCategoriesError)
+              console.error('Error saving excluded categories:', excludedCategoriesError);
           }
 
           // Update promotion_customers

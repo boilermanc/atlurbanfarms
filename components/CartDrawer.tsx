@@ -212,7 +212,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                         onClick={() => setPromoExpanded(!promoExpanded)}
                         className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors flex items-center gap-1"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
                           <line x1="7" x2="7.01" y1="7" y2="7"/>
                         </svg>
@@ -291,7 +291,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                   Checkout Now
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" x2="15" y1="12" y2="12"/><polyline points="12 19 19 12 12 5"/></svg>
                 </button>
-                <p className="text-[10px] text-gray-400 text-center font-medium">
+                <p className="text-sm text-gray-400 text-center font-medium">
                   {customerShippingMessage || 'We ship Mon\u2013Wed to keep plants fresh 🌿'}
                 </p>
               </div>

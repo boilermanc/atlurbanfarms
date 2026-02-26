@@ -677,6 +677,18 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                         {pickupInfo.locationName}<br />
                         {pickupInfo.address}
                       </p>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pickupInfo.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 mt-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Get Directions
+                      </a>
                       {pickupInfo.instructions && (
                         <p className="text-xs text-gray-500 mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
                           <span className="font-bold text-gray-600">Instructions: </span>

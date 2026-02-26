@@ -753,6 +753,8 @@ const SettingsPage: React.FC = () => {
                   { key: 'social_twitter', label: 'Twitter/X', placeholder: 'https://twitter.com/yourpage' },
                   { key: 'social_tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@yourpage' },
                   { key: 'social_youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourchannel' },
+                  { key: 'social_pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourpage' },
+                  { key: 'social_linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourpage' },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key} className="space-y-1">
                     <label className="block text-xs font-medium text-slate-600">{label}</label>

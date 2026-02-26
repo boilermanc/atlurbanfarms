@@ -45,7 +45,7 @@ serve(async (req) => {
     // Look up subscriber by confirmation token hash
     const { data: subscriber, error: lookupError } = await supabaseAdmin
       .from('newsletter_subscribers')
-      .select('id, email, first_name, status, source, tags, customer_id, confirmation_token_expires_at')
+      .select('id, email, first_name, status, source, customer_id, confirmation_token_expires_at')
       .eq('confirmation_token_hash', tokenHash)
       .maybeSingle();
 
@@ -113,7 +113,7 @@ serve(async (req) => {
     });
 
     // If this was a lead magnet signup, send the lead magnet email now
-    if (subscriber.source === 'lead_magnet' && subscriber.tags?.includes('tower_garden_guide_2026')) {
+    if (subscriber.source === 'lead_magnet') {
       try {
         await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: 'POST',

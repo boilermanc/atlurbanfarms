@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
+import RichTextEditor from '../components/RichTextEditor';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Eye, Save, FileText, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Check, AlertCircle } from 'lucide-react';
 
 interface ContentPage {
   id: string;
@@ -24,7 +25,6 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, on
   const [page, setPage] = useState<ContentPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -132,26 +132,6 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, on
     });
   };
 
-  // Simple markdown to HTML converter
-  const renderMarkdown = (text: string) => {
-    let html = text
-      // Headers
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-slate-800 mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-slate-800 mt-6 mb-3">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-slate-800 mt-6 mb-4">$1</h1>')
-      // Bold and Italic
-      .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Links
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-emerald-600 hover:underline" target="_blank">$1</a>')
-      // Line breaks
-      .replace(/\n\n/g, '</p><p class="text-slate-600 mb-4">')
-      .replace(/\n/g, '<br/>');
-
-    return `<p class="text-slate-600 mb-4">${html}</p>`;
-  };
-
   if (loading) {
     return (
       <AdminPageWrapper>
@@ -208,17 +188,6 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, on
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowPreview(!showPreview)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
-                showPreview
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Eye size={18} />
-              {showPreview ? 'Edit' : 'Preview'}
-            </button>
-            <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
               className="flex items-center gap-2 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -255,28 +224,14 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, on
 
           {/* Content */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-700">
-                Content
-              </label>
-              <span className="text-xs text-slate-400">Supports Markdown</span>
-            </div>
-
-            {showPreview ? (
-              <div className="bg-slate-50 rounded-xl p-6 min-h-[400px] prose max-w-none">
-                <div
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(formData.content) }}
-                />
-              </div>
-            ) : (
-              <textarea
-                value={formData.content}
-                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                rows={20}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-sm resize-none"
-                placeholder="Enter page content using Markdown..."
-              />
-            )}
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Content
+            </label>
+            <RichTextEditor
+              value={formData.content}
+              onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+              placeholder="Enter page content..."
+            />
           </div>
 
           {/* Settings */}
@@ -320,36 +275,6 @@ const ContentEditPage: React.FC<ContentEditPageProps> = ({ contentId, onBack, on
             </div>
           </div>
 
-          {/* Markdown Help */}
-          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200/60">
-            <h4 className="text-sm font-semibold text-slate-800 mb-3">Markdown Reference</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded"># Heading 1</code>
-                <p className="text-slate-500 mt-1">Large heading</p>
-              </div>
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded">## Heading 2</code>
-                <p className="text-slate-500 mt-1">Medium heading</p>
-              </div>
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded">**bold**</code>
-                <p className="text-slate-500 mt-1">Bold text</p>
-              </div>
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded">*italic*</code>
-                <p className="text-slate-500 mt-1">Italic text</p>
-              </div>
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded">[text](url)</code>
-                <p className="text-slate-500 mt-1">Link</p>
-              </div>
-              <div>
-                <code className="text-emerald-600 bg-white px-2 py-1 rounded">Blank line</code>
-                <p className="text-slate-500 mt-1">New paragraph</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Toast notifications */}

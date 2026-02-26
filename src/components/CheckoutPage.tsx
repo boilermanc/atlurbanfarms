@@ -2369,7 +2369,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </div>
                 )}
 
-                <p className="text-[10px] text-gray-400 italic bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-400 italic bg-gray-50 p-4 rounded-xl border border-gray-100">
                   {customerShippingMessage || SHIPPING_NOTICE}
                 </p>
               </motion.section>

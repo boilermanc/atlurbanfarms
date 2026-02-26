@@ -788,7 +788,7 @@ const IntegrationsPage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       const result = await sendEmail({
-        to: 'team@sproutify.app',
+        to: 'orders@atlurbanfarms.com',
         subject: `Integration Issue Report: ${lastError.integration}`,
         html: `
           <h2>Integration Issue Report</h2>

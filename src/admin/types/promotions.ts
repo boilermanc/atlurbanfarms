@@ -71,6 +71,7 @@ export interface Promotion {
   // Relations (populated on fetch)
   products?: Array<{ id: string; name: string }>;
   categories?: Array<{ id: string; name: string }>;
+  excluded_categories?: Array<{ id: string; name: string }>;
   customers?: Array<{ id: string | null; email: string; name: string | null }>;
 }
 
@@ -127,6 +128,7 @@ export interface PromotionFormData {
   // Related entities (IDs)
   product_ids: string[];
   category_ids: string[];
+  excluded_category_ids: string[];
   customer_ids: string[];
   customer_emails: string[];
 }
@@ -367,6 +369,7 @@ export const DEFAULT_PROMOTION_FORM: PromotionFormData = {
   is_active: true,
   product_ids: [],
   category_ids: [],
+  excluded_category_ids: [],
   customer_ids: [],
   customer_emails: [],
 };

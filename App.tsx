@@ -622,9 +622,8 @@ const App: React.FC = () => {
           <RegisterPage
             onNavigate={handleNavigate}
             onSuccess={() => {
-              // Check if user has seen welcome page before
-              const hasSeenWelcome = localStorage.getItem('atluf_welcome_seen') === 'true';
-              handleNavigate(hasSeenWelcome ? 'shop' : 'welcome');
+              // Always show welcome page after new signup
+              handleNavigate('welcome');
             }}
           />
         );

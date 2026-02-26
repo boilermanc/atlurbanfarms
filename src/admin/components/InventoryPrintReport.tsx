@@ -9,6 +9,7 @@ export interface InventoryReportRow {
   salePrice: number | null;
   pendingOrders: number;
   currentInventory: number;
+  alertCount: number;
 }
 
 interface InventoryPrintReportProps {
@@ -131,6 +132,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                   <th>Regular Price</th>
                   <th>Sale Price</th>
                   <th>Pending Orders</th>
+                  <th>Waiting</th>
                   <th>Current Inventory</th>
                   <th>Counted</th>
                 </tr>
@@ -153,6 +155,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                       <td>{formatCurrency(row.price)}</td>
                       <td>{formatCurrency(row.salePrice)}</td>
                       <td className="numeric-cell">{row.pendingOrders || 0}</td>
+                      <td className="numeric-cell">{row.alertCount > 0 ? row.alertCount : ''}</td>
                       <td className="numeric-cell">{row.currentInventory}</td>
                       <td className="counted-cell" aria-label="Counted blanks">
                         <div className="counted-box" />
@@ -169,6 +172,9 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                   <td></td>
                   <td className="numeric-cell">
                     {rows.reduce((sum, r) => sum + (r.pendingOrders || 0), 0)}
+                  </td>
+                  <td className="numeric-cell">
+                    {rows.reduce((sum, r) => sum + r.alertCount, 0) || ''}
                   </td>
                   <td className="numeric-cell">
                     {rows.reduce((sum, r) => sum + r.currentInventory, 0)}

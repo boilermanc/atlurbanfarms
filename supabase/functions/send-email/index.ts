@@ -84,9 +84,9 @@ const fallbackTemplates: Record<string, (data: any, brand: Record<string, string
             <p>We've received your order and are getting it ready!</p>
             ${data.items ? formatOrderItems(data.items) : ''}
             ${generateDeliveryInfoHtml(data)}
-            <p style="margin-top: 30px; color: #6b7280; font-size: 0.875rem;">
+            ${!data.pickupInfo ? `<p style="margin-top: 30px; color: #6b7280; font-size: 0.875rem;">
               Remember: We ship live plants Monday through Wednesday only to ensure they arrive fresh!
-            </p>
+            </p>` : ''}
             ${data.siteUrl ? `<p style="text-align: center; margin-top: 30px;"><a href="${data.siteUrl}/account/orders" class="btn">View Invoice</a></p>` : ''}
           </div>
           <div class="footer">
@@ -686,9 +686,15 @@ serve(async (req) => {
             .eq('key', 'customer_shipping_message')
             .maybeSingle()
 
-          allVariables.shipping_note = shippingNote?.value
-            || allVariables.shipping_note
-            || 'We ship live plants Monday through Wednesday only to ensure they arrive fresh and healthy!'
+          // Only show shipping note for non-pickup orders
+          const isPickupOrder = !!(templateData && templateData.pickupInfo)
+          if (!isPickupOrder) {
+            allVariables.shipping_note = shippingNote?.value
+              || allVariables.shipping_note
+              || 'We ship live plants Monday through Wednesday only to ensure they arrive fresh and healthy!'
+          } else {
+            allVariables.shipping_note = ''
+          }
 
           // Generate header content — use logo image if available, otherwise text
           if (allVariables.logo_url) {

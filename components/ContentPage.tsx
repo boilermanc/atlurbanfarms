@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { supabase } from '../src/lib/supabase';
 
 interface ContentPageData {
@@ -14,29 +15,6 @@ interface ContentPageProps {
   slug: string;
   onBack: () => void;
 }
-
-// Simple markdown to HTML converter (matches admin preview)
-const renderMarkdown = (text: string): string => {
-  let html = text
-    // Headers
-    .replace(/^### (.*$)/gm, '<h3 class="text-xl font-semibold text-gray-800 mt-6 mb-3">$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-bold text-gray-800 mt-8 mb-4">$1</h2>')
-    .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold text-gray-900 mt-8 mb-6">$1</h1>')
-    // Bold and Italic
-    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // Lists (unordered)
-    .replace(/^- (.*$)/gm, '<li class="ml-4 text-gray-600">$1</li>')
-    // Links
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-emerald-600 hover:text-emerald-700 underline" target="_blank" rel="noopener noreferrer">$1</a>')
-    // Line breaks
-    .replace(/\n\n/g, '</p><p class="text-gray-600 mb-4 leading-relaxed">')
-    .replace(/\n/g, '<br/>');
-
-  // Wrap in paragraph
-  return `<div class="prose max-w-none"><p class="text-gray-600 mb-4 leading-relaxed">${html}</p></div>`;
-};
 
 const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
   const [page, setPage] = useState<ContentPageData | null>(null);
@@ -143,8 +121,11 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
 
         {/* Content */}
         <div
-          className="content-page"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(page.content) }}
+          className="content-page prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-600 prose-a:text-emerald-600 hover:prose-a:text-emerald-700 prose-img:rounded-xl"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.content, {
+            ADD_TAGS: ['iframe'],
+            ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'target', 'rel'],
+          }) }}
         />
       </div>
     </div>
