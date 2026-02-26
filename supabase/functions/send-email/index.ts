@@ -612,6 +612,21 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Fetch shared email header and footer from brand settings
+    const { data: brandRows } = await supabaseClient
+      .from('email_brand_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['email_header', 'email_footer'])
+
+    let emailHeader = ''
+    let emailFooter = ''
+    if (brandRows) {
+      for (const row of brandRows) {
+        if (row.setting_key === 'email_header') emailHeader = row.setting_value || ''
+        if (row.setting_key === 'email_footer') emailFooter = row.setting_value || ''
+      }
+    }
+
     // Get SMTP settings from database
     const settings = await getIntegrationSettings(supabaseClient, [
       'smtp_enabled',
@@ -745,6 +760,12 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
+    }
+
+    // Wrap html with shared header/footer if available
+    // Skip if header is empty or content is already a full HTML document (e.g. fallback templates)
+    if (emailHtml && emailHeader && !emailHtml.includes('<!DOCTYPE')) {
+      emailHtml = emailHeader + emailHtml + emailFooter
     }
 
     // Prepare email recipients
