@@ -28,6 +28,7 @@ import {
   Newspaper,
   Sprout,
   Heart,
+  FileSpreadsheet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -69,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'calendar', label: 'Events Calendar', icon: Calendar },
       { id: 'shipping', label: 'Shipping', icon: Truck },
       { id: 'fulfillment', label: 'Fulfillment', icon: Package },
+      { id: 'weekly-sales-report', label: 'Weekly Sales Report', icon: FileSpreadsheet },
     ],
   },
   {

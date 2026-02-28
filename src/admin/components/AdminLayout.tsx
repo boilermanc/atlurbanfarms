@@ -65,6 +65,7 @@ const BlogListPage = lazy(() => import('../pages/BlogListPage'));
 const BlogEditPage = lazy(() => import('../pages/BlogEditPage'));
 const GrowingSystemsPage = lazy(() => import('../pages/GrowingSystemsPage'));
 const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'));
+const WeeklySalesReportPage = lazy(() => import('../pages/WeeklySalesReportPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -122,6 +123,7 @@ const PAGE_TITLES: Record<string, string> = {
   'blog-edit': 'Edit Blog Post',
   'growing-systems': 'Growing Systems',
   'growing-interests': 'Growing Interests',
+  'weekly-sales-report': 'Weekly Sales Report',
 };
 
 // Dashboard Stats Interface
@@ -798,6 +800,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <ShippingPage />;
       case 'fulfillment':
         return <FulfillmentPage onViewOrder={handleViewOrder} />;
+      case 'weekly-sales-report':
+        return <WeeklySalesReportPage />;
       case 'zones':
         return <ShippingZonesPage />;
       case 'calendar':
