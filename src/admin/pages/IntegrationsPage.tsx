@@ -11,6 +11,7 @@ import {
   Leaf,
   Bot,
   Truck,
+  Gift,
   Eye,
   EyeOff,
   ChevronDown,
@@ -23,6 +24,8 @@ import {
   ExternalLink,
   Send,
   Copy,
+  Info,
+  Code,
 } from 'lucide-react';
 
 type IntegrationStatus = 'connected' | 'disconnected' | 'error';
@@ -382,6 +385,7 @@ const IntegrationsPage: React.FC = () => {
     trellis: false,
     gemini: false,
     ups: false,
+    giftup: false,
   });
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
@@ -408,6 +412,20 @@ const IntegrationsPage: React.FC = () => {
   const [upsLoading, setUpsLoading] = useState(true);
   const [upsSaving, setUpsSaving] = useState(false);
   const [upsTestResult, setUpsTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Gift Up-specific state (stored in config_settings with category='giftup')
+  const [giftupSettings, setGiftupSettings] = useState({
+    enabled: false,
+    test_mode: false,
+    site_id: '',
+  });
+  const [giftupSaving, setGiftupSaving] = useState(false);
+  const [giftupTestResult, setGiftupTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [giftupTestCode, setGiftupTestCode] = useState('');
+  const [giftupCodeResult, setGiftupCodeResult] = useState<any>(null);
+  const [giftupTestingCode, setGiftupTestingCode] = useState(false);
+  const [giftupShowRaw, setGiftupShowRaw] = useState(false);
+  const [giftupConnected, setGiftupConnected] = useState(false);
 
   // Derived: active ShipEngine key based on mode
   const activeShipEngineKey = formData.shipengine_mode === 'production'
@@ -570,6 +588,101 @@ const IntegrationsPage: React.FC = () => {
       setTestingConnection(null);
     }
   }, [upsConfig]);
+
+  // Load Gift Up config from config_settings (category='giftup')
+  useEffect(() => {
+    const giftupData = settings.giftup || {};
+    setGiftupSettings({
+      enabled: giftupData.enabled ?? false,
+      test_mode: giftupData.test_mode ?? false,
+      site_id: giftupData.site_id ?? '',
+    });
+  }, [settings]);
+
+  const updateGiftupField = useCallback((key: keyof typeof giftupSettings, value: any) => {
+    setGiftupSettings(prev => ({ ...prev, [key]: value }));
+    setSaveMessage(null);
+  }, []);
+
+  const saveGiftupConfig = useCallback(async () => {
+    setGiftupSaving(true);
+    try {
+      const success = await bulkUpdate('giftup', {
+        enabled: { value: giftupSettings.enabled, dataType: 'boolean' },
+        test_mode: { value: giftupSettings.test_mode, dataType: 'boolean' },
+        site_id: { value: giftupSettings.site_id, dataType: 'string' },
+      });
+
+      if (success) {
+        setSaveMessage('Gift Up settings saved!');
+        setTimeout(() => setSaveMessage(null), 3000);
+        refetch();
+      } else {
+        setSaveMessage('Failed to save Gift Up settings.');
+        setTimeout(() => setSaveMessage(null), 5000);
+      }
+    } catch (err: any) {
+      console.error('Error saving Gift Up config:', err);
+      setSaveMessage(`Failed to save Gift Up config: ${err.message}`);
+    } finally {
+      setGiftupSaving(false);
+    }
+  }, [giftupSettings, bulkUpdate, refetch]);
+
+  const testGiftupConnection = useCallback(async () => {
+    setTestingConnection('GiftUp');
+    setGiftupTestResult(null);
+
+    try {
+      const response = await fetch(
+        'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/giftup-validate?action=ping'
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        const companyName = data.company?.name || 'Gift Up';
+        setGiftupTestResult({ success: true, message: `Connected — ${companyName}` });
+        setGiftupConnected(true);
+        setTestModal({ integration: 'Gift Up', success: true, message: `Connected — ${companyName}`, details: data });
+      } else {
+        const msg = data.error?.message || 'Connection failed';
+        setGiftupTestResult({ success: false, message: msg });
+        setTestModal({ integration: 'Gift Up', success: false, message: msg, details: data });
+      }
+
+      setTimeout(() => setGiftupTestResult(null), 8000);
+    } catch (err: any) {
+      const msg = err.message || 'Connection test failed';
+      setGiftupTestResult({ success: false, message: msg });
+      setTestModal({ integration: 'Gift Up', success: false, message: msg });
+    } finally {
+      setTestingConnection(null);
+    }
+  }, []);
+
+  const testGiftupCode = useCallback(async () => {
+    if (!giftupTestCode.trim()) return;
+    setGiftupTestingCode(true);
+    setGiftupCodeResult(null);
+    setGiftupShowRaw(false);
+
+    try {
+      const response = await fetch(
+        'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/giftup-validate',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: giftupTestCode.trim(), testMode: giftupSettings.test_mode }),
+        }
+      );
+      const data = await response.json();
+      setGiftupCodeResult(data);
+    } catch (err: any) {
+      setGiftupCodeResult({ success: false, error: { code: 'FETCH_ERROR', message: err.message } });
+    } finally {
+      setGiftupTestingCode(false);
+    }
+  }, [giftupTestCode, giftupSettings.test_mode]);
 
   const updateField = useCallback((key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -873,6 +986,13 @@ const IntegrationsPage: React.FC = () => {
       !!(upsConfig.client_id && upsConfig.client_secret && upsConfig.account_number)
     );
 
+    // Gift Up — stored in config_settings category='giftup'
+    const giftupStatus: IntegrationStatus = giftupConnected
+      ? 'connected'
+      : giftupSettings.site_id
+        ? 'connected' // "Configured" mapped to connected for health status
+        : 'disconnected';
+
     return {
       stripe: {
         status: getHealthStatus(stripeStatus),
@@ -924,6 +1044,13 @@ const IntegrationsPage: React.FC = () => {
               { label: 'Account', value: upsConfig.account_number ? `...${upsConfig.account_number.slice(-4)}` : 'Not set' },
             ]
           : [],
+      },
+      giftup: {
+        status: giftupConnected ? 'healthy' : giftupSettings.site_id ? 'healthy' : 'warning',
+        label: giftupConnected ? 'Connected' : giftupSettings.site_id ? 'Configured' : 'Not Configured',
+        metrics: [
+          { label: 'Mode', value: giftupSettings.test_mode ? 'Test Mode' : 'Live Mode' },
+        ],
       },
     };
   };
@@ -1030,6 +1157,13 @@ const IntegrationsPage: React.FC = () => {
             icon={<Truck size={24} />}
             health={health.ups}
             onClick={() => scrollToSection('ups')}
+          />
+          <HealthCard
+            title="Gift Up"
+            icon={<Gift size={24} />}
+            health={health.giftup}
+            onClick={() => scrollToSection('giftup')}
+            mode={giftupSettings.enabled ? (giftupSettings.test_mode ? 'test' : 'live') : undefined}
           />
         </div>
 
@@ -1916,6 +2050,290 @@ const IntegrationsPage: React.FC = () => {
                     className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
                   >
                     UPS Developer Portal
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </IntegrationSection>
+
+          {/* GIFT UP Section */}
+          <IntegrationSection
+            id="giftup"
+            title="Gift Up"
+            icon={<Gift size={24} />}
+            expanded={expandedSections.giftup}
+            onToggle={() => toggleSection('giftup')}
+            health={health.giftup}
+          >
+            <div className="space-y-6">
+              {/* Description */}
+              <div className="flex items-start gap-3">
+                <p className="text-sm text-slate-500">
+                  Gift card sales and redemption — customers purchase branded gift cards via the Gift Up hosted checkout widget. Codes are redeemed at checkout via the Gift Up API.
+                </p>
+                {giftupSettings.test_mode && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500 text-white shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    Test Mode
+                  </span>
+                )}
+              </div>
+
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="text-slate-800 font-medium">Accept Gift Up codes at checkout</h4>
+                  <p className="text-sm text-slate-500">Adds a gift card code field to the checkout payment step</p>
+                </div>
+                <button
+                  onClick={() => updateGiftupField('enabled', !giftupSettings.enabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    giftupSettings.enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      giftupSettings.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Site ID */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">Site ID</label>
+                <input
+                  type="text"
+                  value={giftupSettings.site_id}
+                  onChange={(e) => updateGiftupField('site_id', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  placeholder="e.g. a1b2c3d4-..."
+                />
+                <p className="text-xs text-slate-500">Found in Gift Up Dashboard → Settings. Used to embed the widget on the gift cards page.</p>
+              </div>
+
+              {/* API Key — read-only info box */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-600">API Key</label>
+                <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
+                  <p className="text-sm text-blue-700">
+                    API key is stored as a Supabase secret (<code className="font-mono text-xs bg-blue-100 px-1 py-0.5 rounded">GIFTUP_API_KEY</code>) and cannot be edited here. To update it, go to Supabase Dashboard → Edge Functions → Manage secrets.
+                  </p>
+                </div>
+              </div>
+
+              {/* Test Mode Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <h4 className="text-slate-800 font-medium">Test Mode</h4>
+                  <p className="text-sm text-slate-500">Sends x-giftup-testmode: true on all Gift Up API calls. Safe for development — no real gift cards are affected.</p>
+                </div>
+                <button
+                  onClick={() => updateGiftupField('test_mode', !giftupSettings.test_mode)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    giftupSettings.test_mode ? 'bg-orange-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      giftupSettings.test_mode ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Test Connection Result */}
+              <AnimatePresence>
+                {giftupTestResult && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={`p-4 rounded-xl border ${
+                      giftupTestResult.success
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {giftupTestResult.success ? (
+                        <CheckCircle size={20} className="text-emerald-600" />
+                      ) : (
+                        <AlertCircle size={20} className="text-red-600" />
+                      )}
+                      <span className={giftupTestResult.success ? 'text-emerald-700' : 'text-red-700'}>
+                        {giftupTestResult.message}
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Test Connection & Save Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={testGiftupConnection}
+                  disabled={testingConnection === 'GiftUp'}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {testingConnection === 'GiftUp' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                      Testing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Test Connection
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={saveGiftupConfig}
+                  disabled={giftupSaving}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {giftupSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      Save Gift Up Config
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Test a Gift Card Code */}
+              <div className="border-t border-slate-200 pt-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Code size={18} className="text-slate-500" />
+                  <h4 className="text-sm font-medium text-slate-700">Test a Gift Card Code</h4>
+                </div>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={giftupTestCode}
+                    onChange={(e) => setGiftupTestCode(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono uppercase"
+                    placeholder="Enter a gift card code"
+                    onKeyDown={(e) => e.key === 'Enter' && testGiftupCode()}
+                  />
+                  <button
+                    onClick={testGiftupCode}
+                    disabled={giftupTestingCode || !giftupTestCode.trim()}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {giftupTestingCode ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                        Validating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} />
+                        Validate
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Code Validation Result */}
+                <AnimatePresence>
+                  {giftupCodeResult && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <div className={`p-4 rounded-xl border ${
+                        giftupCodeResult.valid
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {giftupCodeResult.valid ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Valid
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              {giftupCodeResult.error?.code === 'NOT_FOUND' ? 'Not Found' : 'Invalid'}
+                            </span>
+                          )}
+                        </div>
+
+                        {giftupCodeResult.valid ? (
+                          <div className="space-y-1 text-sm">
+                            {giftupCodeResult.title && (
+                              <p className="text-slate-700"><span className="text-slate-500">Title:</span> {giftupCodeResult.title}</p>
+                            )}
+                            <p className="text-slate-700">
+                              <span className="text-slate-500">Balance:</span>{' '}
+                              <span className="font-semibold text-emerald-700">${(giftupCodeResult.remainingValue || 0).toFixed(2)}</span>
+                              <span className="text-slate-400 ml-1">/ ${(giftupCodeResult.initialValue || 0).toFixed(2)}</span>
+                            </p>
+                            {giftupCodeResult.recipientName && (
+                              <p className="text-slate-700"><span className="text-slate-500">Recipient:</span> {giftupCodeResult.recipientName}</p>
+                            )}
+                            {giftupCodeResult.expiresOn && (
+                              <p className="text-slate-700"><span className="text-slate-500">Expires:</span> {new Date(giftupCodeResult.expiresOn).toLocaleDateString()}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-red-700">
+                            {giftupCodeResult.errorMessage || giftupCodeResult.error?.message || 'Unknown error'}
+                          </p>
+                        )}
+
+                        {/* Show Raw toggle */}
+                        <button
+                          onClick={() => setGiftupShowRaw(!giftupShowRaw)}
+                          className="mt-3 text-xs text-slate-500 hover:text-slate-700 underline"
+                        >
+                          {giftupShowRaw ? 'Hide raw response' : 'Show raw response'}
+                        </button>
+                        {giftupShowRaw && (
+                          <pre className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 font-mono whitespace-pre-wrap break-words overflow-auto max-h-64">
+                            {JSON.stringify(giftupCodeResult, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Info Box */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <h4 className="text-sm font-medium text-slate-700 mb-2">About Gift Up Integration</h4>
+                <p className="text-xs text-slate-500 mb-3">
+                  Gift Up handles gift card creation, payment, and delivery. This integration validates and redeems gift card codes at checkout via the Gift Up API.
+                </p>
+                <div className="flex gap-4">
+                  <a
+                    href="https://giftup.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                  >
+                    Gift Up Dashboard
+                    <ExternalLink size={12} />
+                  </a>
+                  <a
+                    href="https://docs.giftup.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                  >
+                    API Docs
                     <ExternalLink size={12} />
                   </a>
                 </div>
