@@ -31,6 +31,7 @@ import RegisterPage from './src/components/auth/RegisterPage';
 import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
 import { AccountPage } from './src/components/account';
 import { WelcomePage } from './src/pages';
+import GiftCardsPage from './src/pages/GiftCardsPage';
 import { AuthProvider } from './src/context/AuthContext';
 import { SiteContentProvider, usePageContent } from './src/hooks/useSiteContent';
 import { AdminLayout } from './src/admin';
@@ -98,7 +99,7 @@ interface OrderData {
   } | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -112,6 +113,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/calendar') return 'calendar';
   if (pathname === '/tools') return 'tools';
   if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
+  if (pathname === '/gift-cards') return 'gift-cards';
   if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
   if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
   return 'home';
@@ -130,6 +132,7 @@ const getPathForView = (view: ViewType): string => {
     case 'calendar': return '/calendar';
     case 'tools': return '/tools';
     case 'blog': return '/blog';
+    case 'gift-cards': return '/gift-cards';
     case 'newsletter-confirmed': return '/newsletter/confirmed';
     case 'newsletter-unsubscribed': return '/newsletter/unsubscribed';
     default: return '/';
@@ -578,6 +581,15 @@ const App: React.FC = () => {
             )}
             <Footer onNavigate={handleNavigate} />
             <SageAssistant />
+          </>
+        );
+      case 'gift-cards':
+        return (
+          <>
+            <PromotionalBanner />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            <GiftCardsPage />
+            <Footer onNavigate={handleNavigate} />
           </>
         );
       case 'privacy':

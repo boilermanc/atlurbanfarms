@@ -6,7 +6,7 @@ import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
-type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar' | 'blog' | 'schools' | 'tools';
+type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar' | 'blog' | 'schools' | 'tools' | 'gift-cards';
 
 interface FooterProps {
   onNavigate?: (view: FooterViewType, category?: string, options?: { calendarFilter?: string }) => void;
@@ -336,14 +336,15 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="space-y-4">
               {shopLinks.map(item => (
                 <li key={item.label}>
-                  <button 
-                    onClick={(e) => handleNav(e, 'shop', item.cat)} 
+                  <button
+                    onClick={(e) => handleNav(e, 'shop', item.cat)}
                     className="text-gray-400 hover:text-white transition-colors text-sm font-medium"
                   >
                     {item.label}
                   </button>
                 </li>
               ))}
+              <li><button onClick={(e) => handleNav(e, 'gift-cards')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Gift Cards</button></li>
             </ul>
           </div>
           <div>
