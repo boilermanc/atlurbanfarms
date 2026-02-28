@@ -101,8 +101,8 @@ const STYLE_DEFAULT: object = {
 
 // --- Normalize helpers ---
 
-function classifyLegacy(o: { shipping: number; promotion_code?: string }): OrderType {
-  if ((o.promotion_code || '').toLowerCase().includes('replacement')) return 'REPLACEMENT';
+function classifyLegacy(o: { shipping: number; subtotal: number }): OrderType {
+  if (o.shipping === 0 && o.subtotal < 5) return 'REPLACEMENT';
   if (o.shipping === 0) return 'PICKUP';
   return 'SHIP';
 }
@@ -154,7 +154,7 @@ const WeeklySalesReportPage: React.FC = () => {
           .from('legacy_orders')
           .select(`
             id, woo_order_id, order_date, shipping, subtotal, tax, total,
-            shipping_first_name, shipping_last_name, shipping_state, status, promotion_code,
+            shipping_first_name, shipping_last_name, shipping_state, status,
             legacy_order_items ( quantity, product_name, line_total )
           `)
           .gte('order_date', startISO)
