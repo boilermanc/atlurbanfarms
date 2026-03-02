@@ -30,6 +30,7 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   password_reset: <Key size={20} />,
   order_ready_pickup: <MapPin size={20} />,
   abandoned_cart: <ShoppingCart size={20} />,
+  newsletter_confirmation: <Mail size={20} />,
 }
 
 // Category labels and order

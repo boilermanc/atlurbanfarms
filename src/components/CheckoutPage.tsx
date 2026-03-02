@@ -1458,6 +1458,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Contact Information</h3>
                 </div>
 
+                {!user && (
+                  <p className="text-sm text-gray-500 mb-4">To order as a guest without access to order history, complete the info below.</p>
+                )}
+
                 {/* Name: read-only display for logged-in users, editable for guests */}
                 {user && profile?.first_name ? (
                   <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl mb-4">

@@ -37,6 +37,7 @@ import { SiteContentProvider, usePageContent } from './src/hooks/useSiteContent'
 import { AdminLayout } from './src/admin';
 import AdminLogin from './src/admin/pages/AdminLogin';
 import NewsletterStatusPage from './src/components/NewsletterStatusPage';
+import UnsubscribePage from './src/pages/UnsubscribePage';
 import { useBrandingSettings } from './src/hooks/useSupabase';
 import { Product, CartItem } from './types';
 import { useCartSync } from './src/hooks/useCartSync';
@@ -99,7 +100,7 @@ interface OrderData {
   } | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -116,6 +117,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/gift-cards') return 'gift-cards';
   if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
   if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
+  if (pathname === '/unsubscribe') return 'unsubscribe';
   return 'home';
 };
 
@@ -135,6 +137,7 @@ const getPathForView = (view: ViewType): string => {
     case 'gift-cards': return '/gift-cards';
     case 'newsletter-confirmed': return '/newsletter/confirmed';
     case 'newsletter-unsubscribed': return '/newsletter/unsubscribed';
+    case 'unsubscribe': return '/unsubscribe';
     default: return '/';
   }
 };
@@ -617,6 +620,10 @@ const App: React.FC = () => {
       case 'newsletter-unsubscribed':
         return (
           <NewsletterStatusPage type="unsubscribed" onNavigate={(v) => handleNavigate(v as ViewType)} />
+        );
+      case 'unsubscribe':
+        return (
+          <UnsubscribePage onNavigate={(v) => handleNavigate(v as ViewType)} />
         );
       case 'login':
         return (
