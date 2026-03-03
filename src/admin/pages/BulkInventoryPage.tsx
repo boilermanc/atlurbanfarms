@@ -46,6 +46,11 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   const [bulkRegularPrice, setBulkRegularPrice] = useState<string>('');
   const [applyingBulkPrice, setApplyingBulkPrice] = useState(false);
 
+  // Sale price per-row state
+  const [salePriceInputs, setSalePriceInputs] = useState<Map<string, string>>(new Map());
+  const [salePriceStatus, setSalePriceStatus] = useState<Map<string, 'saving' | 'success' | 'error'>>(new Map());
+  const [salePriceErrors, setSalePriceErrors] = useState<Map<string, string>>(new Map());
+
   useEffect(() => {
     fetchProducts();
   }, []);
@@ -309,12 +314,17 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
   const handleReset = () => {
     setChanges(new Map());
+    setSalePriceInputs(new Map());
+    setSalePriceErrors(new Map());
     setError(null);
     setSuccessMessage(null);
   };
 
   const handleRefresh = () => {
     setChanges(new Map());
+    setSalePriceInputs(new Map());
+    setSalePriceErrors(new Map());
+    setSalePriceStatus(new Map());
     setError(null);
     setSuccessMessage(null);
     fetchProducts();
@@ -356,6 +366,105 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       setError(err.message || 'Failed to apply bulk regular price');
     } finally {
       setApplyingBulkPrice(false);
+    }
+  };
+
+  // Sale price helpers
+  const getSalePriceDisplay = (product: ProductInventory): string => {
+    if (salePriceInputs.has(product.id)) return salePriceInputs.get(product.id)!;
+    // Pre-fill: if product is already on sale, show current (discounted) price
+    if (product.compare_at_price != null && product.price != null) return String(product.price);
+    return '';
+  };
+
+  const handleSalePriceChange = (productId: string, value: string) => {
+    setSalePriceInputs(prev => new Map(prev).set(productId, value));
+    setSalePriceErrors(prev => { const m = new Map(prev); m.delete(productId); return m; });
+  };
+
+  const handleSalePriceCommit = async (product: ProductInventory) => {
+    // If user hasn't touched this input, no-op
+    if (!salePriceInputs.has(product.id)) return;
+
+    const inputValue = salePriceInputs.get(product.id)!;
+
+    // Clear errors
+    setSalePriceErrors(prev => { const m = new Map(prev); m.delete(product.id); return m; });
+
+    // If empty → clear sale
+    if (!inputValue.trim()) {
+      if (product.compare_at_price == null) {
+        // Already not on sale, just clear input state
+        setSalePriceInputs(prev => { const m = new Map(prev); m.delete(product.id); return m; });
+        return;
+      }
+
+      try {
+        setSalePriceStatus(prev => new Map(prev).set(product.id, 'saving'));
+
+        const { error } = await supabase
+          .from('products')
+          .update({
+            price: product.compare_at_price,
+            compare_at_price: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', product.id);
+
+        if (error) throw error;
+
+        setSalePriceStatus(prev => new Map(prev).set(product.id, 'success'));
+        setSalePriceInputs(prev => { const m = new Map(prev); m.delete(product.id); return m; });
+        await fetchProducts();
+        setTimeout(() => setSalePriceStatus(prev => { const m = new Map(prev); m.delete(product.id); return m; }), 2000);
+      } catch (err: any) {
+        setSalePriceStatus(prev => new Map(prev).set(product.id, 'error'));
+        setSalePriceErrors(prev => new Map(prev).set(product.id, err.message || 'Failed to clear sale'));
+      }
+      return;
+    }
+
+    // Parse and validate
+    const salePrice = parseFloat(inputValue);
+    if (isNaN(salePrice) || salePrice <= 0) {
+      setSalePriceErrors(prev => new Map(prev).set(product.id, 'Must be a positive number'));
+      return;
+    }
+
+    // Compare against the "original" (non-sale) price
+    const originalPrice = product.compare_at_price != null ? product.compare_at_price : product.price;
+    if (originalPrice != null && salePrice >= originalPrice) {
+      setSalePriceErrors(prev => new Map(prev).set(product.id, `Must be less than $${Number(originalPrice).toFixed(2)}`));
+      return;
+    }
+
+    try {
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'saving'));
+
+      const updatePayload: Record<string, any> = {
+        price: salePrice,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Only set compare_at_price if not already on sale
+      if (product.compare_at_price == null) {
+        updatePayload.compare_at_price = product.price;
+      }
+
+      const { error } = await supabase
+        .from('products')
+        .update(updatePayload)
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'success'));
+      setSalePriceInputs(prev => { const m = new Map(prev); m.delete(product.id); return m; });
+      await fetchProducts();
+      setTimeout(() => setSalePriceStatus(prev => { const m = new Map(prev); m.delete(product.id); return m; }), 2000);
+    } catch (err: any) {
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'error'));
+      setSalePriceErrors(prev => new Map(prev).set(product.id, err.message || 'Failed to save sale price'));
     }
   };
 
@@ -507,6 +616,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                     Was
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Sale Price
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Current Inventory
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -520,7 +632,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
               <tbody className="divide-y divide-slate-100">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={9} className="px-6 py-12 text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Package size={32} className="text-slate-400" />
                       </div>
@@ -587,14 +699,48 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                           <span className="text-slate-600 text-sm">{product.category_name}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-slate-500">
+                          <span className={product.compare_at_price != null ? 'text-emerald-600 font-semibold' : 'text-slate-500'}>
                             {product.price != null ? `$${Number(product.price).toFixed(2)}` : '-'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-slate-500">
-                            {product.compare_at_price != null ? `$${Number(product.compare_at_price).toFixed(2)}` : '-'}
+                          <span className="text-slate-400 line-through">
+                            {product.compare_at_price != null ? `$${Number(product.compare_at_price).toFixed(2)}` : ''}
                           </span>
+                          {product.compare_at_price == null && <span className="text-slate-300">-</span>}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="relative">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-slate-400 text-sm">$</span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={getSalePriceDisplay(product)}
+                                onChange={(e) => handleSalePriceChange(product.id, e.target.value)}
+                                onBlur={() => handleSalePriceCommit(product)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                placeholder="— no sale —"
+                                className={`w-28 px-3 py-2 text-right border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                                  salePriceErrors.has(product.id)
+                                    ? 'border-red-300 bg-red-50 focus:ring-red-500/20 focus:border-red-500'
+                                    : salePriceStatus.get(product.id) === 'success'
+                                    ? 'border-emerald-300 bg-emerald-50 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                    : 'border-slate-200 bg-white focus:ring-emerald-500/20 focus:border-emerald-500'
+                                }`}
+                              />
+                              {salePriceStatus.get(product.id) === 'saving' && (
+                                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                              )}
+                              {salePriceStatus.get(product.id) === 'success' && (
+                                <CheckCircle size={16} className="text-emerald-500 flex-shrink-0" />
+                              )}
+                            </div>
+                            {salePriceErrors.has(product.id) && (
+                              <p className="text-xs text-red-600 mt-1 text-center">{salePriceErrors.get(product.id)}</p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span
