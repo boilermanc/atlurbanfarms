@@ -1,7 +1,7 @@
 
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { SparkleIcon } from '../constants';
+
 import { useGrowers } from '../src/hooks/useSupabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
@@ -87,7 +87,7 @@ const AboutPage: React.FC = () => {
   const heroContent = getSection('hero');
   const storyContent = getSection('story');
   const seedlingsContent = getSection('seedlings');
-  const technologyContent = getSection('technology');
+
   const statsContent = getSection('stats');
   const growersHeaderContent = getSection('growers');
   const valuesContent = getSection('values');
@@ -245,48 +245,6 @@ const AboutPage: React.FC = () => {
               <div className="absolute -inset-4 sage-gradient rounded-[3.5rem] blur-2xl opacity-10 animate-pulse" />
               <img src={seedlingsContent.image_url || "https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&q=80&w=800"} alt="Perfect seedling" className="relative rounded-[3rem] shadow-2xl border-4 border-white" />
             </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Tech Grid */}
-      <section id="technology" className="py-14 bg-white scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 md:px-12">
-          <div className="text-center mb-10">
-            <h2
-              className="text-4xl font-heading font-extrabold text-gray-900"
-              dangerouslySetInnerHTML={{ __html: technologyContent.headline || 'The Technology Behind the <span class="sage-text-gradient">Green</span>' }}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { title: technologyContent.card_1_title || "Climate AI", desc: technologyContent.card_1_description || "Our nursery adjusts light spectrums and humidity in real-time using localized sensor data.", link: technologyContent.card_1_link || '', icon: <SparkleIcon className="w-6 h-6" /> },
-              { title: technologyContent.card_2_title || "Sustainable Roots", desc: technologyContent.card_2_description || "We use 85% less water than traditional soil-based nurseries through advanced recirculation.", link: technologyContent.card_2_link || '', icon: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> },
-              { title: technologyContent.card_3_title || "School Support", desc: technologyContent.card_3_description || "Our 'Education First' dashboard helps teachers track seedling growth in the classroom.", link: technologyContent.card_3_link || '', icon: <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg> }
-            ].map((tech, idx) => (
-              <motion.div
-                key={idx}
-                whileHover={{ y: -10 }}
-                className="p-10 bg-gray-50 rounded-[2.5rem] border border-gray-100 flex flex-col items-center text-center"
-              >
-                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6 brand-text">
-                  {tech.icon}
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{tech.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{tech.desc}</p>
-                {tech.link && (
-                  <a
-                    href={tech.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold brand-text hover:opacity-80 transition-colors"
-                  >
-                    Learn More
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17l5-5-5-5"/></svg>
-                  </a>
-                )}
-              </motion.div>
-            ))}
           </div>
         </div>
       </section>

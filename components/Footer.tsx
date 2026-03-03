@@ -361,7 +361,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="space-y-4">
               <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">FAQ</button></li>
               <li><button onClick={(e) => handleNav(e, 'blog')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Blog</button></li>
-              <li><button onClick={(e) => handleNav(e, 'schools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Schools</button></li>
+              {/* Hidden pre-launch — re-enable when Schools page is ready */}
+              {/* <li><button onClick={(e) => handleNav(e, 'schools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Schools</button></li> */}
               <li><button onClick={(e) => handleNav(e, 'tools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Tools</button></li>
             </ul>
           </div>

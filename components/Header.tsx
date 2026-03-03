@@ -189,7 +189,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
     { label: 'About Us', hash: '' },
     { label: 'Our Story', hash: 'our-story' },
     { label: 'Our Approach', hash: 'our-approach' },
-    { label: 'Technology', hash: 'technology' },
     { label: 'Our Team', hash: 'our-team' },
   ];
 
@@ -428,7 +427,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                 {[
                   { key: 'gift-cards', label: 'Gift Cards' },
                   { key: 'faq', label: 'FAQ' },
-                  { key: 'schools', label: 'Schools' },
+                  // { key: 'schools', label: 'Schools' }, // Hidden pre-launch — re-enable when Schools page is ready
                   { key: 'calendar', label: 'Calendar' },
                   { key: 'blog', label: 'Blog' },
                 ].map((item) => (
@@ -845,7 +844,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       FAQ
                     </button>
 
-                    {/* Schools */}
+                    {/* Schools — Hidden pre-launch, re-enable when Schools page is ready
                     <button
                       onClick={() => {
                         onNavigate('schools');
@@ -862,6 +861,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       </svg>
                       Schools
                     </button>
+                    */}
 
                     {/* Calendar */}
                     <button

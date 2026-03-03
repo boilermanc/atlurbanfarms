@@ -150,6 +150,16 @@ interface SchoolsPromoSectionProps {
 const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate }) => {
   const { getSection } = usePageContent('home');
   const content = getSection('schools_promo');
+  const buttonUrl = content.button_url || '/schools';
+
+  const handleClick = () => {
+    if (buttonUrl.startsWith('/')) {
+      const route = buttonUrl.replace('/', '') || 'home';
+      onNavigate(route);
+    } else {
+      window.open(buttonUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <section className="py-16 px-4 md:px-12 bg-site-secondary overflow-hidden relative border-b border-gray-200">
@@ -173,7 +183,7 @@ const SchoolsPromoSection: React.FC<SchoolsPromoSectionProps> = ({ onNavigate })
             dangerouslySetInnerHTML={{ __html: content.description || "Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let's grow together." }}
           />
           <button
-            onClick={() => onNavigate('schools')}
+            onClick={handleClick}
             className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all flex items-center gap-3"
           >
             {content.cta_text || 'Partner with Schools'}

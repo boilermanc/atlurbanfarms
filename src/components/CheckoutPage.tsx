@@ -326,6 +326,33 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   });
   const abandonedCartSavedRef = useRef(false);
 
+  // Inline auth state (login/register on checkout)
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const [registerData, setRegisterData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    newsletterSubscribed: true,
+  });
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showRegisterConfirmPassword, setShowRegisterConfirmPassword] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerExistingAccount, setRegisterExistingAccount] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
+
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [forgotPasswordError, setForgotPasswordError] = useState<string | null>(null);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     phone: '',
@@ -727,6 +754,94 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       await fetchRates(address, orderItems);
     }
   }, [formData.firstName, formData.lastName, formData.phone, formData.address2, shipEngineEnabled, items, clearValidation, clearRates, fetchRates]);
+
+  // --- Inline auth handlers (login/register on checkout) ---
+
+  const handleInlineLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+      if (signInError) throw signInError;
+      // AuthContext auto-updates user via onAuthStateChange
+    } catch (err: any) {
+      setLoginError(err.message || 'Invalid email or password. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleRegisterInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setRegisterData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleInlineRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError(null);
+    setRegisterExistingAccount(false);
+
+    if (!registerData.firstName.trim()) { setRegisterError('First name is required.'); return; }
+    if (!registerData.lastName.trim()) { setRegisterError('Last name is required.'); return; }
+    if (registerData.password.length < 8) { setRegisterError('Password must be at least 8 characters.'); return; }
+    if (registerData.password !== registerData.confirmPassword) { setRegisterError('Passwords do not match.'); return; }
+
+    setRegisterLoading(true);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: registerData.email,
+        password: registerData.password,
+        options: {
+          data: {
+            first_name: registerData.firstName.trim(),
+            last_name: registerData.lastName.trim(),
+            newsletter_subscribed: registerData.newsletterSubscribed,
+          },
+        },
+      });
+      if (signUpError) throw signUpError;
+
+      // Duplicate email detection
+      if (data.user?.identities?.length === 0) {
+        setRegisterExistingAccount(true);
+        return;
+      }
+
+      // Patch the customer record with name + newsletter pref
+      if (data.user) {
+        await supabase.from('customers').update({
+          first_name: registerData.firstName.trim(),
+          last_name: registerData.lastName.trim(),
+          newsletter_subscribed: registerData.newsletterSubscribed,
+        }).eq('id', data.user.id);
+      }
+    } catch (err: any) {
+      setRegisterError(err.message || 'An error occurred during registration. Please try again.');
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const handleInlineForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotPasswordError(null);
+    setForgotPasswordLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
+      setForgotPasswordSuccess(true);
+    } catch (err: any) {
+      setForgotPasswordError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name } = e.target;
@@ -1445,6 +1560,287 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
           {/* Left Column: Form */}
           <div className="lg:col-span-7 space-y-10">
+
+            {/* Inline Login / Register for guests */}
+            {!user && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  {/* Returning Customer (Login) */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <h4 className="text-sm font-heading font-extrabold text-gray-900">Returning Customer</h4>
+                    </div>
+
+                    {forgotPasswordMode ? (
+                      <div className="space-y-3">
+                        {forgotPasswordSuccess ? (
+                          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <p className="text-xs text-emerald-700 font-medium">Check your email for a password reset link.</p>
+                          </div>
+                        ) : (
+                          <>
+                            {forgotPasswordError && (
+                              <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                                <p className="text-xs text-red-600 font-medium">{forgotPasswordError}</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-500">Enter your email and we'll send a reset link.</p>
+                            <input
+                              type="email"
+                              value={forgotPasswordEmail}
+                              onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                              placeholder="Email address"
+                              className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleInlineForgotPassword}
+                              disabled={forgotPasswordLoading || !forgotPasswordEmail}
+                              className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                                forgotPasswordLoading || !forgotPasswordEmail ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                              }`}
+                            >
+                              {forgotPasswordLoading ? (
+                                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Sending...</>
+                              ) : 'Send Reset Link'}
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setForgotPasswordMode(false); setForgotPasswordSuccess(false); setForgotPasswordError(null); }}
+                          className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
+                        >
+                          Back to login
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {loginError && (
+                          <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                            <p className="text-xs text-red-600 font-medium">{loginError}</p>
+                          </div>
+                        )}
+                        <input
+                          type="email"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          placeholder="Email address"
+                          className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInlineLogin(e); } }}
+                        />
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? 'text' : 'password'}
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="Password"
+                            className="w-full px-4 py-3 pr-10 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInlineLogin(e); } }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            {showLoginPassword ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                <line x1="1" x2="23" y1="1" y2="23" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        <div className="text-right">
+                          <button
+                            type="button"
+                            onClick={() => { setForgotPasswordMode(true); setForgotPasswordEmail(loginEmail); }}
+                            className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 transition-colors"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleInlineLogin}
+                          disabled={loginLoading || !loginEmail || !loginPassword}
+                          className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                            loginLoading || !loginEmail || !loginPassword ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                          }`}
+                        >
+                          {loginLoading ? (
+                            <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Signing in...</>
+                          ) : 'Log In'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* New Customer (Register) */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      <h4 className="text-sm font-heading font-extrabold text-gray-900">New Customer</h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      {registerExistingAccount && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                          <p className="text-xs text-amber-800 font-medium">An account with this email already exists.</p>
+                          <button
+                            type="button"
+                            onClick={() => { setLoginEmail(registerData.email); setRegisterExistingAccount(false); }}
+                            className="text-xs text-emerald-600 font-semibold hover:text-emerald-700 underline mt-1"
+                          >
+                            Log in instead
+                          </button>
+                        </div>
+                      )}
+
+                      {registerError && !registerExistingAccount && (
+                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+                          <p className="text-xs text-red-600 font-medium">{registerError}</p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={registerData.firstName}
+                          onChange={handleRegisterInputChange}
+                          placeholder="First name"
+                          className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                        />
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={registerData.lastName}
+                          onChange={handleRegisterInputChange}
+                          placeholder="Last name"
+                          className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                        />
+                      </div>
+
+                      <input
+                        type="email"
+                        name="email"
+                        value={registerData.email}
+                        onChange={handleRegisterInputChange}
+                        placeholder="Email address"
+                        className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                      />
+
+                      <div className="relative">
+                        <input
+                          type={showRegisterPassword ? 'text' : 'password'}
+                          name="password"
+                          value={registerData.password}
+                          onChange={handleRegisterInputChange}
+                          placeholder="Password (min. 8 characters)"
+                          className="w-full px-4 py-3 pr-10 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showRegisterPassword ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                              <line x1="1" x2="23" y1="1" y2="23" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type={showRegisterConfirmPassword ? 'text' : 'password'}
+                          name="confirmPassword"
+                          value={registerData.confirmPassword}
+                          onChange={handleRegisterInputChange}
+                          placeholder="Confirm password"
+                          className="w-full px-4 py-3 pr-10 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleInlineRegister(e); } }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegisterConfirmPassword(!showRegisterConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          {showRegisterConfirmPassword ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                              <line x1="1" x2="23" y1="1" y2="23" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+
+                      {registerData.password && registerData.password.length > 0 && registerData.password.length < 8 && (
+                        <p className="text-xs text-amber-600">Password must be at least 8 characters</p>
+                      )}
+
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="newsletterSubscribed"
+                          checked={registerData.newsletterSubscribed}
+                          onChange={handleRegisterInputChange}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-500">Send me growing tips and exclusive offers</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={handleInlineRegister}
+                        disabled={registerLoading || !registerData.email || !registerData.password}
+                        className={`w-full py-3 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 ${
+                          registerLoading || !registerData.email || !registerData.password ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                        }`}
+                      >
+                        {registerLoading ? (
+                          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating account...</>
+                        ) : 'Create Account'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Or continue as guest divider */}
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-gray-200" />
+                  <span className="flex-shrink mx-4 text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                    Or continue as guest
+                  </span>
+                  <div className="flex-grow border-t border-gray-200" />
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} noValidate>
 
               {/* Contact Information */}
@@ -1459,7 +1855,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 </div>
 
                 {!user && (
-                  <p className="text-sm text-gray-500 mb-4">To order as a guest without access to order history, complete the info below.</p>
+                  <p className="text-sm text-gray-500 mb-4">Ordering as a guest — you won't have access to order history.</p>
                 )}
 
                 {/* Name: read-only display for logged-in users, editable for guests */}

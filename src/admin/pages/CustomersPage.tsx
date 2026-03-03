@@ -13,6 +13,7 @@ import {
   NEWSLETTER_SUBSCRIBER_BADGE,
 } from '../types/customer';
 import { useCustomerTags } from '../hooks/useCustomerTags';
+import { useCustomerSegments } from '../hooks/useCustomerSegments';
 
 type TabType = 'customers' | 'newsletter';
 type SortField = 'last_name' | 'first_name' | 'email' | 'created_at' | 'phone';
@@ -63,8 +64,26 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
   const [subscriberCount, setSubscriberCount] = useState(0);
+  const [subscriberSearchInput, setSubscriberSearchInput] = useState('');
+  const [subscriberSearch, setSubscriberSearch] = useState('');
+  const subscriberSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (subscriberSearchTimerRef.current) {
+      clearTimeout(subscriberSearchTimerRef.current);
+    }
+    subscriberSearchTimerRef.current = setTimeout(() => {
+      setSubscriberSearch(subscriberSearchInput);
+    }, 300);
+    return () => {
+      if (subscriberSearchTimerRef.current) {
+        clearTimeout(subscriberSearchTimerRef.current);
+      }
+    };
+  }, [subscriberSearchInput]);
 
   const { tags: allTags } = useCustomerTags();
+  const { segments, loading: segmentsLoading } = useCustomerSegments();
 
   // Create Customer Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -253,14 +272,29 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
       const orderStatsMap: Record<string, { order_count: number; total_spent: number }> = {};
 
       if (pageCustomerIds.length > 0) {
-        // Override Supabase default 1000-row limit for order stats aggregation
-        const { data: orderData } = await supabase
-          .from('orders')
-          .select('customer_id, total')
-          .in('customer_id', pageCustomerIds)
-          .limit(10000);
+        // Fetch from both orders and legacy_orders tables
+        const [{ data: orderData }, { data: legacyData }] = await Promise.all([
+          supabase
+            .from('orders')
+            .select('customer_id, total')
+            .in('customer_id', pageCustomerIds)
+            .limit(10000),
+          supabase
+            .from('legacy_orders')
+            .select('customer_id, total')
+            .in('customer_id', pageCustomerIds)
+            .limit(10000),
+        ]);
 
         for (const order of (orderData || [])) {
+          if (!orderStatsMap[order.customer_id]) {
+            orderStatsMap[order.customer_id] = { order_count: 0, total_spent: 0 };
+          }
+          orderStatsMap[order.customer_id].order_count += 1;
+          orderStatsMap[order.customer_id].total_spent += (order.total || 0);
+        }
+
+        for (const order of (legacyData || [])) {
           if (!orderStatsMap[order.customer_id]) {
             orderStatsMap[order.customer_id] = { order_count: 0, total_spent: 0 };
           }
@@ -296,6 +330,10 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       if (subscriberFilter !== 'all') {
         query = query.eq('status', subscriberFilter);
+      }
+
+      if (subscriberSearch) {
+        query = query.or(`email.ilike.%${subscriberSearch}%,first_name.ilike.%${subscriberSearch}%,last_name.ilike.%${subscriberSearch}%`);
       }
 
       const { data, error: subError } = await query;
@@ -336,7 +374,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     };
 
     loadData();
-  }, [activeTab, customerSearch, subscriberFilter, selectedTagFilters, sortField, sortDirection, currentPage, pageSize]);
+  }, [activeTab, customerSearch, subscriberFilter, subscriberSearch, selectedTagFilters, sortField, sortDirection, currentPage, pageSize]);
 
   const handleCustomerClick = (customerId: string) => {
     onViewCustomer?.(customerId);
@@ -432,6 +470,40 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             </button>
           )}
         </div>
+
+        {/* Customer Segments Stats Bar */}
+        {segmentsLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 animate-pulse">
+                <div className="h-3 w-20 bg-slate-200 rounded mb-3" />
+                <div className="h-7 w-14 bg-slate-200 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : segments && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: 'Total in Database', value: segments.totalInDatabase, borderColor: 'border-l-slate-400' },
+              { label: 'Ever Ordered', value: segments.everOrdered, borderColor: 'border-l-blue-400' },
+              { label: 'Ordered & Subscribed', value: segments.orderedAndSubscribed, borderColor: 'border-l-emerald-400', clickable: true },
+              { label: 'Newsletter Only', value: segments.newsletterOnly, borderColor: 'border-l-purple-400' },
+              { label: 'Active Since 2024', value: segments.activeSince2024, borderColor: 'border-l-orange-400' },
+              { label: 'Ghost Accounts', value: segments.ghostAccounts, borderColor: 'border-l-red-400' },
+            ].map((card) => (
+              <div
+                key={card.label}
+                onClick={card.clickable ? () => { setActiveTab('newsletter'); setSubscriberFilter('active'); } : undefined}
+                className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor} ${
+                  card.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+                }`}
+              >
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{card.label}</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">{card.value.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="border-b border-slate-200">
           <nav className="flex gap-6">
@@ -599,7 +671,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                           Phone
                           <SortIndicator field="phone" />
                         </th>
-                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Orders</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Orders</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Spent</th>
                         <th
                           className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-700 select-none"
@@ -735,7 +807,17 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={subscriberSearchInput}
+                      onChange={(e) => setSubscriberSearchInput(e.target.value)}
+                      placeholder="Search by name or email..."
+                      className="w-full pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 transition-all"
+                    />
+                  </div>
                   <select
                     value={subscriberFilter}
                     onChange={(e) => setSubscriberFilter(e.target.value as SubscriberStatus | 'all')}
@@ -774,7 +856,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <Mail size={32} className="text-slate-400" />
                             </div>
-                            <p className="text-slate-500">No subscribers found</p>
+                            <p className="text-slate-500">{subscriberSearch ? 'No subscribers found matching your search' : 'No subscribers found'}</p>
                           </td>
                         </tr>
                       ) : (

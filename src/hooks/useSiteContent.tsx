@@ -93,6 +93,7 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       headline: 'Empowering the Next Generation of <span class="text-emerald-600">Urban Farmers.</span>',
       description: 'Our School Seedling Program provides discounted live plants and curriculum support to K-12 schools across Georgia. Let\'s grow together.',
       cta_text: 'Partner with Schools',
+      button_url: '/schools',
       image_url: '',
     },
   },

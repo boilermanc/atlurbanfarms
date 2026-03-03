@@ -31,58 +31,63 @@ const CustomerReviews: React.FC = () => {
   }
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const updateScrollButtons = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
+  // Duplicate reviews for seamless infinite loop
+  const isInfinite = reviews.length > 1;
+  const displayReviews = isInfinite ? [...reviews, ...reviews] : reviews;
 
+  // Get scroll width of one full set of original cards
+  const getOneSetWidth = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !isInfinite) return 0;
+    const cardWidth = el.querySelector('[data-review-card]')?.clientWidth || 340;
+    const gap = 24;
+    return reviews.length * (cardWidth + gap);
+  }, [reviews.length, isInfinite]);
+
+  // Reset scroll position when past the first set (seamless wrap)
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    updateScrollButtons();
-    el.addEventListener('scroll', updateScrollButtons, { passive: true });
-    window.addEventListener('resize', updateScrollButtons);
-    return () => {
-      el.removeEventListener('scroll', updateScrollButtons);
-      window.removeEventListener('resize', updateScrollButtons);
+    if (!el || !isInfinite) return;
+
+    let scrollTimeout: ReturnType<typeof setTimeout>;
+    const handleScrollEnd = () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        const setWidth = getOneSetWidth();
+        if (setWidth > 0 && el.scrollLeft >= setWidth) {
+          el.scrollLeft -= setWidth;
+        }
+      }, 150);
     };
-  }, [updateScrollButtons, reviews.length]);
+
+    el.addEventListener('scroll', handleScrollEnd, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', handleScrollEnd);
+      clearTimeout(scrollTimeout);
+    };
+  }, [isInfinite, getOneSetWidth]);
 
   // Auto-scroll every 4 seconds
   useEffect(() => {
-    if (reviews.length <= 1) return;
+    if (!isInfinite) return;
 
-    const startAutoScroll = () => {
-      autoScrollRef.current = setInterval(() => {
-        if (isPaused) return;
-        const el = scrollRef.current;
-        if (!el) return;
+    autoScrollRef.current = setInterval(() => {
+      if (isPaused) return;
+      const el = scrollRef.current;
+      if (!el) return;
 
-        const cardWidth = el.querySelector('[data-review-card]')?.clientWidth || 340;
-        const gap = 24;
-        const scrollAmount = cardWidth + gap;
+      const cardWidth = el.querySelector('[data-review-card]')?.clientWidth || 340;
+      const gap = 24;
+      el.scrollBy({ left: cardWidth + gap, behavior: 'smooth' });
+    }, 4000);
 
-        // If near the end, scroll back to start
-        if (el.scrollLeft >= el.scrollWidth - el.clientWidth - 10) {
-          el.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-        }
-      }, 4000);
-    };
-
-    startAutoScroll();
     return () => {
       if (autoScrollRef.current) clearInterval(autoScrollRef.current);
     };
-  }, [isPaused, reviews.length]);
+  }, [isPaused, isInfinite]);
 
   const scroll = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
@@ -90,7 +95,16 @@ const CustomerReviews: React.FC = () => {
     const cardWidth = el.querySelector('[data-review-card]')?.clientWidth || 340;
     const gap = 24;
     const scrollAmount = cardWidth + gap;
-    el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+
+    if (direction === 'left' && isInfinite && el.scrollLeft < scrollAmount) {
+      // Near the start: jump forward by one set, then smooth-scroll left
+      el.scrollLeft += getOneSetWidth();
+      requestAnimationFrame(() => {
+        el.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+      });
+    } else {
+      el.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+    }
   };
 
   // Get initials from name for avatar fallback
@@ -144,7 +158,7 @@ const CustomerReviews: React.FC = () => {
         {/* Carousel */}
         <div className="relative">
           {/* Left Arrow */}
-          {canScrollLeft && (
+          {isInfinite && (
             <button
               onClick={() => scroll('left')}
               className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-all border border-gray-200"
@@ -157,7 +171,7 @@ const CustomerReviews: React.FC = () => {
           )}
 
           {/* Right Arrow */}
-          {canScrollRight && (
+          {isInfinite && (
             <button
               onClick={() => scroll('right')}
               className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white shadow-lg rounded-full items-center justify-center text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-all border border-gray-200"
@@ -180,14 +194,14 @@ const CustomerReviews: React.FC = () => {
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
           >
             <style>{`[data-reviews-scroll]::-webkit-scrollbar { display: none; }`}</style>
-            {reviews.map((review, index) => (
+            {displayReviews.map((review, index) => (
               <motion.div
                 key={index}
                 data-review-card
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: (index % reviews.length) * 0.1 }}
                 className="flex-shrink-0 w-[300px] md:w-[360px] bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
               >
                 {/* Stars */}

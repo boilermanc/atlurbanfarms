@@ -47,6 +47,19 @@ const TOOLS = [
     url: 'https://www.sproutify.app/sproutify-home.html',
     status: 'available' as const,
   },
+  {
+    name: 'Sproutify School',
+    description: 'A classroom companion for our School Seedling Program. Teachers can track student gardens, log plant growth, and access curriculum resources.',
+    icon: (
+      <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3z" />
+        <path d="M5 11.18v5.64L12 20.5l7-3.68v-5.64" />
+      </svg>
+    ),
+    // TODO: Confirm URL with Sheree — placeholder based on sproutify.app pattern
+    url: 'https://www.sproutify.app/sproutify-school.html',
+    status: 'available' as const,
+  },
 ];
 
 const ToolsPage: React.FC<ToolsPageProps> = ({ onBack }) => {

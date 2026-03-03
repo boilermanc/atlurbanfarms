@@ -137,6 +137,7 @@ const CONTENT_STRUCTURE: Record<string, Record<string, { label: string; keys: Fi
         { key: 'headline', label: 'Headline', type: 'rich_text' },
         { key: 'description', label: 'Description', type: 'rich_text' },
         { key: 'cta_text', label: 'Button Text', type: 'text' },
+        { key: 'button_url', label: 'Button URL', type: 'text' },
         { key: 'image_url', label: 'Section Image', type: 'image_url' },
       ],
     },

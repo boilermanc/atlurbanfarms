@@ -423,6 +423,26 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     return getChildCategories(activeParentId);
   }, [activeParentId, getChildCategories]);
 
+  // Find the "Seedlings" parent category and "On Sale this Week" category
+  const { seedlingsParentId, onSaleWeekCategoryId } = useMemo(() => {
+    const categories = rawCategories as Category[];
+    const seedlings = categories.find(c => !c.parent_id && c.name.toLowerCase() === 'seedlings');
+    const onSaleWeek = categories.find(c => c.name.toLowerCase().includes('on sale'));
+    return {
+      seedlingsParentId: seedlings?.id || null,
+      onSaleWeekCategoryId: onSaleWeek?.id || null,
+    };
+  }, [rawCategories]);
+
+  // Helper: set of all seedling category IDs (parent + subcategories)
+  const seedlingCategoryIds = useMemo(() => {
+    if (!seedlingsParentId) return new Set<string>();
+    const seedlingSubcategoryIds = (rawCategories as Category[])
+      .filter(c => c.parent_id === seedlingsParentId)
+      .map(c => c.id);
+    return new Set([seedlingsParentId, ...seedlingSubcategoryIds]);
+  }, [rawCategories, seedlingsParentId]);
+
   // Filter products based on search, category hierarchy, and stock status
   // Uses product_category_assignments junction table so products in multiple categories show correctly
   const filteredProducts = useMemo(() => {
@@ -446,10 +466,15 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         if (!hasTag) return false;
       }
 
-      // On Sale view: only show products where compare_at_price differs from price
+      // On Sale view: only show seedlings where compare_at_price differs from price
       if (showOnSale) {
         if (!rawProduct) return false;
-        return isRawProductOnSale(rawProduct);
+        if (!isRawProductOnSale(rawProduct)) return false;
+        const assignments = rawProduct.category_assignments || [];
+        const assignedCatIds = assignments.length > 0
+          ? assignments.map((a: any) => a.category_id)
+          : rawProduct.category ? [rawProduct.category.id] : [];
+        return assignedCatIds.some((catId: string) => seedlingCategoryIds.has(catId));
       }
 
       // If no parent selected, show all (that passed above filters)
@@ -479,7 +504,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         assignedCategories.find((c: any) => c?.id === catId)?.parent_id === activeParentId
       );
     });
-  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly, showOnSale, activeTagId]);
+  }, [products, rawProducts, activeParentId, activeSubcategoryId, searchQuery, getChildCategories, showInStockOnly, showOnSale, activeTagId, seedlingCategoryIds]);
 
   // Group products by parent category for the "All Products" view
   // Products with multiple category assignments appear under each relevant parent
@@ -593,47 +618,38 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
     return products.filter(p => favorites.includes(p.id));
   }, [products, favorites]);
 
-  // Get on-sale products (compare_at_price differs from price)
+  // Get on-sale seedling products only (compare_at_price differs from price)
   const onSaleProducts = useMemo(() => {
-    return products.filter(p => {
-      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
-      if (!rawProduct) return false;
-      return isRawProductOnSale(rawProduct);
-    });
-  }, [products, rawProducts]);
-
-  // Find the "Seedlings" parent category and "On Sale this Week" category
-  const { seedlingsParentId, onSaleWeekCategoryId } = useMemo(() => {
-    const categories = rawCategories as Category[];
-    const seedlings = categories.find(c => !c.parent_id && c.name.toLowerCase() === 'seedlings');
-    const onSaleWeek = categories.find(c => c.name.toLowerCase().includes('on sale'));
-    return {
-      seedlingsParentId: seedlings?.id || null,
-      onSaleWeekCategoryId: onSaleWeek?.id || null,
-    };
-  }, [rawCategories]);
-
-  // Dynamic "On Sale this Week" seedling products: active seedlings where compare_at_price differs from price
-  const onSaleSeedlings = useMemo(() => {
-    if (!seedlingsParentId) return [];
-    const seedlingSubcategoryIds = (rawCategories as Category[])
-      .filter(c => c.parent_id === seedlingsParentId)
-      .map(c => c.id);
-    const seedlingCategoryIds = new Set([seedlingsParentId, ...seedlingSubcategoryIds]);
+    if (seedlingCategoryIds.size === 0) return [];
 
     return products.filter(p => {
       const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
       if (!rawProduct) return false;
-      // Must be on sale
       if (!isRawProductOnSale(rawProduct)) return false;
-      // Must be a seedling (assigned to Seedlings parent or any of its subcategories)
+      // Must be a seedling
       const assignments = rawProduct.category_assignments || [];
       const assignedCatIds = assignments.length > 0
         ? assignments.map((a: any) => a.category_id)
         : rawProduct.category ? [rawProduct.category.id] : [];
       return assignedCatIds.some((catId: string) => seedlingCategoryIds.has(catId));
     });
-  }, [products, rawProducts, rawCategories, seedlingsParentId]);
+  }, [products, rawProducts, seedlingCategoryIds]);
+
+  // Dynamic "On Sale this Week" seedling products: active seedlings where compare_at_price differs from price
+  const onSaleSeedlings = useMemo(() => {
+    if (seedlingCategoryIds.size === 0) return [];
+
+    return products.filter(p => {
+      const rawProduct = rawProducts.find((rp: any) => rp.id === p.id);
+      if (!rawProduct) return false;
+      if (!isRawProductOnSale(rawProduct)) return false;
+      const assignments = rawProduct.category_assignments || [];
+      const assignedCatIds = assignments.length > 0
+        ? assignments.map((a: any) => a.category_id)
+        : rawProduct.category ? [rawProduct.category.id] : [];
+      return assignedCatIds.some((catId: string) => seedlingCategoryIds.has(catId));
+    });
+  }, [products, rawProducts, seedlingCategoryIds]);
 
   // Determine if we should show sectioned view (when viewing "All" with no search)
   const showSectionedView = !activeParentId && !searchQuery && !showFavorites && !showOnSale && !activeTagId;

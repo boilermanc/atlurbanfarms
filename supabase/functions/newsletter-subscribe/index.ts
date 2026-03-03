@@ -62,7 +62,7 @@ async function sendConfirmationEmail(
       to: email,
       template: 'newsletter_confirmation',
       templateData: {
-        first_name: firstName || '',
+        first_name: firstName || 'there',
         confirmation_url: confirmUrl,
       },
     }),
@@ -128,7 +128,7 @@ serve(async (req) => {
     // Check for existing subscriber
     const { data: existing } = await supabaseAdmin
       .from('newsletter_subscribers')
-      .select('id, status, subscribed_at, updated_at, unsubscribe_token')
+      .select('id, status, first_name, subscribed_at, updated_at, unsubscribe_token')
       .eq('email', rawEmail)
       .maybeSingle();
 
@@ -182,7 +182,7 @@ serve(async (req) => {
         })
         .eq('id', existing.id);
 
-      await sendConfirmationEmail(supabaseUrl, serviceKey, rawEmail, payload.first_name?.trim() || null, confirmToken.raw);
+      await sendConfirmationEmail(supabaseUrl, serviceKey, rawEmail, payload.first_name?.trim() || existing.first_name || null, confirmToken.raw);
 
       return new Response(
         JSON.stringify({
