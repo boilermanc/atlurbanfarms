@@ -171,7 +171,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
             </>
           ) : null}
         </button>
-        <h1 className="text-3xl font-heading font-extrabold text-gray-900">My Account</h1>
+        <h1 className="text-4xl font-heading font-extrabold text-gray-900">My Account</h1>
       </div>
 
       {/* Two-card layout */}
@@ -183,7 +183,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
           transition={{ duration: 0.4, delay: 0.1 }}
           className={cardClass}
         >
-          <h2 className="text-xl font-heading font-extrabold text-gray-900 mb-6">
+          <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-6">
             Returning Customer
           </h2>
 
@@ -277,7 +277,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
           transition={{ duration: 0.4, delay: 0.2 }}
           className={cardClass}
         >
-          <h2 className="text-xl font-heading font-extrabold text-gray-900 mb-6">
+          <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-6">
             New Customer
           </h2>
 
