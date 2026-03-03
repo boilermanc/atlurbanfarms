@@ -56,8 +56,7 @@ const TOOLS = [
         <path d="M5 11.18v5.64L12 20.5l7-3.68v-5.64" />
       </svg>
     ),
-    // TODO: Confirm URL with Sheree — placeholder based on sproutify.app pattern
-    url: 'https://www.sproutify.app/sproutify-school.html',
+    url: 'https://school.sproutify.app/',
     status: 'available' as const,
   },
 ];

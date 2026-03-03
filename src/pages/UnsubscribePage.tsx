@@ -150,10 +150,10 @@ const UnsubscribePage: React.FC<UnsubscribePageProps> = ({ onNavigate }) => {
               <p className="text-gray-500 leading-relaxed mb-8">
                 We had trouble processing your unsubscribe request. Please try again or contact us at{' '}
                 <a
-                  href="mailto:hello@atlurbanfarms.com"
+                  href="mailto:support@atlurbanfarms.com"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  hello@atlurbanfarms.com
+                  support@atlurbanfarms.com
                 </a>.
               </p>
             </motion.div>

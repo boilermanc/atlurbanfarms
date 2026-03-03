@@ -165,7 +165,6 @@ export function useBulkUpdateSettings() {
     category: string,
     settings: Record<string, { value: any; dataType: ConfigSetting['data_type']; description?: string }>
   ) => {
-    console.log('🟢 useBulkUpdateSettings called with category:', category);
     setLoading(true);
     setError(null);
     try {
@@ -178,21 +177,14 @@ export function useBulkUpdateSettings() {
         updated_at: new Date().toISOString(),
       }));
 
-      console.log('🟢 Records to upsert:', records);
-      console.log('🟢 Calling supabase.from("config_settings").upsert()...');
-
       const { data, error: upsertError } = await supabase
         .from('config_settings')
         .upsert(records, { onConflict: 'category,key' })
         .select();
 
-      console.log('🟢 Supabase response - data:', data);
-      console.log('🟢 Supabase response - error:', upsertError);
-
       if (upsertError) throw upsertError;
       return true;
     } catch (err: any) {
-      console.error('🔴 useBulkUpdateSettings error:', err);
       setError(err.message || 'Failed to update settings');
       return false;
     } finally {

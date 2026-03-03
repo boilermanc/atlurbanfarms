@@ -133,7 +133,7 @@ INSERT INTO email_brand_settings (setting_key, setting_value, setting_type) VALU
   ('facebook_url', '', 'url'),
   ('instagram_url', '', 'url'),
   ('business_name', 'ATL Urban Farms', 'text'),
-  ('business_email', 'hello@atlurbanfarms.com', 'email'),
+  ('business_email', 'support@atlurbanfarms.com', 'email'),
   ('business_phone', '', 'text'),
   ('business_address', 'Atlanta, GA', 'textarea')
 ON CONFLICT (setting_key) DO NOTHING;

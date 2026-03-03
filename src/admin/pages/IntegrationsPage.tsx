@@ -690,7 +690,6 @@ const IntegrationsPage: React.FC = () => {
   }, []);
 
   const handleSave = useCallback(async () => {
-    console.log('🔵 Save clicked');
     const settingsToSave: Record<string, { value: any; dataType: 'string' | 'number' | 'boolean' | 'json' }> = {};
 
     Object.entries(DEFAULT_INTEGRATION_SETTINGS).forEach(([key, config]) => {
@@ -725,9 +724,7 @@ const IntegrationsPage: React.FC = () => {
       dataType: 'string',
     };
 
-    console.log('🔵 Saving data:', settingsToSave);
     const success = await bulkUpdate('integrations', settingsToSave);
-    console.log('🔵 Save result:', success);
 
     if (success) {
       setSaveMessage('Settings saved!');
@@ -775,7 +772,6 @@ const IntegrationsPage: React.FC = () => {
   };
 
   const testConnection = async (integration: string) => {
-    console.log('🔵 testConnection called with:', integration);
     setTestingConnection(integration);
     setTestResult(null);
 
@@ -789,11 +785,9 @@ const IntegrationsPage: React.FC = () => {
     };
 
     const integrationKey = integrationMap[integration] || integration.toLowerCase();
-    console.log('🔵 Testing integration key:', integrationKey);
 
     try {
       const result = await testIntegrationConnection(integrationKey);
-      console.log('🔵 Test result:', result);
 
       setTestingConnection(null);
       setTestResult(result);
@@ -817,7 +811,6 @@ const IntegrationsPage: React.FC = () => {
         setLastError(null);
       }
     } catch (err: any) {
-      console.error('🔴 testConnection error:', err);
       setTestingConnection(null);
       setTestModal({
         integration,
@@ -834,8 +827,6 @@ const IntegrationsPage: React.FC = () => {
 
   const sendTestEmail = async () => {
     const recipient = testEmailAddress || formData.smtp_from_email || 'test@example.com';
-    console.log('🔵 sendTestEmail called');
-    console.log('🔵 Sending to:', recipient);
     setTestingConnection('SmtpEmail');
 
     try {
@@ -844,8 +835,6 @@ const IntegrationsPage: React.FC = () => {
         subject: 'Test Email from ATL Urban Farms',
         html: '<h1>Test Email</h1><p>This is a test email from your ATL Urban Farms integration.</p>'
       });
-      console.log('🔵 sendEmail result:', result);
-
       setTestingConnection(null);
       setTestModal({
         integration: 'Email (SMTP)',
@@ -864,7 +853,6 @@ const IntegrationsPage: React.FC = () => {
         setLastError(null);
       }
     } catch (err: any) {
-      console.error('🔴 sendTestEmail error:', err);
       setTestingConnection(null);
       const errorMsg = err.message || String(err);
       setTestModal({

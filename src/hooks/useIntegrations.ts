@@ -15,7 +15,6 @@ export function useTestIntegration() {
   const [error, setError] = useState<string | null>(null)
 
   const testConnection = useCallback(async (integration: string): Promise<TestResult> => {
-    console.log('🟢 useTestIntegration.testConnection called with:', integration)
     setTesting(integration)
     setError(null)
 
@@ -23,8 +22,6 @@ export function useTestIntegration() {
       const { data, error: invokeError } = await supabase.functions.invoke('test-integration', {
         body: { integration }
       })
-
-      console.log('🟢 testConnection - Response:', data, 'Error:', invokeError)
 
       if (invokeError) {
         // FunctionsHttpError buries the real message in error.context (a Response object)
@@ -53,7 +50,6 @@ export function useTestIntegration() {
 
       return data
     } catch (err: any) {
-      console.error('🔴 testConnection - Exception:', err)
       const errorMessage = err.message || 'Test failed'
       setError(errorMessage)
       return { success: false, message: errorMessage, details: { exception: err.name || 'Error' } }
@@ -89,8 +85,6 @@ export function useEmailService() {
         body: params
       })
 
-      console.log('🟢 sendEmail - Response:', data, 'Error:', invokeError)
-
       if (invokeError) {
         let errorMsg = invokeError.message || 'Failed to send email'
         let details = invokeError.context?.message
@@ -114,7 +108,6 @@ export function useEmailService() {
 
       return { success: true, id: data.id }
     } catch (err: any) {
-      console.error('🔴 sendEmail - Exception:', err)
       const errorMessage = err.message || 'Failed to send email'
       const details = err.stack ? err.stack.split('\n')[0] : 'Network or parsing error'
       setError(errorMessage)

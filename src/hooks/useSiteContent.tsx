@@ -215,7 +215,7 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       headline: 'Ready to Bring Urban Farming to Your <span class="text-emerald-600">School?</span>',
       description: 'Fill out the form and our Education Team will reach out within 2 business days to discuss your school\'s needs and how we can help you get growing.',
       email_label: 'Email Us Directly',
-      email: 'schools@atlurbanfarms.com',
+      email: 'support@atlurbanfarms.com',
       phone_label: 'Call Our Education Team',
       phone: '(404) 555-1234',
     },
