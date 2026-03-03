@@ -157,9 +157,68 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         }
 
         @media (max-width: 900px) {
-          .footer-top { grid-template-columns: 1fr; padding: 40px 28px; gap: 40px; }
-          .footer-links { padding: 40px 28px !important; gap: 32px !important; }
-          .footer-bottom { padding: 20px 28px !important; flex-direction: column; gap: 12px; align-items: flex-start !important; }
+          .footer-top {
+            grid-template-columns: 1fr;
+            padding: 40px 24px;
+            gap: 24px;
+          }
+          .footer-brand-box {
+            padding: 28px 24px;
+          }
+          .newsletter-box {
+            padding: 28px 24px;
+          }
+          .footer-links {
+            padding: 40px 24px !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 32px 24px !important;
+          }
+          .footer-bottom {
+            padding: 20px 24px !important;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center !important;
+            text-align: center;
+          }
+          .footer-legal {
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .footer-top {
+            padding: 32px 16px;
+            gap: 20px;
+          }
+          .footer-brand-box {
+            padding: 24px 20px;
+          }
+          .footer-tagline {
+            font-size: 14px;
+          }
+          .newsletter-box {
+            padding: 24px 20px;
+          }
+          .newsletter-heading {
+            font-size: 22px;
+          }
+          .newsletter-row {
+            flex-direction: column;
+          }
+          .newsletter-btn {
+            width: 100%;
+          }
+          .footer-links {
+            padding: 32px 16px !important;
+            grid-template-columns: 1fr !important;
+            gap: 28px !important;
+          }
+          .footer-bottom {
+            padding: 16px !important;
+          }
+          .contact-links {
+            flex-direction: row;
+          }
         }
 
         .footer-brand-box {

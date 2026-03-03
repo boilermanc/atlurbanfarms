@@ -16,6 +16,37 @@ interface ContentPageProps {
   onBack: () => void;
 }
 
+/**
+ * If content is mostly plain text (no <p> or <h2> tags), wrap lines in <p> tags
+ * and convert numbered sections (e.g. "1. Title") into headings.
+ */
+function formatContentForDisplay(html: string): string {
+  // If content already has paragraph or heading tags, return as-is
+  if (/<(p|h[1-6]|div|section|article)\b/i.test(html)) {
+    return html;
+  }
+
+  // Split on double newlines or numbered section patterns
+  const lines = html.split(/\n\s*\n|\n(?=\d+\.\s)/);
+
+  return lines
+    .map(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+
+      // Convert "1. Section Title" pattern into h2
+      const numberedHeading = trimmed.match(/^(\d+)\.\s+(.+)/);
+      if (numberedHeading && numberedHeading[2].length < 100) {
+        return `<h2>${numberedHeading[1]}. ${numberedHeading[2]}</h2>`;
+      }
+
+      // Wrap everything else in paragraphs, preserving single newlines as <br>
+      return `<p>${trimmed.replace(/\n/g, '<br/>')}</p>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
   const [page, setPage] = useState<ContentPageData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +124,45 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
 
   return (
     <div className="min-h-screen pt-40 pb-16 bg-site">
-      <div className="max-w-4xl mx-auto px-4 md:px-12">
+      <style>{`
+        .content-page {
+          word-break: break-word;
+          overflow-wrap: anywhere;
+        }
+        .content-page h1,
+        .content-page h2,
+        .content-page h3,
+        .content-page h4 {
+          margin-top: 2em;
+          margin-bottom: 0.75em;
+          line-height: 1.3;
+        }
+        .content-page h1:first-child,
+        .content-page h2:first-child {
+          margin-top: 0;
+        }
+        .content-page p {
+          margin-bottom: 1.25em;
+        }
+        .content-page ul,
+        .content-page ol {
+          padding-left: 1.5em;
+          margin-bottom: 1.25em;
+        }
+        .content-page li {
+          margin-bottom: 0.5em;
+        }
+        @media (max-width: 640px) {
+          .content-page {
+            font-size: 15px;
+            line-height: 1.75;
+          }
+          .content-page h1 { font-size: 1.5em; }
+          .content-page h2 { font-size: 1.3em; }
+          .content-page h3 { font-size: 1.15em; }
+        }
+      `}</style>
+      <div className="max-w-4xl mx-auto px-5 sm:px-8 md:px-12">
         {/* Back button */}
         <button
           onClick={onBack}
@@ -106,8 +175,8 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
         </button>
 
         {/* Page title */}
-        <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-4">
+        <div className="mb-8 md:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-extrabold text-gray-900 mb-3">
             {page.title}
           </h1>
           <div className="flex items-center gap-3 text-sm text-gray-400">
@@ -121,8 +190,8 @@ const ContentPage: React.FC<ContentPageProps> = ({ slug, onBack }) => {
 
         {/* Content */}
         <div
-          className="content-page prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-600 prose-a:text-emerald-600 hover:prose-a:text-emerald-700 prose-img:rounded-xl"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.content, {
+          className="content-page prose prose-base md:prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-600 prose-a:text-emerald-600 hover:prose-a:text-emerald-700 prose-img:rounded-xl"
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formatContentForDisplay(page.content), {
             ADD_TAGS: ['iframe'],
             ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'target', 'rel'],
           }) }}
