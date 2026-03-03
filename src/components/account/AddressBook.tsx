@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAddresses } from '../../hooks/useSupabase';
 
@@ -56,6 +56,23 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
   const [formData, setFormData] = useState<AddressFormData>(initialFormData);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [stateSheetOpen, setStateSheetOpen] = useState(false);
+
+  const addressStates = [
+    { abbr: 'GA', name: 'Georgia' },
+    { abbr: 'AL', name: 'Alabama' },
+    { abbr: 'FL', name: 'Florida' },
+    { abbr: 'SC', name: 'South Carolina' },
+    { abbr: 'TN', name: 'Tennessee' },
+    { abbr: 'NC', name: 'North Carolina' },
+  ];
+
+  useEffect(() => {
+    if (stateSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [stateSheetOpen]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -312,21 +329,29 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400">
                     State *
                   </label>
+                  {/* Desktop: native select */}
                   <select
                     name="state"
                     value={formData.state}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    className="hidden md:block w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
                   >
                     <option value="">--</option>
-                    <option value="GA">GA</option>
-                    <option value="AL">AL</option>
-                    <option value="FL">FL</option>
-                    <option value="SC">SC</option>
-                    <option value="TN">TN</option>
-                    <option value="NC">NC</option>
+                    {addressStates.map(s => (
+                      <option key={s.abbr} value={s.abbr}>{s.abbr}</option>
+                    ))}
                   </select>
+                  {/* Mobile: bottom sheet trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setStateSheetOpen(true)}
+                    className="md:hidden w-full text-left px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  >
+                    {formData.state
+                      ? <span className="text-gray-900">{formData.state}</span>
+                      : <span className="text-gray-400">--</span>}
+                  </button>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400">
@@ -413,8 +438,8 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
               <circle cx="12" cy="10" r="3" />
             </svg>
           </div>
-          <h3 className="font-heading font-bold text-gray-900 mb-2">No addresses saved</h3>
-          <p className="text-gray-500 mb-4">Add an address to make checkout faster.</p>
+          <h3 className="font-heading font-bold text-gray-900 mb-2">No saved addresses</h3>
+          <p className="text-gray-500 mb-6">Save an address during checkout to speed up future orders.</p>
           <button
             onClick={() => setIsAddingNew(true)}
             className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
@@ -491,6 +516,57 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
           ))}
         </div>
       )}
+      {/* Mobile State Bottom Sheet */}
+      <AnimatePresence>
+        {stateSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setStateSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Select State</h3>
+                <button
+                  onClick={() => setStateSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {addressStates.map((s) => (
+                  <button
+                    key={s.abbr}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, state: s.abbr }));
+                      setStateSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      formData.state === s.abbr ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

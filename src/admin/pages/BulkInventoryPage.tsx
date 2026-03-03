@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth } from '../hooks/useAdminAuth';
-import { Package, Save, AlertCircle, CheckCircle, RefreshCw, Bell } from 'lucide-react';
+import { Package, Save, AlertCircle, CheckCircle, RefreshCw, Bell, Star } from 'lucide-react';
 
 interface ProductInventory {
   id: string;
@@ -14,6 +14,7 @@ interface ProductInventory {
   low_stock_threshold: number;
   price: number | null;
   compare_at_price: number | null;
+  featured: boolean;
   alert_count: number;
 }
 
@@ -40,7 +41,10 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
   // Track changes: Map<product_id, new_value>
   const [changes, setChanges] = useState<Map<string, number>>(new Map());
-  const [priceChanges, setPriceChanges] = useState<Map<string, number>>(new Map());
+
+  // Bulk regular price
+  const [bulkRegularPrice, setBulkRegularPrice] = useState<string>('');
+  const [applyingBulkPrice, setApplyingBulkPrice] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -49,6 +53,22 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   useEffect(() => {
     applyFilters();
   }, [products, statusFilter, categoryFilter, categoryHierarchy]);
+
+  // Pre-fill bulk regular price if all visible products share the same compare_at_price
+  useEffect(() => {
+    if (filteredProducts.length === 0) {
+      setBulkRegularPrice('');
+      return;
+    }
+    const prices = filteredProducts
+      .map((p) => p.compare_at_price)
+      .filter((p): p is number => p != null);
+    if (prices.length === filteredProducts.length && new Set(prices).size === 1) {
+      setBulkRegularPrice(prices[0].toString());
+    } else {
+      setBulkRegularPrice('');
+    }
+  }, [filteredProducts]);
 
   const fetchProducts = async () => {
     try {
@@ -66,6 +86,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
           low_stock_threshold,
           price,
           compare_at_price,
+          featured,
           category:product_categories(name)
         `)
         .order('name');
@@ -96,6 +117,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         category_name: p.category?.name || 'Uncategorized',
         price: p.price,
         compare_at_price: p.compare_at_price,
+        featured: p.featured ?? false,
         alert_count: alertCountMap.get(p.id) || 0,
       }));
 
@@ -182,40 +204,11 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     }
   };
 
-  const handleSalePriceChange = (productId: string, value: string) => {
-    const newPrice = parseFloat(value);
-
-    if (isNaN(newPrice) || value === '') {
-      const next = new Map(priceChanges);
-      next.delete(productId);
-      setPriceChanges(next);
-      return;
-    }
-
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-
-    if (newPrice !== product.compare_at_price) {
-      const next = new Map(priceChanges);
-      next.set(productId, newPrice);
-      setPriceChanges(next);
-    } else {
-      const next = new Map(priceChanges);
-      next.delete(productId);
-      setPriceChanges(next);
-    }
-  };
-
   const getDisplayQuantity = (product: ProductInventory): number => {
     return changes.has(product.id) ? changes.get(product.id)! : product.quantity_available;
   };
 
-  const getDisplaySalePrice = (product: ProductInventory): string => {
-    if (priceChanges.has(product.id)) return priceChanges.get(product.id)!.toString();
-    return product.compare_at_price != null ? product.compare_at_price.toString() : '';
-  };
-
-  const hasChanges = () => changes.size > 0 || priceChanges.size > 0;
+  const hasChanges = () => changes.size > 0;
 
   const handleSaveAll = async () => {
     if (!hasChanges()) return;
@@ -228,7 +221,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       // Collect all product IDs that have any change
       const allProductIds = new Set([
         ...changes.keys(),
-        ...priceChanges.keys(),
       ]);
 
       console.log('Saving inventory updates for', allProductIds.size, 'product(s)');
@@ -242,9 +234,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         };
         if (changes.has(productId)) {
           updatePayload.quantity_available = changes.get(productId);
-        }
-        if (priceChanges.has(productId)) {
-          updatePayload.compare_at_price = priceChanges.get(productId);
         }
 
         const { error: updateError } = await supabase
@@ -274,7 +263,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
 
       // Clear changes
       setChanges(new Map());
-      setPriceChanges(new Map());
 
       // Refresh products
       await fetchProducts();
@@ -289,19 +277,86 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     }
   };
 
+  const [featuredToast, setFeaturedToast] = useState<{ id: string; message: string; type: 'success' | 'error' } | null>(null);
+
+  const handleFeaturedToggle = async (productId: string, currentValue: boolean) => {
+    const newValue = !currentValue;
+
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, featured: newValue } : p))
+    );
+
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({ featured: newValue, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+
+    if (updateError) {
+      // Revert on failure
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, featured: currentValue } : p))
+      );
+      const name = products.find((p) => p.id === productId)?.name || 'Product';
+      setFeaturedToast({ id: productId, message: `Failed to update "${name}"`, type: 'error' });
+    } else {
+      const name = products.find((p) => p.id === productId)?.name || 'Product';
+      setFeaturedToast({ id: productId, message: `"${name}" ${newValue ? 'featured' : 'unfeatured'}`, type: 'success' });
+    }
+
+    setTimeout(() => setFeaturedToast(null), 3000);
+  };
+
   const handleReset = () => {
     setChanges(new Map());
-    setPriceChanges(new Map());
     setError(null);
     setSuccessMessage(null);
   };
 
   const handleRefresh = () => {
     setChanges(new Map());
-    setPriceChanges(new Map());
     setError(null);
     setSuccessMessage(null);
     fetchProducts();
+  };
+
+  const handleApplyBulkPrice = async () => {
+    const price = parseFloat(bulkRegularPrice);
+    if (isNaN(price) || price <= 0) return;
+
+    const count = filteredProducts.length;
+    if (count === 0) return;
+
+    const confirmed = window.confirm(
+      `Set 'was' price to $${price.toFixed(2)} for all ${count} products?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setApplyingBulkPrice(true);
+      setError(null);
+
+      const productIds = filteredProducts.map((p) => p.id);
+
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          compare_at_price: price,
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', productIds);
+
+      if (updateError) throw updateError;
+
+      setSuccessMessage(`'Was' price updated to $${price.toFixed(2)} for ${count} product(s)`);
+      await fetchProducts();
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Error applying bulk price:', err);
+      setError(err.message || 'Failed to apply bulk regular price');
+    } finally {
+      setApplyingBulkPrice(false);
+    }
   };
 
   return (
@@ -362,6 +417,37 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 </option>
               ))}
             </select>
+
+            {/* Bulk Regular Price */}
+            <div className="flex items-center gap-2 pl-4 border-l border-slate-200">
+              <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Set 'Was' Price for All</label>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400">$</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={bulkRegularPrice}
+                  onChange={(e) => setBulkRegularPrice(e.target.value)}
+                  placeholder="e.g. 2.00"
+                  className="w-24 px-3 py-2 text-right border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <button
+                onClick={handleApplyBulkPrice}
+                disabled={applyingBulkPrice || !bulkRegularPrice || parseFloat(bulkRegularPrice) <= 0 || isNaN(parseFloat(bulkRegularPrice)) || filteredProducts.length === 0}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {applyingBulkPrice ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  'Apply to All'
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Save Actions */}
@@ -387,7 +473,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 ) : (
                   <>
                     <Save size={18} />
-                    Update All ({new Set([...changes.keys(), ...priceChanges.keys()]).size})
+                    Update All ({changes.size})
                   </>
                 )}
               </button>
@@ -405,6 +491,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">
+                    Featured
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Product
                   </th>
@@ -412,10 +501,10 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                     Category
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Regular Price
+                    Price
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Sale Price
+                    Was
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Current Inventory
@@ -431,7 +520,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
               <tbody className="divide-y divide-slate-100">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Package size={32} className="text-slate-400" />
                       </div>
@@ -441,8 +530,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 ) : (
                   filteredProducts.map((product) => {
                     const hasQtyChange = changes.has(product.id);
-                    const hasPriceChange = priceChanges.has(product.id);
-                    const hasChange = hasQtyChange || hasPriceChange;
+                    const hasChange = hasQtyChange;
                     const newQty = getDisplayQuantity(product);
                     const difference = hasQtyChange
                       ? newQty - product.quantity_available
@@ -455,6 +543,23 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                           hasChange ? 'bg-amber-50/50' : 'hover:bg-slate-50'
                         }`}
                       >
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleFeaturedToggle(product.id, product.featured)}
+                            className="group"
+                            title={product.featured ? 'Remove from featured' : 'Mark as featured'}
+                          >
+                            <Star
+                              size={20}
+                              className={`transition-colors ${
+                                product.featured
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-300 group-hover:text-amber-300'
+                              }`}
+                            />
+                          </button>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <button
@@ -487,21 +592,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end items-center gap-1">
-                            <span className="text-slate-400">$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={getDisplaySalePrice(product)}
-                              onChange={(e) => handleSalePriceChange(product.id, e.target.value)}
-                              className={`w-24 px-3 py-2 text-right border rounded-lg focus:outline-none focus:ring-2 transition-all ${
-                                priceChanges.has(product.id)
-                                  ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500 font-semibold'
-                                  : 'border-slate-200 bg-white focus:ring-emerald-500/20 focus:border-emerald-500'
-                              }`}
-                            />
-                          </div>
+                          <span className="text-slate-500">
+                            {product.compare_at_price != null ? `$${Number(product.compare_at_price).toFixed(2)}` : '-'}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span
@@ -544,9 +637,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                               {difference}
                             </span>
                           )}
-                          {hasPriceChange && (
-                            <span className="text-xs text-amber-600 block">price</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -555,6 +645,22 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Featured Toast */}
+        {featuredToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={`fixed bottom-6 right-6 z-20 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
+              featuredToast.type === 'success'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}
+          >
+            {featuredToast.message}
+          </motion.div>
         )}
 
         {/* Summary Footer */}
@@ -567,7 +673,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
             <div className="bg-slate-800 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6">
               <div className="text-sm">
                 <span className="text-slate-300">Pending changes:</span>{' '}
-                <span className="font-bold text-white">{new Set([...changes.keys(), ...priceChanges.keys()]).size} product(s)</span>
+                <span className="font-bold text-white">{changes.size} product(s)</span>
               </div>
               <div className="flex gap-3">
                 <button

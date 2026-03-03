@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import { useBrandingSettings } from '../../hooks/useSupabase';
+import { useBrandingSettings, useCustomerProfile } from '../../hooks/useSupabase';
 import OrderHistory from './OrderHistory';
 import AddressBook from './AddressBook';
 import ProfileSettings from './ProfileSettings';
@@ -11,14 +11,27 @@ interface AccountPageProps {
   onNavigate: (view: string) => void;
 }
 
-type AccountTab = 'orders' | 'addresses' | 'profile' | 'settings';
+type AccountTab = 'profile' | 'orders' | 'addresses' | 'settings';
+
+const VALID_TABS: AccountTab[] = ['profile', 'orders', 'addresses', 'settings'];
+
+// Parse initial tab from URL path (e.g. /account/orders → 'orders')
+const getTabFromPath = (): AccountTab => {
+  const segments = window.location.pathname.split('/').filter(Boolean);
+  // segments: ['account'] or ['account', 'profile'] etc.
+  if (segments.length >= 2) {
+    const tab = segments[1] as AccountTab;
+    if (VALID_TABS.includes(tab)) return tab;
+  }
+  return 'profile';
+};
 
 const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
   const { user, loading: authLoading, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<AccountTab>('profile');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<AccountTab>(getTabFromPath);
   const [logoError, setLogoError] = useState(false);
   const { settings: brandingSettings } = useBrandingSettings();
+  const { profile: customerProfile } = useCustomerProfile(user?.id);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -27,10 +40,40 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
     }
   }, [user, authLoading, onNavigate]);
 
+  // Sync URL when tab changes
+  const handleTabChange = (tab: AccountTab) => {
+    setActiveTab(tab);
+    const path = `/account/${tab}`;
+    if (window.location.pathname !== path) {
+      window.history.pushState({ view: 'account', tab }, '', path);
+    }
+  };
+
+  // Set URL to /account/profile on first load if on bare /account
+  useEffect(() => {
+    if (window.location.pathname === '/account') {
+      window.history.replaceState({ view: 'account', tab: 'profile' }, '', '/account/profile');
+    }
+  }, []);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getTabFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleSignOut = async () => {
     await signOut();
     onNavigate('home');
   };
+
+  // Derive display name from customer profile
+  const fullName = [customerProfile?.first_name, customerProfile?.last_name]
+    .filter(Boolean)
+    .join(' ') || 'Welcome!';
 
   const tabs: { id: AccountTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -45,7 +88,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
     },
     {
       id: 'orders',
-      label: 'Orders',
+      label: 'Order History',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -95,10 +138,10 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
       case 'addresses':
         return <AddressBook userId={user.id} />;
       case 'settings':
-        return <SettingsTab userEmail={user.email || ''} />;
+        return <SettingsTab userId={user.id} userEmail={user.email || ''} />;
       case 'profile':
       default:
-        return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => setActiveTab('settings')} />;
+        return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => handleTabChange('settings')} />;
     }
   };
 
@@ -132,8 +175,8 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
               )}
             </button>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-6">
+            {/* Navigation */}
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => onNavigate('shop')}
                 className="text-gray-500 hover:text-gray-900 font-medium transition-colors"
@@ -147,35 +190,34 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
                 Sign Out
               </button>
             </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {isMobileMenuOpen ? (
-                  <>
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </>
-                ) : (
-                  <>
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </>
-                )}
-              </svg>
-            </button>
           </div>
         </div>
       </header>
 
+      {/* Mobile Tabs — horizontal scrollable tabs on small screens */}
+      <div className="md:hidden bg-white border-b border-gray-100 overflow-x-auto">
+        <div className="flex min-w-max px-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? 'border-emerald-600 text-emerald-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar */}
-          <aside className="md:w-64 shrink-0">
+          {/* Sidebar — hidden on mobile (tabs shown above instead) */}
+          <aside className="hidden md:block md:w-64 shrink-0">
             {/* User Info Card */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -183,14 +225,13 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
               className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm mb-6"
             >
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center">
-                  <span className="text-2xl font-bold text-emerald-600">
-                    {user.email?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
                 <div className="flex-1 min-w-0">
                   <p className="font-heading font-bold text-gray-900 truncate">
-                    {user.user_metadata?.full_name || 'Welcome!'}
+                    {fullName}
                   </p>
                   <p className="text-sm text-gray-500 truncate">{user.email}</p>
                 </div>
@@ -207,7 +248,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`w-full flex items-center gap-3 px-5 py-4 text-left transition-all ${
                     activeTab === tab.id
                       ? 'bg-emerald-50 text-emerald-600 border-l-4 border-emerald-600'
@@ -243,12 +284,65 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
 
 // Settings Tab Component
 interface SettingsTabProps {
+  userId: string;
   userEmail: string;
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
+  const { profile, loading: profileLoading } = useCustomerProfile(userId);
   const [newsletterEnabled, setNewsletterEnabled] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(false);
+  const [commPrefsSaving, setCommPrefsSaving] = useState(false);
+  const [commPrefsSuccess, setCommPrefsSuccess] = useState(false);
+  const [commPrefsError, setCommPrefsError] = useState<string | null>(null);
+  const [commPrefsDirty, setCommPrefsDirty] = useState(false);
+
+  // Load comm prefs from profile
+  useEffect(() => {
+    if (profile) {
+      setNewsletterEnabled(profile.newsletter_subscribed ?? true);
+      setSmsOptIn(profile.sms_opt_in ?? false);
+      setCommPrefsDirty(false);
+    }
+  }, [profile]);
+
+  const handleCommPrefsSave = async () => {
+    setCommPrefsSaving(true);
+    setCommPrefsError(null);
+    setCommPrefsSuccess(false);
+
+    try {
+      // Update customers table
+      const { error: custError } = await supabase
+        .from('customers')
+        .update({
+          newsletter_subscribed: newsletterEnabled,
+          sms_opt_in: smsOptIn,
+        })
+        .eq('id', userId);
+
+      if (custError) throw custError;
+
+      // Sync to customer_preferences table
+      const { error: prefError } = await supabase
+        .from('customer_preferences')
+        .upsert({
+          customer_id: userId,
+          newsletter_subscribed: newsletterEnabled,
+          sms_notifications: smsOptIn,
+        }, { onConflict: 'customer_id' });
+
+      if (prefError) throw prefError;
+
+      setCommPrefsSuccess(true);
+      setCommPrefsDirty(false);
+      setTimeout(() => setCommPrefsSuccess(false), 3000);
+    } catch (err: any) {
+      setCommPrefsError(err.message || 'Failed to save preferences');
+    } finally {
+      setCommPrefsSaving(false);
+    }
+  };
 
   // Password change state
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -350,13 +444,34 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
       {/* Communication Preferences */}
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
         <h2 className="font-heading font-bold text-gray-900 mb-4">Communication Preferences</h2>
+
+        {commPrefsSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl"
+          >
+            <p className="text-sm text-emerald-600 font-medium">Preferences saved!</p>
+          </motion.div>
+        )}
+
+        {commPrefsError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl"
+          >
+            <p className="text-sm text-red-600 font-medium">{commPrefsError}</p>
+          </motion.div>
+        )}
+
         <div className="flex items-center justify-between py-3 border-b border-gray-50">
           <div>
             <p className="font-medium text-gray-900">Newsletter</p>
             <p className="text-sm text-gray-500">Receive updates about new products and promotions</p>
           </div>
           <button
-            onClick={() => setNewsletterEnabled(!newsletterEnabled)}
+            onClick={() => { setNewsletterEnabled(!newsletterEnabled); setCommPrefsDirty(true); }}
             className={`relative w-12 h-7 rounded-full transition-colors ${
               newsletterEnabled ? 'bg-emerald-600' : 'bg-gray-200'
             }`}
@@ -374,7 +489,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
             <p className="text-sm text-gray-500">Receive text messages about your orders</p>
           </div>
           <button
-            onClick={() => setSmsOptIn(!smsOptIn)}
+            onClick={() => { setSmsOptIn(!smsOptIn); setCommPrefsDirty(true); }}
             className={`relative w-12 h-7 rounded-full transition-colors ${
               smsOptIn ? 'bg-emerald-600' : 'bg-gray-200'
             }`}
@@ -386,6 +501,29 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userEmail }) => {
             />
           </button>
         </div>
+
+        {commPrefsDirty && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleCommPrefsSave}
+              disabled={commPrefsSaving}
+              className={`px-6 py-2.5 rounded-xl font-bold text-white transition-all flex items-center gap-2 ${
+                commPrefsSaving
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98]'
+              }`}
+            >
+              {commPrefsSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Preferences'
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Security */}

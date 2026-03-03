@@ -299,6 +299,8 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [showOnSale, setShowOnSale] = useState(false);
   // Tag filter
   const [activeTagId, setActiveTagId] = useState<string | null>(null);
+  // Mobile tag bottom sheet
+  const [tagSheetOpen, setTagSheetOpen] = useState(false);
   // Search input ref for refocus after clear
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -313,6 +315,14 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Lock body scroll when tag sheet is open
+  useEffect(() => {
+    if (tagSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [tagSheetOpen]);
 
   // Sync search query when initialSearchQuery prop changes (e.g., from header search)
   useEffect(() => {
@@ -672,7 +682,10 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
         </div>
 
         {/* Main Category Tabs - ALWAYS visible */}
-        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="relative mb-4">
+          {/* Right fade gradient to indicate more chips */}
+          <div className="absolute right-0 top-0 bottom-2 w-12 z-10 pointer-events-none md:hidden" style={{ background: 'linear-gradient(to left, var(--bg-color, #fafafa), transparent)' }} />
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide pr-8 md:pr-0">
           <button
             onClick={() => {
               setActiveParentId(null);
@@ -772,34 +785,38 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
             </svg>
             My Favorites {user && favorites.length > 0 && `(${favorites.length})`}
           </button>
+          </div>
         </div>
 
         {/* Subcategory Chips - Only show when parent category is selected AND has children */}
         {activeParentId && activeSubcategories.length > 0 && (
-          <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-            <button
-              onClick={() => setActiveSubcategoryId(null)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap border ${
-                !activeSubcategoryId
-                  ? 'bg-gray-800 text-white border-gray-800'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-              }`}
-            >
-              All
-            </button>
-            {activeSubcategories.map((subcat: Category) => (
+          <div className="relative mb-8">
+            <div className="absolute right-0 top-0 bottom-2 w-12 z-10 pointer-events-none md:hidden" style={{ background: 'linear-gradient(to left, var(--bg-color, #fafafa), transparent)' }} />
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide pr-8 md:pr-0">
               <button
-                key={subcat.id}
-                onClick={() => setActiveSubcategoryId(subcat.id)}
+                onClick={() => setActiveSubcategoryId(null)}
                 className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap border ${
-                  activeSubcategoryId === subcat.id
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
+                  !activeSubcategoryId
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                 }`}
               >
-                {subcat.name}
+                All
               </button>
-            ))}
+              {activeSubcategories.map((subcat: Category) => (
+                <button
+                  key={subcat.id}
+                  onClick={() => setActiveSubcategoryId(subcat.id)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap border ${
+                    activeSubcategoryId === subcat.id
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400'
+                  }`}
+                >
+                  {subcat.name}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -823,25 +840,38 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
               </span>
             </label>
 
-            {/* Tag filter dropdown */}
+            {/* Tag filter - native select on desktop, bottom sheet trigger on mobile */}
             {availableTags.length > 0 && (
-              <div className="relative">
-                <select
-                  value={activeTagId || ''}
-                  onChange={(e) => setActiveTagId(e.target.value || null)}
-                  className="appearance-none px-4 py-2.5 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
-                >
-                  <option value="">All Tags</option>
-                  {availableTags.map(tag => (
-                    <option key={tag.id} value={tag.id}>
-                      {tag.name} ({tag.count})
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              <>
+                {/* Desktop: native select */}
+                <div className="relative hidden md:block">
+                  <select
+                    value={activeTagId || ''}
+                    onChange={(e) => setActiveTagId(e.target.value || null)}
+                    className="appearance-none px-4 py-2.5 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
+                  >
+                    <option value="">All Tags</option>
+                    {availableTags.map(tag => (
+                      <option key={tag.id} value={tag.id}>
+                        {tag.name} ({tag.count})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
                 </div>
-              </div>
+                {/* Mobile: button that opens bottom sheet */}
+                <button
+                  onClick={() => setTagSheetOpen(true)}
+                  className="md:hidden appearance-none px-4 py-2.5 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 transition-all cursor-pointer relative text-left"
+                >
+                  {activeTagId ? availableTags.find(t => t.id === activeTagId)?.name || 'All Tags' : 'All Tags'}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                </button>
+              </>
             )}
           </div>
 
@@ -1271,6 +1301,71 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
           }
         }}
       />
+
+      {/* Mobile Tag Filter Bottom Sheet */}
+      <AnimatePresence>
+        {tagSheetOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setTagSheetOpen(false)}
+            />
+            {/* Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Filter by Tag</h3>
+                <button
+                  onClick={() => setTagSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              {/* Options */}
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                <button
+                  onClick={() => { setActiveTagId(null); setTagSheetOpen(false); }}
+                  className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                    !activeTagId ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  All Tags
+                </button>
+                {availableTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    onClick={() => { setActiveTagId(tag.id); setTagSheetOpen(false); }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 flex items-center justify-between ${
+                      activeTagId === tag.id ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{tag.name}</span>
+                    <span className={`text-xs ${activeTagId === tag.id ? 'text-emerald-500' : 'text-gray-400'}`}>
+                      {tag.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

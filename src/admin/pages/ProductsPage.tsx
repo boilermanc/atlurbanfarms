@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { enrichBundleStock } from '../../hooks/useSupabase';
-import { Plus, Search, Edit2, Trash2, Package, Image } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Package, Image, Tag, X, ChevronDown } from 'lucide-react';
 
 interface ProductImage {
   id: string;
@@ -37,6 +37,13 @@ interface Product {
   track_inventory?: boolean;
 }
 
+interface ProductTag {
+  id: string;
+  name: string;
+  slug: string;
+  tag_type: string;
+}
+
 interface ProductsPageProps {
   onEditProduct: (productId: string) => void;
 }
@@ -53,6 +60,11 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [tags, setTags] = useState<ProductTag[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagProductMap, setTagProductMap] = useState<Record<string, Set<string>>>({});
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const tagDropdownRef = React.useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Save filter state before navigating to product edit
@@ -63,8 +75,11 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     if (statusFilter !== 'active') {
       sessionStorage.setItem('admin_products_status_filter', statusFilter);
     }
+    if (selectedTagIds.length > 0) {
+      sessionStorage.setItem('admin_products_tag_filter', JSON.stringify(selectedTagIds));
+    }
     onEditProduct(productId);
-  }, [categoryFilter, statusFilter, onEditProduct]);
+  }, [categoryFilter, statusFilter, selectedTagIds, onEditProduct]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -106,6 +121,37 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
     }
   }, []);
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const [tagsRes, assignmentsRes] = await Promise.all([
+        supabase.from('product_tags').select('id, name, slug, tag_type').order('name'),
+        supabase.from('product_tag_assignments').select('product_id, tag_id'),
+      ]);
+      if (tagsRes.error) throw tagsRes.error;
+      if (assignmentsRes.error) throw assignmentsRes.error;
+      setTags(tagsRes.data || []);
+      const map: Record<string, Set<string>> = {};
+      (assignmentsRes.data || []).forEach(a => {
+        if (!map[a.tag_id]) map[a.tag_id] = new Set();
+        map[a.tag_id].add(a.product_id);
+      });
+      setTagProductMap(map);
+    } catch (err) {
+      console.error('Failed to load tags:', err);
+    }
+  }, []);
+
+  // Close tag dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setShowTagDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const fetchCategories = useCallback(async () => {
     try {
       const { data, error: supabaseError } = await supabase.from('product_categories').select('*').order('sort_order');
@@ -119,6 +165,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    fetchTags();
+
+    // Check for tag filter saved from previous visit
+    const sessionTagFilter = sessionStorage.getItem('admin_products_tag_filter');
+    if (sessionTagFilter) {
+      try { setSelectedTagIds(JSON.parse(sessionTagFilter)); } catch {}
+      sessionStorage.removeItem('admin_products_tag_filter');
+    }
 
     // Check for status filter saved from previous visit (e.g., returning from product edit)
     const sessionStatusFilter = sessionStorage.getItem('admin_products_status_filter');
@@ -140,7 +194,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
         localStorage.removeItem('admin_products_category_filter');
       }
     }
-  }, [fetchProducts, fetchCategories, setCategoryFilter]);
+  }, [fetchProducts, fetchCategories, fetchTags, setCategoryFilter]);
 
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
@@ -150,12 +204,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'active' && product.is_active) ||
         (statusFilter === 'inactive' && !product.is_active);
+      const matchesTags = selectedTagIds.length === 0 ||
+        selectedTagIds.some(tagId => tagProductMap[tagId]?.has(product.id));
       // Hide out-of-stock external products by default (unless searching for them specifically)
       const isOosExternal = product.product_type === 'external' && product.stock_status === 'out_of_stock';
       if (isOosExternal && !searchQuery) return false;
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory && matchesStatus && matchesTags;
     });
-  }, [products, searchQuery, categoryFilter, statusFilter]);
+  }, [products, searchQuery, categoryFilter, statusFilter, selectedTagIds, tagProductMap]);
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
@@ -230,6 +286,72 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            <div className="relative" ref={tagDropdownRef}>
+              <button
+                onClick={() => setShowTagDropdown(prev => !prev)}
+                className={`flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-medium transition-all w-full md:w-auto ${
+                  selectedTagIds.length > 0
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'bg-white border-slate-200 text-slate-800 hover:border-slate-300'
+                }`}
+              >
+                <Tag size={16} />
+                {selectedTagIds.length === 0 ? 'Filter by Tags' : `${selectedTagIds.length} Tag${selectedTagIds.length > 1 ? 's' : ''}`}
+                <ChevronDown size={14} className={`transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              {selectedTagIds.length > 0 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedTagIds([]); }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-slate-500 hover:bg-slate-700 text-white rounded-full flex items-center justify-center"
+                >
+                  <X size={12} />
+                </button>
+              )}
+              {showTagDropdown && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-72 overflow-y-auto">
+                  <div className="p-2">
+                    {tags.length === 0 ? (
+                      <p className="text-sm text-slate-400 px-3 py-2">No tags found</p>
+                    ) : (
+                      tags.map(tag => {
+                        const isSelected = selectedTagIds.includes(tag.id);
+                        const count = tagProductMap[tag.id]?.size || 0;
+                        return (
+                          <label
+                            key={tag.id}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                setSelectedTagIds(prev =>
+                                  isSelected ? prev.filter(id => id !== tag.id) : [...prev, tag.id]
+                                );
+                                setCurrentPage(1);
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500/20"
+                            />
+                            <span className="text-sm text-slate-700 flex-1">{tag.name}</span>
+                            <span className="text-xs text-slate-400">{count}</span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  {selectedTagIds.length > 0 && (
+                    <div className="border-t border-slate-100 p-2">
+                      <button
+                        onClick={() => { setSelectedTagIds([]); setCurrentPage(1); }}
+                        className="w-full text-sm text-slate-500 hover:text-slate-700 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        Clear tags
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -244,7 +366,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                 <Package size={32} className="text-slate-400" />
               </div>
               <h3 className="text-lg font-medium text-slate-800 mb-2">No products found</h3>
-              <p className="text-slate-500">{searchQuery || categoryFilter !== 'all' || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Get started by adding your first product'}</p>
+              <p className="text-slate-500">{searchQuery || categoryFilter !== 'all' || statusFilter !== 'all' || selectedTagIds.length > 0 ? 'Try adjusting your filters' : 'Get started by adding your first product'}</p>
             </div>
           ) : (
             <table className="w-full">

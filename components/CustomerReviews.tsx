@@ -190,10 +190,12 @@ const CustomerReviews: React.FC = () => {
             onMouseLeave={() => setIsPaused(false)}
             onTouchStart={() => setIsPaused(true)}
             onTouchEnd={() => setIsPaused(false)}
-            className="flex gap-6 overflow-x-auto scroll-smooth pb-4 -mx-4 px-4 md:mx-0 md:px-0"
+            className="flex gap-6 overflow-x-auto scroll-smooth pb-4 -mx-4 md:mx-0 snap-x snap-mandatory md:snap-none"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
           >
             <style>{`[data-reviews-scroll]::-webkit-scrollbar { display: none; }`}</style>
+            {/* Spacer for left padding inside scroll container (padding gets eaten by overflow) */}
+            <div className="flex-shrink-0 w-4 md:w-0" aria-hidden="true" />
             {displayReviews.map((review, index) => (
               <motion.div
                 key={index}
@@ -202,7 +204,7 @@ const CustomerReviews: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: (index % reviews.length) * 0.1 }}
-                className="flex-shrink-0 w-[300px] md:w-[360px] bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                className="flex-shrink-0 w-[300px] md:w-[360px] bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow snap-center"
               >
                 {/* Stars */}
                 <div className="flex gap-1 mb-4">
@@ -249,6 +251,8 @@ const CustomerReviews: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+            {/* Spacer for right padding inside scroll container */}
+            <div className="flex-shrink-0 w-4 md:w-0" aria-hidden="true" />
           </div>
         </div>
       </div>

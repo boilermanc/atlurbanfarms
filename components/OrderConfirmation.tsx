@@ -28,12 +28,26 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
 }) => {
   const [showConfetti, setShowConfetti] = useState(true);
   const [surveySubmitted, setSurveySubmitted] = useState(false);
+  const [attributionSource, setAttributionSource] = useState('');
+  const [attributionSheetOpen, setAttributionSheetOpen] = useState(false);
   const orderNumber = "ATL-" + Math.floor(10000 + Math.random() * 90000);
+
+  const attributionOptions = [
+    'Instagram', 'Facebook', 'TikTok', 'Google Search',
+    'Friend / Referral', 'School Program', 'Farmers Market', 'Other'
+  ];
 
   useEffect(() => {
     const timer = setTimeout(() => setShowConfetti(false), 5000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (attributionSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [attributionSheetOpen]);
 
   const confettiItems = Array.from({ length: 40 }).map((_, i) => ({
     id: i,
@@ -171,17 +185,25 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                   >
                     <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-2">One quick thing...</h3>
                     <p className="text-sm text-gray-500 mb-6">How did you find us today?</p>
-                    <select className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-6 appearance-none cursor-pointer">
-                      <option disabled selected>Select an option</option>
-                      <option>Instagram</option>
-                      <option>Facebook</option>
-                      <option>TikTok</option>
-                      <option>Google Search</option>
-                      <option>Friend / Referral</option>
-                      <option>School Program</option>
-                      <option>Farmers Market</option>
-                      <option>Other</option>
+                    {/* Desktop: native select */}
+                    <select
+                      value={attributionSource}
+                      onChange={(e) => setAttributionSource(e.target.value)}
+                      className="hidden md:block w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-6 appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled>Select an option</option>
+                      {attributionOptions.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
                     </select>
+                    {/* Mobile: bottom sheet trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setAttributionSheetOpen(true)}
+                      className="md:hidden w-full text-left px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 mb-6 cursor-pointer"
+                    >
+                      {attributionSource || <span className="text-gray-400">Select an option</span>}
+                    </button>
                     <div className="flex gap-4 mt-auto">
                       <button 
                         onClick={() => setSurveySubmitted(true)}
@@ -218,10 +240,19 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           {/* Marketing Section */}
           <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Account Creation */}
-            <div className="p-8 rounded-[2.5rem] border-2 border-dashed border-gray-100 flex flex-col items-center text-center">
-              <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">Want to track your order?</h3>
-              <p className="text-xs text-gray-400 mb-6">Create an account in one click (just needs a password).</p>
-              <button className="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all">
+            <div className="p-8 rounded-[2.5rem] bg-emerald-50 border border-emerald-100 flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">Want to track this order easily?</h3>
+              <p className="text-sm text-gray-600 mb-6">Create a free account to view order history, save addresses, and get faster checkout next time.</p>
+              <button
+                onClick={() => onContinue()}
+                className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+              >
                 Create Account
               </button>
             </div>
@@ -307,6 +338,58 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Mobile Attribution Bottom Sheet */}
+      <AnimatePresence>
+        {attributionSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setAttributionSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">How did you find us?</h3>
+                <button
+                  onClick={() => setAttributionSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {attributionOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      setAttributionSource(opt);
+                      setAttributionSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      attributionSource === opt ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -4,7 +4,7 @@ import { useCustomerProfile } from '../../hooks/useSupabase';
 import { useGrowingSystems } from '../../admin/hooks/useGrowingSystems';
 import { useGrowingInterests } from '../../admin/hooks/useGrowingInterests';
 import { supabase } from '../../lib/supabase';
-import { submitNewsletterPreference } from '../../services/newsletter';
+
 
 interface ProfileSettingsProps {
   userId: string;
@@ -47,8 +47,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
     experience_level: '',
     growing_systems: [] as string[],
     growing_interests: [] as string[],
-    newsletter_subscribed: true,
-    sms_opt_in: false,
   });
 
   // Load profile data into form
@@ -63,8 +61,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
         experience_level: profile.experience_level || '',
         growing_systems: profile.growing_systems || [],
         growing_interests: profile.growing_interests || [],
-        newsletter_subscribed: profile.newsletter_subscribed ?? true,
-        sms_opt_in: profile.sms_opt_in ?? false,
       });
     }
   }, [profile]);
@@ -110,17 +106,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
       // Update customer profile
       const result = await updateProfile({ ...formData, email: userEmail });
       if (result.error) throw new Error(result.error);
-
-      if (userEmail) {
-        await submitNewsletterPreference({
-          email: userEmail,
-          firstName: formData.first_name || null,
-          lastName: formData.last_name || null,
-          customerId: userId,
-          status: formData.newsletter_subscribed ? 'active' : 'unsubscribed',
-          source: 'account_profile',
-        });
-      }
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -399,44 +384,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Communication Preferences */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <h2 className="font-heading font-bold text-gray-900 mb-2">Communication Preferences</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Choose how you'd like to hear from us.
-          </p>
-
-          <div className="space-y-4">
-            <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition-colors">
-              <input
-                type="checkbox"
-                name="newsletter_subscribed"
-                checked={formData.newsletter_subscribed}
-                onChange={handleInputChange}
-                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-              />
-              <div>
-                <span className="text-gray-900 font-medium group-hover:text-emerald-600 transition-colors">Newsletter</span>
-                <p className="text-xs text-gray-400">Receive newsletters, growing tips, and promotional content</p>
-              </div>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer group p-3 rounded-xl hover:bg-gray-50 transition-colors">
-              <input
-                type="checkbox"
-                name="sms_opt_in"
-                checked={formData.sms_opt_in}
-                onChange={handleInputChange}
-                className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 focus:ring-offset-0 cursor-pointer"
-              />
-              <div>
-                <span className="text-gray-900 font-medium group-hover:text-emerald-600 transition-colors">SMS Updates</span>
-                <p className="text-xs text-gray-400">Receive text messages for order updates and important announcements</p>
-              </div>
-            </label>
           </div>
         </div>
 

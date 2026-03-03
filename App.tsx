@@ -115,6 +115,10 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/tools') return 'tools';
   if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
   if (pathname === '/gift-cards') return 'gift-cards';
+  if (pathname === '/login') return 'login';
+  if (pathname === '/register') return 'register';
+  if (pathname === '/forgot-password') return 'forgot-password';
+  if (pathname === '/account' || pathname.startsWith('/account/')) return 'account';
   if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
   if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
   if (pathname === '/unsubscribe') return 'unsubscribe';
@@ -135,6 +139,10 @@ const getPathForView = (view: ViewType): string => {
     case 'tools': return '/tools';
     case 'blog': return '/blog';
     case 'gift-cards': return '/gift-cards';
+    case 'login': return '/login';
+    case 'register': return '/register';
+    case 'forgot-password': return '/forgot-password';
+    case 'account': return '/account';
     case 'newsletter-confirmed': return '/newsletter/confirmed';
     case 'newsletter-unsubscribed': return '/newsletter/unsubscribed';
     case 'unsubscribe': return '/unsubscribe';
@@ -636,23 +644,12 @@ const App: React.FC = () => {
           <UnsubscribePage onNavigate={(v) => handleNavigate(v as ViewType)} />
         );
       case 'login':
+      case 'register':
         return (
           <LoginPage
             onNavigate={handleNavigate}
             onSuccess={() => {
-              // Check if user has seen welcome page before
-              const hasSeenWelcome = localStorage.getItem('atluf_welcome_seen') === 'true';
-              handleNavigate(hasSeenWelcome ? 'shop' : 'welcome');
-            }}
-          />
-        );
-      case 'register':
-        return (
-          <RegisterPage
-            onNavigate={handleNavigate}
-            onSuccess={() => {
-              // Always show welcome page after new signup
-              handleNavigate('welcome');
+              handleNavigate('account');
             }}
           />
         );

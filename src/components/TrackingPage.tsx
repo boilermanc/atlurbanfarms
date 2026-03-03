@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   useTracking,
   TrackingEvent,
@@ -59,6 +59,15 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
     setTrackingNumber('');
     setCarrierCode('');
   };
+
+  const [carrierSheetOpen, setCarrierSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (carrierSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [carrierSheetOpen]);
 
   // Carrier options
   const carriers = [
@@ -150,10 +159,11 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Carrier
                 </label>
+                {/* Desktop: native select */}
                 <select
                   value={carrierCode}
                   onChange={(e) => setCarrierCode(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="hidden md:block w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select carrier...</option>
@@ -161,6 +171,16 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
                     <option key={c.code} value={c.code}>{c.name}</option>
                   ))}
                 </select>
+                {/* Mobile: bottom sheet trigger */}
+                <button
+                  type="button"
+                  onClick={() => setCarrierSheetOpen(true)}
+                  className="md:hidden w-full text-left px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                >
+                  {carrierCode
+                    ? <span className="text-gray-900">{carriers.find(c => c.code === carrierCode)?.name}</span>
+                    : <span className="text-gray-400">Select carrier...</span>}
+                </button>
               </div>
 
               <button
@@ -376,6 +396,58 @@ const TrackingPage: React.FC<TrackingPageProps> = ({
           <p>Need help? Contact us at <a href="mailto:support@atlurbanfarms.com" className="text-emerald-600 hover:underline">support@atlurbanfarms.com</a></p>
         </div>
       </footer>
+
+      {/* Mobile Carrier Bottom Sheet */}
+      <AnimatePresence>
+        {carrierSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setCarrierSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Select Carrier</h3>
+                <button
+                  onClick={() => setCarrierSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {carriers.map((c) => (
+                  <button
+                    key={c.code}
+                    onClick={() => {
+                      setCarrierCode(c.code);
+                      setCarrierSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      carrierCode === c.code ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

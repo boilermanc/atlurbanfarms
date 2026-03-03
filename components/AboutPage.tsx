@@ -91,7 +91,6 @@ const AboutPage: React.FC = () => {
   const statsContent = getSection('stats');
   const growersHeaderContent = getSection('growers');
   const valuesContent = getSection('values');
-  const ctaContent = getSection('cta');
 
   const fadeIn = {
     hidden: { opacity: 0, y: 20 },
@@ -408,32 +407,6 @@ const AboutPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Call to Action */}
-      <section className="px-4 md:px-12 pb-14">
-        <div className="max-w-7xl mx-auto bg-gray-900 rounded-[4rem] p-12 md:p-24 relative overflow-hidden text-center">
-          <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/leaf.png')] opacity-5 pointer-events-none" />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="relative z-10"
-          >
-            <h2
-              className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-8"
-              dangerouslySetInnerHTML={{ __html: ctaContent.headline || 'Ready to grow <span class="brand-text">smarter?</span>' }}
-            />
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-12 font-medium">
-              {ctaContent.description || 'Join thousands of Atlanta residents and schools who are bringing their gardens into the future.'}
-            </p>
-            <a
-              href={ctaContent.button_link || '/shop'}
-              className="inline-block px-12 py-5 btn-brand rounded-2xl font-black text-lg transition-all shadow-2xl brand-shadow"
-            >
-              {ctaContent.button_text || 'Start Your Urban Farm'}
-            </a>
-          </motion.div>
-        </div>
-      </section>
     </div>
   );
 };

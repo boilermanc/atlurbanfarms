@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
 import { useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
@@ -304,6 +304,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [growingTipsOptIn, setGrowingTipsOptIn] = useState(true);
   const [growingSystem, setGrowingSystem] = useState('');
   const [growingSystemOther, setGrowingSystemOther] = useState('');
+  const [growingSystemSheetOpen, setGrowingSystemSheetOpen] = useState(false);
+  const [stateSheetOpen, setStateSheetOpen] = useState(false);
 
   // Stock validation state
   const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
@@ -367,6 +369,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     country: 'United States',
     shippingPhone: ''
   });
+
+  // Lock body scroll when a bottom sheet is open
+  useEffect(() => {
+    if (growingSystemSheetOpen || stateSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [growingSystemSheetOpen, stateSheetOpen]);
 
   // Auto-force delivery method based on product fulfillment constraints
   useEffect(() => {
@@ -1564,6 +1574,20 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
             {/* Inline Login / Register for guests */}
             {!user && (
               <div className="space-y-6">
+                {/* Sign-in prompt banner */}
+                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 flex items-start gap-4">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-emerald-900">Have an account? Sign in for a faster checkout.</p>
+                    <p className="text-xs text-emerald-700 mt-1">Use saved addresses, track your orders, and earn seedling credits.</p>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                   {/* Returning Customer (Login) */}
@@ -1833,7 +1857,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 {/* Or continue as guest divider */}
                 <div className="relative flex items-center">
                   <div className="flex-grow border-t border-gray-200" />
-                  <span className="flex-shrink mx-4 text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                  <span className="flex-shrink mx-4 text-xs text-gray-400 uppercase tracking-widest whitespace-nowrap">
                     Or continue as guest
                   </span>
                   <div className="flex-grow border-t border-gray-200" />
@@ -1855,7 +1879,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                 </div>
 
                 {!user && (
-                  <p className="text-sm text-gray-500 mb-4">Ordering as a guest — you won't have access to order history.</p>
+                  <p className="text-sm text-gray-500 mb-4">Ordering as a guest — sign in above to save addresses and track orders.</p>
                 )}
 
                 {/* Name: read-only display for logged-in users, editable for guests */}
@@ -2418,6 +2442,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     <label htmlFor="state-select" className="text-xs font-black uppercase tracking-widest text-gray-400">
                       State <span className="text-red-400">*</span>
                     </label>
+                    {/* Desktop: native select */}
                     <select
                       id="state-select"
                       name="state"
@@ -2427,7 +2452,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       aria-required="true"
                       aria-invalid={formErrors.state && submitAttempted ? 'true' : 'false'}
                       aria-describedby={formErrors.state && submitAttempted ? 'state-error' : undefined}
-                      className={getInputClassName('state')}
+                      className={`hidden md:block ${getInputClassName('state')}`}
                     >
                       <option value="" disabled>Select a state</option>
                       {US_STATES.map((state) => (
@@ -2436,6 +2461,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                         </option>
                       ))}
                     </select>
+                    {/* Mobile: bottom sheet trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setStateSheetOpen(true)}
+                      className={`md:hidden w-full text-left ${getInputClassName('state')}`}
+                    >
+                      {formData.state
+                        ? US_STATES.find(s => s.abbreviation === formData.state)?.name || formData.state
+                        : <span className="text-gray-400">Select a state</span>}
+                    </button>
                     {formErrors.state && submitAttempted && (
                       <p id="state-error" className="text-xs text-red-500 mt-1">{formErrors.state}</p>
                     )}
@@ -2789,7 +2824,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Growing System</h3>
                 </div>
                 <p className="text-sm text-gray-500">To help us support you better, what growing system are you using?</p>
-                <div className="relative">
+                {/* Desktop: native select */}
+                <div className="relative hidden md:block">
                   <select
                     value={growingSystem}
                     onChange={(e) => {
@@ -2807,6 +2843,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 </div>
+                {/* Mobile: button that opens bottom sheet */}
+                <button
+                  type="button"
+                  onClick={() => setGrowingSystemSheetOpen(true)}
+                  className={`md:hidden w-full bg-white border-2 rounded-2xl px-4 pr-10 py-3 text-left text-sm transition-all cursor-pointer relative ${
+                    submitAttempted && !growingSystem ? 'border-red-300' : 'border-gray-200'
+                  } ${growingSystem ? 'text-gray-800' : 'text-gray-400'}`}
+                >
+                  {growingSystem || 'Select your growing system...'}
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </button>
                 {submitAttempted && !growingSystem && (
                   <p className="text-sm text-red-500">Please select your growing system</p>
                 )}
@@ -3247,6 +3294,111 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         }}
         onRemoveUnavailable={handleRemoveUnavailable}
       />
+
+      {/* Mobile Growing System Bottom Sheet */}
+      <AnimatePresence>
+        {growingSystemSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setGrowingSystemSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Growing System</h3>
+                <button
+                  onClick={() => setGrowingSystemSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {growingSystemOptions.map((system) => (
+                  <button
+                    key={system}
+                    onClick={() => {
+                      setGrowingSystem(system);
+                      if (system !== 'Other') setGrowingSystemOther('');
+                      setGrowingSystemSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      growingSystem === system ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {system}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile US State Bottom Sheet */}
+      <AnimatePresence>
+        {stateSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setStateSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Select State</h3>
+                <button
+                  onClick={() => setStateSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {US_STATES.map((state) => (
+                  <button
+                    key={state.abbreviation}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, state: state.abbreviation }));
+                      setStateSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      formData.state === state.abbreviation ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {state.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

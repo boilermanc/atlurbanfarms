@@ -1,7 +1,5 @@
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { SparkleIcon } from '../constants';
 import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
@@ -33,17 +31,6 @@ interface BrandingSettings {
   social_linkedin: string;
 }
 
-// Helper to scroll to an element by ID, with fallback IDs
-const scrollToSection = (...ids: string[]) => {
-  for (const id of ids) {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
-  }
-};
-
 const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -52,11 +39,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [brandingSettings, setBrandingSettings] = useState<BrandingSettings | null>(null);
   const { getSection } = usePageContent('footer');
 
-  // Get CMS content
   const mainContent = getSection('main');
   const newsletterContent = getSection('newsletter');
 
-  // Fetch business and branding settings on mount
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -142,312 +127,525 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
     }
   };
 
-  const shopLinks = [
-    { label: 'Seedlings', cat: 'Seedlings' },
-    { label: 'Supplies', cat: 'Supplies' },
-    { label: 'Merchandise', cat: 'Merchandise' },
-  ];
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+    [
+      businessSettings?.ship_from_address_line1 || '123 High-Tech Way',
+      businessSettings?.ship_from_address_line2,
+      `${businessSettings?.ship_from_city || 'Atlanta'}, ${businessSettings?.ship_from_state || 'GA'} ${businessSettings?.ship_from_zip || '30318'}`,
+    ].filter(Boolean).join(', ')
+  )}`;
 
   return (
-    <footer className="bg-emerald-900 text-white pt-16 pb-10 px-4 md:px-12 overflow-hidden relative border-t border-white/5">
-      {/* Decorative background element */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-600/5 rounded-full blur-[120px] -z-0 pointer-events-none" />
-      
-      <div className="max-w-7xl mx-auto relative z-10">
-        {/* Top Section: Brand & Newsletter */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-14">
-          <div className="lg:col-span-5">
-            <div className="flex items-center gap-3 mb-8">
-              <button onClick={(e) => handleNav(e, 'home')} className="flex items-center gap-3 group text-left">
-                {brandingSettings?.logo_url ? (
-                  <img
-                    src={brandingSettings.logo_url}
-                    alt="ATL Urban Farms"
-                    className="h-14 w-auto object-contain group-hover:scale-105 transition-transform"
-                  />
-                ) : (
-                  <>
-                    <div className="w-12 h-12 brand-bg rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl group-hover:rotate-6 transition-transform">
-                      A
-                    </div>
-                    <span className="font-heading text-2xl font-black tracking-tight">
-                      ATL <span className="brand-text">Urban Farms</span>
-                    </span>
-                  </>
-                )}
-              </button>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+        .atl-footer {
+          background-color: #0d3d2a;
+          font-family: 'DM Sans', sans-serif;
+          color: #ffffff;
+          overflow: hidden;
+        }
+
+        .footer-top {
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          padding: 56px 64px 52px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 64px;
+          align-items: center;
+        }
+
+        @media (max-width: 900px) {
+          .footer-top { grid-template-columns: 1fr; padding: 40px 28px; gap: 40px; }
+          .footer-links { padding: 40px 28px !important; gap: 32px !important; }
+          .footer-bottom { padding: 20px 28px !important; flex-direction: column; gap: 12px; align-items: flex-start !important; }
+        }
+
+        .footer-brand-box {
+          background: #e8f4fd;
+          border: 1px solid rgba(147,197,253,0.4);
+          border-radius: 16px;
+          padding: 36px 40px;
+        }
+        .footer-brand-logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .footer-logo-img {
+          height: 44px;
+          width: auto;
+        }
+        .footer-tagline {
+          font-size: 15px;
+          line-height: 1.7;
+          color: #1e4d35;
+          font-weight: 400;
+          max-width: 320px;
+          margin-bottom: 28px;
+        }
+        .footer-socials {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          gap: 12px;
+          align-items: center;
+        }
+        .social-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          border: 1.5px solid rgba(13,61,42,0.25);
+          background: transparent;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          color: #0d3d2a;
+          text-decoration: none;
+        }
+        .social-btn:hover {
+          border-color: #0d3d2a;
+          background: rgba(13,61,42,0.08);
+          color: #0d3d2a;
+          transform: translateY(-2px);
+        }
+        .social-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+        .newsletter-box {
+          background: #ffffff;
+          border: 1px solid rgba(0,0,0,0.08);
+          border-radius: 16px;
+          padding: 36px 40px;
+          position: relative;
+          overflow: hidden;
+        }
+        .newsletter-envelope {
+          position: absolute;
+          top: 28px;
+          right: 32px;
+          color: #c4dece;
+          pointer-events: none;
+        }
+        .newsletter-eyebrow {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #0d3d2a;
+          margin-bottom: 10px;
+        }
+        .newsletter-heading {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 26px;
+          font-weight: 700;
+          color: #0d3d2a;
+          margin: 0 0 8px;
+          line-height: 1.3;
+        }
+        .newsletter-sub {
+          font-size: 14px;
+          color: #4b7a5e;
+          font-weight: 400;
+          margin-bottom: 24px;
+          line-height: 1.6;
+        }
+        .newsletter-row {
+          display: flex;
+          gap: 10px;
+        }
+        .newsletter-input {
+          flex: 1;
+          background: #f3f8f5;
+          border: 1.5px solid #c4dece;
+          border-radius: 10px;
+          padding: 12px 16px;
+          font-size: 14px;
+          color: #0d3d2a;
+          font-family: 'DM Sans', sans-serif;
+          outline: none;
+          transition: border-color 0.2s;
+        }
+        .newsletter-input::placeholder { color: #8aad9b; }
+        .newsletter-input:focus { border-color: #166534; }
+        .newsletter-btn {
+          background: #166534;
+          color: #ffffff;
+          border: none;
+          border-radius: 10px;
+          padding: 12px 24px;
+          font-size: 14px;
+          font-weight: 600;
+          font-family: 'DM Sans', sans-serif;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+        }
+        .newsletter-btn:hover {
+          background: #0d3d2a;
+          transform: translateY(-1px);
+        }
+        .newsletter-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+        .newsletter-fine {
+          font-size: 12px;
+          color: #8aad9b;
+          margin-top: 12px;
+        }
+        .newsletter-success {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #166534;
+          font-size: 15px;
+          font-weight: 500;
+          padding: 8px 0;
+        }
+        .newsletter-error {
+          font-size: 13px;
+          color: #dc2626;
+          margin-top: 8px;
+        }
+
+        .footer-links {
+          padding: 52px 64px;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 40px;
+        }
+        .footer-col-heading {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #f5f0e0;
+          margin-bottom: 20px;
+        }
+        .footer-links-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .footer-links-list li a,
+        .footer-links-list li button {
+          font-size: 14.5px;
+          color: #e0f2ea;
+          text-decoration: none;
+          font-weight: 400;
+          transition: color 0.15s;
+          cursor: pointer;
+          display: block;
+          line-height: 1.4;
+          background: none;
+          border: none;
+          padding: 0;
+          text-align: left;
+          font-family: inherit;
+        }
+        .footer-links-list li a:hover,
+        .footer-links-list li button:hover { color: #ffffff; }
+
+        .contact-label {
+          font-size: 10.5px;
+          font-weight: 600;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(245,240,224,0.5);
+          margin-top: 20px;
+          margin-bottom: 8px;
+        }
+        .contact-label:first-child {
+          margin-top: 0;
+        }
+        .contact-address {
+          font-size: 14px;
+          color: #e0f2ea;
+          line-height: 1.6;
+          font-weight: 300;
+          margin-bottom: 10px;
+        }
+        .contact-links {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+          flex-wrap: wrap;
+        }
+        .contact-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 12.5px;
+          color: #f5f0e0;
+          text-decoration: none;
+          border: 1px solid rgba(245,240,224,0.35);
+          padding: 4px 10px;
+          border-radius: 20px;
+          transition: all 0.15s;
+          background: none;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .contact-chip:hover {
+          background: rgba(245,240,224,0.12);
+          border-color: #f5f0e0;
+        }
+        .contact-detail {
+          font-size: 14px;
+          color: #e0f2ea;
+          font-weight: 300;
+        }
+        .contact-detail a {
+          color: #e0f2ea;
+          text-decoration: none;
+          transition: color 0.15s;
+        }
+        .contact-detail a:hover {
+          color: #ffffff;
+        }
+
+        .footer-bottom {
+          padding: 20px 64px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .footer-copyright {
+          font-size: 13px;
+          color: rgba(255,255,255,0.55);
+          font-weight: 300;
+        }
+        .footer-legal {
+          display: flex;
+          gap: 24px;
+          align-items: center;
+        }
+        .footer-legal button {
+          font-size: 13px;
+          color: rgba(255,255,255,0.55);
+          text-decoration: none;
+          transition: color 0.15s;
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          font-family: inherit;
+        }
+        .footer-legal button:hover { color: rgba(255,255,255,0.9); }
+        .footer-legal-dot {
+          width: 3px; height: 3px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.3);
+        }
+        .footer-built {
+          font-size: 12px;
+          color: rgba(255,255,255,0.4);
+          font-weight: 300;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+      `}</style>
+
+      <footer className="atl-footer">
+
+        {/* Top Section: Brand + Newsletter */}
+        <div className="footer-top">
+
+          {/* Brand Box */}
+          <div className="footer-brand-box">
+            <div className="footer-brand-logo">
+              {brandingSettings?.logo_url ? (
+                <img
+                  src={brandingSettings.logo_url}
+                  alt="ATL Urban Farms"
+                  className="footer-logo-img"
+                />
+              ) : (
+                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: '#0d3d2a' }}>
+                  ATL Urban Farms
+                </span>
+              )}
             </div>
-            <p className="text-gray-400 text-lg leading-relaxed max-w-md mb-10">
-              {mainContent.tagline || 'Transforming urban spaces with premium, nursery-grown seedlings. High-tech growing for the modern gardener.'}
+            <p className="footer-tagline">
+              {mainContent.tagline || 'Plant People Helping Plant People. Premium seedlings and expert support for every aeroponic gardener.'}
             </p>
-            <div className="flex gap-4">
+            <div className="footer-socials">
               {brandingSettings?.social_facebook && (
-                <motion.a
-                  href={brandingSettings.social_facebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="Facebook"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-                </motion.a>
+                <a className="social-btn" href={brandingSettings.social_facebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                  <svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+                </a>
               )}
               {brandingSettings?.social_instagram && (
-                <motion.a
-                  href={brandingSettings.social_instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="Instagram"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-                </motion.a>
-              )}
-              {brandingSettings?.social_twitter && (
-                <motion.a
-                  href={brandingSettings.social_twitter}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="Twitter/X"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
-                </motion.a>
-              )}
-              {brandingSettings?.social_tiktok && (
-                <motion.a
-                  href={brandingSettings.social_tiktok}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="TikTok"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
-                </motion.a>
+                <a className="social-btn" href={brandingSettings.social_instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                    <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                  </svg>
+                </a>
               )}
               {brandingSettings?.social_youtube && (
-                <motion.a
-                  href={brandingSettings.social_youtube}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="YouTube"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
-                </motion.a>
-              )}
-              {brandingSettings?.social_pinterest && (
-                <motion.a
-                  href={brandingSettings.social_pinterest}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="Pinterest"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17.5c.5-1.5 1-3 1.5-4.5.5-1.5.5-2.5.5-3.5a5 5 0 0 1 10 0c0 1-.1 2-.5 3.5-.5 1.5-1 3-1.5 4.5"/><path d="M8 14s1.5-2 4-2 4 2 4 2"/></svg>
-                </motion.a>
-              )}
-              {brandingSettings?.social_linkedin && (
-                <motion.a
-                  href={brandingSettings.social_linkedin}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ y: -5, scale: 1.1 }}
-                  className="w-12 h-12 bg-white/5 hover:bg-emerald-600/20 hover:text-emerald-400 rounded-2xl flex items-center justify-center transition-colors border border-white/10"
-                  aria-label="LinkedIn"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>
-                </motion.a>
+                <a className="social-btn" href={brandingSettings.social_youtube} target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+                  <svg viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58A2.78 2.78 0 003.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="#0d3d2a"/></svg>
+                </a>
               )}
             </div>
           </div>
 
-          <div className="lg:col-span-7">
-            <div className="bg-white/5 rounded-[3rem] p-8 md:p-12 border border-white/10 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <SparkleIcon className="w-24 h-24 text-emerald-500" />
-              </div>
-              <h3 className="text-3xl font-heading font-extrabold mb-4">{newsletterContent.headline || 'Join the Garden'}</h3>
-              <p className="text-gray-400 mb-8 max-w-sm">{newsletterContent.description || 'Get growing tips, nursery updates, and early access to rare seasonal seedlings.'}</p>
-              
-              <form onSubmit={handleNewsletterSubmit} className="flex flex-col sm:flex-row gap-4">
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (status !== 'idle') {
-                      setStatus('idle');
-                      setMessage(null);
-                    }
-                  }}
-                  placeholder="Enter your email" 
-                  className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  aria-label="Email address"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={status === 'loading'}
-                  className={`px-8 py-4 rounded-2xl font-bold transition-all shadow-lg whitespace-nowrap flex items-center justify-center gap-2 ${
-                    status === 'loading'
-                      ? 'bg-white/20 text-white/70 cursor-not-allowed'
-                      : 'brand-bg text-white hover:bg-white hover:scale-[1.02] active:scale-95'
-                  }`}
-                  style={status !== 'loading' ? { ['--hover-text' as string]: 'var(--brand-primary)' } : undefined}
-                  onMouseEnter={(e) => status !== 'loading' && (e.currentTarget.style.color = 'var(--brand-primary)')}
-                  onMouseLeave={(e) => status !== 'loading' && (e.currentTarget.style.color = '')}
-                >
-                  {status === 'loading' ? (
-                    <>
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
-                      Sending...
-                    </>
-                  ) : (
-                    'Subscribe'
-                  )}
-                </button>
-              </form>
-              <p className="mt-3 text-xs text-gray-500">
-                By subscribing, you agree to receive newsletters and promotional content. Unsubscribe anytime.
-              </p>
-              {message && (
-                <p
-                  className={`mt-4 text-sm ${status === 'success' ? 'text-emerald-300' : 'text-rose-200'}`}
-                  role="status"
-                >
-                  {message}
-                </p>
-              )}
+          {/* Newsletter Box */}
+          <div className="newsletter-box">
+            <div className="newsletter-envelope">
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M2 7l10 7 10-7"/>
+              </svg>
             </div>
+            <div className="newsletter-eyebrow">Newsletter</div>
+            <h3 className="newsletter-heading">{newsletterContent.headline || 'Join the Garden'}</h3>
+            <p className="newsletter-sub">
+              {newsletterContent.description || 'Growing tips, nursery updates, and early access to seasonal seedlings.'}
+            </p>
+            {status === 'success' ? (
+              <div className="newsletter-success">
+                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                {message}
+              </div>
+            ) : (
+              <form onSubmit={handleNewsletterSubmit}>
+                <div className="newsletter-row">
+                  <input
+                    className="newsletter-input"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (status !== 'idle') {
+                        setStatus('idle');
+                        setMessage(null);
+                      }
+                    }}
+                    aria-label="Email address"
+                    required
+                  />
+                  <button
+                    className="newsletter-btn"
+                    type="submit"
+                    disabled={status === 'loading'}
+                  >
+                    {status === 'loading' ? 'Sending...' : 'Subscribe'}
+                  </button>
+                </div>
+                <p className="newsletter-fine">
+                  By subscribing you agree to receive newsletters. Unsubscribe anytime.
+                </p>
+                {status === 'error' && message && (
+                  <p className="newsletter-error" role="status">{message}</p>
+                )}
+              </form>
+            )}
           </div>
         </div>
 
         {/* Link Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 border-b border-white/10 pb-12">
+        <div className="footer-links">
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Shop</h4>
-            <ul className="space-y-4">
-              {shopLinks.map(item => (
-                <li key={item.label}>
-                  <button
-                    onClick={(e) => handleNav(e, 'shop', item.cat)}
-                    className="text-gray-400 hover:text-white transition-colors text-sm font-medium"
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
-              <li><button onClick={(e) => handleNav(e, 'gift-cards')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Gift Cards</button></li>
+            <div className="footer-col-heading">Shop</div>
+            <ul className="footer-links-list">
+              <li><button onClick={(e) => handleNav(e, 'shop', 'Seedlings')}>Seedlings</button></li>
+              <li><button onClick={(e) => handleNav(e, 'shop', 'Supplies')}>Supplies</button></li>
+              <li><button onClick={(e) => handleNav(e, 'shop', 'Merchandise')}>Merchandise</button></li>
+              <li><button onClick={(e) => handleNav(e, 'gift-cards')}>Gift Cards</button></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Company</h4>
-            <ul className="space-y-4">
-              <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">About Us</button></li>
-              <li><button onClick={(e) => { handleNav(e, 'about'); setTimeout(() => { document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Meet the Growers</button></li>
-              <li><button onClick={(e) => handleNav(e, 'about')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Our Story</button></li>
-              <li><button onClick={(e) => handleNav(e, 'calendar')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Calendar</button></li>
+            <div className="footer-col-heading">Company</div>
+            <ul className="footer-links-list">
+              <li><button onClick={(e) => handleNav(e, 'about')}>About Us</button></li>
+              <li><button onClick={(e) => { handleNav(e, 'about'); setTimeout(() => { document.getElementById('growers')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}>Meet the Growers</button></li>
+              <li><button onClick={(e) => handleNav(e, 'about')}>Our Story</button></li>
+              <li><button onClick={(e) => handleNav(e, 'calendar')}>Calendar</button></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Support</h4>
-            <ul className="space-y-4">
-              <li><button onClick={(e) => handleNav(e, 'faq')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">FAQ</button></li>
-              <li><button onClick={(e) => handleNav(e, 'blog')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Blog</button></li>
-              {/* Hidden pre-launch — re-enable when Schools page is ready */}
-              {/* <li><button onClick={(e) => handleNav(e, 'schools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Schools</button></li> */}
-              <li><button onClick={(e) => handleNav(e, 'tools')} className="text-gray-400 hover:text-white transition-colors text-sm font-medium">Tools</button></li>
+            <div className="footer-col-heading">Support</div>
+            <ul className="footer-links-list">
+              <li><button onClick={(e) => handleNav(e, 'faq')}>FAQ</button></li>
+              <li><button onClick={(e) => handleNav(e, 'blog')}>Blog</button></li>
+              <li><button onClick={(e) => handleNav(e, 'tools')}>Tools</button></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-heading font-bold text-lg mb-8 brand-text uppercase tracking-widest text-xs">Contact</h4>
-            <div className="space-y-6">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Visit Our Nursery</p>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  {businessSettings?.ship_from_address_line1 || '123 High-Tech Way'}
-                  {businessSettings?.ship_from_address_line2 && <><br />{businessSettings.ship_from_address_line2}</>}
-                  <br />
-                  {businessSettings?.ship_from_city || 'Atlanta'}, {businessSettings?.ship_from_state || 'GA'} {businessSettings?.ship_from_zip || '30318'}
-                </p>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-                    [
-                      businessSettings?.ship_from_address_line1 || '123 High-Tech Way',
-                      businessSettings?.ship_from_address_line2,
-                      `${businessSettings?.ship_from_city || 'Atlanta'}, ${businessSettings?.ship_from_state || 'GA'} ${businessSettings?.ship_from_zip || '30318'}`,
-                    ].filter(Boolean).join(', ')
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors mt-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  Get Directions
-                </a>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (onNavigate) {
-                      onNavigate('calendar', undefined, { calendarFilter: 'open_hours' });
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors mt-2 ml-4"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-                  View Open Hours
-                </button>
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Grow Support</p>
-                {businessSettings?.support_email ? (
-                  <a
-                    href={`mailto:${businessSettings.support_email}`}
-                    className="text-gray-400 hover:text-white text-sm transition-colors block"
-                  >
-                    {businessSettings.support_email}
-                  </a>
-                ) : (
-                  <span className="text-gray-400 text-sm">hello@atlurbanfarms.com</span>
-                )}
-                {businessSettings?.support_phone && (
-                  <a
-                    href={`tel:${businessSettings.support_phone}`}
-                    className="text-gray-400 hover:text-white text-sm transition-colors block mt-1"
-                  >
-                    {businessSettings.support_phone}
-                  </a>
-                )}
-              </div>
+            <div className="footer-col-heading">Contact</div>
+            <div className="contact-label">Visit Our Nursery</div>
+            <div className="contact-address">
+              {businessSettings?.ship_from_address_line1 || '123 High-Tech Way'}
+              {businessSettings?.ship_from_address_line2 && <><br />{businessSettings.ship_from_address_line2}</>}
+              <br />
+              {businessSettings?.ship_from_city || 'Atlanta'}, {businessSettings?.ship_from_state || 'GA'} {businessSettings?.ship_from_zip || '30318'}
             </div>
+            <div className="contact-links">
+              <a
+                className="contact-chip"
+                href={directionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Directions
+              </a>
+              <button
+                className="contact-chip"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (onNavigate) {
+                    onNavigate('calendar', undefined, { calendarFilter: 'open_hours' });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+              >
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Hours
+              </button>
+            </div>
+            <div className="contact-label">Grow Support</div>
+            <div className="contact-detail">
+              {businessSettings?.support_email ? (
+                <a href={`mailto:${businessSettings.support_email}`}>{businessSettings.support_email}</a>
+              ) : (
+                <span>hello@atlurbanfarms.com</span>
+              )}
+            </div>
+            {businessSettings?.support_phone && (
+              <div className="contact-detail">
+                <a href={`tel:${businessSettings.support_phone}`}>{businessSettings.support_phone}</a>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-gray-600">
-              © 2025 ATL URBAN FARMS. ALL RIGHTS RESERVED.
-            </p>
-            <div className="flex gap-6">
-              <button onClick={(e) => handleNav(e, 'terms')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Terms of Service</button>
-              <button onClick={(e) => handleNav(e, 'privacy')} className="text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Privacy Policy</button>
-            </div>
+        <div className="footer-bottom">
+          <span className="footer-copyright">&copy; 2025 ATL Urban Farms. All rights reserved.</span>
+          <div className="footer-legal">
+            <button onClick={(e) => handleNav(e, 'terms')}>Terms of Service</button>
+            <div className="footer-legal-dot" />
+            <button onClick={(e) => handleNav(e, 'privacy')}>Privacy Policy</button>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-600/60">
-            Built by Sweetwater Technology
-          </p>
+          <span className="footer-built">Built by Sweetwater Technology</span>
         </div>
-      </div>
-    </footer>
+
+      </footer>
+    </>
   );
 };
 

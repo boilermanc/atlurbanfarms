@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
 interface SchoolsPageProps {
@@ -18,7 +18,22 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
     message: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [gradeLevelSheetOpen, setGradeLevelSheetOpen] = useState(false);
   const { get, getSection } = usePageContent('schools');
+
+  const gradeLevelOptions = [
+    { value: 'elementary', label: 'Elementary (K-5)' },
+    { value: 'middle', label: 'Middle School (6-8)' },
+    { value: 'high', label: 'High School (9-12)' },
+    { value: 'mixed', label: 'Multiple Levels' },
+  ];
+
+  useEffect(() => {
+    if (gradeLevelSheetOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [gradeLevelSheetOpen]);
 
   // Get CMS content
   const heroContent = getSection('hero');
@@ -346,19 +361,29 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
                     </div>
                     <div>
                       <label htmlFor="gradeLevel" className="block text-sm font-bold text-gray-700 mb-2">Grade Levels</label>
+                      {/* Desktop: native select */}
                       <select
                         id="gradeLevel"
                         name="gradeLevel"
                         value={formData.gradeLevel}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
+                        className="hidden md:block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors bg-white"
                       >
                         <option value="">Select grade levels</option>
-                        <option value="elementary">Elementary (K-5)</option>
-                        <option value="middle">Middle School (6-8)</option>
-                        <option value="high">High School (9-12)</option>
-                        <option value="mixed">Multiple Levels</option>
+                        {gradeLevelOptions.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
                       </select>
+                      {/* Mobile: bottom sheet trigger */}
+                      <button
+                        type="button"
+                        onClick={() => setGradeLevelSheetOpen(true)}
+                        className="md:hidden w-full text-left px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-colors bg-white"
+                      >
+                        {formData.gradeLevel
+                          ? <span className="text-gray-900">{gradeLevelOptions.find(o => o.value === formData.gradeLevel)?.label}</span>
+                          : <span className="text-gray-400">Select grade levels</span>}
+                      </button>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -474,6 +499,57 @@ const SchoolsPage: React.FC<SchoolsPageProps> = ({ onBack, onNavigate }) => {
           </div>
         </div>
       </section>
+      {/* Mobile Grade Level Bottom Sheet */}
+      <AnimatePresence>
+        {gradeLevelSheetOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40 z-50 md:hidden"
+              onClick={() => setGradeLevelSheetOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl max-h-[70vh] flex flex-col md:hidden"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Grade Levels</h3>
+                <button
+                  onClick={() => setGradeLevelSheetOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3 pb-8">
+                {gradeLevelOptions.map((o) => (
+                  <button
+                    key={o.value}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, gradeLevel: o.value }));
+                      setGradeLevelSheetOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
+                      formData.gradeLevel === o.value ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
