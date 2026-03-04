@@ -1164,6 +1164,9 @@ export function useCreateOrder() {
     customerNotes = null,
     // Growing system
     growingSystem = null,
+    // Gift card details
+    giftCardCode = null,
+    giftCardAmount = null,
     // Payment status (for Stripe flow: 'pending' until payment completes)
     paymentStatus = null,
     // Stripe payment intent ID (set when order is created after successful payment)
@@ -1235,6 +1238,9 @@ export function useCreateOrder() {
         paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
         // Stripe payment intent ID
         stripe_payment_intent_id: stripePaymentIntentId,
+        // Gift card
+        gift_card_code: giftCardCode,
+        gift_card_amount: giftCardAmount,
         // Tax audit
         tax_rate_applied: taxRateApplied,
         tax_note: taxNote

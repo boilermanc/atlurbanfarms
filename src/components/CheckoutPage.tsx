@@ -247,6 +247,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [appliedManualPromo, setAppliedManualPromo] = useState<CartDiscountResult | null>(null);
   const [manualPromoError, setManualPromoError] = useState<string | null>(null);
 
+  // Gift card state
+  const [giftCardCode, setGiftCardCode] = useState('');
+  const [giftCardApplied, setGiftCardApplied] = useState(false);
+  const [giftCardBalance, setGiftCardBalance] = useState(0);
+  const [giftCardDiscount, setGiftCardDiscount] = useState(0);
+  const [giftCardValidating, setGiftCardValidating] = useState(false);
+  const [giftCardError, setGiftCardError] = useState<string | null>(null);
+  const [giftCardData, setGiftCardData] = useState<any>(null);
+
   // ShipEngine address validation and rates
   const {
     validateAddress,
@@ -520,6 +529,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const totalBeforeCredit = subtotal - bestDiscount + shippingCost + tax;
   const appliedCredit = hasCredit ? Math.min(creditAmount, totalBeforeCredit) : 0;
   const total = totalBeforeCredit - appliedCredit;
+  const finalTotal = Math.max(0, total - giftCardDiscount);
+
+  // Recalculate gift card discount when total changes
+  useEffect(() => {
+    if (giftCardApplied && giftCardBalance > 0) {
+      setGiftCardDiscount(Math.min(giftCardBalance, total));
+    }
+  }, [total, giftCardApplied, giftCardBalance]);
 
   // Manual promo code handlers
   const handleApplyManualPromo = useCallback(async () => {
@@ -581,6 +598,51 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
     });
   }, [items, calculateDiscount, user]);
+
+  // Gift card handlers
+  const applyGiftCard = async () => {
+    if (!giftCardCode.trim()) return;
+    setGiftCardValidating(true);
+    setGiftCardError(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('giftup-validate', {
+        body: { code: giftCardCode.trim().toUpperCase(), testMode: false }
+      });
+
+      if (error || !data.success) {
+        setGiftCardError(data?.error?.message || 'Unable to validate gift card.');
+        setGiftCardApplied(false);
+        return;
+      }
+
+      if (!data.valid) {
+        setGiftCardError(data.errorMessage || 'This gift card cannot be redeemed.');
+        setGiftCardApplied(false);
+        return;
+      }
+
+      const discount = Math.min(data.remainingValue, total);
+      setGiftCardBalance(data.remainingValue);
+      setGiftCardDiscount(discount);
+      setGiftCardApplied(true);
+      setGiftCardData(data);
+      setGiftCardError(null);
+    } catch (err) {
+      setGiftCardError('Unable to validate gift card. Please try again.');
+    } finally {
+      setGiftCardValidating(false);
+    }
+  };
+
+  const removeGiftCard = () => {
+    setGiftCardCode('');
+    setGiftCardApplied(false);
+    setGiftCardBalance(0);
+    setGiftCardDiscount(0);
+    setGiftCardError(null);
+    setGiftCardData(null);
+  };
 
   // Build shipping address for validation/rates
   const buildShippingAddress = useCallback((): ShippingAddress => ({
@@ -1223,7 +1285,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         shipping_cost: shippingCost,
         subtotal,
         tax,
-        total,
+        total: finalTotal,
+        gift_card_code: giftCardApplied ? giftCardData?.code : null,
+        gift_card_amount: giftCardApplied ? giftCardDiscount : null,
         shipping_rate_id: shippingDetails.shippingRateId || null,
         shipping_carrier_id: shippingDetails.shippingCarrierId || null,
         shipping_service_code: shippingDetails.shippingServiceCode || null,
@@ -1240,10 +1304,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         pickup_schedule_id: pickupDetails.pickupScheduleId || null,
         promotion_id: activePromo?.promotion_id || null,
         promotion_code: activePromo?.promotion_code || null,
-        discount_amount: appliedCredit + bestDiscount,
+        discount_amount: appliedCredit + bestDiscount + giftCardDiscount,
         discount_description: [
           bestDiscount > 0 ? activeDiscountLabel : '',
-          appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+          appliedCredit > 0 ? 'Sproutify Seedling Credit' : '',
+          giftCardApplied ? `Gift Card (${giftCardData?.code})` : ''
         ].filter(Boolean).join(', ') || null,
         customer_notes: customerNotes.trim() || null,
         growing_system: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
@@ -1260,6 +1325,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         line_total: item.price * item.quantity
       }));
 
+      // If gift card covers the full total, skip Stripe and create order directly
+      if (finalTotal === 0 && giftCardApplied) {
+        await completeOrder();
+        return;
+      }
+
       // Create payment intent — edge function also stores pending order data
       // for webhook fallback if browser closes after payment
       const paymentResult = await createPaymentIntent({
@@ -1267,7 +1338,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         customerEmail: formData.email,
         discountAmount: appliedCredit > 0 ? appliedCredit : undefined,
         discountDescription: appliedCredit > 0 ? 'Sproutify Seedling Credit' : undefined,
-        lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined,
+        lifetimeDiscount: (bestDiscount + giftCardDiscount) > 0 ? (bestDiscount + giftCardDiscount) : undefined,
         items: items.map(item => ({ productId: item.id, quantity: item.quantity })),
         orderData: pendingOrderData,
         orderItems: pendingOrderItems,
@@ -1352,11 +1423,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       shippingCost: shippingCost,
       customerId: user?.id || null,
       saveAddress: deliveryMethod === 'shipping' && saveAddress,
-      discountAmount: appliedCredit + bestDiscount,
+      discountAmount: appliedCredit + bestDiscount + giftCardDiscount,
       discountDescription: [
         bestDiscount > 0 ? activeDiscountLabel : '',
-        appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+        appliedCredit > 0 ? 'Sproutify Seedling Credit' : '',
+        giftCardApplied ? `Gift Card (${giftCardData?.code})` : ''
       ].filter(Boolean).join(', ') || undefined,
+      giftCardCode: giftCardApplied ? giftCardData?.code : undefined,
+      giftCardAmount: giftCardApplied ? giftCardDiscount : undefined,
       promotionId: activePromo?.promotion_id || null,
       promotionCode: activePromo?.promotion_code || null,
       customerNotes: customerNotes.trim() || null,
@@ -1423,6 +1497,19 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       }
     }
 
+    // Redeem gift card balance in Gift Up (fire and forget)
+    if (giftCardApplied && giftCardDiscount > 0) {
+      supabase.functions.invoke('giftup-redeem', {
+        body: {
+          order_id: order.id || order.order_id,
+          code: giftCardData.code,
+          amount: giftCardDiscount,
+        }
+      }).catch((err: any) => {
+        console.error('giftup-redeem failed — order still valid, requires manual reconciliation:', err);
+      });
+    }
+
     // Promotion usage is recorded by createOrder when promotionId is passed
 
     // Prepare order data for confirmation page
@@ -1451,7 +1538,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         subtotal,
         shipping: shippingCost,
         tax,
-        total
+        total: finalTotal
       },
       isGuest: !user,
       isPickup: deliveryMethod === 'pickup',
@@ -1472,7 +1559,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         subtotal,
         shipping: shippingCost,
         tax,
-        total,
+        total: finalTotal,
         shippingAddress: orderData.shippingAddress,
         pickupInfo: orderData.pickupInfo,
         shippingMethodName: selectedShippingRate
@@ -1572,11 +1659,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       paymentStatus: 'paid',
       stripePaymentIntentId: paymentIntentId,
       saveAddress: deliveryMethod === 'shipping' && saveAddress,
-      discountAmount: appliedCredit + bestDiscount,
+      discountAmount: appliedCredit + bestDiscount + giftCardDiscount,
       discountDescription: [
         bestDiscount > 0 ? activeDiscountLabel : '',
-        appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+        appliedCredit > 0 ? 'Sproutify Seedling Credit' : '',
+        giftCardApplied ? `Gift Card (${giftCardData?.code})` : ''
       ].filter(Boolean).join(', ') || undefined,
+      giftCardCode: giftCardApplied ? giftCardData?.code : undefined,
+      giftCardAmount: giftCardApplied ? giftCardDiscount : undefined,
       promotionId: activePromo?.promotion_id || null,
       promotionCode: activePromo?.promotion_code || null,
       customerNotes: customerNotes.trim() || null,
@@ -3053,6 +3143,67 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <h3 className="text-xl font-heading font-extrabold text-gray-900">Payment</h3>
                 </div>
 
+                {/* Gift Card */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gift Card Code
+                  </label>
+
+                  {!giftCardApplied ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={giftCardCode}
+                        onChange={(e) => setGiftCardCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyGiftCard(); } }}
+                        placeholder="Enter gift card code"
+                        maxLength={10}
+                        className="flex-1 px-4 py-3 text-sm bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all placeholder:text-gray-300 disabled:opacity-50"
+                        disabled={giftCardValidating}
+                      />
+                      <button
+                        type="button"
+                        onClick={applyGiftCard}
+                        disabled={giftCardValidating || !giftCardCode.trim()}
+                        className="px-5 py-3 text-sm font-bold bg-emerald-600 text-white rounded-2xl transition-all hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                      >
+                        {giftCardValidating ? (
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                        ) : 'Apply'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2 text-sm text-emerald-700 font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>{giftCardData?.code} applied</span>
+                        <span className="font-bold">-${giftCardDiscount.toFixed(2)}</span>
+                        {giftCardBalance > giftCardDiscount && (
+                          <span className="text-xs text-gray-500">
+                            (${(giftCardBalance - giftCardDiscount).toFixed(2)} remaining)
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeGiftCard}
+                        className="text-xs text-emerald-600 hover:text-red-500 font-bold transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+
+                  {giftCardError && (
+                    <p className="mt-1 text-sm text-red-600">{giftCardError}</p>
+                  )}
+                </div>
+
                 {/* Show Stripe payment form if we have a client secret */}
                 {paymentStep === 'payment' && clientSecret ? (
                   <div className="p-6 rounded-[2rem] border-2 border-emerald-200 bg-emerald-50/30">
@@ -3319,9 +3470,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <span className="font-bold">-${appliedCredit.toFixed(2)}</span>
                     </div>
                   )}
+                  {giftCardApplied && (
+                    <div className="flex justify-between text-emerald-600 text-sm">
+                      <span>Gift Card ({giftCardData?.code})</span>
+                      <span className="font-bold">-${giftCardDiscount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-4 border-t border-gray-100">
                     <span className="text-lg font-heading font-extrabold text-gray-900">Total</span>
-                    <span className="text-2xl font-black text-emerald-600">${total.toFixed(2)}</span>
+                    <span className="text-2xl font-black text-emerald-600">${finalTotal.toFixed(2)}</span>
                   </div>
                 </div>
 

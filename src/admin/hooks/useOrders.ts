@@ -142,6 +142,10 @@ export interface Order {
   shipment_tracking_status?: string | null;
   shipment_tracking_number?: string | null;
   shipment_voided?: boolean;
+  // Gift card fields
+  gift_card_code?: string | null;
+  gift_card_amount?: number | null;
+  giftup_transaction_id?: string | null;
   // Legacy order fields
   isLegacy?: boolean;
   woo_order_id?: number;

@@ -222,6 +222,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     );
 
     if (result.success) {
+      // Restore gift card balance if one was used
+      if (order.gift_card_code && order.giftup_transaction_id) {
+        try {
+          const { data } = await supabase.functions.invoke('giftup-undo-redemption', {
+            body: { order_id: order.id }
+          });
+          if (data?.success) {
+            console.log(`Gift card ${order.gift_card_code} balance restored`);
+          } else {
+            console.warn('Gift card balance could not be restored automatically. Check Gift Up dashboard.');
+          }
+        } catch (err) {
+          console.warn('Gift card undo-redemption failed:', err);
+        }
+      }
+
       setShowCancelModal(false);
       setCancelReason('');
       refetch();
@@ -400,6 +416,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     });
 
     if (result.success) {
+      // Restore gift card balance if one was used
+      if (order.gift_card_code && order.giftup_transaction_id) {
+        try {
+          const { data } = await supabase.functions.invoke('giftup-undo-redemption', {
+            body: { order_id: order.id }
+          });
+          if (data?.success) {
+            console.log(`Gift card ${order.gift_card_code} balance restored`);
+          } else {
+            console.warn('Gift card balance could not be restored automatically. Check Gift Up dashboard.');
+          }
+        } catch (err) {
+          console.warn('Gift card undo-redemption failed:', err);
+        }
+      }
+
       handleCloseRefundModal();
       refetch();
     } else {
@@ -451,6 +483,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     });
 
     if (result.success) {
+      // Restore gift card balance if one was used
+      if (order.gift_card_code && order.giftup_transaction_id) {
+        try {
+          const { data } = await supabase.functions.invoke('giftup-undo-redemption', {
+            body: { order_id: order.id }
+          });
+          if (data?.success) {
+            console.log(`Gift card ${order.gift_card_code} balance restored`);
+          } else {
+            console.warn('Gift card balance could not be restored automatically. Check Gift Up dashboard.');
+          }
+        } catch (err) {
+          console.warn('Gift card undo-redemption failed:', err);
+        }
+      }
+
       handleCloseManualRefundModal();
       refetch();
     } else {
