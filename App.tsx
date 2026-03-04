@@ -28,6 +28,7 @@ import { safeDecodeURIComponent } from './src/utils/url';
 import LoginPage from './src/components/auth/LoginPage';
 import RegisterPage from './src/components/auth/RegisterPage';
 import ForgotPasswordPage from './src/components/auth/ForgotPasswordPage';
+import ResetPasswordPage from './src/pages/auth/ResetPasswordPage';
 import { AccountPage } from './src/components/account';
 import { WelcomePage } from './src/pages';
 import GiftCardsPage from './src/pages/GiftCardsPage';
@@ -99,7 +100,7 @@ interface OrderData {
   } | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -116,6 +117,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/login') return 'login';
   if (pathname === '/register') return 'register';
   if (pathname === '/forgot-password') return 'forgot-password';
+  if (pathname === '/reset-password') return 'reset-password';
   if (pathname === '/account' || pathname.startsWith('/account/')) return 'account';
   if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
   if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
@@ -139,6 +141,7 @@ const getPathForView = (view: ViewType): string => {
     case 'login': return '/login';
     case 'register': return '/register';
     case 'forgot-password': return '/forgot-password';
+    case 'reset-password': return '/reset-password';
     case 'account': return '/account';
     case 'newsletter-confirmed': return '/newsletter/confirmed';
     case 'newsletter-unsubscribed': return '/newsletter/unsubscribed';
@@ -644,6 +647,12 @@ const App: React.FC = () => {
       case 'forgot-password':
         return (
           <ForgotPasswordPage
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'reset-password':
+        return (
+          <ResetPasswordPage
             onNavigate={handleNavigate}
           />
         );
