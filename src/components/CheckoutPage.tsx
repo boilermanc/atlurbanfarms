@@ -315,6 +315,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   // Ref for scrolling to error banner on validation failure
   const orderErrorRef = useRef<HTMLDivElement>(null);
+  const shippingMethodRef = useRef<HTMLElement>(null);
 
   // Abandoned cart tracking: session ID for deduplication across re-renders
   const [abandonedCartSessionId] = useState<string>(() => {
@@ -1130,9 +1131,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         return;
       }
 
-      // Check if shipping method is selected (when rates are available)
-      if (shipEngineEnabled && shippingRates.length > 0 && !selectedShippingRate) {
-        setOrderError('Please select a shipping method.');
+      // Check if shipping method is selected (ShipEngine enabled)
+      if (shipEngineEnabled && !selectedShippingRate) {
+        setOrderError('Please select a shipping method before continuing.');
+        shippingMethodRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
@@ -2651,6 +2653,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
               {/* Shipping Method - only show for shipping delivery method */}
               {deliveryMethod === 'shipping' && (
               <motion.section
+                ref={shippingMethodRef}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
@@ -2878,6 +2881,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           </p>
                         </div>
                       </div>
+                    )}
+
+                    {/* Validation error: no shipping method selected after submit attempt */}
+                    {submitAttempted && !selectedShippingRate && !fetchingRates && !isZoneBlocked && (
+                      <p className="text-sm font-medium text-red-600 mt-1">
+                        Please select a shipping method.
+                      </p>
                     )}
                   </>
                 ) : (
