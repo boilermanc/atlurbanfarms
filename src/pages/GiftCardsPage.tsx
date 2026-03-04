@@ -17,10 +17,13 @@ const GiftCardsPage: React.FC = () => {
           .eq('key', 'site_id')
           .maybeSingle();
 
+        console.log('[GiftCards] fetch result:', { data, fetchError });
+
         if (fetchError) throw fetchError;
 
         // value is jsonb — may be a string, may need unwrapping
         let id = data?.value ?? '';
+        console.log('[GiftCards] raw value:', JSON.stringify(id), 'type:', typeof id);
         if (typeof id === 'string') {
           // Strip double-encoding: "\"abc\"" → "abc"
           if (id.startsWith('"') && id.endsWith('"')) {
@@ -28,8 +31,10 @@ const GiftCardsPage: React.FC = () => {
           }
         }
 
+        console.log('[GiftCards] final siteId:', JSON.stringify(id));
         setSiteId(id || '');
-      } catch {
+      } catch (err) {
+        console.error('[GiftCards] error fetching site_id:', err);
         setError(true);
       } finally {
         setLoading(false);
@@ -50,10 +55,14 @@ const GiftCardsPage: React.FC = () => {
     const existing = document.getElementById('giftup-script');
     if (existing) existing.remove();
 
+    console.log('[GiftCards] loading Gift Up script for siteId:', siteId);
+
     const script = document.createElement('script');
     script.id = 'giftup-script';
     script.src = 'https://giftup.app/dist/gift-up.js';
     script.async = true;
+    script.onload = () => console.log('[GiftCards] Gift Up script loaded');
+    script.onerror = (e) => console.error('[GiftCards] Gift Up script FAILED to load:', e);
     document.head.appendChild(script);
 
     // Cleanup on unmount
