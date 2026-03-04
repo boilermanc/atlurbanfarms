@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
+import { supabase } from '../../lib/supabase';
 import { useGiftCard, useToggleGiftCardStatus, useAdjustGiftCardBalance } from '../hooks/useGiftCards';
 import {
   GiftCard,
@@ -67,6 +68,73 @@ const GiftCardDetailPage: React.FC<GiftCardDetailPageProps> = ({ giftCardId, onB
       setShowAdjustModal(false);
       setAdjustForm(DEFAULT_ADJUSTMENT_FORM);
       refetch();
+    }
+  };
+
+  // Gift Up API-backed actions
+  const [syncing, setSyncing] = useState(false);
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setActionMessage({ type, text });
+    setTimeout(() => setActionMessage(null), 4000);
+  };
+
+  const handleSync = async () => {
+    if (!giftCard) return;
+    setSyncing(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('giftup-admin-action', {
+        body: { action: 'sync', code: giftCard.code, gift_card_id: giftCard.id }
+      });
+      if (fnError) throw fnError;
+      if (data?.success) {
+        showMessage('success', 'Gift card synced from Gift Up');
+        refetch();
+      } else {
+        showMessage('error', data?.error?.message || 'Sync failed');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message || 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleVoid = async () => {
+    if (!giftCard) return;
+    if (!confirm('Are you sure you want to void this gift card? This cannot be undone.')) return;
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('giftup-admin-action', {
+        body: { action: 'void', code: giftCard.code, gift_card_id: giftCard.id }
+      });
+      if (fnError) throw fnError;
+      if (data?.success) {
+        showMessage('success', 'Gift card voided');
+        refetch();
+      } else {
+        showMessage('error', data?.error?.message || 'Void failed');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message || 'Void failed');
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!giftCard) return;
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('giftup-admin-action', {
+        body: { action: 'reactivate', code: giftCard.code, gift_card_id: giftCard.id }
+      });
+      if (fnError) throw fnError;
+      if (data?.success) {
+        showMessage('success', 'Gift card reactivated');
+        refetch();
+      } else {
+        showMessage('error', data?.error?.message || 'Reactivate failed');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message || 'Reactivate failed');
     }
   };
 
@@ -176,6 +244,15 @@ const GiftCardDetailPage: React.FC<GiftCardDetailPageProps> = ({ giftCardId, onB
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Sync from Gift Up"
+            >
+              <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+              Sync
+            </button>
+            <button
               onClick={() => setShowAdjustModal(true)}
               disabled={giftCard.status === 'disabled'}
               className="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -183,29 +260,46 @@ const GiftCardDetailPage: React.FC<GiftCardDetailPageProps> = ({ giftCardId, onB
               <Edit2 size={18} />
               Adjust Balance
             </button>
+            {giftCard.status === 'disabled' ? (
+              <button
+                onClick={handleReactivate}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl font-medium transition-colors"
+              >
+                <ToggleRight size={18} />
+                Reactivate
+              </button>
+            ) : (
+              <button
+                onClick={handleToggleStatus}
+                disabled={togglingStatus || giftCard.status === 'depleted'}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ToggleLeft size={18} />
+                Disable
+              </button>
+            )}
             <button
-              onClick={handleToggleStatus}
-              disabled={togglingStatus || giftCard.status === 'depleted'}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                giftCard.status === 'active'
-                  ? 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
-              }`}
+              onClick={handleVoid}
+              disabled={giftCard.status === 'disabled'}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Permanently void in Gift Up"
             >
-              {giftCard.status === 'active' ? (
-                <>
-                  <ToggleLeft size={18} />
-                  Disable
-                </>
-              ) : (
-                <>
-                  <ToggleRight size={18} />
-                  Enable
-                </>
-              )}
+              <AlertTriangle size={18} />
+              Void
             </button>
           </div>
         </div>
+
+        {/* Action Message */}
+        {actionMessage && (
+          <div className={`px-4 py-3 rounded-xl text-sm font-medium ${
+            actionMessage.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-red-50 text-red-700 border border-red-200'
+          }`}>
+            {actionMessage.text}
+          </div>
+        )}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

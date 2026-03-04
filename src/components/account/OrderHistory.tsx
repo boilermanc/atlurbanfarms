@@ -60,6 +60,7 @@ interface Order {
   pickup_date: string | null;
   pickup_time_start: string | null;
   pickup_time_end: string | null;
+  discount_amount: number | null;
   customer_name: string | null;
   customer_email: string | null;
   order_items: OrderItem[];
@@ -406,6 +407,11 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
               <span style="color: #6b7280;">Subtotal</span>
               <span>${formatCurrency(order.subtotal)}</span>
             </div>
+            ${!order.isLegacy && (order as Order).discount_amount && (order as Order).discount_amount! > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Discount</span>
+              <span>-${formatCurrency((order as Order).discount_amount!)}</span>
+            </div>` : ''}
             ${shippingCost > 0 ? `
             <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
               <span style="color: #6b7280;">Shipping</span>
