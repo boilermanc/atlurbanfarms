@@ -99,6 +99,22 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
           .eq('id', data.user.id);
       }
 
+      // Fire-and-forget welcome email — don't block signup on email delivery
+      try {
+        supabase.functions.invoke('send-email', {
+          body: {
+            to: formData.email,
+            template: 'welcome',
+            templateData: {
+              customer_first_name: formData.firstName.trim(),
+              name: formData.firstName.trim(),
+            },
+          },
+        });
+      } catch (_) {
+        // Silent — email failure should never block account creation
+      }
+
       onSuccess();
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration. Please try again.');
