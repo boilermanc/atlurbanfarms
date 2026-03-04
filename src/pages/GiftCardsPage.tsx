@@ -43,16 +43,18 @@ const GiftCardsPage: React.FC = () => {
   useEffect(() => {
     if (!siteId) return;
 
-    // Remove any previous instance to avoid duplicates on re-render
+    // Gift Up's embed expects a plain <script> tag.  When loaded
+    // dynamically inside a React SPA the DOMContentLoaded event has
+    // already fired, so the widget's auto-init may not pick up the
+    // data-site-id div.  Re-adding the script forces re-evaluation.
     const existing = document.getElementById('giftup-script');
     if (existing) existing.remove();
 
     const script = document.createElement('script');
     script.id = 'giftup-script';
-    script.src = 'https://cdn.giftup.app/dist/gift-up.js';
-    script.type = 'text/javascript';
+    script.src = 'https://giftup.app/dist/gift-up.js';
     script.async = true;
-    document.body.appendChild(script);
+    document.head.appendChild(script);
 
     // Cleanup on unmount
     return () => {
@@ -95,8 +97,8 @@ const GiftCardsPage: React.FC = () => {
 
         {!loading && siteId && !error && (
           <div
-            className="giftup-checkout-root"
             data-site-id={siteId}
+            data-platform="Other"
             style={{ minHeight: 500 }}
           />
         )}
