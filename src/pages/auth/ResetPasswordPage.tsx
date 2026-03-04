@@ -14,14 +14,16 @@ const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ onNavigate }) => 
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsReady(true);
+        setUserEmail(session?.user?.email || '');
       }
     });
 
@@ -99,6 +101,9 @@ const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({ onNavigate }) => 
           <p className="text-gray-500">
             Enter your new password below
           </p>
+          {userEmail && (
+            <p className="text-gray-500 text-sm mt-2">Resetting password for <span className="font-semibold text-gray-700">{userEmail}</span></p>
+          )}
         </div>
 
         {/* Form */}

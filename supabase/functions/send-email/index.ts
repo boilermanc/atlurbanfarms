@@ -559,6 +559,8 @@ function generateDeliveryInfoHtml(data: Record<string, any>): string {
 function normalizeTemplateData(templateKey: string, data: Record<string, any>): Record<string, any> {
   const normalized: Record<string, any> = { ...data }
 
+  const SITE_URL = 'https://atlurbanfarms.com'
+
   if (templateKey === 'order_confirmation') {
     // Map camelCase → snake_case for order confirmation template variables
     if (data.orderNumber !== undefined) normalized.order_id = data.orderNumber
@@ -569,10 +571,11 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
     if (data.tax !== undefined) normalized.order_tax = formatCurrency(data.tax)
     if (data.total !== undefined) normalized.order_total = formatCurrency(data.total)
 
-    // Add order_date if not provided
+    // Add order_date if not provided (use Eastern Time to avoid showing tomorrow's date)
     if (!data.order_date) {
       normalized.order_date = new Date().toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        timeZone: 'America/New_York'
       })
     }
 
@@ -581,7 +584,46 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
 
     // Invoice URL — constructed from siteUrl passed by the client
     const siteUrl = data.siteUrl || ''
-    normalized.invoice_url = siteUrl ? `${siteUrl}/account/orders` : '#'
+    normalized.invoice_url = siteUrl ? `${siteUrl}/account/orders` : `${SITE_URL}/account/orders`
+
+    // Additional variable aliases for templates that use alternate names
+    if (data.orderNumber !== undefined) normalized.order_number = data.orderNumber
+    if (data.customerName !== undefined) normalized.customer_name = data.customerName
+    normalized.shipping_cost = normalized.order_shipping || formatCurrency(0)
+    normalized.order_url = normalized.invoice_url
+    normalized.payment_method = data.paymentMethod || 'Credit Card'
+
+    // Shipping address variables for templates using individual fields
+    if (data.shippingAddress) {
+      const a = data.shippingAddress
+      normalized.shipping_name = a.name || ''
+      normalized.shipping_address = a.address || ''
+      const cityStateZip = [a.city, a.state].filter(Boolean).join(', ') + (a.zip ? ' ' + a.zip : '')
+      normalized.shipping_city_state_zip = cityStateZip.trim()
+    } else {
+      normalized.shipping_name = ''
+      normalized.shipping_address = ''
+      normalized.shipping_city_state_zip = ''
+    }
+  }
+
+  // Cross-template aliases available to all templates
+  // customer_name: build full name from first + last if available
+  if (!normalized.customer_name) {
+    const first = normalized.customer_first_name || data.customerName || data.first_name || ''
+    const last = data.customerLastName || data.last_name || ''
+    normalized.customer_name = (first + ' ' + last).trim() || normalized.customer_name
+  }
+  // first_name alias (used by abandoned_cart template)
+  if (!normalized.first_name && normalized.customer_first_name) {
+    normalized.first_name = normalized.customer_first_name
+  }
+  // Ensure login_url and checkout_url have production defaults
+  if (!normalized.login_url) {
+    normalized.login_url = `${SITE_URL}/login`
+  }
+  if (!normalized.checkout_url) {
+    normalized.checkout_url = `${SITE_URL}/shop`
   }
 
   return normalized

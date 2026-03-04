@@ -72,7 +72,8 @@ export function formatDateForEmail(dateString: string | null | undefined): strin
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'America/New_York'
     })
   } catch {
     return dateString

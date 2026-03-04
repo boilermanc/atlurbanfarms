@@ -106,7 +106,7 @@ serve(async (req) => {
     // ── 5. Send emails ────────────────────────────────────────────────
     let sentCount = 0
     const errors: string[] = []
-    const shopUrl = 'https://deux.atlurbanfarms.com/shop'
+    const shopUrl = 'https://atlurbanfarms.com/shop'
 
     for (const reminder of allReminders) {
       // Skip if customer has a recent order
