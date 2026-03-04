@@ -17,24 +17,18 @@ const GiftCardsPage: React.FC = () => {
           .eq('key', 'site_id')
           .maybeSingle();
 
-        console.log('[GiftCards] fetch result:', { data, fetchError });
-
         if (fetchError) throw fetchError;
 
         // value is jsonb — may be a string, may need unwrapping
         let id = data?.value ?? '';
-        console.log('[GiftCards] raw value:', JSON.stringify(id), 'type:', typeof id);
         if (typeof id === 'string') {
-          // Strip double-encoding: "\"abc\"" → "abc"
           if (id.startsWith('"') && id.endsWith('"')) {
             try { id = JSON.parse(id); } catch { /* keep as-is */ }
           }
         }
 
-        console.log('[GiftCards] final siteId:', JSON.stringify(id));
         setSiteId(id || '');
-      } catch (err) {
-        console.error('[GiftCards] error fetching site_id:', err);
+      } catch {
         setError(true);
       } finally {
         setLoading(false);
@@ -43,34 +37,6 @@ const GiftCardsPage: React.FC = () => {
 
     fetchSiteId();
   }, []);
-
-  // Inject the Gift Up widget script when siteId is available
-  useEffect(() => {
-    if (!siteId) return;
-
-    // Gift Up's embed expects a plain <script> tag.  When loaded
-    // dynamically inside a React SPA the DOMContentLoaded event has
-    // already fired, so the widget's auto-init may not pick up the
-    // data-site-id div.  Re-adding the script forces re-evaluation.
-    const existing = document.getElementById('giftup-script');
-    if (existing) existing.remove();
-
-    console.log('[GiftCards] loading Gift Up script for siteId:', siteId);
-
-    const script = document.createElement('script');
-    script.id = 'giftup-script';
-    script.src = 'https://giftup.app/dist/gift-up.js';
-    script.async = true;
-    script.onload = () => console.log('[GiftCards] Gift Up script loaded');
-    script.onerror = (e) => console.error('[GiftCards] Gift Up script FAILED to load:', e);
-    document.head.appendChild(script);
-
-    // Cleanup on unmount
-    return () => {
-      const s = document.getElementById('giftup-script');
-      if (s) s.remove();
-    };
-  }, [siteId]);
 
   return (
     <section className="py-16 px-4 md:px-8 min-h-screen bg-white">
@@ -105,10 +71,12 @@ const GiftCardsPage: React.FC = () => {
         )}
 
         {!loading && siteId && !error && (
-          <div
-            data-site-id={siteId}
-            data-platform="Other"
-            style={{ minHeight: 500 }}
+          <iframe
+            src={`https://giftup.app/place-order/${siteId}?platform=Other`}
+            title="Gift Cards"
+            width="100%"
+            style={{ minHeight: 700, border: 'none' }}
+            allow="payment"
           />
         )}
       </div>
