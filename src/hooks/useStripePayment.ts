@@ -76,6 +76,7 @@ interface CreatePaymentIntentParams {
   discountAmount?: number // Sproutify credit in dollars (for server-side verification)
   discountDescription?: string
   lifetimeDiscount?: number // Lifetime member 10% discount in dollars
+  items?: Array<{ productId: string; quantity: number }> // Cart items for inventory pre-check
 }
 
 interface PaymentIntentResult {
@@ -115,14 +116,18 @@ export function useStripePayment() {
           metadata: params.metadata,
           discountAmount: params.discountAmount ? Math.round(params.discountAmount * 100) : undefined,
           discountDescription: params.discountDescription,
-          lifetimeDiscountAmount: params.lifetimeDiscount ? Math.round(params.lifetimeDiscount * 100) : undefined
+          lifetimeDiscountAmount: params.lifetimeDiscount ? Math.round(params.lifetimeDiscount * 100) : undefined,
+          items: params.items
         })
       })
 
       const result = await response.json()
 
       if (!response.ok || result.error) {
-        setError(result.error || 'Failed to create payment intent')
+        const errorMsg = typeof result.error === 'string'
+          ? result.error
+          : result.error?.message || 'Failed to create payment intent'
+        setError(errorMsg)
         return null
       }
 

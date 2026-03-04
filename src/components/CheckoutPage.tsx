@@ -1257,7 +1257,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         },
         discountAmount: appliedCredit > 0 ? appliedCredit : undefined,
         discountDescription: appliedCredit > 0 ? 'Sproutify Seedling Credit' : undefined,
-        lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined
+        lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined,
+        items: items.map(item => ({ productId: item.id, quantity: item.quantity }))
       });
 
       if (!paymentResult) {

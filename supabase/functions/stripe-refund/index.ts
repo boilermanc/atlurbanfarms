@@ -1,8 +1,44 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
-import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
+
+const STRIPE_API = 'https://api.stripe.com/v1'
+
+/** Make a request to the Stripe REST API */
+async function stripeRequest(
+  endpoint: string,
+  stripeKey: string,
+  options: { method?: string; params?: Record<string, string> } = {}
+) {
+  const { method = 'GET', params } = options
+  let url = `${STRIPE_API}${endpoint}`
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${stripeKey}`,
+  }
+
+  let body: string | undefined
+  if (params) {
+    const encoded = new URLSearchParams(params).toString()
+    if (method === 'GET') {
+      url += `?${encoded}`
+    } else {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded'
+      body = encoded
+    }
+  }
+
+  const response = await fetch(url, { method, headers, body })
+  const data = await response.json()
+
+  if (!response.ok) {
+    const errMsg = data?.error?.message || `Stripe API error: ${response.status}`
+    throw new Error(errMsg)
+  }
+
+  return data
+}
 
 interface RefundItem {
   order_item_id: string
@@ -117,21 +153,21 @@ serve(async (req) => {
       })
     }
 
-    const stripe = new Stripe(settings.stripe_secret_key, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    })
+    const stripeKey = settings.stripe_secret_key
 
-    const refund = await stripe.refunds.create({
+    const refundParams: Record<string, string> = {
       payment_intent: order.stripe_payment_intent_id,
-      amount: amountToRefund,
+      amount: String(amountToRefund),
       reason: 'requested_by_customer',
-      metadata: {
-        order_id,
-        order_number: order.order_number ?? '',
-        admin_user_id: admin_user_id ?? '',
-        refund_reason: reason ?? '',
-      }
+      'metadata[order_id]': order_id,
+      'metadata[order_number]': order.order_number ?? '',
+      'metadata[admin_user_id]': admin_user_id ?? '',
+      'metadata[refund_reason]': reason ?? '',
+    }
+
+    const refund = await stripeRequest('/refunds', stripeKey, {
+      method: 'POST',
+      params: refundParams,
     })
 
     const newRefundedTotalCents = alreadyRefundedCents + amountToRefund

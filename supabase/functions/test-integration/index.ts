@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
-import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
 import nodemailer from 'npm:nodemailer@6.9.10'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
@@ -88,20 +87,25 @@ async function testStripe(supabaseClient: any): Promise<TestResult> {
   }
 
   try {
-    const stripe = new Stripe(settings.stripe_secret_key, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
+    const response = await fetch('https://api.stripe.com/v1/balance', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${settings.stripe_secret_key}`,
+      },
     })
 
-    // Test by fetching account balance
-    const balance = await stripe.balance.retrieve()
+    const balance = await response.json()
+
+    if (!response.ok) {
+      throw new Error(balance?.error?.message || `Stripe API error: ${response.status}`)
+    }
 
     return {
       success: true,
       message: 'Connected to Stripe successfully',
       details: {
-        available: balance.available.map(b => ({ currency: b.currency, amount: b.amount / 100 })),
-        pending: balance.pending.map(b => ({ currency: b.currency, amount: b.amount / 100 }))
+        available: balance.available.map((b: any) => ({ currency: b.currency, amount: b.amount / 100 })),
+        pending: balance.pending.map((b: any) => ({ currency: b.currency, amount: b.amount / 100 }))
       }
     }
   } catch (error) {

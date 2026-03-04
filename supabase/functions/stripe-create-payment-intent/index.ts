@@ -1,8 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
-import Stripe from 'https://esm.sh/stripe@14.14.0?target=deno'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
+
+interface CartItemCheck {
+  productId: string
+  quantity: number
+}
 
 interface PaymentIntentRequest {
   amount: number // in cents
@@ -13,11 +17,49 @@ interface PaymentIntentRequest {
   discountAmount?: number // in cents, client-claimed Sproutify credit
   discountDescription?: string
   lifetimeDiscountAmount?: number // in cents, client-claimed lifetime member 10% discount
+  items?: CartItemCheck[] // cart items for inventory pre-check
 }
 
 interface SproutifyVerification {
   creditCents: number
   isLifetime: boolean
+}
+
+const STRIPE_API = 'https://api.stripe.com/v1'
+
+/** Make a request to the Stripe REST API */
+async function stripeRequest(
+  endpoint: string,
+  stripeKey: string,
+  options: { method?: string; params?: Record<string, string> } = {}
+) {
+  const { method = 'GET', params } = options
+  let url = `${STRIPE_API}${endpoint}`
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${stripeKey}`,
+  }
+
+  let body: string | undefined
+  if (params) {
+    const encoded = new URLSearchParams(params).toString()
+    if (method === 'GET') {
+      url += `?${encoded}`
+    } else {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded'
+      body = encoded
+    }
+  }
+
+  const response = await fetch(url, { method, headers, body })
+  const data = await response.json()
+
+  if (!response.ok) {
+    const errMsg = data?.error?.message || `Stripe API error: ${response.status}`
+    throw new Error(errMsg)
+  }
+
+  return data
 }
 
 /**
@@ -100,11 +142,7 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Stripe with the secret key from database
-    const stripe = new Stripe(settings.stripe_secret_key, {
-      apiVersion: '2023-10-16',
-      httpClient: Stripe.createFetchHttpClient(),
-    })
+    const stripeKey = settings.stripe_secret_key
 
     // Parse request body
     const {
@@ -115,7 +153,8 @@ serve(async (req) => {
       metadata = {},
       discountAmount: clientDiscountCents = 0,
       discountDescription = '',
-      lifetimeDiscountAmount: clientLifetimeDiscountCents = 0
+      lifetimeDiscountAmount: clientLifetimeDiscountCents = 0,
+      items: cartItems = []
     }: PaymentIntentRequest = await req.json()
 
     if (!amount || amount <= 0) {
@@ -168,45 +207,97 @@ serve(async (req) => {
     // Apply verified discounts
     const finalAmount = amount - verifiedLifetimeDiscountCents - verifiedCreditCents
 
+    // Inventory pre-check: verify all cart items have sufficient stock
+    if (cartItems.length > 0) {
+      const productIds = cartItems.map(item => item.productId)
+      const { data: products, error: productsError } = await supabaseClient
+        .from('products')
+        .select('id, name, quantity_available')
+        .in('id', productIds)
+
+      if (productsError) {
+        console.error('Inventory check query failed:', productsError)
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'INVENTORY_CHECK_FAILED', message: 'Unable to verify inventory. Please try again.' } }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const productMap = new Map(products?.map(p => [p.id, p]) || [])
+
+      for (const item of cartItems) {
+        const product = productMap.get(item.productId)
+        if (!product) {
+          return new Response(
+            JSON.stringify({ success: false, error: { code: 'INSUFFICIENT_INVENTORY', message: `Sorry, a product in your cart is no longer available.` } }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        if ((product.quantity_available ?? 0) < item.quantity) {
+          const availableMsg = product.quantity_available > 0
+            ? `Only ${product.quantity_available} left in stock.`
+            : 'It is currently out of stock.'
+          return new Response(
+            JSON.stringify({ success: false, error: { code: 'INSUFFICIENT_INVENTORY', message: `Sorry, ${product.name} is no longer available in the requested quantity. ${availableMsg}` } }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    }
+
     // Create or retrieve customer
     let customerId: string | undefined
     if (customerEmail) {
-      const customers = await stripe.customers.list({
-        email: customerEmail,
-        limit: 1,
+      const customers = await stripeRequest('/customers', stripeKey, {
+        method: 'GET',
+        params: { email: customerEmail, limit: '1' },
       })
 
       if (customers.data.length > 0) {
         customerId = customers.data[0].id
       } else {
-        const customer = await stripe.customers.create({
-          email: customerEmail,
+        const customer = await stripeRequest('/customers', stripeKey, {
+          method: 'POST',
+          params: { email: customerEmail },
         })
         customerId = customer.id
       }
     }
 
-    // Create PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(finalAmount), // Ensure integer cents
+    // Build payment intent params
+    const piParams: Record<string, string> = {
+      amount: String(Math.round(finalAmount)),
       currency,
-      customer: customerId,
-      metadata: {
-        ...metadata,
-        orderId: orderId || '',
-        ...(verifiedCreditCents > 0 ? {
-          sproutifyCreditCents: String(verifiedCreditCents),
-        } : {}),
-        ...(verifiedLifetimeDiscountCents > 0 ? {
-          lifetimeDiscountCents: String(verifiedLifetimeDiscountCents),
-        } : {}),
-        ...((verifiedCreditCents > 0 || verifiedLifetimeDiscountCents > 0) ? {
-          originalAmountCents: String(amount),
-        } : {}),
-      },
-      automatic_payment_methods: {
-        enabled: true,
-      },
+      'automatic_payment_methods[enabled]': 'true',
+    }
+
+    if (customerId) {
+      piParams.customer = customerId
+    }
+
+    // Add metadata
+    const allMetadata: Record<string, string> = {
+      ...metadata,
+      orderId: orderId || '',
+    }
+    if (verifiedCreditCents > 0) {
+      allMetadata.sproutifyCreditCents = String(verifiedCreditCents)
+    }
+    if (verifiedLifetimeDiscountCents > 0) {
+      allMetadata.lifetimeDiscountCents = String(verifiedLifetimeDiscountCents)
+    }
+    if (verifiedCreditCents > 0 || verifiedLifetimeDiscountCents > 0) {
+      allMetadata.originalAmountCents = String(amount)
+    }
+
+    for (const [key, value] of Object.entries(allMetadata)) {
+      piParams[`metadata[${key}]`] = value
+    }
+
+    // Create PaymentIntent
+    const paymentIntent = await stripeRequest('/payment_intents', stripeKey, {
+      method: 'POST',
+      params: piParams,
     })
 
     return new Response(
