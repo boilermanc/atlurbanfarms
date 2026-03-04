@@ -1166,6 +1166,8 @@ export function useCreateOrder() {
     growingSystem = null,
     // Payment status (for Stripe flow: 'pending' until payment completes)
     paymentStatus = null,
+    // Stripe payment intent ID (set when order is created after successful payment)
+    stripePaymentIntentId = null,
     // Tax (pre-calculated by caller via calculateTax utility)
     tax: preCalculatedTax = null,
     taxRateApplied = null,
@@ -1230,6 +1232,8 @@ export function useCreateOrder() {
         growing_system: growingSystem,
         // Payment status
         payment_status: paymentStatus || 'pending',
+        // Stripe payment intent ID
+        stripe_payment_intent_id: stripePaymentIntentId,
         // Tax audit
         tax_rate_applied: taxRateApplied,
         tax_note: taxNote

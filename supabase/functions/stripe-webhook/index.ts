@@ -137,29 +137,185 @@ serve(async (req) => {
     switch (event.type) {
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as unknown as StripePaymentIntent
-        const orderId = paymentIntent.metadata?.orderId
+        const piId = paymentIntent.id
 
-        if (orderId) {
-          // Update payment status
-          const { error } = await supabaseClient
-            .from('orders')
-            .update({
-              payment_status: 'paid',
-              stripe_payment_intent_id: paymentIntent.id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', orderId)
+        // Check if the order was already created (by the client after payment success)
+        const { data: existingOrder } = await supabaseClient
+          .from('orders')
+          .select('id, payment_status, status')
+          .eq('stripe_payment_intent_id', piId)
+          .maybeSingle()
 
-          if (error) {
-            console.error('Failed to update order:', error)
-          } else {
+        if (existingOrder) {
+          // Order exists (client created it) — ensure it's marked as paid
+          if (existingOrder.payment_status !== 'paid') {
+            await supabaseClient
+              .from('orders')
+              .update({
+                payment_status: 'paid',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingOrder.id)
+          }
+          if (['pending_payment', 'failed'].includes(existingOrder.status)) {
             await supabaseClient
               .from('orders')
               .update({ status: 'processing' })
-              .eq('id', orderId)
-              .in('status', ['pending_payment', 'failed'])
+              .eq('id', existingOrder.id)
+          }
+          console.log(`Webhook: Order ${existingOrder.id} already exists for PI ${piId}, ensured paid status`)
+          break
+        }
 
-            console.log(`Order ${orderId} marked as paid`)
+        // No order yet — check pending_orders for backup creation
+        const { data: pendingOrder } = await supabaseClient
+          .from('pending_orders')
+          .select('*')
+          .eq('stripe_payment_intent_id', piId)
+          .maybeSingle()
+
+        if (pendingOrder && pendingOrder.status === 'pending') {
+          // Browser closed after payment — create order from stored data
+          console.log(`Webhook: Creating order from pending_orders for PI ${piId}`)
+
+          const orderData = {
+            ...(pendingOrder.order_data as Record<string, unknown>),
+            payment_status: 'paid',
+            stripe_payment_intent_id: piId
+          }
+          const orderItems = pendingOrder.order_items as Record<string, unknown>[]
+
+          // Call the RPC to create order with inventory check
+          const { data: rpcResult, error: rpcError } = await supabaseClient.rpc(
+            'create_order_with_inventory_check',
+            {
+              p_order_data: orderData,
+              p_order_items: orderItems
+            }
+          )
+
+          if (rpcError) {
+            console.error('Webhook: RPC error creating order:', rpcError)
+            // Mark pending order as failed
+            await supabaseClient
+              .from('pending_orders')
+              .update({ status: 'failed', completed_at: new Date().toISOString() })
+              .eq('id', pendingOrder.id)
+            break
+          }
+
+          if (!rpcResult.success && rpcResult.error === 'insufficient_stock') {
+            // Payment already taken — force order creation with skip_inventory_check
+            console.warn(`Webhook: Insufficient stock for PI ${piId}, forcing order creation`)
+            const forceOrderData = {
+              ...orderData,
+              skip_inventory_check: true,
+              internal_notes: `STOCK WARNING: Insufficient stock at order time after payment. Original error: ${rpcResult.message}. Manual review required.`
+            }
+            const { data: forceResult, error: forceError } = await supabaseClient.rpc(
+              'create_order_with_inventory_check',
+              {
+                p_order_data: forceOrderData,
+                p_order_items: orderItems
+              }
+            )
+
+            if (forceError || !forceResult?.success) {
+              console.error('Webhook: Failed to force-create order:', forceError || forceResult)
+              await supabaseClient
+                .from('pending_orders')
+                .update({ status: 'failed', completed_at: new Date().toISOString() })
+                .eq('id', pendingOrder.id)
+              break
+            }
+
+            // Update pending_orders with the created order
+            await supabaseClient
+              .from('pending_orders')
+              .update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                completed_order_id: forceResult.order_id
+              })
+              .eq('id', pendingOrder.id)
+
+            console.log(`Webhook: Force-created order ${forceResult.order_number} for PI ${piId} (stock warning)`)
+            break
+          }
+
+          if (rpcResult.success) {
+            // Update pending_orders
+            await supabaseClient
+              .from('pending_orders')
+              .update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                completed_order_id: rpcResult.order_id
+              })
+              .eq('id', pendingOrder.id)
+
+            // Record promotion usage if applicable
+            const od = pendingOrder.order_data as Record<string, unknown>
+            const promoId = od.promotion_id as string | null
+            const discountAmt = od.discount_amount as number | null
+            if (promoId && discountAmt && discountAmt > 0) {
+              await supabaseClient
+                .from('promotion_usage')
+                .insert({
+                  promotion_id: promoId,
+                  order_id: rpcResult.order_id,
+                  customer_id: pendingOrder.customer_id || null,
+                  customer_email: pendingOrder.customer_email,
+                  discount_amount: discountAmt
+                })
+              await supabaseClient.rpc('increment_promotion_usage', {
+                p_promotion_id: promoId,
+                p_discount_amount: discountAmt
+              })
+            }
+
+            console.log(`Webhook: Created order ${rpcResult.order_number} from pending_orders for PI ${piId}`)
+          }
+        } else if (pendingOrder && pendingOrder.status === 'completed' && pendingOrder.completed_order_id) {
+          // Already completed by another path — ensure order is marked as paid
+          await supabaseClient
+            .from('orders')
+            .update({
+              payment_status: 'paid',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', pendingOrder.completed_order_id)
+          await supabaseClient
+            .from('orders')
+            .update({ status: 'processing' })
+            .eq('id', pendingOrder.completed_order_id)
+            .in('status', ['pending_payment', 'failed'])
+          console.log(`Webhook: Pending order already completed for PI ${piId}`)
+        } else {
+          // Legacy fallback: check metadata.orderId for backward compatibility
+          const legacyOrderId = paymentIntent.metadata?.orderId
+          if (legacyOrderId) {
+            const { error } = await supabaseClient
+              .from('orders')
+              .update({
+                payment_status: 'paid',
+                stripe_payment_intent_id: piId,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', legacyOrderId)
+
+            if (!error) {
+              await supabaseClient
+                .from('orders')
+                .update({ status: 'processing' })
+                .eq('id', legacyOrderId)
+                .in('status', ['pending_payment', 'failed'])
+              console.log(`Webhook: Legacy order ${legacyOrderId} marked as paid`)
+            } else {
+              console.error('Webhook: Failed to update legacy order:', error)
+            }
+          } else {
+            console.warn(`Webhook: No order or pending_order found for PI ${piId}`)
           }
         }
         break
@@ -167,28 +323,36 @@ serve(async (req) => {
 
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object as unknown as StripePaymentIntent
-        const orderId = paymentIntent.metadata?.orderId
+        const piId = paymentIntent.id
 
-        if (orderId) {
+        // Mark pending_orders as failed if exists
+        await supabaseClient
+          .from('pending_orders')
+          .update({ status: 'failed', completed_at: new Date().toISOString() })
+          .eq('stripe_payment_intent_id', piId)
+          .eq('status', 'pending')
+
+        // Legacy: update existing order if created before payment (old flow)
+        const legacyOrderId = paymentIntent.metadata?.orderId
+        if (legacyOrderId) {
           const { error } = await supabaseClient
             .from('orders')
             .update({
               payment_status: 'failed',
-              stripe_payment_intent_id: paymentIntent.id,
+              stripe_payment_intent_id: piId,
               updated_at: new Date().toISOString()
             })
-            .eq('id', orderId)
+            .eq('id', legacyOrderId)
 
-          if (error) {
-            console.error('Failed to update order:', error)
-          } else {
+          if (!error) {
             await supabaseClient
               .from('orders')
               .update({ status: 'failed' })
-              .eq('id', orderId)
+              .eq('id', legacyOrderId)
               .in('status', ['pending_payment', 'processing'])
-
-            console.log(`Order ${orderId} payment failed`)
+            console.log(`Order ${legacyOrderId} payment failed`)
+          } else {
+            console.error('Failed to update order:', error)
           }
         }
         break

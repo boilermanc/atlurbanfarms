@@ -291,8 +291,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  const pendingOrderItemsRef = useRef<any[]>([]);
+  const [pendingPaymentIntentId, setPendingPaymentIntentId] = useState<string | null>(null);
   const [paymentStep, setPaymentStep] = useState<'form' | 'payment'>('form');
   const [saveAddress, setSaveAddress] = useState(false);
   const [hasPrefilledForm, setHasPrefilledForm] = useState(false);
@@ -1176,89 +1175,101 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     } : { isPickup: false };
 
     // If Stripe is enabled, create payment intent and show payment form
+    // Order is NOT created yet — it will be created after payment succeeds
     if (stripeEnabled) {
-      // Create order first with pending payment status
-      const result = await createOrder({
-        cartItems: items,
-        customerInfo: {
-          email: formData.email,
-          phone: formData.phone,
-          firstName: formData.firstName,
-          lastName: formData.lastName
-        },
-        shippingInfo: deliveryMethod === 'shipping' ? {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          company: formData.company,
-          address1: formData.address1,
-          address2: formData.address2,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-          country: formData.country,
-          phone: formData.shippingPhone || formData.phone
-        } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
-          // Pickup orders: shipping_address_line1 is NOT NULL in DB, use pickup location address
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          company: formData.company,
-          address1: selectedPickupLocation.address_line1,
-          address2: selectedPickupLocation.address_line2 || '',
-          city: selectedPickupLocation.city,
-          state: selectedPickupLocation.state,
-          zip: selectedPickupLocation.postal_code,
-          country: 'US',
-          phone: formData.phone
-        } : null,
-        shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
-        shippingCost: shippingCost,
-        customerId: user?.id || null,
-        paymentStatus: 'pending',
-        saveAddress: deliveryMethod === 'shipping' && saveAddress,
-        discountAmount: appliedCredit + bestDiscount,
-        discountDescription: [
+      // Build the shipping info object for the pending order data
+      const shippingInfo = deliveryMethod === 'shipping' ? {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        company: formData.company,
+        address1: formData.address1,
+        address2: formData.address2,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip,
+        country: formData.country,
+        phone: formData.shippingPhone || formData.phone
+      } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        company: formData.company,
+        address1: selectedPickupLocation.address_line1,
+        address2: selectedPickupLocation.address_line2 || '',
+        city: selectedPickupLocation.city,
+        state: selectedPickupLocation.state,
+        zip: selectedPickupLocation.postal_code,
+        country: 'US',
+        phone: formData.phone
+      } : null;
+
+      // Build order data in the RPC shape for pending_orders (webhook fallback)
+      const pendingOrderData = {
+        customer_id: user?.id || null,
+        guest_email: user?.id ? null : formData.email,
+        guest_phone: user?.id ? null : formData.phone,
+        shipping_first_name: shippingInfo?.firstName || formData.firstName,
+        shipping_last_name: shippingInfo?.lastName || formData.lastName,
+        shipping_company: shippingInfo?.company || null,
+        shipping_address_line1: shippingInfo?.address1 || null,
+        shipping_address_line2: shippingInfo?.address2 || null,
+        shipping_city: shippingInfo?.city || null,
+        shipping_state: shippingInfo?.state || null,
+        shipping_zip: shippingInfo?.zip || null,
+        shipping_country: shippingInfo?.country || 'US',
+        shipping_phone: shippingInfo?.phone || formData.phone,
+        shipping_method: shippingDetails.shippingMethodName || (deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard')),
+        shipping_cost: shippingCost,
+        subtotal,
+        tax,
+        total,
+        shipping_rate_id: shippingDetails.shippingRateId || null,
+        shipping_carrier_id: shippingDetails.shippingCarrierId || null,
+        shipping_service_code: shippingDetails.shippingServiceCode || null,
+        shipping_method_name: shippingDetails.shippingMethodName || null,
+        estimated_delivery_date: shippingDetails.estimatedDeliveryDate || null,
+        shipping_address_validated: shippingDetails.addressValidated || false,
+        shipping_address_original: shippingDetails.addressOriginal || null,
+        shipping_address_normalized: shippingDetails.addressNormalized || null,
+        is_pickup: pickupDetails.isPickup || false,
+        pickup_location_id: pickupDetails.pickupLocationId || null,
+        pickup_date: pickupDetails.pickupDate || null,
+        pickup_time_start: pickupDetails.pickupTimeStart || null,
+        pickup_time_end: pickupDetails.pickupTimeEnd || null,
+        pickup_schedule_id: pickupDetails.pickupScheduleId || null,
+        promotion_id: activePromo?.promotion_id || null,
+        promotion_code: activePromo?.promotion_code || null,
+        discount_amount: appliedCredit + bestDiscount,
+        discount_description: [
           bestDiscount > 0 ? activeDiscountLabel : '',
           appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
-        ].filter(Boolean).join(', ') || undefined,
-        promotionId: activePromo?.promotion_id || null,
-        promotionCode: activePromo?.promotion_code || null,
-        customerNotes: customerNotes.trim() || null,
-        growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
-        tax,
-        taxRateApplied: taxResult.taxRate,
-        taxNote: taxResult.taxNote,
-        ...shippingDetails,
-        ...pickupDetails
-      });
+        ].filter(Boolean).join(', ') || null,
+        customer_notes: customerNotes.trim() || null,
+        growing_system: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
+        payment_status: 'paid',
+        tax_rate_applied: taxResult.taxRate,
+        tax_note: taxResult.taxNote
+      };
 
-      if (!result.success || !result.order) {
-        const errorMsg = result.error || 'Failed to create order. Please try again.';
-        // If RPC caught insufficient stock (pre-check was bypassed), show the modal
-        if (errorMsg.toLowerCase().includes('insufficient stock')) {
-          const parsed = parseStockError(errorMsg);
-          if (parsed.length > 0) {
-            setStockIssues(parsed);
-            setShowStockModal(true);
-            return;
-          }
-        }
-        setOrderError(errorMsg);
-        return;
-      }
+      const pendingOrderItems = items.map(item => ({
+        product_id: item.id,
+        product_name: item.name,
+        product_price: item.price,
+        quantity: item.quantity,
+        line_total: item.price * item.quantity
+      }));
 
-      // Create payment intent with pre-discount total — the edge function
-      // verifies the credit and discount server-side before charging Stripe
+      // Create payment intent — edge function also stores pending order data
+      // for webhook fallback if browser closes after payment
       const paymentResult = await createPaymentIntent({
         amount: subtotal + shippingCost + tax,
         customerEmail: formData.email,
-        orderId: result.order.id,
-        metadata: {
-          orderNumber: result.order.order_number
-        },
         discountAmount: appliedCredit > 0 ? appliedCredit : undefined,
         discountDescription: appliedCredit > 0 ? 'Sproutify Seedling Credit' : undefined,
         lifetimeDiscount: bestDiscount > 0 ? bestDiscount : undefined,
-        items: items.map(item => ({ productId: item.id, quantity: item.quantity }))
+        items: items.map(item => ({ productId: item.id, quantity: item.quantity })),
+        orderData: pendingOrderData,
+        orderItems: pendingOrderItems,
+        saveAddress: deliveryMethod === 'shipping' && saveAddress
       });
 
       if (!paymentResult) {
@@ -1266,8 +1277,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         return;
       }
 
-      setPendingOrderId(result.order.id);
-      pendingOrderItemsRef.current = result.order.items || [];
+      setPendingPaymentIntentId(paymentResult.paymentIntentId);
       setClientSecret(paymentResult.clientSecret);
       setPaymentStep('payment');
     } else {
@@ -1395,13 +1405,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     // Redeem seedling credit if applied
     if (appliedCredit > 0) {
       try {
-        const redeemed = await redeemCredit(order.id || order.order_id || pendingOrderId);
+        const redeemed = await redeemCredit(order.id || order.order_id);
         // Log redemption to seedling_credit_log for admin visibility
         await supabase.from('seedling_credit_log').insert({
           action: 'redeem',
           customer_email: formData.email,
           credit_amount: appliedCredit,
-          order_id: order.id || order.order_id || pendingOrderId,
+          order_id: order.id || order.order_id,
           order_number: order.order_number,
           status: redeemed ? 'success' : 'failed',
         });
@@ -1497,20 +1507,101 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   };
 
   const handlePaymentSuccess = async (paymentIntentId: string) => {
-    // Payment succeeded, navigate to confirmation
-    if (pendingOrderId) {
-      // Fetch the order details and complete
-      const { data: order } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', pendingOrderId)
-        .single();
+    // Payment succeeded — NOW create the order with payment_status: 'paid'
+    // Build shipping details for order (only for shipping orders)
+    const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
+      shippingRateId: selectedShippingRate.rate_id,
+      shippingCarrierId: selectedShippingRate.carrier_id,
+      shippingServiceCode: selectedShippingRate.service_code,
+      shippingMethodName: `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`,
+      estimatedDeliveryDate: selectedShippingRate.estimated_delivery_date,
+      addressValidated: addressValidated,
+      addressOriginal: buildShippingAddress(),
+      addressNormalized: normalizedAddress
+    } : {};
 
-      if (order) {
-        // Attach items saved before payment (orders table doesn't have items)
-        order.items = pendingOrderItemsRef.current;
-        await handleOrderSuccess(order);
+    // Build pickup details for order (only for pickup orders)
+    const pickupDetails = (deliveryMethod === 'pickup' && selectedPickupSlot && selectedPickupLocation) ? {
+      isPickup: true,
+      pickupLocationId: selectedPickupLocationId,
+      pickupDate: selectedPickupSlot.slot_date,
+      pickupTimeStart: selectedPickupSlot.start_time,
+      pickupTimeEnd: selectedPickupSlot.end_time,
+      pickupScheduleId: selectedPickupSlot.schedule_id
+    } : { isPickup: false };
+
+    const result = await createOrder({
+      cartItems: items,
+      customerInfo: {
+        email: formData.email,
+        phone: formData.phone,
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      },
+      shippingInfo: deliveryMethod === 'shipping' ? {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        company: formData.company,
+        address1: formData.address1,
+        address2: formData.address2,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip,
+        country: formData.country,
+        phone: formData.shippingPhone || formData.phone
+      } : (deliveryMethod === 'pickup' && selectedPickupLocation) ? {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        company: formData.company,
+        address1: selectedPickupLocation.address_line1,
+        address2: selectedPickupLocation.address_line2 || '',
+        city: selectedPickupLocation.city,
+        state: selectedPickupLocation.state,
+        zip: selectedPickupLocation.postal_code,
+        country: 'US',
+        phone: formData.phone
+      } : null,
+      shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
+      shippingCost: shippingCost,
+      customerId: user?.id || null,
+      paymentStatus: 'paid',
+      stripePaymentIntentId: paymentIntentId,
+      saveAddress: deliveryMethod === 'shipping' && saveAddress,
+      discountAmount: appliedCredit + bestDiscount,
+      discountDescription: [
+        bestDiscount > 0 ? activeDiscountLabel : '',
+        appliedCredit > 0 ? 'Sproutify Seedling Credit' : ''
+      ].filter(Boolean).join(', ') || undefined,
+      promotionId: activePromo?.promotion_id || null,
+      promotionCode: activePromo?.promotion_code || null,
+      customerNotes: customerNotes.trim() || null,
+      growingSystem: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
+      tax,
+      taxRateApplied: taxResult.taxRate,
+      taxNote: taxResult.taxNote,
+      ...shippingDetails,
+      ...pickupDetails
+    });
+
+    if (result.success && result.order) {
+      // Update pending_orders status so webhook knows not to create a duplicate
+      try {
+        await supabase
+          .from('pending_orders')
+          .update({ status: 'completed', completed_at: new Date().toISOString(), completed_order_id: result.order.id })
+          .eq('stripe_payment_intent_id', paymentIntentId);
+      } catch (err) {
+        // Non-critical — webhook will check orders table directly
+        console.error('Failed to update pending_orders:', err);
       }
+
+      await handleOrderSuccess(result.order);
+    } else {
+      // Payment succeeded but order creation failed (e.g., stock sold out)
+      // The webhook will attempt to create the order as a backup
+      const errorMsg = result.error || 'Failed to finalize order';
+      console.error('Order creation after payment failed:', errorMsg);
+      setOrderError('Your payment was successful, but we encountered an issue finalizing your order. You will receive a confirmation email shortly, or please contact support.');
     }
   };
 

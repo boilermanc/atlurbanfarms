@@ -77,6 +77,9 @@ interface CreatePaymentIntentParams {
   discountDescription?: string
   lifetimeDiscount?: number // Lifetime member 10% discount in dollars
   items?: Array<{ productId: string; quantity: number }> // Cart items for inventory pre-check
+  orderData?: Record<string, unknown> // Full order data for pending_orders (webhook fallback)
+  orderItems?: Array<Record<string, unknown>> // Full order items for pending_orders (webhook fallback)
+  saveAddress?: boolean // Whether to save shipping address after order creation
 }
 
 interface PaymentIntentResult {
@@ -117,7 +120,10 @@ export function useStripePayment() {
           discountAmount: params.discountAmount ? Math.round(params.discountAmount * 100) : undefined,
           discountDescription: params.discountDescription,
           lifetimeDiscountAmount: params.lifetimeDiscount ? Math.round(params.lifetimeDiscount * 100) : undefined,
-          items: params.items
+          items: params.items,
+          orderData: params.orderData,
+          orderItems: params.orderItems,
+          saveAddress: params.saveAddress
         })
       })
 

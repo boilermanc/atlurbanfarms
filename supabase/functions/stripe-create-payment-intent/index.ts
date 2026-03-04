@@ -18,6 +18,9 @@ interface PaymentIntentRequest {
   discountDescription?: string
   lifetimeDiscountAmount?: number // in cents, client-claimed lifetime member 10% discount
   items?: CartItemCheck[] // cart items for inventory pre-check
+  orderData?: Record<string, unknown> // full order data for pending_orders (webhook fallback)
+  orderItems?: Record<string, unknown>[] // full order items for pending_orders (webhook fallback)
+  saveAddress?: boolean // whether to save shipping address after order creation
 }
 
 interface SproutifyVerification {
@@ -154,7 +157,10 @@ serve(async (req) => {
       discountAmount: clientDiscountCents = 0,
       discountDescription = '',
       lifetimeDiscountAmount: clientLifetimeDiscountCents = 0,
-      items: cartItems = []
+      items: cartItems = [],
+      orderData,
+      orderItems,
+      saveAddress = false
     }: PaymentIntentRequest = await req.json()
 
     if (!amount || amount <= 0) {
@@ -278,7 +284,7 @@ serve(async (req) => {
     // Add metadata
     const allMetadata: Record<string, string> = {
       ...metadata,
-      orderId: orderId || '',
+      ...(orderId ? { orderId } : {}),
     }
     if (verifiedCreditCents > 0) {
       allMetadata.sproutifyCreditCents = String(verifiedCreditCents)
@@ -299,6 +305,24 @@ serve(async (req) => {
       method: 'POST',
       params: piParams,
     })
+
+    // Store pending order data for webhook fallback (if browser closes after payment)
+    if (orderData && orderItems) {
+      const { error: pendingError } = await supabaseClient
+        .from('pending_orders')
+        .insert({
+          stripe_payment_intent_id: paymentIntent.id,
+          customer_email: customerEmail,
+          customer_id: orderData.customer_id || null,
+          order_data: orderData,
+          order_items: orderItems,
+          save_address: saveAddress,
+        })
+
+      if (pendingError) {
+        console.error('Failed to create pending order (non-fatal):', pendingError)
+      }
+    }
 
     return new Response(
       JSON.stringify({
