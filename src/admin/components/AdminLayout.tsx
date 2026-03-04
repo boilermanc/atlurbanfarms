@@ -37,7 +37,6 @@ const ContentPagesPage = lazy(() => import('../pages/ContentPagesPage'));
 const ContentEditPage = lazy(() => import('../pages/ContentEditPage'));
 const AttributionPage = lazy(() => import('../pages/AttributionPage'));
 const SettingsPage = lazy(() => import('../pages/SettingsPage'));
-const FeatureFlagsPage = lazy(() => import('../pages/FeatureFlagsPage'));
 const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
 const EmailTemplatesPage = lazy(() => import('../pages/EmailTemplatesPage'));
 const ProductsPage = lazy(() => import('../pages/ProductsPage'));
@@ -102,7 +101,6 @@ const PAGE_TITLES: Record<string, string> = {
   'content-edit': 'Edit Content',
   attribution: 'Attribution',
   settings: 'Settings',
-  'feature-flags': 'Feature Flags',
   integrations: 'Integrations',
   'email-templates': 'Email Templates',
   reports: 'Reports',
@@ -824,8 +822,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <AttributionPage />;
       case 'settings':
         return <SettingsPage />;
-      case 'feature-flags':
-        return <FeatureFlagsPage />;
       case 'integrations':
         return <IntegrationsPage />;
       case 'email-templates':

@@ -86,7 +86,7 @@ const DEFAULT_CONTENT: Record<string, PageContent> = {
       sproutify_description: '',
       sproutify_image: '',
       sproutify_button_text: 'Learn More',
-      sproutify_button_link: '/tools',
+      sproutify_button_link: '/',
     },
     schools_promo: {
       label: 'Education First',

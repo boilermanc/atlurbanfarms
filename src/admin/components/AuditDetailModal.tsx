@@ -30,7 +30,6 @@ const TABLE_ROUTES: Record<string, string> = {
   shipping_services: '/admin/shipping-services',
   faq_items: '/admin/faq',
   content_pages: '/admin/content-pages',
-  feature_flags: '/admin/feature-flags',
   config_settings: '/admin/settings',
 };
 

@@ -8,7 +8,7 @@ import { useAuth } from '../src/hooks/useAuth';
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'gift-cards' | 'login' | 'account', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'account', category?: string) => void;
   currentView?: string;
   onSearch?: (query: string) => void;
 }
@@ -171,7 +171,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
         items.push({ name: child.name, category: child.category, isChild: true });
       });
     });
-    items.push({ name: 'Tower Planner', category: 'All', featured: true });
     return items;
   }, [shopGroups]);
 
@@ -341,8 +340,8 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                         style={{ top: `${getNavBottom()}px`, width: 'min(92vw, 820px)' }}
                       >
                         <div className="bg-white rounded-2xl shadow-2xl shadow-gray-200/60 border border-gray-100 overflow-hidden">
-                          {/* Top bar: All Products + Tower Planner */}
-                          <div className="flex items-center justify-between px-6 pt-4 pb-3 border-b border-gray-100">
+                          {/* Top bar: All Products */}
+                          <div className="flex items-center px-6 pt-4 pb-3 border-b border-gray-100">
                             <button
                               onClick={() => {
                                 onNavigate('shop', 'All');
@@ -354,16 +353,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                                 <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
                               </svg>
                               Browse All Products
-                            </button>
-                            <button
-                              onClick={() => {
-                                onNavigate('shop', 'All');
-                                setIsShopDropdownOpen(false);
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 text-sm font-semibold hover:from-purple-100 hover:to-pink-100 transition-all"
-                            >
-                              <SparkleIcon className="w-4 h-4 text-purple-400" />
-                              Tower Planner
                             </button>
                           </div>
 
@@ -497,17 +486,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                   </AnimatePresence>
                 </div>
 
-                {/* Tools */}
-                <button
-                  onClick={() => onNavigate('tools')}
-                  className={`px-4 py-2 text-base font-semibold rounded-full transition-all duration-200 ${
-                    currentView === 'tools'
-                      ? 'brand-text brand-bg-light'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  Tools
-                </button>
               </nav>
             </div>
 
@@ -872,23 +850,6 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                       </button>
                     ))}
 
-                    {/* Tools */}
-                    <button
-                      onClick={() => {
-                        onNavigate('tools');
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
-                        currentView === 'tools'
-                          ? 'brand-bg-light brand-text font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50 font-medium'
-                      }`}
-                    >
-                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                        <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
-                      </svg>
-                      Tools
-                    </button>
                   </div>
                 </div>
               </div>

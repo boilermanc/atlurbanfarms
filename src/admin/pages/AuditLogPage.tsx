@@ -28,7 +28,6 @@ const ITEMS_PER_PAGE = 50;
 const TABLE_OPTIONS = [
   { value: 'all', label: 'All Tables' },
   { value: 'config_settings', label: 'Config Settings' },
-  { value: 'feature_flags', label: 'Feature Flags' },
   { value: 'products', label: 'Products' },
   { value: 'product_categories', label: 'Product Categories' },
   { value: 'orders', label: 'Orders' },

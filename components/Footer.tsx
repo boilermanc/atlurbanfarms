@@ -4,7 +4,7 @@ import { submitNewsletterPreference } from '@/src/services/newsletter';
 import { supabase } from '../src/lib/supabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
-type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar' | 'blog' | 'schools' | 'tools' | 'gift-cards';
+type FooterViewType = 'home' | 'shop' | 'faq' | 'about' | 'privacy' | 'terms' | 'calendar' | 'blog' | 'schools' | 'gift-cards';
 
 interface FooterProps {
   onNavigate?: (view: FooterViewType, category?: string, options?: { calendarFilter?: string }) => void;
@@ -640,7 +640,6 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="footer-links-list">
               <li><button onClick={(e) => handleNav(e, 'faq')}>FAQ</button></li>
               <li><button onClick={(e) => handleNav(e, 'blog')}>Blog</button></li>
-              <li><button onClick={(e) => handleNav(e, 'tools')}>Tools</button></li>
             </ul>
           </div>
           <div>

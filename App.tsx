@@ -22,7 +22,6 @@ import SchoolsPage from './components/SchoolsPage';
 import LeadMagnetPopup from './components/LeadMagnetPopup';
 import ContentPage from './components/ContentPage';
 import CalendarPage from './components/CalendarPage';
-import ToolsPage from './components/ToolsPage';
 import BlogPage from './components/BlogPage';
 import BlogPostPage from './components/BlogPostPage';
 import { safeDecodeURIComponent } from './src/utils/url';
@@ -100,7 +99,7 @@ interface OrderData {
   } | null;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'tools' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -112,7 +111,6 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (pathname === '/terms') return 'terms';
   if (pathname === '/schools') return 'schools';
   if (pathname === '/calendar') return 'calendar';
-  if (pathname === '/tools') return 'tools';
   if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
   if (pathname === '/gift-cards') return 'gift-cards';
   if (pathname === '/login') return 'login';
@@ -136,7 +134,6 @@ const getPathForView = (view: ViewType): string => {
     case 'terms': return '/terms';
     case 'schools': return '/schools';
     case 'calendar': return '/calendar';
-    case 'tools': return '/tools';
     case 'blog': return '/blog';
     case 'gift-cards': return '/gift-cards';
     case 'login': return '/login';
@@ -566,15 +563,6 @@ const App: React.FC = () => {
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <CalendarPage onBack={() => setView('home')} initialFilter={calendarFilter} />
-            <Footer onNavigate={handleNavigate} />
-          </>
-        );
-      case 'tools':
-        return (
-          <>
-            <PromotionalBanner />
-            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
-            <ToolsPage onBack={() => setView('home')} />
             <Footer onNavigate={handleNavigate} />
           </>
         );
