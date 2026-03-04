@@ -6,6 +6,7 @@ import { getIntegrationSettings, getBrandingSettings } from '../_shared/settings
 
 interface EmailRequest {
   to: string | string[]
+  bcc?: string | string[]
   from?: string
   subject?: string
   html?: string
@@ -701,7 +702,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { to, from: fromOverride, subject, html, text, template, templateData }: EmailRequest = await req.json()
+    const { to, bcc, from: fromOverride, subject, html, text, template, templateData }: EmailRequest = await req.json()
 
     // Build email content
     let emailSubject = subject
@@ -855,9 +856,12 @@ serve(async (req) => {
       },
     })
 
+    const bccRecipients = bcc ? (Array.isArray(bcc) ? bcc.join(', ') : bcc) : undefined
+
     const info = await transport.sendMail({
       from: fromAddress,
       to: recipients.join(', '),
+      ...(bccRecipients ? { bcc: bccRecipients } : {}),
       subject: emailSubject,
       html: emailHtml,
       text: emailText,

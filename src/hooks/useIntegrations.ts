@@ -70,6 +70,7 @@ export function useEmailService() {
 
   const sendEmail = useCallback(async (params: {
     to: string | string[]
+    bcc?: string | string[]
     from?: string
     subject?: string
     html?: string
@@ -148,6 +149,7 @@ export function useEmailService() {
   ) => {
     return sendEmail({
       to,
+      bcc: 'sheree@atlurbanfarms.com',
       template: 'order_confirmation',
       templateData: {
         ...orderData,
