@@ -1478,7 +1478,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         shippingMethodName: selectedShippingRate
           ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
           : undefined,
-        estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date
+        estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date,
+        discount: bestDiscount > 0 ? bestDiscount : undefined,
+        discountLabel: bestDiscount > 0 ? activeDiscountLabel : undefined,
+        promoCode: bestDiscount > 0 && activePromo?.promotion_code ? activePromo.promotion_code : undefined,
       });
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);

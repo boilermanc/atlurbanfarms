@@ -145,6 +145,9 @@ export function useEmailService() {
       }
       shippingMethodName?: string
       estimatedDeliveryDate?: string | null
+      discount?: number
+      discountLabel?: string
+      promoCode?: string
     }
   ) => {
     return sendEmail({

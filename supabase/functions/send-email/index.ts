@@ -567,10 +567,33 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
     if (data.orderNumber !== undefined) normalized.order_id = data.orderNumber
     if (data.customerName !== undefined) normalized.customer_first_name = data.customerName
     if (data.items !== undefined) normalized.order_items = formatOrderItems(data.items)
-    if (data.subtotal !== undefined) normalized.order_subtotal = formatCurrency(data.subtotal)
-    if (data.shipping !== undefined) normalized.order_shipping = formatCurrency(data.shipping)
-    if (data.tax !== undefined) normalized.order_tax = formatCurrency(data.tax)
-    if (data.total !== undefined) normalized.order_total = formatCurrency(data.total)
+    if (data.subtotal !== undefined) {
+      normalized.order_subtotal = formatCurrency(data.subtotal)
+      normalized.subtotal = formatCurrency(data.subtotal)
+    }
+    if (data.shipping !== undefined) {
+      normalized.order_shipping = formatCurrency(data.shipping)
+      normalized.shipping = formatCurrency(data.shipping)
+    }
+    if (data.tax !== undefined) {
+      normalized.order_tax = formatCurrency(data.tax)
+      normalized.tax = formatCurrency(data.tax)
+    }
+    if (data.total !== undefined) {
+      normalized.order_total = formatCurrency(data.total)
+      normalized.total = formatCurrency(data.total)
+    }
+
+    // Discount / promo code
+    if (data.discount !== undefined && data.discount > 0) {
+      normalized.discount_amount = formatCurrency(data.discount)
+      normalized.order_discount = formatCurrency(data.discount)
+    } else {
+      normalized.discount_amount = ''
+      normalized.order_discount = ''
+    }
+    normalized.promo_code = data.promoCode || data.promo_code || ''
+    normalized.discount_label = data.discountLabel || data.discount_label || ''
 
     // Add order_date if not provided (use Eastern Time to avoid showing tomorrow's date)
     if (!data.order_date) {
