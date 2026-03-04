@@ -22,6 +22,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const [error, setError] = useState<string | null>(null);
   const [existingAccount, setExistingAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
@@ -85,37 +86,42 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
         return;
       }
 
-      // Update the customer record with name and newsletter preference
-      // The handle_new_user trigger creates the record with id + email;
-      // we patch in the remaining fields here.
-      if (data.user) {
-        await supabase
-          .from('customers')
-          .update({
-            first_name: formData.firstName.trim(),
-            last_name: formData.lastName.trim(),
-            newsletter_subscribed: formData.newsletterSubscribed,
-          })
-          .eq('id', data.user.id);
-      }
+      // If we got a session back (email confirmation disabled), redirect immediately.
+      if (data.session) {
+        // Patch customer record (trigger handles most fields, this is belt-and-suspenders)
+        if (data.user) {
+          await supabase
+            .from('customers')
+            .update({
+              first_name: formData.firstName.trim(),
+              last_name: formData.lastName.trim(),
+              newsletter_subscribed: formData.newsletterSubscribed,
+            })
+            .eq('id', data.user.id);
+        }
 
-      // Fire-and-forget welcome email — don't block signup on email delivery
-      try {
-        supabase.functions.invoke('send-email', {
-          body: {
-            to: formData.email,
-            template: 'welcome',
-            templateData: {
-              customer_first_name: formData.firstName.trim(),
-              name: formData.firstName.trim(),
+        // Fire-and-forget welcome email
+        try {
+          supabase.functions.invoke('send-email', {
+            body: {
+              to: formData.email,
+              template: 'welcome',
+              templateData: {
+                customer_first_name: formData.firstName.trim(),
+                name: formData.firstName.trim(),
+              },
             },
-          },
-        });
-      } catch (_) {
-        // Silent — email failure should never block account creation
+          });
+        } catch (_) {
+          // Silent — email failure should never block account creation
+        }
+
+        onSuccess();
+        return;
       }
 
-      onSuccess();
+      // Email confirmation required — show message, don't redirect or send welcome email yet
+      setConfirmationRequired(true);
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration. Please try again.');
     } finally {
@@ -171,6 +177,31 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
           transition={{ duration: 0.4, delay: 0.1 }}
           className="bg-white rounded-[2rem] p-8 shadow-xl shadow-gray-100/50 border border-gray-100"
         >
+          {confirmationRequired ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl text-center flex flex-col items-center justify-center"
+            >
+              <svg
+                className="w-12 h-12 text-emerald-600 mb-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                viewBox="0 0 24 24"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <h3 className="text-lg font-bold text-emerald-800 mb-2">Check Your Email</h3>
+              <p className="text-sm text-emerald-700">
+                We've sent a verification link to <strong>{formData.email}</strong>. Please check your inbox to complete registration.
+              </p>
+            </motion.div>
+          ) : (
+          <>
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Existing Account Notice */}
             {existingAccount && (
@@ -382,6 +413,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
               Log in
             </button>
           </p>
+          </>
+          )}
         </motion.div>
 
         {/* Back to Home */}

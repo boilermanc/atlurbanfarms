@@ -119,20 +119,26 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
         return;
       }
 
-      // Update the customer record with name fields
-      if (data.user) {
-        await supabase
-          .from('customers')
-          .update({
-            first_name: registerData.firstName.trim(),
-            last_name: registerData.lastName.trim(),
-          })
-          .eq('id', data.user.id);
+      // If we got a session back (email confirmation disabled), redirect immediately.
+      // Otherwise show the "check your email" confirmation message.
+      if (data.session) {
+        // Update the customer record with name fields (trigger may have already done this,
+        // but this ensures it's set even if metadata parsing changes)
+        if (data.user) {
+          await supabase
+            .from('customers')
+            .update({
+              first_name: registerData.firstName.trim(),
+              last_name: registerData.lastName.trim(),
+            })
+            .eq('id', data.user.id);
+        }
+        onSuccess();
+        return;
       }
 
+      // Email confirmation is required — show confirmation message, don't redirect
       setRegistrationSuccess(true);
-      // Brief delay to show success message, then redirect
-      setTimeout(() => onSuccess(), 2000);
     } catch (err: any) {
       setRegisterError(err.message || 'An error occurred during registration. Please try again.');
     } finally {
@@ -301,7 +307,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
               </svg>
               <h3 className="text-lg font-bold text-emerald-800 mb-2">Check Your Email</h3>
               <p className="text-sm text-emerald-700">
-                We've sent a verification link to your email. Please check your inbox to complete registration.
+                We've sent a verification link to <strong>{registerData.email}</strong>. Please check your inbox to complete registration.
               </p>
             </motion.div>
           ) : (

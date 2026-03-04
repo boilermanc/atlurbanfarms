@@ -33,10 +33,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Send welcome email when user confirms their email for the first time.
+      // Detected by: SIGNED_IN event + email_confirmed_at is within the last 60 seconds.
+      if (event === 'SIGNED_IN' && session?.user) {
+        const confirmedAt = session.user.email_confirmed_at;
+        if (confirmedAt) {
+          const confirmedMs = new Date(confirmedAt).getTime();
+          const nowMs = Date.now();
+          if (nowMs - confirmedMs < 60_000) {
+            const firstName = session.user.user_metadata?.first_name || '';
+            supabase.functions.invoke('send-email', {
+              body: {
+                to: session.user.email,
+                template: 'welcome',
+                templateData: {
+                  customer_first_name: firstName,
+                  name: firstName,
+                },
+              },
+            }).catch(() => {
+              // Silent — welcome email failure should never affect auth flow
+            });
+          }
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
