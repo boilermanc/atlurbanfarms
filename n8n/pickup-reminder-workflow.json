@@ -1,0 +1,222 @@
+{
+  "name": "Pickup Reminder — Day Before Scheduled Pickup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 9 AM ET",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "Runs every day at 9:00 AM.\n\nIMPORTANT: Set the n8n instance timezone to America/New_York (or set GENERIC_TIMEZONE=America/New_York in env) so the cron fires at 9 AM Eastern."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://povudgtvzggnxwgtjexa.supabase.co/rest/v1/rpc/get_tomorrow_pickups",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "query-pickups",
+      "name": "Query Tomorrow's Pickups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "notes": "Calls the get_tomorrow_pickups RPC function which returns orders with pickups scheduled for tomorrow.\n\nReturns an array of objects with: order_id, order_number, customer_email, first_name, last_name, pickup_date, pickup_time_start, pickup_time_end, pickup_location, pickup_address, pickup_instructions.\n\nIf no pickups are scheduled, returns an empty array — the workflow completes cleanly with no items to process."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-email",
+              "leftValue": "={{ $json.customer_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-has-email",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "notes": "Skips any orders where no customer email could be resolved (unlikely but defensive)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/send-email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  to: $json.customer_email,\n  template: 'pickup_reminder',\n  templateData: {\n    customer_name: [($json.first_name || ''), ($json.last_name || '')].filter(Boolean).join(' ') || 'Valued Customer',\n    order_number: $json.order_number,\n    pickup_location: $json.pickup_location || '',\n    pickup_address: $json.pickup_address || '',\n    pickup_date: $json.pickup_date ? new Date($json.pickup_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '',\n    pickup_time: $json.pickup_time_start && $json.pickup_time_end ? $json.pickup_time_start + ' \\u2013 ' + $json.pickup_time_end : ($json.pickup_time_start || ''),\n    pickup_instructions: $json.pickup_instructions || 'Please bring a valid ID and your order confirmation.'\n  }\n}) }}",
+        "options": {
+          "timeout": 10000,
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 1000
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "send-reminder",
+      "name": "Send Pickup Reminder Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 220],
+      "notes": "Calls the send-email edge function with the pickup_reminder template.\n\nBatched at 5 per second to avoid overwhelming the email service.\nUses service role key for authorization since this runs server-side."
+    },
+    {
+      "parameters": {},
+      "id": "no-email-skip",
+      "name": "No Email (Skip)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 420],
+      "notes": "Orders without a resolvable customer email are skipped."
+    },
+    {
+      "parameters": {
+        "content": "## Pickup Reminder Workflow\n\n**Trigger:** Daily at 9:00 AM Eastern.\n\n**Query:** Fetches all pickup orders scheduled for tomorrow via the `get_tomorrow_pickups` Supabase RPC function.\n\n**Email:** Sends a `pickup_reminder` email to each customer via the `send-email` edge function.\n\n### Setup Checklist\n1. ☐ Deploy the `get_tomorrow_pickups` SQL function to Supabase (see migration file)\n2. ☐ Set `SUPABASE_SERVICE_ROLE_KEY` as an n8n environment variable\n3. ☐ Ensure n8n timezone is `America/New_York` (GENERIC_TIMEZONE env var)\n4. ☐ Test by setting a pickup order's date to tomorrow, then manually trigger\n5. ☐ Verify email arrives and workflow handles 0 results without error\n6. ☐ Activate the workflow",
+        "height": 350,
+        "width": 360
+      },
+      "id": "sticky-note",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [180, -80]
+    }
+  ],
+  "connections": {
+    "Daily 9 AM ET": {
+      "main": [
+        [
+          {
+            "node": "Query Tomorrow's Pickups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Tomorrow's Pickups": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Send Pickup Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Email (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/New_York"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "operations"
+    },
+    {
+      "name": "email"
+    },
+    {
+      "name": "pickup"
+    }
+  ],
+  "triggerCount": 1
+}

@@ -151,6 +151,48 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     );
 
     if (result.success) {
+      // Send pickup_ready email when status changes to ready_for_pickup
+      if (newStatus === 'ready_for_pickup' && order.is_pickup) {
+        try {
+          const pickup = order.pickup_reservation;
+          const location = pickup?.location;
+
+          const pickupAddress = location
+            ? [location.address_line1, location.address_line2, `${location.city}, ${location.state} ${location.postal_code}`]
+                .filter(Boolean)
+                .join(', ')
+            : '';
+
+          const pickupDate = order.pickup_date
+            ? new Date(order.pickup_date).toLocaleDateString('en-US', {
+                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+              })
+            : '';
+
+          const pickupTime = order.pickup_time_start
+            ? `${formatPickupTime(order.pickup_time_start)}${order.pickup_time_end ? ` – ${formatPickupTime(order.pickup_time_end)}` : ''}`
+            : '';
+
+          supabase.functions.invoke('send-email', {
+            body: {
+              to: order.customer_email,
+              template: 'pickup_ready',
+              templateData: {
+                customer_name: order.customer_name || 'Valued Customer',
+                order_number: order.order_number,
+                pickup_location: location?.name || '',
+                pickup_address: pickupAddress,
+                pickup_date: pickupDate,
+                pickup_time: pickupTime,
+                pickup_instructions: location?.instructions || 'Please bring a valid ID and your order confirmation.',
+              },
+            },
+          });
+        } catch (emailErr) {
+          console.error('Failed to send pickup_ready email:', emailErr);
+        }
+      }
+
       setNewStatus('');
       setStatusNote('');
       refetch();
