@@ -56,18 +56,32 @@ const GiftCardDetailPage: React.FC<GiftCardDetailPageProps> = ({ giftCardId, onB
   const handleToggleStatus = async () => {
     if (!giftCard) return;
     const newStatus = giftCard.status === 'active' ? 'disabled' : 'active';
-    const result = await toggleStatus(giftCard.id, newStatus);
-    if (result.success) {
-      refetch();
+    try {
+      const result = await toggleStatus(giftCard.id, newStatus);
+      if (result.success) {
+        showMessage('success', `Gift card ${newStatus === 'disabled' ? 'disabled' : 'enabled'}`);
+        refetch();
+      } else {
+        showMessage('error', result.error || 'Failed to update status');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message || 'Failed to update status');
     }
   };
 
   const handleAdjustBalance = async () => {
-    const result = await adjustBalance(giftCardId, adjustForm);
-    if (result.success) {
-      setShowAdjustModal(false);
-      setAdjustForm(DEFAULT_ADJUSTMENT_FORM);
-      refetch();
+    try {
+      const result = await adjustBalance(giftCardId, adjustForm);
+      if (result.success) {
+        setShowAdjustModal(false);
+        setAdjustForm(DEFAULT_ADJUSTMENT_FORM);
+        showMessage('success', `Balance ${adjustForm.type === 'add' ? 'increased' : 'decreased'} by $${parseFloat(adjustForm.amount).toFixed(2)}`);
+        refetch();
+      } else {
+        showMessage('error', result.error || 'Failed to adjust balance');
+      }
+    } catch (err: any) {
+      showMessage('error', err.message || 'Failed to adjust balance');
     }
   };
 
