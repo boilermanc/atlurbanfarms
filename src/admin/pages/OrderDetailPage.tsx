@@ -592,7 +592,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const refundedTotal = order.refunded_total || 0;
   const remainingRefundable = Math.max(0, totalPaid - refundedTotal);
   const paymentState = (order.payment_status || order.status || '').toLowerCase();
-  const paidStates = new Set(['processing', 'on_hold', 'completed', 'refunded']);
+  const paidStates = new Set(['paid', 'processing', 'on_hold', 'completed', 'refunded']);
   const isPaidOrder = paidStates.has(paymentState);
   const canRefund = Boolean(order.stripe_payment_intent_id && remainingRefundable > 0 && isPaidOrder);
   const calculatedItemAmount = orderItems.reduce((sum, item) => {

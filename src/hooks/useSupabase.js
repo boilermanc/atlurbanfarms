@@ -1232,6 +1232,7 @@ export function useCreateOrder() {
         growing_system: growingSystem,
         // Payment status
         payment_status: paymentStatus || 'pending',
+        paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
         // Stripe payment intent ID
         stripe_payment_intent_id: stripePaymentIntentId,
         // Tax audit

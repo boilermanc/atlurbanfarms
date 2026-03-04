@@ -528,6 +528,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         status: orderStatus,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
+        paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
         created_by_admin_id: user.id,
         internal_notes: finalInternalNotes || null,
         skip_inventory_check: overrideInventory,

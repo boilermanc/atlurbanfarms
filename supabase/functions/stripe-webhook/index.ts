@@ -153,6 +153,7 @@ serve(async (req) => {
               .from('orders')
               .update({
                 payment_status: 'paid',
+                paid_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
               })
               .eq('id', existingOrder.id)
@@ -181,6 +182,7 @@ serve(async (req) => {
           const orderData = {
             ...(pendingOrder.order_data as Record<string, unknown>),
             payment_status: 'paid',
+            paid_at: new Date().toISOString(),
             stripe_payment_intent_id: piId
           }
           const orderItems = pendingOrder.order_items as Record<string, unknown>[]
@@ -282,6 +284,7 @@ serve(async (req) => {
             .from('orders')
             .update({
               payment_status: 'paid',
+              paid_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             })
             .eq('id', pendingOrder.completed_order_id)
@@ -299,6 +302,7 @@ serve(async (req) => {
               .from('orders')
               .update({
                 payment_status: 'paid',
+                paid_at: new Date().toISOString(),
                 stripe_payment_intent_id: piId,
                 updated_at: new Date().toISOString()
               })
