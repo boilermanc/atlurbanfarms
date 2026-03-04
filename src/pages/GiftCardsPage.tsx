@@ -41,17 +41,6 @@ const GiftCardsPage: React.FC = () => {
   return (
     <section className="min-h-screen bg-white">
       <div className="max-w-[960px] mx-auto">
-        {/* Page Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight mb-4">
-            Gift Cards
-          </h1>
-          <p className="text-lg text-gray-500 max-w-xl mx-auto leading-relaxed">
-            Give the gift of fresh food. Gift cards can be used for any order and are delivered instantly by email.
-          </p>
-        </div>
-
-        {/* Widget Area */}
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -75,7 +64,8 @@ const GiftCardsPage: React.FC = () => {
             src={`https://giftup.app/place-order/${siteId}?platform=hosted&display=inline`}
             title="Gift Cards"
             className="w-full rounded-xl"
-            style={{ height: 800, border: 'none' }}
+            scrolling="no"
+            style={{ height: 1100, border: 'none', overflow: 'hidden' }}
             allow="payment"
           />
         )}
