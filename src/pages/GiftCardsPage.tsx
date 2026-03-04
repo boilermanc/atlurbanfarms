@@ -39,10 +39,10 @@ const GiftCardsPage: React.FC = () => {
   }, []);
 
   return (
-    <section className="py-16 px-4 md:px-8 min-h-screen bg-white">
-      <div className="max-w-[900px] mx-auto">
+    <section className="min-h-screen bg-white">
+      <div className="max-w-[960px] mx-auto">
         {/* Page Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-gray-900 tracking-tight mb-4">
             Gift Cards
           </h1>
@@ -72,10 +72,10 @@ const GiftCardsPage: React.FC = () => {
 
         {!loading && siteId && !error && (
           <iframe
-            src={`https://giftup.app/place-order/${siteId}?platform=Other`}
+            src={`https://giftup.app/place-order/${siteId}?platform=hosted&display=inline`}
             title="Gift Cards"
-            width="100%"
-            style={{ minHeight: 700, border: 'none' }}
+            className="w-full rounded-xl"
+            style={{ height: 800, border: 'none' }}
             allow="payment"
           />
         )}
