@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Leaf, LogIn, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import TurnstileWidget from '../../components/auth/TurnstileWidget';
+import { verifyTurnstileToken, isTurnstileEnabled } from '../../lib/turnstile';
 
 interface AdminLoginProps {
   onNavigate: (view: string) => void;
@@ -13,13 +15,24 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (isTurnstileEnabled() && !turnstileToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      if (isTurnstileEnabled()) {
+        await verifyTurnstileToken(turnstileToken!);
+      }
+
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -47,7 +60,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
       // Fallback if session check fails
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Invalid credentials. Please try again.');
+      setError(typeof err === 'string' ? err : (err.message || 'Invalid credentials. Please try again.'));
+      setTurnstileToken(null);
       setIsLoading(false);
     }
   };
@@ -124,10 +138,17 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onNavigate, onSuccess }) => {
               </div>
             </div>
 
+            {/* Turnstile CAPTCHA */}
+            <TurnstileWidget
+              onSuccess={(token) => setTurnstileToken(token)}
+              onError={() => setTurnstileToken(null)}
+              onExpire={() => setTurnstileToken(null)}
+            />
+
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (isTurnstileEnabled() && !turnstileToken)}
               className={`w-full py-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-3 ${
                 isLoading
                   ? 'bg-slate-400 cursor-not-allowed'

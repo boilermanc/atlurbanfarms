@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useBrandingSettings } from '../../hooks/useSupabase';
+import TurnstileWidget from './TurnstileWidget';
+import { verifyTurnstileToken, isTurnstileEnabled } from '../../lib/turnstile';
 
 interface RegisterPageProps {
   onNavigate: (view: string) => void;
@@ -23,6 +25,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
   const [existingAccount, setExistingAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const { settings: brandingSettings, loading: brandingLoading } = useBrandingSettings();
@@ -59,9 +62,18 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
       return;
     }
 
+    if (isTurnstileEnabled() && !turnstileToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      if (isTurnstileEnabled()) {
+        await verifyTurnstileToken(turnstileToken!);
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -123,7 +135,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
       // Email confirmation required — show message, don't redirect or send welcome email yet
       setConfirmationRequired(true);
     } catch (err: any) {
-      setError(err.message || 'An error occurred during registration. Please try again.');
+      setError(typeof err === 'string' ? err : (err.message || 'An error occurred during registration. Please try again.'));
+      setTurnstileToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -373,10 +386,17 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigate, onSuccess }) =>
               </span>
             </label>
 
+            {/* Turnstile CAPTCHA */}
+            <TurnstileWidget
+              onSuccess={(token) => setTurnstileToken(token)}
+              onError={() => setTurnstileToken(null)}
+              onExpire={() => setTurnstileToken(null)}
+            />
+
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (isTurnstileEnabled() && !turnstileToken)}
               className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-3 mt-6 ${
                 isLoading
                   ? 'bg-gray-400 cursor-not-allowed'

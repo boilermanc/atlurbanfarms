@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useBrandingSettings } from '../../hooks/useSupabase';
+import TurnstileWidget from './TurnstileWidget';
+import { verifyTurnstileToken, isTurnstileEnabled } from '../../lib/turnstile';
 
 interface LoginPageProps {
   onNavigate: (view: string) => void;
@@ -45,6 +47,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
+  // Turnstile state
+  const [loginTurnstileToken, setLoginTurnstileToken] = useState<string | null>(null);
+  const [registerTurnstileToken, setRegisterTurnstileToken] = useState<string | null>(null);
+
   // Shared state
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -54,9 +60,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+
+    if (isTurnstileEnabled() && !loginTurnstileToken) {
+      setLoginError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setIsLoginLoading(true);
 
     try {
+      if (isTurnstileEnabled()) {
+        await verifyTurnstileToken(loginTurnstileToken!);
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password: loginPassword,
@@ -64,7 +80,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
       if (error) throw error;
       onSuccess();
     } catch (err: any) {
-      setLoginError(err.message || 'Invalid email or password. Please try again.');
+      setLoginError(typeof err === 'string' ? err : (err.message || 'Invalid email or password. Please try again.'));
+      setLoginTurnstileToken(null);
     } finally {
       setIsLoginLoading(false);
     }
@@ -95,9 +112,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
       return;
     }
 
+    if (isTurnstileEnabled() && !registerTurnstileToken) {
+      setRegisterError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setIsRegisterLoading(true);
 
     try {
+      if (isTurnstileEnabled()) {
+        await verifyTurnstileToken(registerTurnstileToken!);
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: registerData.email,
         password: registerData.password,
@@ -140,7 +166,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
       // Email confirmation is required — show confirmation message, don't redirect
       setRegistrationSuccess(true);
     } catch (err: any) {
-      setRegisterError(err.message || 'An error occurred during registration. Please try again.');
+      setRegisterError(typeof err === 'string' ? err : (err.message || 'An error occurred during registration. Please try again.'));
+      setRegisterTurnstileToken(null);
     } finally {
       setIsRegisterLoading(false);
     }
@@ -254,10 +281,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
             {/* Spacer to push button to bottom */}
             <div className="flex-1" />
 
+            {/* Turnstile CAPTCHA */}
+            <TurnstileWidget
+              onSuccess={(token) => setLoginTurnstileToken(token)}
+              onError={() => setLoginTurnstileToken(null)}
+              onExpire={() => setLoginTurnstileToken(null)}
+            />
+
             {/* Submit */}
             <button
               type="submit"
-              disabled={isLoginLoading}
+              disabled={isLoginLoading || (isTurnstileEnabled() && !loginTurnstileToken)}
               className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-3 ${
                 isLoginLoading
                   ? 'bg-gray-400 cursor-not-allowed'
@@ -437,10 +471,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
               {/* Spacer to push button to bottom */}
               <div className="flex-1" />
 
+              {/* Turnstile CAPTCHA */}
+              <TurnstileWidget
+                onSuccess={(token) => setRegisterTurnstileToken(token)}
+                onError={() => setRegisterTurnstileToken(null)}
+                onExpire={() => setRegisterTurnstileToken(null)}
+              />
+
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isRegisterLoading}
+                disabled={isRegisterLoading || (isTurnstileEnabled() && !registerTurnstileToken)}
                 className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-3 ${
                   isRegisterLoading
                     ? 'bg-gray-400 cursor-not-allowed'
