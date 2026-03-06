@@ -1438,6 +1438,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       tax,
       taxRateApplied: taxResult.taxRate,
       taxNote: taxResult.taxNote,
+      // Gift card fully covers order — mark as paid with no Stripe PI
+      ...(finalTotal === 0 && giftCardApplied
+        ? { paymentStatus: 'paid', paymentMethod: 'gift_card' }
+        : {}),
       ...shippingDetails,
       ...pickupDetails
     });

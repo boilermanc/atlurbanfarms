@@ -735,6 +735,8 @@ export function useOrder(orderId: string | null) {
         tracking_number: orderData.tracking_number,
         estimated_delivery: orderData.estimated_delivery,
         internal_notes: orderData.internal_notes,
+        customer_notes: orderData.customer_notes,
+        growing_system: orderData.growing_system,
         created_at: orderData.created_at,
         updated_at: orderData.updated_at,
         items: (orderData.order_items || []).map((item: any) => ({
