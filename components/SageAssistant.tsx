@@ -40,17 +40,17 @@ const SageAssistant: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[60]">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[60]">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20, transformOrigin: 'bottom right' }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="absolute bottom-24 right-0 w-[350px] md:w-[420px] h-[600px] bg-white rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(139,92,246,0.25)] border border-purple-50 overflow-hidden flex flex-col"
+            className="fixed inset-3 bottom-24 sm:absolute sm:inset-auto sm:bottom-24 sm:right-0 sm:w-[350px] md:w-[420px] sm:h-[600px] bg-white rounded-[2rem] sm:rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(139,92,246,0.25)] border border-purple-50 overflow-hidden flex flex-col"
           >
             {/* Header */}
-            <div className="sage-gradient p-8 text-white flex items-center justify-between relative overflow-hidden">
+            <div className="sage-gradient p-5 sm:p-8 text-white flex items-center justify-between relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
               
               <div className="flex items-center gap-4 relative z-10">
@@ -76,7 +76,7 @@ const SageAssistant: React.FC = () => {
             </div>
 
             {/* Chat Content */}
-            <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-5 bg-gradient-to-b from-purple-50/30 to-white">
+            <div ref={scrollRef} className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-5 bg-gradient-to-b from-purple-50/30 to-white">
               {messages.map((msg, idx) => (
                 <motion.div
                   key={idx}
@@ -107,7 +107,7 @@ const SageAssistant: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-6 bg-white border-t border-purple-50">
+            <form onSubmit={handleSendMessage} className="p-4 sm:p-6 bg-white border-t border-purple-50">
               {sageDisabled ? (
                 <div className="text-center py-2">
                   <p className="text-xs text-gray-400">Sage is currently offline</p>
