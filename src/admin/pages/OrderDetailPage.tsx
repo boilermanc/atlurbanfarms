@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -18,9 +18,8 @@ import {
 } from '../hooks/useOrders';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
-import { useShipmentManagement } from '../hooks/useShipmentManagement';
-import { useTrackingEvents, formatTrackingDate as formatTrackingEventDate } from '../../hooks/useTracking';
 import { supabase } from '../../lib/supabase';
+import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle } from 'lucide-react';
 
 // Helper to format pickup time
 const formatPickupTime = (timeStr: string): string => {
@@ -49,32 +48,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const { updateStatus, loading: updatingStatus } = useUpdateOrderStatus();
   const { addNote, loading: addingNote } = useAddOrderNote();
   const { cancelOrder, loading: cancellingOrder } = useCancelOrder();
-  const {
-    shipment,
-    loading: shipmentLoading,
-    error: shipmentError,
-    createLabel,
-    voidLabel,
-    canCreateLabel,
-    canVoidLabel
-  } = useShipmentManagement(orderId);
-
-  // Tracking events (from shipment)
-  const {
-    events: trackingEvents,
-    loading: trackingEventsLoading,
-    refetch: refetchTrackingEvents
-  } = useTrackingEvents(shipment?.id || null);
-
   // Local state
   const [newStatus, setNewStatus] = useState<string>('');
   const [statusNote, setStatusNote] = useState<string>('');
   const [newNote, setNewNote] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [creatingLabel, setCreatingLabel] = useState(false);
-  const [voidingLabel, setVoidingLabel] = useState(false);
-  const [labelError, setLabelError] = useState<string | null>(null);
   const [markingPickedUp, setMarkingPickedUp] = useState(false);
   const { refundOrder, loading: refunding } = useOrderRefund();
   const { processManualRefund, loading: processingManualRefund } = useManualRefund();
@@ -91,6 +70,115 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [manualRefundMethod, setManualRefundMethod] = useState<ManualRefundMethod>('cash');
   const [manualRefundNotes, setManualRefundNotes] = useState('');
   const [manualRefundError, setManualRefundError] = useState<string | null>(null);
+
+  // Line item editing state
+  const [editingItems, setEditingItems] = useState(false);
+  const [editableItems, setEditableItems] = useState<Array<{
+    id: string | null;
+    product_id: string;
+    product_name: string;
+    product_price: number;
+    quantity: number;
+  }>>([]);
+  const [itemSaving, setItemSaving] = useState(false);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity_available: number;
+  }>>([]);
+  const [productSearchLoading, setProductSearchLoading] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [stockMap, setStockMap] = useState<Record<string, number>>({});
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const productSearchRef = useRef<HTMLDivElement>(null);
+
+  // Section 1: Status & Payment editing
+  const [editingStatus, setEditingStatus] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [statusForm, setStatusForm] = useState({ status: '', payment_status: '', internal_notes: '', customer_notes: '' });
+
+  // Section 2: Shipping Address editing
+  const [editingShipping, setEditingShipping] = useState(false);
+  const [savingShipping, setSavingShipping] = useState(false);
+  const [shippingForm, setShippingForm] = useState({ shipping_first_name: '', shipping_last_name: '', shipping_address_line1: '', shipping_address_line2: '', shipping_city: '', shipping_state: '', shipping_zip: '', shipping_phone: '' });
+
+  // Section 3: Billing Address editing
+  const [editingBilling, setEditingBilling] = useState(false);
+  const [savingBilling, setSavingBilling] = useState(false);
+  const [billingForm, setBillingForm] = useState({ billing_first_name: '', billing_last_name: '', billing_address_line1: '', billing_address_line2: '', billing_city: '', billing_state: '', billing_zip: '' });
+
+  // Section 4: Shipping Method & Tracking editing
+  const [editingTracking, setEditingTracking] = useState(false);
+  const [savingTracking, setSavingTracking] = useState(false);
+  const [trackingForm, setTrackingForm] = useState({ shipping_method_name: '', shipping_cost: 0, tracking_number: '', tracking_url: '', estimated_delivery_date: '' });
+
+  // Print mode: auto-print when opened via ?print=true
+  const [isPrintMode] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('print') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (isPrintMode && order && !loading) {
+      const timer = setTimeout(() => window.print(), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isPrintMode, order, loading]);
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // Product search debounce
+  useEffect(() => {
+    if (productSearchQuery.length < 2) {
+      setProductSearchResults([]);
+      setShowProductDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setProductSearchLoading(true);
+      try {
+        const { data, error: searchError } = await supabase
+          .from('products')
+          .select('id, name, price, quantity_available')
+          .ilike('name', `%${productSearchQuery}%`)
+          .eq('is_active', true)
+          .limit(10);
+
+        if (searchError) throw searchError;
+        setProductSearchResults(data || []);
+        setShowProductDropdown((data || []).length > 0);
+      } catch {
+        setProductSearchResults([]);
+      } finally {
+        setProductSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [productSearchQuery]);
+
+  // Click outside to close product search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productSearchRef.current && !productSearchRef.current.contains(event.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Format date - handles null/undefined/invalid dates
   const formatDate = (dateString: string | null | undefined, includeTime = false) => {
@@ -123,6 +211,107 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       style: 'currency',
       currency: 'USD',
     }).format(amount);
+  };
+
+  // --- Line item editing handlers ---
+  const handleStartEditItems = async () => {
+    if (!order?.items) return;
+    const items = order.items.map(item => ({
+      id: item.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_price: item.unit_price,
+      quantity: item.quantity,
+    }));
+    setEditableItems(items);
+    setEditingItems(true);
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setShowProductDropdown(false);
+
+    // Fetch stock for existing items
+    const productIds = items.map(i => i.product_id);
+    if (productIds.length > 0) {
+      const { data } = await supabase
+        .from('products')
+        .select('id, quantity_available')
+        .in('id', productIds);
+      if (data) {
+        const map: Record<string, number> = {};
+        data.forEach(p => { map[p.id] = p.quantity_available; });
+        setStockMap(map);
+      }
+    }
+  };
+
+  const handleAddProductToEdit = (product: { id: string; name: string; price: number; quantity_available: number }) => {
+    const existingIndex = editableItems.findIndex(i => i.product_id === product.id);
+    if (existingIndex >= 0) {
+      const updated = [...editableItems];
+      updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
+      setEditableItems(updated);
+    } else {
+      setEditableItems([...editableItems, {
+        id: null,
+        product_id: product.id,
+        product_name: product.name,
+        product_price: product.price,
+        quantity: 1,
+      }]);
+    }
+    setStockMap(prev => ({ ...prev, [product.id]: product.quantity_available }));
+    setProductSearchQuery('');
+    setShowProductDropdown(false);
+  };
+
+  const handleRemoveEditItem = (index: number) => {
+    setEditableItems(editableItems.filter((_, i) => i !== index));
+  };
+
+  const handleEditItemQuantityChange = (index: number, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    const updated = [...editableItems];
+    updated[index] = { ...updated[index], quantity: newQuantity };
+    setEditableItems(updated);
+  };
+
+  const editSubtotal = editableItems.reduce((sum, item) => sum + item.quantity * item.product_price, 0);
+  const editTotal = editSubtotal + (order?.shipping_cost || 0) + (order?.tax || 0) - (order?.discount_amount || 0);
+
+  const handleSaveItems = async () => {
+    if (!order) return;
+    setItemSaving(true);
+    try {
+      const { error: rpcError } = await supabase.rpc('update_order_line_items', {
+        p_order_id: order.id,
+        p_items: editableItems.map(item => ({
+          order_item_id: item.id || null,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          product_name: item.product_name,
+          product_price: item.product_price,
+          line_total: item.quantity * item.product_price,
+        })),
+      });
+      if (rpcError) throw rpcError;
+      setEditingItems(false);
+      setEditableItems([]);
+      await refetch();
+      setToast({ message: 'Order items updated', type: 'success' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update order items';
+      setToast({ message, type: 'error' });
+    } finally {
+      setItemSaving(false);
+    }
+  };
+
+  const handleCancelEditItems = () => {
+    setEditingItems(false);
+    setEditableItems([]);
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setShowProductDropdown(false);
   };
 
   // Get status badge
@@ -244,42 +433,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     }
   };
 
-  // Handle create label
-  const handleCreateLabel = async () => {
-    setCreatingLabel(true);
-    setLabelError(null);
 
-    const result = await createLabel();
 
-    if (!result.success) {
-      setLabelError(result.error?.message || 'Failed to create label');
-    }
-
-    setCreatingLabel(false);
-  };
-
-  // Handle void label
-  const handleVoidLabel = async () => {
-    if (!shipment?.label_id) return;
-
-    setVoidingLabel(true);
-    setLabelError(null);
-
-    const result = await voidLabel(shipment.label_id);
-
-    if (!result.success) {
-      setLabelError(result.error?.message || 'Failed to void label');
-    }
-
-    setVoidingLabel(false);
-  };
-
-  // Handle download label
-  const handleDownloadLabel = () => {
-    if (shipment?.label_url) {
-      window.open(shipment.label_url, '_blank');
-    }
-  };
 
   // Handle mark pickup as picked up
   const handleMarkPickedUp = async () => {
@@ -506,32 +661,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     }
   };
 
-  // Get label status badge
-  const getLabelStatusBadge = () => {
-    if (!shipment) return null;
-
-    if (shipment.voided) {
-      return (
-        <span className="bg-red-100 text-red-700 border border-red-200 text-xs px-2 py-0.5 rounded-full font-medium">
-          Voided
-        </span>
-      );
-    }
-
-    if (shipment.label_id) {
-      return (
-        <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs px-2 py-0.5 rounded-full font-medium">
-          Label Created
-        </span>
-      );
-    }
-
-    return (
-      <span className="bg-slate-100 text-slate-600 border border-slate-200 text-xs px-2 py-0.5 rounded-full font-medium">
-        Pending
-      </span>
-    );
-  };
 
   const getRefundStatusClasses = (status: string) => {
     switch (status) {
@@ -579,16 +708,183 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     URL.revokeObjectURL(url);
   };
 
-  // Get tracking URL
-  const getTrackingUrl = (trackingNumber: string) => {
-    // Simple heuristic for carrier detection
-    if (trackingNumber.startsWith('1Z')) {
-      return `https://www.ups.com/track?tracknum=${trackingNumber}`;
-    } else if (trackingNumber.length === 22 || trackingNumber.length === 20) {
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
-    } else {
-      return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
+  // --- Inline editing: start-edit helpers ---
+  const startEditStatus = () => {
+    if (!order) return;
+    setStatusForm({
+      status: order.status,
+      payment_status: order.payment_status || '',
+      internal_notes: order.internal_notes || '',
+      customer_notes: order.customer_notes || '',
+    });
+    setEditingStatus(true);
+  };
+
+  const startEditShipping = () => {
+    if (!order) return;
+    setShippingForm({
+      shipping_first_name: order.shipping_first_name || order.shipping_address?.name?.split(' ')[0] || '',
+      shipping_last_name: order.shipping_last_name || order.shipping_address?.name?.split(' ').slice(1).join(' ') || '',
+      shipping_address_line1: order.shipping_address_line1 || order.shipping_address?.street || '',
+      shipping_address_line2: order.shipping_address_line2 || order.shipping_address?.street2 || '',
+      shipping_city: order.shipping_city || order.shipping_address?.city || '',
+      shipping_state: order.shipping_state || order.shipping_address?.state || '',
+      shipping_zip: order.shipping_zip || order.shipping_address?.zip || '',
+      shipping_phone: order.shipping_phone || order.customer_phone || '',
+    });
+    setEditingShipping(true);
+  };
+
+  const startEditBilling = () => {
+    if (!order) return;
+    setBillingForm({
+      billing_first_name: order.billing_first_name || '',
+      billing_last_name: order.billing_last_name || '',
+      billing_address_line1: order.billing_address_line1 || '',
+      billing_address_line2: order.billing_address_line2 || '',
+      billing_city: order.billing_city || '',
+      billing_state: order.billing_state || '',
+      billing_zip: order.billing_zip || '',
+    });
+    setEditingBilling(true);
+  };
+
+  const startEditTracking = () => {
+    if (!order) return;
+    setTrackingForm({
+      shipping_method_name: order.shipping_method_name || order.shipping_method || '',
+      shipping_cost: order.shipping_cost || 0,
+      tracking_number: order.tracking_number || '',
+      tracking_url: order.tracking_url || '',
+      estimated_delivery_date: order.estimated_delivery_date || '',
+    });
+    setEditingTracking(true);
+  };
+
+  // --- Inline editing: save handlers ---
+  const handleSaveStatus = async () => {
+    if (!order) return;
+    setSavingStatus(true);
+    try {
+      const { error: err } = await supabase.from('orders').update({
+        status: statusForm.status,
+        payment_status: statusForm.payment_status,
+        internal_notes: statusForm.internal_notes || null,
+        customer_notes: statusForm.customer_notes || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', order.id);
+      if (err) throw err;
+      setToast({ message: 'Status & payment updated', type: 'success' });
+      setEditingStatus(false);
+      refetch();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update', type: 'error' });
+    } finally {
+      setSavingStatus(false);
     }
+  };
+
+  const handleSaveShipping = async () => {
+    if (!order) return;
+    setSavingShipping(true);
+    try {
+      const { error: err } = await supabase.from('orders').update({
+        shipping_first_name: shippingForm.shipping_first_name,
+        shipping_last_name: shippingForm.shipping_last_name,
+        shipping_address_line1: shippingForm.shipping_address_line1,
+        shipping_address_line2: shippingForm.shipping_address_line2,
+        shipping_city: shippingForm.shipping_city,
+        shipping_state: shippingForm.shipping_state,
+        shipping_zip: shippingForm.shipping_zip,
+        shipping_phone: shippingForm.shipping_phone,
+        shipping_address: {
+          name: `${shippingForm.shipping_first_name} ${shippingForm.shipping_last_name}`.trim(),
+          street: shippingForm.shipping_address_line1,
+          street2: shippingForm.shipping_address_line2 || null,
+          city: shippingForm.shipping_city,
+          state: shippingForm.shipping_state,
+          zip: shippingForm.shipping_zip,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', order.id);
+      if (err) throw err;
+      setToast({ message: 'Shipping address updated', type: 'success' });
+      setEditingShipping(false);
+      refetch();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update shipping address', type: 'error' });
+    } finally {
+      setSavingShipping(false);
+    }
+  };
+
+  const handleSaveBilling = async () => {
+    if (!order) return;
+    setSavingBilling(true);
+    try {
+      const { error: err } = await supabase.from('orders').update({
+        billing_first_name: billingForm.billing_first_name,
+        billing_last_name: billingForm.billing_last_name,
+        billing_address_line1: billingForm.billing_address_line1,
+        billing_address_line2: billingForm.billing_address_line2,
+        billing_city: billingForm.billing_city,
+        billing_state: billingForm.billing_state,
+        billing_zip: billingForm.billing_zip,
+        updated_at: new Date().toISOString(),
+      }).eq('id', order.id);
+      if (err) throw err;
+      setToast({ message: 'Billing address updated', type: 'success' });
+      setEditingBilling(false);
+      refetch();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update billing address', type: 'error' });
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  const handleSaveTracking = async () => {
+    if (!order) return;
+    setSavingTracking(true);
+    try {
+      const newShippingCost = parseFloat(trackingForm.shipping_cost.toString()) || 0;
+      const newTotal = (order.subtotal || 0) + newShippingCost + (order.tax || 0) - (order.discount_amount || 0);
+      const { error: err } = await supabase.from('orders').update({
+        shipping_method_name: trackingForm.shipping_method_name,
+        shipping_cost: newShippingCost,
+        tracking_number: trackingForm.tracking_number,
+        tracking_url: trackingForm.tracking_url,
+        estimated_delivery_date: trackingForm.estimated_delivery_date || null,
+        total: newTotal,
+        updated_at: new Date().toISOString(),
+      }).eq('id', order.id);
+      if (err) throw err;
+      setToast({ message: 'Shipping & tracking updated', type: 'success' });
+      setEditingTracking(false);
+      refetch();
+    } catch (err: any) {
+      setToast({ message: err.message || 'Failed to update tracking', type: 'error' });
+    } finally {
+      setSavingTracking(false);
+    }
+  };
+
+  // Payment status badge helper
+  const getPaymentStatusBadge = (paymentStatus: string | null | undefined) => {
+    const status = paymentStatus || 'unknown';
+    const config: Record<string, { label: string; color: string }> = {
+      pending: { label: 'Pending', color: 'bg-amber-500' },
+      paid: { label: 'Paid', color: 'bg-emerald-500' },
+      partial: { label: 'Partial', color: 'bg-blue-500' },
+      failed: { label: 'Failed', color: 'bg-red-500' },
+      refunded: { label: 'Refunded', color: 'bg-purple-500' },
+    };
+    const c = config[status] || { label: status, color: 'bg-slate-500' };
+    return (
+      <span className={`${c.color} text-white text-xs px-2 py-0.5 rounded-full font-medium`}>
+        {c.label}
+      </span>
+    );
   };
 
   if (loading) {
@@ -667,6 +963,25 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
   return (
     <AdminPageWrapper>
+      {/* Print stylesheet: hide chrome, show only order content */}
+      <style>{`
+        @media print {
+          /* Hide sidebar, header, and nav */
+          nav, header, aside,
+          [class*="AdminSidebar"], [class*="AdminHeader"],
+          .ml-64 > header:first-child {
+            display: none !important;
+          }
+          /* Remove sidebar margin */
+          .ml-64 {
+            margin-left: 0 !important;
+          }
+          /* Clean up spacing */
+          body { background: white !important; }
+          .shadow-sm { box-shadow: none !important; }
+          .border { border-color: #e2e8f0 !important; }
+        }
+      `}</style>
       <div className="space-y-6 print:space-y-4">
         {/* Back Buttons */}
         <div className="flex items-center gap-3 print:hidden">
@@ -738,6 +1053,91 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 Export
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all ${
+            toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+          }`}>
+            {toast.message}
+          </div>
+        )}
+
+        {/* Section 1: Order Status & Payment */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Status & Payment</h2>
+            {!editingStatus && (
+              <button onClick={startEditStatus} className="text-slate-400 hover:text-emerald-600 transition-colors print:hidden" title="Edit status & payment">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            )}
+            {editingStatus && (
+              <div className="flex items-center gap-2 print:hidden">
+                <button onClick={handleSaveStatus} disabled={savingStatus} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                  {savingStatus && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                  {savingStatus ? 'Saving...' : 'Save'}
+                </button>
+                <button onClick={() => setEditingStatus(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+              </div>
+            )}
+          </div>
+          <div className="p-6">
+            {!editingStatus ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Order Status</p>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Payment Status</p>
+                  {getPaymentStatusBadge(order.payment_status)}
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Internal Notes</p>
+                  <p className="text-slate-600 text-sm whitespace-pre-wrap">{order.internal_notes || <span className="text-slate-300 italic">None</span>}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Customer Notes</p>
+                  <p className="text-slate-600 text-sm whitespace-pre-wrap">{order.customer_notes || <span className="text-slate-300 italic">None</span>}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-600">Order Status</label>
+                  <select value={statusForm.status} onChange={(e) => setStatusForm(f => ({ ...f, status: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                    <option value="pending_payment">Pending Payment</option>
+                    <option value="processing">Processing</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-600">Payment Status</label>
+                  <select value={statusForm.payment_status} onChange={(e) => setStatusForm(f => ({ ...f, payment_status: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                    <option value="pending">Pending</option>
+                    <option value="paid">Paid</option>
+                    <option value="partial">Partial</option>
+                    <option value="failed">Failed</option>
+                    <option value="refunded">Refunded</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-600">Internal Notes</label>
+                  <textarea value={statusForm.internal_notes} onChange={(e) => setStatusForm(f => ({ ...f, internal_notes: e.target.value }))} rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none" placeholder="Internal notes..." />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-600">Customer Notes</label>
+                  <textarea value={statusForm.customer_notes} onChange={(e) => setStatusForm(f => ({ ...f, customer_notes: e.target.value }))} rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none" placeholder="Customer notes..." />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -857,245 +1257,250 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               </div>
             </div>
           ) : (
+            /* Section 2: Shipping Address (editable) */
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Ship To</h2>
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Address</h2>
+                {!editingShipping && (
+                  <button onClick={startEditShipping} className="text-slate-400 hover:text-emerald-600 transition-colors print:hidden" title="Edit shipping address">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                )}
+                {editingShipping && (
+                  <div className="flex items-center gap-2 print:hidden">
+                    <button onClick={handleSaveShipping} disabled={savingShipping} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                      {savingShipping && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                      {savingShipping ? 'Saving...' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingShipping(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+                  </div>
+                )}
               </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <p className="text-slate-400 text-sm mb-2">Shipping Address</p>
-                  {order.shipping_address ? (
-                    <address className="text-slate-600 not-italic leading-relaxed">
-                      <p className="font-medium text-slate-800">{order.shipping_address.name || 'Name not provided'}</p>
-                      <p>{order.shipping_address.street || 'Street not provided'}</p>
-                      {order.shipping_address.street2 && <p>{order.shipping_address.street2}</p>}
-                      <p>
-                        {order.shipping_address.city || 'City'}, {order.shipping_address.state || 'State'} {order.shipping_address.zip || 'ZIP'}
-                      </p>
-                    </address>
-                  ) : (
-                    <p className="text-slate-400 italic">No shipping address</p>
-                  )}
-                </div>
-
-                <div className="border-t border-slate-200 pt-4">
-                  <p className="text-slate-400 text-sm">Shipping Method</p>
-                  <p className="text-slate-600">
-                    {order.shipping_method_name || order.shipping_method || 'Standard Shipping'}
-                  </p>
-                </div>
+              <div className="p-6">
+                {!editingShipping ? (
+                  <div className="space-y-4">
+                    {order.shipping_address ? (
+                      <address className="text-slate-600 not-italic leading-relaxed">
+                        <p className="font-medium text-slate-800">{order.shipping_address.name || 'Name not provided'}</p>
+                        <p>{order.shipping_address.street || 'Street not provided'}</p>
+                        {order.shipping_address.street2 && <p>{order.shipping_address.street2}</p>}
+                        <p>
+                          {order.shipping_address.city || 'City'}, {order.shipping_address.state || 'State'} {order.shipping_address.zip || 'ZIP'}
+                        </p>
+                      </address>
+                    ) : (
+                      <p className="text-slate-400 italic">No shipping address</p>
+                    )}
+                    {(order.shipping_phone || order.customer_phone) && (
+                      <p className="text-slate-500 text-sm">{order.shipping_phone || order.customer_phone}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">First Name</label>
+                        <input type="text" value={shippingForm.shipping_first_name} onChange={(e) => setShippingForm(f => ({ ...f, shipping_first_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">Last Name</label>
+                        <input type="text" value={shippingForm.shipping_last_name} onChange={(e) => setShippingForm(f => ({ ...f, shipping_last_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Address Line 1</label>
+                      <input type="text" value={shippingForm.shipping_address_line1} onChange={(e) => setShippingForm(f => ({ ...f, shipping_address_line1: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Address Line 2</label>
+                      <input type="text" value={shippingForm.shipping_address_line2} onChange={(e) => setShippingForm(f => ({ ...f, shipping_address_line2: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Apt, Suite, etc." />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">City</label>
+                        <input type="text" value={shippingForm.shipping_city} onChange={(e) => setShippingForm(f => ({ ...f, shipping_city: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">State</label>
+                        <input type="text" value={shippingForm.shipping_state} onChange={(e) => setShippingForm(f => ({ ...f, shipping_state: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">ZIP</label>
+                        <input type="text" value={shippingForm.shipping_zip} onChange={(e) => setShippingForm(f => ({ ...f, shipping_zip: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Phone</label>
+                      <input type="text" value={shippingForm.shipping_phone} onChange={(e) => setShippingForm(f => ({ ...f, shipping_phone: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
+        {/* Section 3: Billing Address & Section 4: Shipping Method & Tracking */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Section 3: Billing Address */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Billing Address</h2>
+              {!editingBilling && (
+                <button onClick={startEditBilling} className="text-slate-400 hover:text-emerald-600 transition-colors print:hidden" title="Edit billing address">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              )}
+              {editingBilling && (
+                <div className="flex items-center gap-2 print:hidden">
+                  <button onClick={handleSaveBilling} disabled={savingBilling} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                    {savingBilling && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                    {savingBilling ? 'Saving...' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingBilling(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+                </div>
+              )}
+            </div>
+            <div className="p-6">
+              {!editingBilling ? (
+                <div>
+                  {(order.billing_first_name || order.billing_last_name || order.billing_address_line1) ? (
+                    <address className="text-slate-600 not-italic leading-relaxed">
+                      <p className="font-medium text-slate-800">{`${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || 'Name not provided'}</p>
+                      <p>{order.billing_address_line1 || 'Street not provided'}</p>
+                      {order.billing_address_line2 && <p>{order.billing_address_line2}</p>}
+                      <p>
+                        {order.billing_city || 'City'}, {order.billing_state || 'State'} {order.billing_zip || 'ZIP'}
+                      </p>
+                    </address>
+                  ) : (
+                    <p className="text-slate-400 italic">No billing address on file</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">First Name</label>
+                      <input type="text" value={billingForm.billing_first_name} onChange={(e) => setBillingForm(f => ({ ...f, billing_first_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Last Name</label>
+                      <input type="text" value={billingForm.billing_last_name} onChange={(e) => setBillingForm(f => ({ ...f, billing_last_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Address Line 1</label>
+                    <input type="text" value={billingForm.billing_address_line1} onChange={(e) => setBillingForm(f => ({ ...f, billing_address_line1: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Address Line 2</label>
+                    <input type="text" value={billingForm.billing_address_line2} onChange={(e) => setBillingForm(f => ({ ...f, billing_address_line2: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="Apt, Suite, etc." />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">City</label>
+                      <input type="text" value={billingForm.billing_city} onChange={(e) => setBillingForm(f => ({ ...f, billing_city: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">State</label>
+                      <input type="text" value={billingForm.billing_state} onChange={(e) => setBillingForm(f => ({ ...f, billing_state: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">ZIP</label>
+                      <input type="text" value={billingForm.billing_zip} onChange={(e) => setBillingForm(f => ({ ...f, billing_zip: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 4: Shipping Method & Tracking */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Method & Tracking</h2>
+              {!editingTracking && (
+                <button onClick={startEditTracking} className="text-slate-400 hover:text-emerald-600 transition-colors print:hidden" title="Edit shipping & tracking">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              )}
+              {editingTracking && (
+                <div className="flex items-center gap-2 print:hidden">
+                  <button onClick={handleSaveTracking} disabled={savingTracking} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                    {savingTracking && <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                    {savingTracking ? 'Saving...' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingTracking(false)} className="px-3 py-1.5 bg-slate-100 text-slate-600 text-sm rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+                </div>
+              )}
+            </div>
+            <div className="p-6">
+              {!editingTracking ? (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-slate-400 text-sm">Shipping Method</p>
+                    <p className="text-slate-700 font-medium">{order.shipping_method_name || order.shipping_method || 'Standard Shipping'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-sm">Shipping Cost</p>
+                    <p className="text-slate-700">{formatCurrency(order.shipping_cost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-sm">Tracking Number</p>
+                    <p className="text-slate-700">{order.tracking_number || <span className="text-slate-300 italic">None</span>}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-sm">Tracking URL</p>
+                    {order.tracking_url ? (
+                      <a href={order.tracking_url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 text-sm break-all">{order.tracking_url}</a>
+                    ) : (
+                      <p className="text-slate-300 italic">None</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-slate-400 text-sm">Estimated Delivery</p>
+                    <p className="text-slate-700">{order.estimated_delivery_date ? formatDate(order.estimated_delivery_date) : order.estimated_delivery ? formatDate(order.estimated_delivery) : <span className="text-slate-300 italic">Not set</span>}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Shipping Method</label>
+                    <input type="text" value={trackingForm.shipping_method_name} onChange={(e) => setTrackingForm(f => ({ ...f, shipping_method_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Shipping Cost ($)</label>
+                    <input type="number" step="0.01" min="0" value={trackingForm.shipping_cost} onChange={(e) => setTrackingForm(f => ({ ...f, shipping_cost: parseFloat(e.target.value) || 0 }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Tracking Number</label>
+                    <input type="text" value={trackingForm.tracking_number} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_number: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Tracking URL</label>
+                    <input type="text" value={trackingForm.tracking_url} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_url: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="https://..." />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Estimated Delivery Date</label>
+                    <input type="date" value={trackingForm.estimated_delivery_date} onChange={(e) => setTrackingForm(f => ({ ...f, estimated_delivery_date: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Main Content - Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* LEFT COLUMN: Shipping & Tracking, Internal Notes, Actions */}
+          {/* LEFT COLUMN: Internal Notes, Actions */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Shipping/Tracking Info Card (for non-pickup orders) */}
-            {!order.is_pickup && (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-                <div className="px-6 py-4 border-b border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping & Tracking</h2>
-                    {!shipmentError && getLabelStatusBadge()}
-                  </div>
-                </div>
-                <div className="p-6 space-y-3">
-                  {/* Show message if shipment data couldn't be loaded */}
-                  {shipmentError && (
-                    <div className="text-center py-4">
-                      <p className="text-slate-500 text-sm">No shipment created yet</p>
-                      <p className="text-slate-400 text-xs mt-1">Create a shipping label when ready to ship.</p>
-                    </div>
-                  )}
-                  {!shipmentError && (
-                    <>
-                  {(shipment?.tracking_number || order.tracking_number) && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Tracking Number</p>
-                      <a
-                        href={getTrackingUrl(shipment?.tracking_number || order.tracking_number || '')}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-emerald-600 hover:text-emerald-700 font-mono text-sm"
-                      >
-                        {shipment?.tracking_number || order.tracking_number}
-                        <svg className="w-4 h-4 inline-block ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    </div>
-                  )}
-                  {shipment?.tracking_status && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Tracking Status</p>
-                      <p className="text-slate-600">
-                        {shipment.tracking_status_description || shipment.tracking_status}
-                      </p>
-                    </div>
-                  )}
-                  {(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery) && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Estimated Delivery</p>
-                      <p className="text-slate-600">
-                        {formatDate(shipment?.estimated_delivery_date || order.estimated_delivery_date || order.estimated_delivery)}
-                      </p>
-                    </div>
-                  )}
-                  {shipment?.shipment_cost && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Label Cost</p>
-                      <p className="text-slate-600">
-                        {formatCurrency(shipment.shipment_cost)}
-                      </p>
-                    </div>
-                  )}
-                  {shipment?.carrier_code && (
-                    <div>
-                      <p className="text-slate-400 text-sm">Carrier</p>
-                      <p className="text-slate-600 capitalize">
-                        {shipment.carrier_code.replace(/_/g, ' ')}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Label Error */}
-                  {labelError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm print:hidden">
-                      {labelError}
-                    </div>
-                  )}
-
-                  {/* Label Actions */}
-                  <div className="pt-3 space-y-2 print:hidden">
-                    {canCreateLabel && order.status !== 'cancelled' && (
-                      <button
-                        onClick={handleCreateLabel}
-                        disabled={creatingLabel || shipmentLoading}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {creatingLabel ? (
-                          <>
-                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            Creating Label...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                            </svg>
-                            Create Shipping Label
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {shipment?.label_url && !shipment.voided && (
-                      <button
-                        onClick={handleDownloadLabel}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Download Label
-                      </button>
-                    )}
-
-                    {canVoidLabel && (
-                      <button
-                        onClick={handleVoidLabel}
-                        disabled={voidingLabel || shipmentLoading}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {voidingLabel ? (
-                          <>
-                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            Voiding Label...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                            </svg>
-                            Void Label
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Tracking Timeline */}
-                  {shipment?.tracking_number && (
-                    <div className="pt-4 border-t border-slate-200">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-medium text-slate-500">Tracking History</h3>
-                        <button
-                          onClick={() => refetchTrackingEvents()}
-                          disabled={trackingEventsLoading}
-                          className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
-                        >
-                          {trackingEventsLoading ? 'Loading...' : 'Refresh'}
-                        </button>
-                      </div>
-
-                      {trackingEvents.length > 0 ? (
-                        <div className="relative max-h-64 overflow-y-auto pr-2">
-                          {/* Timeline line */}
-                          <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-slate-200"></div>
-
-                          <div className="space-y-3">
-                            {trackingEvents.map((event, index) => (
-                              <div key={index} className="relative pl-6">
-                                {/* Timeline dot */}
-                                <div className={`absolute left-0 w-4 h-4 rounded-full flex items-center justify-center ${
-                                  index === 0 ? 'bg-emerald-500' : 'bg-slate-300'
-                                }`}>
-                                  <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                </div>
-
-                                <div className="bg-slate-50 rounded-lg p-3">
-                                  <p className={`text-sm font-medium ${index === 0 ? 'text-slate-800' : 'text-slate-600'}`}>
-                                    {event.description}
-                                  </p>
-                                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
-                                    <span>{formatTrackingEventDate(event.occurred_at)}</span>
-                                    {(event.city_locality || event.state_province) && (
-                                      <>
-                                        <span className="text-slate-300">•</span>
-                                        <span>
-                                          {[event.city_locality, event.state_province].filter(Boolean).join(', ')}
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 text-slate-400 text-sm">
-                          <p>No tracking events yet.</p>
-                          <p className="text-xs mt-1">Events will appear here as the carrier updates tracking.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  </>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Growing System Card */}
             {order.growing_system && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
@@ -1307,77 +1712,249 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           <div className="lg:col-span-8 space-y-6">
             {/* Order Items Card */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200/60">
-              <div className="px-6 py-4 border-b border-slate-200">
+              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Items</h2>
+                {!editingItems && (
+                  <button
+                    onClick={handleStartEditItems}
+                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    title="Edit items"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
               </div>
-              <div className="divide-y divide-slate-100">
-                {order.items && order.items.length > 0 ? (
-                  order.items.map((item) => (
-                    <div key={item.id || Math.random()} className="flex items-center gap-4 p-4">
-                      {item.product_image ? (
-                        <img
-                          src={item.product_image}
-                          alt={item.product_name || 'Product'}
-                          className="w-16 h-16 object-cover rounded-lg bg-slate-100"
+
+              {!editingItems ? (
+                <>
+                  <div className="divide-y divide-slate-100">
+                    {order.items && order.items.length > 0 ? (
+                      order.items.map((item) => (
+                        <div key={item.id || Math.random()} className="flex items-center gap-4 p-4">
+                          {item.product_image ? (
+                            <img
+                              src={item.product_image}
+                              alt={item.product_name || 'Product'}
+                              className="w-16 h-16 object-cover rounded-lg bg-slate-100"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-slate-800 font-medium truncate">
+                              {item.product_name || 'Unknown Product'}
+                            </h3>
+                            <p className="text-slate-500 text-sm">
+                              {formatCurrency(item.unit_price)} x {item.quantity ?? 0}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-slate-800 font-medium">
+                              {formatCurrency(item.line_total)}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-slate-400">
+                        No items found for this order
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal</span>
+                      <span>{formatCurrency(order.subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Shipping</span>
+                      <span>{formatCurrency(order.shipping_cost)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>{order.tax_note ? `Tax (${order.tax_note})` : 'Tax'}</span>
+                      <span>{formatCurrency(order.tax)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
+                      <span>Total</span>
+                      <span>{formatCurrency(order.total)}</span>
+                    </div>
+                    {refundedTotal > 0 && (
+                      <>
+                        <div className="flex justify-between text-rose-600 font-medium text-sm">
+                          <span>Refunded</span>
+                          <span>-{formatCurrency(refundedTotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-700">
+                          <span>Remaining Refundable</span>
+                          <span>{formatCurrency(remainingRefundable)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Editable items list */}
+                  <div className="divide-y divide-slate-100">
+                    {editableItems.map((item, index) => {
+                      const lineTotal = item.quantity * item.product_price;
+                      const stock = stockMap[item.product_id];
+                      const exceedsStock = stock !== undefined && item.quantity > stock;
+
+                      return (
+                        <div key={item.product_id + '-' + index} className={`p-4 ${exceedsStock ? 'bg-amber-50/50' : ''}`}>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-slate-800 font-medium truncate">{item.product_name}</h3>
+                              <p className="text-slate-500 text-sm">{formatCurrency(item.product_price)} each</p>
+                              {exceedsStock && (
+                                <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
+                                  <AlertTriangle size={10} />
+                                  Exceeds available stock ({stock} available)
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 bg-slate-100 rounded-lg">
+                              <button
+                                onClick={() => handleEditItemQuantityChange(index, item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                                className="p-2 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-40"
+                              >
+                                <span className="text-slate-600 text-sm font-bold">&minus;</span>
+                              </button>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => handleEditItemQuantityChange(index, parseInt(e.target.value) || 1)}
+                                min="1"
+                                className="w-14 text-center bg-transparent border-none focus:outline-none font-medium text-sm"
+                              />
+                              <button
+                                onClick={() => handleEditItemQuantityChange(index, item.quantity + 1)}
+                                className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                              >
+                                <Plus size={14} className="text-slate-600" />
+                              </button>
+                            </div>
+                            <div className="w-24 text-right font-medium text-slate-800">
+                              {formatCurrency(lineTotal)}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveEditItem(index)}
+                              disabled={editableItems.length <= 1}
+                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={editableItems.length <= 1 ? 'Order must have at least one item' : 'Remove item'}
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add Product Search */}
+                  <div className="px-4 py-3 border-t border-slate-100">
+                    <div className="relative" ref={productSearchRef}>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                          type="text"
+                          value={productSearchQuery}
+                          onChange={(e) => setProductSearchQuery(e.target.value)}
+                          onFocus={() => { if (productSearchResults.length > 0) setShowProductDropdown(true); }}
+                          placeholder="Search products to add..."
+                          className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
                         />
-                      ) : (
-                        <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
+                        {productSearchLoading && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Loader2 size={16} className="text-slate-400 animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {showProductDropdown && productSearchResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                          {productSearchResults.map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => handleAddProductToEdit(product)}
+                              className="w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-medium text-slate-900 text-sm">{product.name}</span>
+                                  <span className="text-emerald-600 text-sm ml-2">{formatCurrency(product.price)}</span>
+                                </div>
+                                <span className="text-xs text-slate-500">Stock: {product.quantity_available}</span>
+                              </div>
+                            </button>
+                          ))}
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-slate-800 font-medium truncate">
-                          {item.product_name || 'Unknown Product'}
-                        </h3>
-                        <p className="text-slate-500 text-sm">
-                          {formatCurrency(item.unit_price)} x {item.quantity ?? 0}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-slate-800 font-medium">
-                          {formatCurrency(item.line_total)}
-                        </p>
-                      </div>
+
+                      {showProductDropdown && productSearchResults.length === 0 && productSearchQuery.length >= 2 && !productSearchLoading && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-center text-slate-500 text-sm">
+                          No products found
+                        </div>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-slate-400">
-                    No items found for this order
                   </div>
-                )}
-              </div>
-              <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(order.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Shipping</span>
-                  <span>{formatCurrency(order.shipping_cost)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>{order.tax_note ? `Tax (${order.tax_note})` : 'Tax'}</span>
-                  <span>{formatCurrency(order.tax)}</span>
-                </div>
-                <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
-                  <span>Total</span>
-                  <span>{formatCurrency(order.total)}</span>
-                </div>
-                {refundedTotal > 0 && (
-                  <>
-                    <div className="flex justify-between text-rose-600 font-medium text-sm">
-                      <span>Refunded</span>
-                      <span>-{formatCurrency(refundedTotal)}</span>
+
+                  {/* Updated totals */}
+                  <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal</span>
+                      <span>{formatCurrency(editSubtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-slate-700">
-                      <span>Remaining Refundable</span>
-                      <span>{formatCurrency(remainingRefundable)}</span>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Shipping</span>
+                      <span>{formatCurrency(order.shipping_cost)}</span>
                     </div>
-                  </>
-                )}
-              </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>{order.tax_note ? `Tax (${order.tax_note})` : 'Tax'}</span>
+                      <span>{formatCurrency(order.tax)}</span>
+                    </div>
+                    {(order.discount_amount ?? 0) > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Discount</span>
+                        <span>-{formatCurrency(order.discount_amount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">
+                      <span>Total</span>
+                      <span>{formatCurrency(editTotal)}</span>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+                    <button
+                      onClick={handleCancelEditItems}
+                      disabled={itemSaving}
+                      className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveItems}
+                      disabled={itemSaving || editableItems.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors disabled:opacity-50"
+                    >
+                      {itemSaving ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Check size={16} />
+                      )}
+                      Save Changes
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Order Timeline */}
@@ -1939,6 +2516,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         </AnimatePresence>
         </ErrorBoundary>
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg border flex items-center gap-3 animate-slide-down ${
+          toast.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          {toast.type === 'success' ? (
+            <Check size={18} />
+          ) : (
+            <AlertTriangle size={18} />
+          )}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
     </AdminPageWrapper>
   );
 };

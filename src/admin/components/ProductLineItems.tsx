@@ -27,10 +27,9 @@ interface Product {
 interface ProductLineItemsProps {
   lineItems: OrderLineItem[];
   onChange: (items: OrderLineItem[]) => void;
-  overrideInventory?: boolean;
 }
 
-const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange, overrideInventory = false }) => {
+const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -128,12 +127,6 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
       const updated = [...lineItems];
       const newQuantity = updated[existingIndex].quantity + 1;
 
-      // Only enforce stock limits if override is not enabled
-      if (!overrideInventory && newQuantity > product.quantity_available) {
-        setError(`Cannot add more. Only ${product.quantity_available} in stock.`);
-        return;
-      }
-
       updated[existingIndex] = {
         ...updated[existingIndex],
         quantity: newQuantity,
@@ -142,11 +135,6 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
 
       onChange(updated);
     } else {
-      // Add new product - only enforce stock check if override is not enabled
-      if (!overrideInventory && product.quantity_available < 1) {
-        setError('This product is out of stock.');
-        return;
-      }
 
       const newItem: OrderLineItem = {
         product_id: product.id,
@@ -177,12 +165,6 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
 
     if (newQuantity < 1) {
       handleRemoveProduct(productId);
-      return;
-    }
-
-    // Only enforce stock limits if override is not enabled
-    if (!overrideInventory && newQuantity > item.available_stock) {
-      setError(`Cannot exceed available stock of ${item.available_stock}`);
       return;
     }
 
@@ -243,15 +225,13 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
           <div className="absolute z-10 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-lg max-h-80 overflow-y-auto">
             {searchResults.map((product) => {
               const isOutOfStock = product.quantity_available < 1;
-              const isDisabled = isOutOfStock && !overrideInventory;
 
               return (
                 <button
                   key={product.id}
                   onClick={() => handleAddProduct(product)}
-                  disabled={isDisabled}
-                  className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isOutOfStock && overrideInventory ? 'bg-amber-50/50' : ''
+                  className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${
+                    isOutOfStock ? 'bg-amber-50/50' : ''
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -269,7 +249,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-900">{product.name}</span>
-                        {isOutOfStock && overrideInventory && (
+                        {isOutOfStock && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
                             <AlertTriangle size={10} />
                             Out of Stock
@@ -283,7 +263,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
                         <span className="text-xs text-slate-500">
                           Stock: {product.quantity_available}
                           {product.quantity_available < 5 && product.quantity_available > 0 && ' - Low!'}
-                          {product.quantity_available === 0 && !overrideInventory && ' - Out of Stock'}
+                          {product.quantity_available === 0 && ' - Out of Stock'}
                         </span>
                       </div>
                     </div>
@@ -340,7 +320,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
                         <span className="text-xs text-slate-500">
                           Stock: {item.available_stock}
                         </span>
-                        {isOutOfStock && overrideInventory && (
+                        {isOutOfStock && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full text-xs">
                             <AlertTriangle size={12} />
                             Out of Stock
@@ -349,7 +329,7 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
                         {exceedsStock && !isOutOfStock && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs">
                             <AlertTriangle size={12} />
-                            Exceeds Stock
+                            Exceeds available stock ({item.available_stock} available)
                           </span>
                         )}
                         {!exceedsStock && !isOutOfStock && isLowStock(item.available_stock, item.quantity) && (
@@ -378,13 +358,11 @@ const ProductLineItems: React.FC<ProductLineItemsProps> = ({ lineItems, onChange
                             handleQuantityChange(item.product_id, parseInt(e.target.value) || 1)
                           }
                           min="1"
-                          max={overrideInventory ? undefined : item.available_stock}
                           className={`w-16 text-center bg-transparent border-none focus:outline-none font-medium ${exceedsStock ? 'text-amber-700' : ''}`}
                         />
                         <button
                           onClick={() => handleQuantityChange(item.product_id, item.quantity + 1)}
-                          disabled={!overrideInventory && item.quantity >= item.available_stock}
-                          className="p-2 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
                           title="Increase quantity"
                         >
                           <Plus size={16} className="text-slate-600" />

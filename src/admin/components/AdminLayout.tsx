@@ -564,8 +564,10 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
 };
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dashboard' }) => {
-  const [currentPage, setCurrentPage] = useState(initialPage);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  // Deep-link support: parse /admin/orders/:id from URL (used by print invoice flow)
+  const urlOrderMatch = window.location.pathname.match(/^\/admin\/orders\/([a-f0-9-]+)/i);
+  const [currentPage, setCurrentPage] = useState(urlOrderMatch ? 'order-detail' : initialPage);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(urlOrderMatch?.[1] || null);
   const [isLegacyOrder, setIsLegacyOrder] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);

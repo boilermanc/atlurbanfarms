@@ -4,7 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import CustomerSearchSelector from '../components/CustomerSearchSelector';
 import ProductLineItems, { OrderLineItem } from '../components/ProductLineItems';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Save, Package, MapPin, CreditCard, AlertTriangle, Calculator, Loader2, Truck, Check } from 'lucide-react';
+import { ArrowLeft, Save, Package, MapPin, CreditCard, Calculator, Loader2, Truck, Check, Mail, Printer, Plus } from 'lucide-react';
 import {
   usePickupLocations,
   useAvailablePickupSlots,
@@ -14,7 +14,6 @@ import {
   PickupLocation,
   PickupSlot,
 } from '../../hooks/usePickup';
-import { useEmailService } from '../../hooks/useIntegrations';
 import { calculateTax } from '../../lib/tax';
 import { useTaxConfig } from '../../hooks/useTaxConfig';
 
@@ -123,6 +122,7 @@ type DeliveryMethod = 'shipping' | 'pickup';
 const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   // Customer state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [guestEmail, setGuestEmail] = useState('');
 
   // Product state
   const [lineItems, setLineItems] = useState<OrderLineItem[]>([]);
@@ -143,6 +143,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     city: '',
     state: '',
     zip: '',
+    phone: '',
   });
   const [shippingCost, setShippingCost] = useState<number>(0);
   const [useManualShipping, setUseManualShipping] = useState<boolean>(false);
@@ -152,6 +153,18 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [ratesError, setRatesError] = useState<string | null>(null);
   const [ratesSandbox, setRatesSandbox] = useState<boolean>(false);
   const [ratesMarkup, setRatesMarkup] = useState<string | null>(null);
+
+  // Billing state
+  const [billingAddress, setBillingAddress] = useState({
+    firstName: '',
+    lastName: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    state: '',
+    zip: '',
+  });
+  const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
 
   // Pickup state
   const { locations: pickupLocations, loading: loadingLocations } = usePickupLocations();
@@ -166,11 +179,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [paymentStatus, setPaymentStatus] = useState<string>('paid');
   const [internalNotes, setInternalNotes] = useState<string>('');
 
-  // Inventory override state
-  const [overrideInventory, setOverrideInventory] = useState<boolean>(false);
-
-  // Email service
-  const { sendOrderConfirmation } = useEmailService();
+  // Admin always bypasses inventory checks (warnings shown in ProductLineItems)
 
   // Tax configuration
   const { taxConfig } = useTaxConfig();
@@ -179,6 +188,12 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Success / invoice state
+  const [createdOrder, setCreatedOrder] = useState<{ id: string; number: string } | null>(null);
+  const [sendingInvoice, setSendingInvoice] = useState(false);
+  const [invoiceSent, setInvoiceSent] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   // Fetch customer addresses when customer is selected
   useEffect(() => {
@@ -201,8 +216,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         if (error) throw error;
         setCustomerAddresses(data || []);
 
-        // Auto-select default address if exists
-        const defaultAddress = data?.find((addr) => addr.is_default);
+        // Auto-select default address if exists (fall back to first address)
+        const defaultAddress = data?.find((addr) => addr.is_default) || data?.[0];
         if (defaultAddress && deliveryMethod === 'shipping') {
           setSelectedSavedAddressId(defaultAddress.id);
           // Auto-fill the form with default address
@@ -213,6 +228,17 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             name: fullName,
             street: defaultAddress.address_line1,
             street2: defaultAddress.address_line2 || '',
+            city: defaultAddress.city,
+            state: defaultAddress.state,
+            zip: defaultAddress.zip,
+            phone: defaultAddress.phone || selectedCustomer.phone || '',
+          });
+          // Also populate billing from the same address (since "same as shipping" defaults to checked)
+          setBillingAddress({
+            firstName: defaultAddress.first_name || selectedCustomer.first_name || '',
+            lastName: defaultAddress.last_name || selectedCustomer.last_name || '',
+            addressLine1: defaultAddress.address_line1,
+            addressLine2: defaultAddress.address_line2 || '',
             city: defaultAddress.city,
             state: defaultAddress.state,
             zip: defaultAddress.zip,
@@ -238,12 +264,28 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     }
   }, [selectedCustomer, deliveryMethod, selectedSavedAddressId]);
 
+  // Sync billing address from shipping when "same as shipping" is checked
+  useEffect(() => {
+    if (billingSameAsShipping) {
+      const nameParts = shippingAddress.name.split(' ');
+      setBillingAddress({
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        addressLine1: shippingAddress.street,
+        addressLine2: shippingAddress.street2,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        zip: shippingAddress.zip,
+      });
+    }
+  }, [billingSameAsShipping, shippingAddress]);
+
   // Handle saved address selection
   const handleSavedAddressSelect = (addressId: string) => {
     setSelectedSavedAddressId(addressId);
 
     if (addressId === '') {
-      // User chose to enter new address - clear form but keep customer name
+      // User chose to enter new address - clear form but keep customer name and phone
       setShippingAddress({
         name: selectedCustomer
           ? `${selectedCustomer.first_name || ''} ${selectedCustomer.last_name || ''}`.trim()
@@ -253,7 +295,20 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         city: '',
         state: '',
         zip: '',
+        phone: selectedCustomer?.phone || '',
       });
+      // Reset billing if same-as-shipping
+      if (billingSameAsShipping) {
+        setBillingAddress({
+          firstName: selectedCustomer?.first_name || '',
+          lastName: selectedCustomer?.last_name || '',
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          state: '',
+          zip: '',
+        });
+      }
       // Reset shipping rates when address changes
       setShippingRates([]);
       setSelectedRate(null);
@@ -275,7 +330,20 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         city: address.city,
         state: address.state,
         zip: address.zip,
+        phone: address.phone || selectedCustomer?.phone || '',
       });
+      // Sync billing if same-as-shipping
+      if (billingSameAsShipping) {
+        setBillingAddress({
+          firstName: address.first_name || selectedCustomer?.first_name || '',
+          lastName: address.last_name || selectedCustomer?.last_name || '',
+          addressLine1: address.address_line1,
+          addressLine2: address.address_line2 || '',
+          city: address.city,
+          state: address.state,
+          zip: address.zip,
+        });
+      }
       // Reset shipping rates when address changes
       setShippingRates([]);
       setSelectedRate(null);
@@ -313,40 +381,15 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const validateForm = (): boolean => {
     const errors: string[] = [];
 
-    // Customer validation
-    if (!selectedCustomer) {
-      errors.push('Please select or create a customer');
+    // Must have a customer OR a guest email
+    if (!selectedCustomer && !guestEmail.trim()) {
+      errors.push('Please select a customer or enter a guest email');
     }
 
     // Products validation
     if (lineItems.length === 0) {
       errors.push('Please add at least one product');
     }
-
-    // Delivery validation
-    if (deliveryMethod === 'shipping') {
-      if (!shippingAddress.name) errors.push('Shipping name is required');
-      if (!shippingAddress.street) errors.push('Shipping street is required');
-      if (!shippingAddress.city) errors.push('Shipping city is required');
-      if (!shippingAddress.state) errors.push('Shipping state is required');
-      if (!shippingAddress.zip) errors.push('Shipping ZIP code is required');
-
-      // ZIP code validation
-      if (shippingAddress.zip && !/^\d{5}(-\d{4})?$/.test(shippingAddress.zip)) {
-        errors.push('ZIP code must be 5 digits (or 5+4 format)');
-      }
-    } else if (deliveryMethod === 'pickup') {
-      if (!selectedPickupLocation) errors.push('Please select a pickup location');
-      if (!selectedPickupSlot) errors.push('Please select a pickup date and time');
-      // Customer name is required for pickup orders (used as shipping name in DB)
-      if (selectedCustomer && !selectedCustomer.first_name && !selectedCustomer.last_name) {
-        errors.push('Customer must have a name for pickup orders');
-      }
-    }
-
-    // Payment validation
-    if (!paymentMethod) errors.push('Payment method is required');
-    if (!paymentStatus) errors.push('Payment status is required');
 
     setValidationErrors(errors);
     return errors.length === 0;
@@ -517,10 +560,10 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
       // Prepare order data
       const orderData = {
-        customer_id: selectedCustomer!.id,
-        customer_email: selectedCustomer!.email,
-        customer_phone: selectedCustomer!.phone,
-        guest_email: null,
+        customer_id: selectedCustomer?.id || null,
+        customer_email: selectedCustomer?.email || guestEmail.trim(),
+        customer_phone: selectedCustomer?.phone || null,
+        guest_email: selectedCustomer ? null : guestEmail.trim(),
         guest_phone: null,
         subtotal,
         tax,
@@ -531,9 +574,16 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
         created_by_admin_id: user.id,
         internal_notes: finalInternalNotes || null,
-        skip_inventory_check: overrideInventory,
+        skip_inventory_check: true,
         tax_rate_applied: taxResult.taxRate,
         tax_note: taxResult.taxNote,
+        billing_first_name: billingAddress.firstName || null,
+        billing_last_name: billingAddress.lastName || null,
+        billing_address_line1: billingAddress.addressLine1 || null,
+        billing_address_line2: billingAddress.addressLine2 || null,
+        billing_city: billingAddress.city || null,
+        billing_state: billingAddress.state || null,
+        billing_zip: billingAddress.zip || null,
       };
 
       // Add delivery-specific fields
@@ -541,13 +591,13 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         Object.assign(orderData, {
           shipping_first_name: shippingAddress.name.split(' ')[0] || shippingAddress.name,
           shipping_last_name: shippingAddress.name.split(' ').slice(1).join(' ') || '',
-          shipping_address_line1: shippingAddress.street,
+          shipping_address_line1: shippingAddress.street || null,
           shipping_address_line2: shippingAddress.street2 || null,
-          shipping_city: shippingAddress.city,
-          shipping_state: shippingAddress.state,
-          shipping_zip: shippingAddress.zip,
+          shipping_city: shippingAddress.city || null,
+          shipping_state: shippingAddress.state || null,
+          shipping_zip: shippingAddress.zip || null,
           shipping_country: 'US',
-          shipping_phone: selectedCustomer!.phone,
+          shipping_phone: shippingAddress.phone || selectedCustomer?.phone || null,
           shipping_method: selectedRate
             ? `${selectedRate.carrier_friendly_name} - ${selectedRate.service_type}`
             : 'Manual Order',
@@ -593,23 +643,23 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         }
 
         Object.assign(orderData, {
-          shipping_first_name: selectedCustomer!.first_name || '',
-          shipping_last_name: selectedCustomer!.last_name || '',
+          shipping_first_name: selectedCustomer?.first_name || '',
+          shipping_last_name: selectedCustomer?.last_name || '',
           shipping_address_line1: pickupShippingLine1,
           shipping_address_line2: pickupShippingLine2,
           shipping_city: pickupShippingCity,
           shipping_state: pickupShippingState,
           shipping_zip: pickupShippingZip,
           shipping_country: 'US',
-          shipping_phone: selectedCustomer!.phone,
+          shipping_phone: selectedCustomer?.phone || null,
           shipping_method: 'Local Pickup',
           shipping_cost: 0,
           is_pickup: true,
           pickup_location_id: selectedPickupLocation,
-          pickup_schedule_id: selectedPickupSlot!.schedule_id,
-          pickup_date: selectedPickupSlot!.slot_date,
-          pickup_time_start: selectedPickupSlot!.start_time,
-          pickup_time_end: selectedPickupSlot!.end_time,
+          pickup_schedule_id: selectedPickupSlot?.schedule_id || null,
+          pickup_date: selectedPickupSlot?.slot_date || null,
+          pickup_time_start: selectedPickupSlot?.start_time || null,
+          pickup_time_end: selectedPickupSlot?.end_time || null,
         });
       }
 
@@ -653,41 +703,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           .eq('id', result.order_id);
       }
 
-      // Send order confirmation email (non-blocking)
-      // NOTE: Customer checkout (CheckoutPage.tsx) has a parallel email flow — keep both in sync
-      try {
-        await sendOrderConfirmation(selectedCustomer!.email, {
-          orderNumber: result.order_number,
-          customerName: selectedCustomer!.first_name || 'Customer',
-          items: lineItems.map(item => ({
-            name: item.product_name,
-            quantity: item.quantity,
-            price: item.product_price,
-          })),
-          subtotal,
-          shipping: shippingCost,
-          tax,
-          total,
-          shippingAddress: deliveryMethod === 'shipping' ? {
-            name: shippingAddress.name,
-            address: `${shippingAddress.street}${shippingAddress.street2 ? ', ' + shippingAddress.street2 : ''}`,
-            city: shippingAddress.city,
-            state: shippingAddress.state,
-            zip: shippingAddress.zip,
-          } : undefined,
-          pickupInfo: deliveryMethod === 'pickup' ? {
-            locationName: pickupLocations.find(l => l.id === selectedPickupLocation)?.name || 'Pickup Location',
-            date: selectedPickupSlot!.slot_date,
-            time: `${formatPickupTime(selectedPickupSlot!.start_time)} - ${formatPickupTime(selectedPickupSlot!.end_time)}`,
-          } : undefined,
-        });
-      } catch (emailError) {
-        console.error('Failed to send confirmation email:', emailError);
-        // Don't block order creation if email fails
-      }
-
-      // Navigate to order detail page
-      onNavigate(`order-detail?id=${result.order_id}`);
+      // Show success state with invoice actions
+      setCreatedOrder({ id: result.order_id, number: result.order_number });
     } catch (err: any) {
       console.error('Error creating order:', err);
       setError(err.message || 'Failed to create order');
@@ -697,6 +714,62 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   };
 
   const groupedSlots = groupSlotsByDate(pickupSlots);
+
+  // Invoice action handlers
+  const handleSendInvoice = async () => {
+    const recipientEmail = selectedCustomer?.email || guestEmail.trim();
+    if (!createdOrder || !recipientEmail) return;
+    setSendingInvoice(true);
+    setInvoiceError(null);
+    try {
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          template_key: 'order_confirmation',
+          order_id: createdOrder.id,
+          to: recipientEmail,
+        },
+      });
+      if (error) throw error;
+      setInvoiceSent(true);
+    } catch (err: any) {
+      console.error('Failed to send invoice email:', err);
+      setInvoiceError(err.message || 'Failed to send invoice email');
+    } finally {
+      setSendingInvoice(false);
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    if (!createdOrder) return;
+    window.open(`/admin/orders/${createdOrder.id}?print=true`, '_blank');
+  };
+
+  const handleCreateAnother = () => {
+    setCreatedOrder(null);
+    setSelectedCustomer(null);
+    setGuestEmail('');
+    setLineItems([]);
+    setShippingAddress({ name: '', street: '', street2: '', city: '', state: '', zip: '', phone: '' });
+    setBillingAddress({ firstName: '', lastName: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '' });
+    setBillingSameAsShipping(true);
+    setShippingCost(0);
+    setUseManualShipping(false);
+    setShippingRates([]);
+    setSelectedRate(null);
+    setDeliveryMethod('shipping');
+    setSelectedPickupLocation('');
+    setSelectedPickupSlot(null);
+    setPaymentMethod('cash');
+    setPaymentStatus('paid');
+    setInternalNotes('');
+    setInvoiceSent(false);
+    setInvoiceError(null);
+    setSendingInvoice(false);
+    setError(null);
+    setValidationErrors([]);
+    setCustomerAddresses([]);
+    setSelectedSavedAddressId('');
+  };
 
   return (
     <AdminPageWrapper>
@@ -714,6 +787,72 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           </div>
         </div>
 
+        {createdOrder ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200/60 text-center"
+          >
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check size={32} className="text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-6">
+              Order #{createdOrder.number} created successfully
+            </h2>
+
+            {/* Status messages */}
+            {invoiceSent && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                Invoice email sent successfully!
+              </div>
+            )}
+            {invoiceError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {invoiceError}
+              </div>
+            )}
+
+            {/* Three action buttons */}
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={handleSendInvoice}
+                disabled={sendingInvoice || invoiceSent}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-xl font-medium transition-colors"
+              >
+                {sendingInvoice ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Sending...
+                  </>
+                ) : invoiceSent ? (
+                  <>
+                    <Check size={18} />
+                    Invoice Sent
+                  </>
+                ) : (
+                  <>
+                    <Mail size={18} />
+                    Send Invoice Email
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handlePrintInvoice}
+                className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-medium transition-colors"
+              >
+                <Printer size={18} />
+                Print Invoice
+              </button>
+              <button
+                onClick={handleCreateAnother}
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+              >
+                <Plus size={18} />
+                Create Another Order
+              </button>
+            </div>
+          </motion.div>
+        ) : (
         <div className="space-y-6">
           {/* 1. Customer Information */}
           <motion.div
@@ -728,9 +867,23 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
               <h2 className="text-lg font-semibold text-slate-900">Customer Information</h2>
             </div>
             <CustomerSearchSelector
-              onCustomerSelected={setSelectedCustomer}
+              onCustomerSelected={(c) => { setSelectedCustomer(c); if (c) setGuestEmail(''); }}
               selectedCustomer={selectedCustomer}
             />
+            {!selectedCustomer && (
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Or enter a guest email
+                </label>
+                <input
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="guest@example.com"
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                />
+              </div>
+            )}
           </motion.div>
 
           {/* 2. Products */}
@@ -740,48 +893,16 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             transition={{ delay: 0.1 }}
             className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <span className="text-emerald-600 font-semibold">2</span>
-                </div>
-                <h2 className="text-lg font-semibold text-slate-900">Products</h2>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <span className="text-emerald-600 font-semibold">2</span>
               </div>
-
-              {/* Override Inventory Toggle */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={overrideInventory}
-                  onChange={(e) => setOverrideInventory(e.target.checked)}
-                  className="w-4 h-4 text-amber-600 bg-white border-slate-300 rounded focus:ring-amber-500 focus:ring-2"
-                />
-                <span className="text-sm text-slate-700">Override inventory restrictions</span>
-              </label>
+              <h2 className="text-lg font-semibold text-slate-900">Products</h2>
             </div>
-
-            {/* Override Warning */}
-            {overrideInventory && (
-              <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
-                  <div className="flex-1">
-                    <div className="font-medium text-amber-800 mb-1">
-                      Inventory Override Enabled
-                    </div>
-                    <p className="text-sm text-amber-700">
-                      You can now add out-of-stock products or exceed available quantities.
-                      This may result in backorders or fulfillment delays.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <ProductLineItems
               lineItems={lineItems}
               onChange={setLineItems}
-              overrideInventory={overrideInventory}
             />
           </motion.div>
 
@@ -941,7 +1062,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Name <span className="text-red-500">*</span>
+                    Name
                   </label>
                   <input
                     type="text"
@@ -954,7 +1075,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Street Address <span className="text-red-500">*</span>
+                    Street Address
                   </label>
                   <input
                     type="text"
@@ -981,7 +1102,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      City <span className="text-red-500">*</span>
+                      City
                     </label>
                     <input
                       type="text"
@@ -994,7 +1115,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      State <span className="text-red-500">*</span>
+                      State
                     </label>
                     <select
                       value={shippingAddress.state}
@@ -1012,7 +1133,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      ZIP Code <span className="text-red-500">*</span>
+                      ZIP Code
                     </label>
                     <input
                       type="text"
@@ -1022,6 +1143,19 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
                       className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Phone <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={shippingAddress.phone}
+                    onChange={(e) => setShippingAddress({ ...shippingAddress, phone: e.target.value })}
+                    placeholder="(555) 123-4567"
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                  />
                 </div>
 
                 {/* Shipping Cost Section */}
@@ -1233,7 +1367,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             )}
           </motion.div>
 
-          {/* 4. Payment Details */}
+          {/* 4. Billing Address */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1243,6 +1377,141 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                 <span className="text-emerald-600 font-semibold">4</span>
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Billing Address</h2>
+            </div>
+
+            <div className="space-y-4">
+              {/* Same as Shipping Checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={billingSameAsShipping}
+                  onChange={(e) => setBillingSameAsShipping(e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 bg-white border-slate-300 rounded focus:ring-emerald-500 focus:ring-2"
+                />
+                <span className="text-sm text-slate-700">Same as shipping address</span>
+              </label>
+
+              {/* Billing Fields */}
+              <div className={billingSameAsShipping ? 'opacity-50 pointer-events-none' : ''}>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      First Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={billingAddress.firstName}
+                      onChange={(e) => setBillingAddress({ ...billingAddress, firstName: e.target.value })}
+                      placeholder="First name"
+                      disabled={billingSameAsShipping}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={billingAddress.lastName}
+                      onChange={(e) => setBillingAddress({ ...billingAddress, lastName: e.target.value })}
+                      placeholder="Last name"
+                      disabled={billingSameAsShipping}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Street Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={billingAddress.addressLine1}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, addressLine1: e.target.value })}
+                    placeholder="123 Main Street"
+                    disabled={billingSameAsShipping}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Apartment, suite, etc. <span className="text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={billingAddress.addressLine2}
+                    onChange={(e) => setBillingAddress({ ...billingAddress, addressLine2: e.target.value })}
+                    placeholder="Apt 4B"
+                    disabled={billingSameAsShipping}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      City <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={billingAddress.city}
+                      onChange={(e) => setBillingAddress({ ...billingAddress, city: e.target.value })}
+                      placeholder="City"
+                      disabled={billingSameAsShipping}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      State <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={billingAddress.state}
+                      onChange={(e) => setBillingAddress({ ...billingAddress, state: e.target.value })}
+                      disabled={billingSameAsShipping}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    >
+                      <option value="">Select</option>
+                      {US_STATES.map((state) => (
+                        <option key={state.abbreviation} value={state.abbreviation}>
+                          {state.abbreviation}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      ZIP Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={billingAddress.zip}
+                      onChange={(e) => setBillingAddress({ ...billingAddress, zip: e.target.value })}
+                      placeholder="12345"
+                      disabled={billingSameAsShipping}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* 5. Payment Details */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <span className="text-emerald-600 font-semibold">5</span>
               </div>
               <h2 className="text-lg font-semibold text-slate-900">Payment Details</h2>
             </div>
@@ -1296,7 +1565,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             </div>
           </motion.div>
 
-          {/* 5. Order Summary */}
+          {/* 6. Order Summary */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1305,7 +1574,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
           >
             <div className="flex items-center gap-2 mb-4">
               <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <span className="text-emerald-600 font-semibold">5</span>
+                <span className="text-emerald-600 font-semibold">6</span>
               </div>
               <h2 className="text-lg font-semibold text-slate-900">Order Summary</h2>
             </div>
@@ -1367,17 +1636,18 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
               {submitting ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Creating Order...
+                  Saving Order...
                 </>
               ) : (
                 <>
                   <Save size={18} />
-                  Create Order
+                  Save Order
                 </>
               )}
             </button>
           </div>
         </div>
+        )}
       </div>
     </AdminPageWrapper>
   );

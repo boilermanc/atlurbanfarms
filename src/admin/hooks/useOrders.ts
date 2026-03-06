@@ -130,6 +130,27 @@ export interface Order {
   items?: OrderItem[];
   status_history?: OrderStatusHistory[];
   refunds?: OrderRefund[];
+  // Raw address fields for inline editing
+  shipping_first_name?: string | null;
+  shipping_last_name?: string | null;
+  shipping_address_line1?: string | null;
+  shipping_address_line2?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_zip?: string | null;
+  shipping_phone?: string | null;
+  billing_first_name?: string | null;
+  billing_last_name?: string | null;
+  billing_address_line1?: string | null;
+  billing_address_line2?: string | null;
+  billing_city?: string | null;
+  billing_state?: string | null;
+  billing_zip?: string | null;
+  // Additional shipping/tracking fields
+  shipping_method_name?: string | null;
+  tracking_url?: string | null;
+  estimated_delivery_date?: string | null;
+  discount_amount?: number | null;
   // Pickup fields
   is_pickup: boolean;
   pickup_location_id: string | null;
@@ -771,6 +792,26 @@ export function useOrder(orderId: string | null) {
           created_by: refund.created_by,
           created_by_name: refund.customers?.email || null,
         })),
+        // Raw address fields for inline editing
+        shipping_first_name: orderData.shipping_first_name || null,
+        shipping_last_name: orderData.shipping_last_name || null,
+        shipping_address_line1: orderData.shipping_address_line1 || null,
+        shipping_address_line2: orderData.shipping_address_line2 || null,
+        shipping_city: orderData.shipping_city || null,
+        shipping_state: orderData.shipping_state || null,
+        shipping_zip: orderData.shipping_zip || null,
+        shipping_phone: orderData.shipping_phone || null,
+        billing_first_name: orderData.billing_first_name || null,
+        billing_last_name: orderData.billing_last_name || null,
+        billing_address_line1: orderData.billing_address_line1 || null,
+        billing_address_line2: orderData.billing_address_line2 || null,
+        billing_city: orderData.billing_city || null,
+        billing_state: orderData.billing_state || null,
+        billing_zip: orderData.billing_zip || null,
+        shipping_method_name: orderData.shipping_method_name || null,
+        tracking_url: orderData.tracking_url || null,
+        estimated_delivery_date: orderData.estimated_delivery_date || null,
+        discount_amount: orderData.discount_amount || null,
         // Pickup fields
         is_pickup: orderData.is_pickup || false,
         pickup_location_id: orderData.pickup_location_id || null,
