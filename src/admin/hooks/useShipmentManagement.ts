@@ -115,7 +115,13 @@ export function useShipmentManagement(orderId: string | null) {
   }, [fetchShipment]);
 
   // Create label for order
-  const createLabel = useCallback(async (): Promise<CreateLabelResult> => {
+  const createLabel = useCallback(async (params: {
+    service_code: string;
+    package_weight_lbs: number;
+    package_length?: number;
+    package_width?: number;
+    package_height?: number;
+  }): Promise<CreateLabelResult> => {
     if (!orderId) {
       return {
         success: false,
@@ -131,7 +137,14 @@ export function useShipmentManagement(orderId: string | null) {
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('shipengine-create-label', {
-        body: { order_id: orderId }
+        body: {
+          order_id: orderId,
+          service_code: params.service_code,
+          package_weight_lbs: params.package_weight_lbs,
+          package_length: params.package_length,
+          package_width: params.package_width,
+          package_height: params.package_height,
+        }
       });
 
       if (fnError) {
@@ -179,7 +192,7 @@ export function useShipmentManagement(orderId: string | null) {
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('shipengine-void-label', {
-        body: { label_id: labelId }
+        body: { label_id: labelId, order_id: orderId }
       });
 
       if (fnError) {
@@ -208,7 +221,7 @@ export function useShipmentManagement(orderId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [fetchShipment]);
+  }, [orderId, fetchShipment]);
 
   // Check if we can create a label
   const canCreateLabel = !shipment || shipment.voided;

@@ -151,6 +151,7 @@ export interface Order {
   tracking_url?: string | null;
   estimated_delivery_date?: string | null;
   discount_amount?: number | null;
+  shipping_service_code?: string | null;
   // Pickup fields
   is_pickup: boolean;
   pickup_location_id: string | null;
@@ -812,6 +813,7 @@ export function useOrder(orderId: string | null) {
         tracking_url: orderData.tracking_url || null,
         estimated_delivery_date: orderData.estimated_delivery_date || null,
         discount_amount: orderData.discount_amount || null,
+        shipping_service_code: orderData.shipping_service_code || null,
         // Pickup fields
         is_pickup: orderData.is_pickup || false,
         pickup_location_id: orderData.pickup_location_id || null,
