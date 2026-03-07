@@ -769,6 +769,8 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
         return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'processing':
         return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'picked_up':
+        return 'bg-teal-100 text-teal-700 border-teal-200';
       case 'on_hold':
         return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'pending_payment':

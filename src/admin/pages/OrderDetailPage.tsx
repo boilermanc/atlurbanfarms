@@ -1111,11 +1111,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-slate-600">Order Status</label>
                   <select value={statusForm.status} onChange={(e) => setStatusForm(f => ({ ...f, status: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                    <option value="pending_payment">Pending Payment</option>
-                    <option value="processing">Processing</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
+                    {ORDER_STATUSES.filter(s => order.is_pickup ? s !== 'shipped' : s !== 'picked_up').map((status) => (
+                      <option key={status} value={status}>{ORDER_STATUS_CONFIG[status].label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -1568,44 +1566,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Actions</h2>
               </div>
               <div className="p-6 space-y-4">
-                {/* Update Status */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-600">
-                    Update Status
-                  </label>
-                  <select
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  >
-                    <option value="">Select new status...</option>
-                    {ORDER_STATUSES.filter(s => s !== order.status).map((status) => (
-                      <option key={status} value={status}>
-                        {ORDER_STATUS_CONFIG[status].label}
-                      </option>
-                    ))}
-                  </select>
-                  {newStatus && (
-                    <input
-                      type="text"
-                      value={statusNote}
-                      onChange={(e) => setStatusNote(e.target.value)}
-                      placeholder="Add a note (optional)"
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
-                  )}
-                  <button
-                    onClick={handleUpdateStatus}
-                    disabled={!newStatus || updatingStatus}
-                    className="w-full py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {updatingStatus ? 'Updating...' : 'Update Status'}
-                  </button>
-                </div>
-
                 {/* Mark as Picked Up (for pickup orders) */}
                 {order.is_pickup && order.pickup_reservation?.status === 'scheduled' && order.status !== 'cancelled' && (
-                  <div className="border-t border-slate-200 pt-4">
+                  <div>
                     <button
                       onClick={handleMarkPickedUp}
                       disabled={markingPickedUp}
