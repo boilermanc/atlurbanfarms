@@ -689,7 +689,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         email: order.customer_email,
         phone: order.customer_phone,
       },
-      shipping_address: order.shipping_address,
+      shipping_address: {
+        name: [order.shipping_first_name, order.shipping_last_name].filter(Boolean).join(' '),
+        street: order.shipping_address_line1,
+        street2: order.shipping_address_line2,
+        city: order.shipping_city,
+        state: order.shipping_state,
+        zip: order.shipping_zip,
+        phone: order.shipping_phone,
+      },
       items: order.items,
       subtotal: order.subtotal,
       shipping: order.shipping_cost,
@@ -723,13 +731,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const startEditShipping = () => {
     if (!order) return;
     setShippingForm({
-      shipping_first_name: order.shipping_first_name || order.shipping_address?.name?.split(' ')[0] || '',
-      shipping_last_name: order.shipping_last_name || order.shipping_address?.name?.split(' ').slice(1).join(' ') || '',
-      shipping_address_line1: order.shipping_address_line1 || order.shipping_address?.street || '',
-      shipping_address_line2: order.shipping_address_line2 || order.shipping_address?.street2 || '',
-      shipping_city: order.shipping_city || order.shipping_address?.city || '',
-      shipping_state: order.shipping_state || order.shipping_address?.state || '',
-      shipping_zip: order.shipping_zip || order.shipping_address?.zip || '',
+      shipping_first_name: order.shipping_first_name || '',
+      shipping_last_name: order.shipping_last_name || '',
+      shipping_address_line1: order.shipping_address_line1 || '',
+      shipping_address_line2: order.shipping_address_line2 || '',
+      shipping_city: order.shipping_city || '',
+      shipping_state: order.shipping_state || '',
+      shipping_zip: order.shipping_zip || '',
       shipping_phone: order.shipping_phone || order.customer_phone || '',
     });
     setEditingShipping(true);
@@ -797,14 +805,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         shipping_state: shippingForm.shipping_state,
         shipping_zip: shippingForm.shipping_zip,
         shipping_phone: shippingForm.shipping_phone,
-        shipping_address: {
-          name: `${shippingForm.shipping_first_name} ${shippingForm.shipping_last_name}`.trim(),
-          street: shippingForm.shipping_address_line1,
-          street2: shippingForm.shipping_address_line2 || null,
-          city: shippingForm.shipping_city,
-          state: shippingForm.shipping_state,
-          zip: shippingForm.shipping_zip,
-        },
         updated_at: new Date().toISOString(),
       }).eq('id', order.id);
       if (err) throw err;
@@ -1281,13 +1281,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               <div className="p-6">
                 {!editingShipping ? (
                   <div className="space-y-4">
-                    {order.shipping_address ? (
+                    {order.shipping_address_line1 ? (
                       <address className="text-slate-600 not-italic leading-relaxed">
-                        <p className="font-medium text-slate-800">{order.shipping_address.name || 'Name not provided'}</p>
-                        <p>{order.shipping_address.street || 'Street not provided'}</p>
-                        {order.shipping_address.street2 && <p>{order.shipping_address.street2}</p>}
+                        <p className="font-medium text-slate-800">{[order.shipping_first_name, order.shipping_last_name].filter(Boolean).join(' ') || 'Name not provided'}</p>
+                        <p>{order.shipping_address_line1}</p>
+                        {order.shipping_address_line2 && <p>{order.shipping_address_line2}</p>}
                         <p>
-                          {order.shipping_address.city || 'City'}, {order.shipping_address.state || 'State'} {order.shipping_address.zip || 'ZIP'}
+                          {order.shipping_city || 'City'}, {order.shipping_state || 'State'} {order.shipping_zip || 'ZIP'}
                         </p>
                       </address>
                     ) : (

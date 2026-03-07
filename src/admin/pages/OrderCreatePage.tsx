@@ -558,6 +558,13 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
       // Build internal notes
       const finalInternalNotes = internalNotes || '';
 
+      // Recalculate totals at submit time to guarantee correctness
+      const submitTotals = calculateTotals();
+      const submitSubtotal = submitTotals.subtotal;
+      const submitTax = submitTotals.tax;
+      const submitShipping = submitTotals.shipping;
+      const submitTotal = submitSubtotal + submitTax + submitShipping;
+
       // Prepare order data
       const orderData = {
         customer_id: selectedCustomer?.id || null,
@@ -565,9 +572,9 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         customer_phone: selectedCustomer?.phone || null,
         guest_email: selectedCustomer ? null : guestEmail.trim(),
         guest_phone: null,
-        subtotal,
-        tax,
-        total,
+        subtotal: submitSubtotal,
+        tax: submitTax,
+        total: submitTotal,
         status: orderStatus,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
@@ -575,8 +582,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         created_by_admin_id: user.id,
         internal_notes: finalInternalNotes || null,
         skip_inventory_check: true,
-        tax_rate_applied: taxResult.taxRate,
-        tax_note: taxResult.taxNote,
+        tax_rate_applied: submitTotals.taxResult.taxRate,
+        tax_note: submitTotals.taxResult.taxNote,
         billing_first_name: billingAddress.firstName || null,
         billing_last_name: billingAddress.lastName || null,
         billing_address_line1: billingAddress.addressLine1 || null,
