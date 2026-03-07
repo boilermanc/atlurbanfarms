@@ -90,6 +90,14 @@ function parseValue(value: any, dataType: string): any {
   }
 }
 
+function normalizeCountry(country: string | null | undefined): string {
+  if (!country || country.toLowerCase().includes('united states') || country === 'US') {
+    return 'US'
+  }
+  if (country.length === 2) return country.toUpperCase()
+  return 'US'
+}
+
 function errorResponse(code: string, message: string, status = 200, details?: any) {
   return new Response(
     JSON.stringify({ success: false, error: { code, message, ...(details ? { details } : {}) } }),
@@ -218,7 +226,7 @@ serve(async (req) => {
       city_locality: order.shipping_city,
       state_province: order.shipping_state,
       postal_code: order.shipping_zip,
-      country_code: order.shipping_country || 'US',
+      country_code: normalizeCountry(order.shipping_country),
     }
 
     if (!shipTo.address_line1) {
@@ -251,7 +259,7 @@ serve(async (req) => {
           city_locality: shipTo.city_locality || order.shipping_city,
           state_province: shipTo.state_province || order.shipping_state,
           postal_code: shipTo.postal_code || order.shipping_zip,
-          country_code: shipTo.country_code || order.shipping_country || 'US',
+          country_code: normalizeCountry(shipTo.country_code || order.shipping_country),
         },
         packages: [{
           weight: { value: package_weight_lbs, unit: 'pound' },
