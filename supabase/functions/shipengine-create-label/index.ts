@@ -6,9 +6,14 @@ import { sendShippingEmail, getCarrierDisplayName, generateTrackingUrl } from '.
 
 interface CreateLabelRequest {
   order_id: string
+  service_code: string
+  package_weight_lbs: number
+  package_length?: number
+  package_width?: number
+  package_height?: number
 }
 
-interface ShipEngineLabel {
+interface ShipEngineLabelResponse {
   label_id: string
   tracking_number: string
   label_download: {
@@ -26,6 +31,9 @@ interface ShipEngineLabel {
   service_code: string
 }
 
+const VALID_SERVICE_CODES = ['ups_ground', 'ups_2nd_day_air', 'ups_3_day_select']
+const UPS_CARRIER_ID = 'se-4751564'
+
 /**
  * Get shipping config settings from config_settings table
  */
@@ -36,9 +44,7 @@ async function getShippingSettings(supabaseClient: any, keys: string[]): Promise
     .eq('category', 'shipping')
     .in('key', keys)
 
-  if (error || !data) {
-    return {}
-  }
+  if (error || !data) return {}
 
   const settings: Record<string, any> = {}
   for (const row of data) {
@@ -49,7 +55,6 @@ async function getShippingSettings(supabaseClient: any, keys: string[]): Promise
 
 /**
  * Get business config settings (ship-from address fields) from config_settings table.
- * Fallback for when warehouse_address JSON object is not saved.
  */
 async function getBusinessSettings(supabaseClient: any): Promise<Record<string, any>> {
   const { data, error } = await supabaseClient
@@ -58,9 +63,7 @@ async function getBusinessSettings(supabaseClient: any): Promise<Record<string, 
     .eq('category', 'business')
     .like('key', 'ship_from_%')
 
-  if (error || !data) {
-    return {}
-  }
+  if (error || !data) return {}
 
   const settings: Record<string, any> = {}
   for (const row of data) {
@@ -69,52 +72,51 @@ async function getBusinessSettings(supabaseClient: any): Promise<Record<string, 
   return settings
 }
 
-function parseValue(value: string, dataType: string): any {
+function parseValue(value: any, dataType: string): any {
+  if (value === null || value === undefined) return value
   switch (dataType) {
     case 'number':
-      return parseFloat(value)
+      return typeof value === 'number' ? value : parseFloat(value)
     case 'boolean':
-      return value === 'true'
+      return typeof value === 'boolean' ? value : value === 'true'
     case 'json':
-      try {
-        return JSON.parse(value)
-      } catch {
-        return value
-      }
+      if (typeof value === 'object') return value
+      try { return JSON.parse(value) } catch { return value }
     default:
+      if (typeof value === 'string' && value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        try { return JSON.parse(value) } catch { return value }
+      }
       return value
   }
 }
 
+function errorResponse(code: string, message: string, status = 200, details?: any) {
+  return new Response(
+    JSON.stringify({ success: false, error: { code, message, ...(details ? { details } : {}) } }),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
   try {
-    // Create Supabase client with service role
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Verify caller is an admin
+    // --- Admin auth ---
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authorization required' } }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return errorResponse('UNAUTHORIZED', 'Authorization required', 401)
     }
 
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
-
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return errorResponse('UNAUTHORIZED', 'Invalid or expired token', 401)
     }
 
     const { data: adminRole } = await supabaseClient
@@ -125,70 +127,40 @@ serve(async (req) => {
       .single()
 
     if (!adminRole) {
-      return new Response(
-        JSON.stringify({ success: false, error: { code: 'FORBIDDEN', message: 'Admin access required' } }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return errorResponse('FORBIDDEN', 'Admin access required', 403)
     }
 
-    // Get ShipEngine API key from settings
+    // --- Validate request body ---
+    const body: CreateLabelRequest = await req.json()
+    const { order_id, service_code, package_weight_lbs } = body
+
+    if (!order_id) {
+      return errorResponse('INVALID_REQUEST', 'order_id is required')
+    }
+    if (!service_code) {
+      return errorResponse('INVALID_REQUEST', 'service_code is required')
+    }
+    if (!VALID_SERVICE_CODES.includes(service_code)) {
+      return errorResponse('INVALID_REQUEST', `Invalid service_code. Must be one of: ${VALID_SERVICE_CODES.join(', ')}`)
+    }
+    if (!package_weight_lbs || package_weight_lbs <= 0) {
+      return errorResponse('INVALID_REQUEST', 'package_weight_lbs is required and must be greater than 0')
+    }
+
+    const pkgLength = body.package_length || 10
+    const pkgWidth = body.package_width || 8
+    const pkgHeight = body.package_height || 6
+
+    // --- Load config ---
     const integrationSettings = await getIntegrationSettings(supabaseClient, [
-      'shipstation_enabled',
       'shipengine_api_key'
     ])
 
-    if (!integrationSettings.shipstation_enabled) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'INTEGRATION_DISABLED',
-            message: 'ShipEngine integration is not enabled'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
     if (!integrationSettings.shipengine_api_key) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'MISSING_API_KEY',
-            message: 'ShipEngine API key is not configured'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      return errorResponse('MISSING_API_KEY', 'ShipEngine API key is not configured')
     }
 
-    // Parse request body
-    const { order_id }: CreateLabelRequest = await req.json()
-
-    if (!order_id) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'INVALID_REQUEST',
-            message: 'order_id is required'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Check if a label already exists for this order
+    // --- Check for existing label ---
     const { data: existingShipment } = await supabaseClient
       .from('shipments')
       .select('*')
@@ -196,24 +168,13 @@ serve(async (req) => {
       .eq('voided', false)
       .single()
 
-    if (existingShipment && existingShipment.label_id) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'LABEL_EXISTS',
-            message: 'A label already exists for this order',
-            existing_shipment: existingShipment
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    if (existingShipment?.label_id) {
+      return errorResponse('LABEL_EXISTS', 'A label already exists for this order. Void it first to create a new one.', 200, {
+        existing_shipment: existingShipment
+      })
     }
 
-    // Load order details
+    // --- Load order ---
     const { data: order, error: orderError } = await supabaseClient
       .from('orders')
       .select('*')
@@ -221,32 +182,12 @@ serve(async (req) => {
       .single()
 
     if (orderError || !order) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'ORDER_NOT_FOUND',
-            message: 'Order not found'
-          }
-        }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      return errorResponse('ORDER_NOT_FOUND', 'Order not found', 404)
     }
 
-    // Get shipping config (includes composite JSON keys and individual field keys)
-    const shippingSettings = await getShippingSettings(supabaseClient, [
-      'warehouse_address',
-      'default_package',
-      'default_package_length',
-      'default_package_width',
-      'default_package_height',
-      'default_package_weight',
-    ])
+    // --- Load warehouse address ---
+    const shippingSettings = await getShippingSettings(supabaseClient, ['warehouse_address'])
 
-    // Try composite JSON key first, then fall back to individual business category fields
     let warehouseAddress = shippingSettings.warehouse_address
     if (!warehouseAddress || !warehouseAddress.address_line1) {
       const businessSettings = await getBusinessSettings(supabaseClient)
@@ -264,207 +205,136 @@ serve(async (req) => {
       }
     }
 
-    // Try composite JSON key first, then fall back to individual shipping dimension fields
-    let defaultPackage = shippingSettings.default_package
-    if (!defaultPackage || !defaultPackage.weight) {
-      const pkgLength = shippingSettings.default_package_length || 12
-      const pkgWidth = shippingSettings.default_package_width || 9
-      const pkgHeight = shippingSettings.default_package_height || 6
-      const pkgWeight = shippingSettings.default_package_weight || 1
-      defaultPackage = {
-        weight: { value: pkgWeight, unit: 'pound' },
-        dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
-      }
-    }
-
     if (!warehouseAddress || !warehouseAddress.address_line1) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'MISSING_CONFIG',
-            message: 'Warehouse address is not configured. Please configure in Admin > Settings > Shipping.'
-          }
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      return errorResponse('MISSING_CONFIG', 'Warehouse address is not configured. Set it in Admin > Settings > Shipping.')
     }
 
-    let labelResponse: Response
-    let labelData: ShipEngineLabel
-
-    // If order has a rate_id, use it to create the label
-    if (order.shipping_rate_id) {
-      labelResponse = await fetch('https://api.shipengine.com/v1/labels', {
-        method: 'POST',
-        headers: {
-          'API-Key': integrationSettings.shipengine_api_key,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          rate_id: order.shipping_rate_id,
-          label_format: 'pdf',
-          label_layout: '4x6'
-        })
-      })
-    } else {
-      // Build shipment from order data
-      const shipTo = order.shipping_address_normalized || {
-        name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
-        phone: order.shipping_phone || '',
-        address_line1: order.shipping_address_line1,
-        address_line2: order.shipping_address_line2 || '',
-        city_locality: order.shipping_city,
-        state_province: order.shipping_state,
-        postal_code: order.shipping_zip,
-        country_code: order.shipping_country || 'US'
-      }
-
-      // Get carrier info - prefer stored carrier or fetch first available
-      let carrierId = order.shipping_carrier_id
-      let serviceCode = order.shipping_service_code
-
-      if (!carrierId) {
-        // Fetch carriers and use the first one
-        const carriersResponse = await fetch('https://api.shipengine.com/v1/carriers', {
-          method: 'GET',
-          headers: {
-            'API-Key': integrationSettings.shipengine_api_key,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (carriersResponse.ok) {
-          const carriersData = await carriersResponse.json()
-          const activeCarrier = carriersData.carriers?.find((c: any) => !c.disabled)
-          if (activeCarrier) {
-            carrierId = activeCarrier.carrier_id
-            // Use a default service code
-            serviceCode = serviceCode || 'usps_priority_mail'
-          }
-        }
-      }
-
-      if (!carrierId) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: {
-              code: 'NO_CARRIER',
-              message: 'No carrier available for label creation'
-            }
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
-
-      labelResponse = await fetch('https://api.shipengine.com/v1/labels', {
-        method: 'POST',
-        headers: {
-          'API-Key': integrationSettings.shipengine_api_key,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          shipment: {
-            carrier_id: carrierId,
-            service_code: serviceCode || 'usps_priority_mail',
-            ship_from: {
-              name: warehouseAddress.name || 'ATL Urban Farms',
-              company_name: warehouseAddress.company_name || 'ATL Urban Farms',
-              phone: warehouseAddress.phone || '',
-              address_line1: warehouseAddress.address_line1,
-              address_line2: warehouseAddress.address_line2 || '',
-              city_locality: warehouseAddress.city_locality,
-              state_province: warehouseAddress.state_province,
-              postal_code: warehouseAddress.postal_code,
-              country_code: warehouseAddress.country_code || 'US'
-            },
-            ship_to: {
-              name: shipTo.name || `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
-              phone: shipTo.phone || order.shipping_phone || '',
-              address_line1: shipTo.address_line1 || order.shipping_address_line1,
-              address_line2: shipTo.address_line2 || order.shipping_address_line2 || '',
-              city_locality: shipTo.city_locality || order.shipping_city,
-              state_province: shipTo.state_province || order.shipping_state,
-              postal_code: shipTo.postal_code || order.shipping_zip,
-              country_code: shipTo.country_code || order.shipping_country || 'US'
-            },
-            packages: [defaultPackage || {
-              weight: { value: 2, unit: 'pound' },
-              dimensions: { length: 10, width: 8, height: 6, unit: 'inch' }
-            }]
-          },
-          label_format: 'pdf',
-          label_layout: '4x6'
-        })
-      })
+    // --- Build ship_to from order ---
+    const shipTo = order.shipping_address_normalized || {
+      name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
+      phone: order.shipping_phone || '',
+      address_line1: order.shipping_address_line1,
+      address_line2: order.shipping_address_line2 || '',
+      city_locality: order.shipping_city,
+      state_province: order.shipping_state,
+      postal_code: order.shipping_zip,
+      country_code: order.shipping_country || 'US',
     }
+
+    if (!shipTo.address_line1) {
+      return errorResponse('INVALID_ADDRESS', 'Order is missing a shipping address')
+    }
+
+    // --- Call ShipEngine to create label ---
+    console.log(`[create-label] Creating label for order ${order.order_number || order_id}: ${service_code}, ${package_weight_lbs}lbs`)
+
+    const labelRequestBody = {
+      shipment: {
+        carrier_id: UPS_CARRIER_ID,
+        service_code,
+        ship_from: {
+          name: warehouseAddress.name || 'ATL Urban Farms',
+          company_name: warehouseAddress.company_name || 'ATL Urban Farms',
+          phone: warehouseAddress.phone || '',
+          address_line1: warehouseAddress.address_line1,
+          address_line2: warehouseAddress.address_line2 || '',
+          city_locality: warehouseAddress.city_locality,
+          state_province: warehouseAddress.state_province,
+          postal_code: warehouseAddress.postal_code,
+          country_code: warehouseAddress.country_code || 'US',
+        },
+        ship_to: {
+          name: shipTo.name || `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
+          phone: shipTo.phone || order.shipping_phone || '',
+          address_line1: shipTo.address_line1 || order.shipping_address_line1,
+          address_line2: shipTo.address_line2 || order.shipping_address_line2 || '',
+          city_locality: shipTo.city_locality || order.shipping_city,
+          state_province: shipTo.state_province || order.shipping_state,
+          postal_code: shipTo.postal_code || order.shipping_zip,
+          country_code: shipTo.country_code || order.shipping_country || 'US',
+        },
+        packages: [{
+          weight: { value: package_weight_lbs, unit: 'pound' },
+          dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
+        }],
+      },
+      label_format: 'pdf',
+      label_layout: '4x6',
+    }
+
+    const labelResponse = await fetch('https://api.shipengine.com/v1/labels', {
+      method: 'POST',
+      headers: {
+        'API-Key': integrationSettings.shipengine_api_key,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(labelRequestBody),
+    })
 
     if (!labelResponse.ok) {
       const errorBody = await labelResponse.text()
-      console.error('ShipEngine label creation error:', errorBody)
+      console.error('[create-label] ShipEngine error:', labelResponse.status, errorBody)
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'LABEL_CREATION_FAILED',
-            message: `Failed to create label: ${labelResponse.status}`,
-            details: errorBody
+      let errorMessage = `ShipEngine returned ${labelResponse.status}`
+      if (labelResponse.status === 401) {
+        errorMessage = 'Invalid ShipEngine API key'
+      } else if (labelResponse.status === 429) {
+        errorMessage = 'ShipEngine rate limit exceeded. Try again in a moment.'
+      } else {
+        try {
+          const parsed = JSON.parse(errorBody)
+          const seErrors = parsed.errors || []
+          if (seErrors.length > 0) {
+            errorMessage = seErrors.map((e: any) => e.message).join('; ')
           }
-        }),
-        {
-          status: labelResponse.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+        } catch { /* use default message */ }
+      }
+
+      return errorResponse('LABEL_CREATION_FAILED', errorMessage, 200, { shipengine_status: labelResponse.status })
     }
 
-    labelData = await labelResponse.json()
+    const labelData: ShipEngineLabelResponse = await labelResponse.json()
+    console.log(`[create-label] Label created: ${labelData.label_id}, tracking: ${labelData.tracking_number}`)
 
-    // Store shipment record in database
-    const shipmentData = {
-      order_id: order_id,
-      label_id: labelData.label_id,
-      tracking_number: labelData.tracking_number,
-      carrier_id: labelData.carrier_id,
-      carrier_code: labelData.carrier_code,
-      service_code: labelData.service_code,
-      label_url: labelData.label_download?.pdf || labelData.label_download?.href,
-      label_format: 'pdf',
-      shipment_cost: labelData.shipment_cost?.amount,
-      status: 'label_created'
-    }
+    // --- Write shipment record ---
+    const trackingUrl = generateTrackingUrl(labelData.tracking_number, 'ups')
 
-    const { data: shipment, error: shipmentError } = await supabaseClient
+    const { error: shipmentError } = await supabaseClient
       .from('shipments')
-      .upsert(shipmentData, { onConflict: 'order_id' })
-      .select()
-      .single()
+      .upsert({
+        order_id,
+        label_id: labelData.label_id,
+        tracking_number: labelData.tracking_number,
+        carrier_id: UPS_CARRIER_ID,
+        carrier_code: 'ups',
+        service_code,
+        label_url: labelData.label_download?.pdf || labelData.label_download?.href,
+        label_format: 'pdf',
+        shipment_cost: labelData.shipment_cost?.amount,
+        status: 'label_created',
+      }, { onConflict: 'order_id' })
 
     if (shipmentError) {
-      console.error('Error saving shipment:', shipmentError)
-      // Don't fail the request, label was created successfully
+      console.error('[create-label] Error saving shipment record:', shipmentError)
     }
 
-    // Update order with tracking info (status stays 'processing' until carrier picks up)
-    const trackingUrl = generateTrackingUrl(labelData.tracking_number, labelData.carrier_code)
-    await supabaseClient
+    // --- Update order status ---
+    const { error: orderUpdateError } = await supabaseClient
       .from('orders')
       .update({
         tracking_number: labelData.tracking_number,
         tracking_url: trackingUrl,
-        updated_at: new Date().toISOString()
+        status: 'shipped',
+        shipped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq('id', order_id)
 
-    // Send shipping notification email
+    if (orderUpdateError) {
+      console.error('[create-label] Error updating order:', orderUpdateError)
+    }
+
+    // --- Send shipping notification email ---
     try {
       const emailResult = await sendShippingEmail(
         supabaseClient,
@@ -472,57 +342,35 @@ serve(async (req) => {
         order_id,
         {
           tracking_number: labelData.tracking_number,
-          carrier_code: labelData.carrier_code,
-          carrier: getCarrierDisplayName(labelData.carrier_code),
-          tracking_url: generateTrackingUrl(labelData.tracking_number, labelData.carrier_code),
+          carrier_code: 'ups',
+          carrier: getCarrierDisplayName('ups'),
+          tracking_url: trackingUrl,
         }
       )
 
       if (emailResult.success) {
-        console.log('Shipping notification email sent successfully')
+        console.log('[create-label] Shipping notification email sent')
       } else {
-        console.warn('Failed to send shipping notification email:', emailResult.error)
+        console.warn('[create-label] Email send failed:', emailResult.error)
       }
     } catch (emailError) {
-      // Don't fail the label creation if email fails
-      console.error('Error sending shipping notification email:', emailError)
+      console.error('[create-label] Email error (non-fatal):', emailError)
     }
 
+    // --- Return result ---
     return new Response(
       JSON.stringify({
         success: true,
-        label: {
-          label_id: labelData.label_id,
-          tracking_number: labelData.tracking_number,
-          label_url: labelData.label_download?.pdf || labelData.label_download?.href,
-          label_png_url: labelData.label_download?.png,
-          shipment_cost: labelData.shipment_cost?.amount,
-          carrier_id: labelData.carrier_id,
-          carrier_code: labelData.carrier_code,
-          service_code: labelData.service_code
-        },
-        shipment
+        label_url: labelData.label_download?.pdf || labelData.label_download?.href,
+        tracking_number: labelData.tracking_number,
+        tracking_url: trackingUrl,
+        shipment_cost: labelData.shipment_cost?.amount,
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Create label error:', error)
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to create label'
-        }
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    )
+    console.error('[create-label] Unexpected error:', error)
+    return errorResponse('INTERNAL_ERROR', error.message || 'Failed to create label', 500)
   }
 })
