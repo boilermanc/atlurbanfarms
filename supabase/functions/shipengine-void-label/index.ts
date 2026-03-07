@@ -5,224 +5,142 @@ import { getIntegrationSettings } from '../_shared/settings.ts'
 
 interface VoidLabelRequest {
   label_id: string
+  order_id: string
+}
+
+function errorResponse(code: string, message: string, status = 200) {
+  return new Response(
+    JSON.stringify({ success: false, error: { code, message } }),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  )
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
   try {
-    // Create Supabase client with service role
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get ShipEngine API key from settings
+    // --- Admin auth ---
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return errorResponse('UNAUTHORIZED', 'Authorization required', 401)
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
+    if (authError || !user) {
+      return errorResponse('UNAUTHORIZED', 'Invalid or expired token', 401)
+    }
+
+    const { data: adminRole } = await supabaseClient
+      .from('admin_user_roles')
+      .select('id')
+      .eq('customer_id', user.id)
+      .eq('is_active', true)
+      .single()
+
+    if (!adminRole) {
+      return errorResponse('FORBIDDEN', 'Admin access required', 403)
+    }
+
+    // --- Validate request body ---
+    const { label_id, order_id }: VoidLabelRequest = await req.json()
+
+    if (!label_id) {
+      return errorResponse('INVALID_REQUEST', 'label_id is required')
+    }
+    if (!order_id) {
+      return errorResponse('INVALID_REQUEST', 'order_id is required')
+    }
+
+    // --- Load ShipEngine API key ---
     const integrationSettings = await getIntegrationSettings(supabaseClient, [
-      'shipstation_enabled',
       'shipengine_api_key'
     ])
 
-    if (!integrationSettings.shipstation_enabled) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'INTEGRATION_DISABLED',
-            message: 'ShipEngine integration is not enabled'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
     if (!integrationSettings.shipengine_api_key) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'MISSING_API_KEY',
-            message: 'ShipEngine API key is not configured'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      return errorResponse('MISSING_API_KEY', 'ShipEngine API key is not configured')
     }
 
-    // Parse request body
-    const { label_id }: VoidLabelRequest = await req.json()
+    // --- Call ShipEngine void endpoint ---
+    console.log(`[void-label] Voiding label ${label_id} for order ${order_id}`)
 
-    if (!label_id) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'INVALID_REQUEST',
-            message: 'label_id is required'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Check if shipment exists in our database
-    const { data: shipment, error: shipmentError } = await supabaseClient
-      .from('shipments')
-      .select('*')
-      .eq('label_id', label_id)
-      .single()
-
-    if (shipmentError || !shipment) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'SHIPMENT_NOT_FOUND',
-            message: 'Shipment not found in database'
-          }
-        }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Check if already voided
-    if (shipment.voided) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'ALREADY_VOIDED',
-            message: 'Label has already been voided'
-          }
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Call ShipEngine void label API
     const voidResponse = await fetch(`https://api.shipengine.com/v1/labels/${label_id}/void`, {
       method: 'PUT',
       headers: {
         'API-Key': integrationSettings.shipengine_api_key,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     })
 
     if (!voidResponse.ok) {
       const errorBody = await voidResponse.text()
-      console.error('ShipEngine void label error:', errorBody)
+      console.error('[void-label] ShipEngine error:', voidResponse.status, errorBody)
 
-      // Check if label was already voided at ShipEngine
-      if (voidResponse.status === 400 || voidResponse.status === 404) {
-        // Still update our database
-        await supabaseClient
-          .from('shipments')
-          .update({
-            voided: true,
-            voided_at: new Date().toISOString(),
-            status: 'voided'
-          })
-          .eq('label_id', label_id)
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Label marked as voided (may have already been voided at carrier)',
-            approved: true
-          }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'VOID_FAILED',
-            message: `Failed to void label: ${voidResponse.status}`,
-            details: errorBody
-          }
-        }),
-        {
-          status: voidResponse.status,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      let errorMessage = `ShipEngine returned ${voidResponse.status}`
+      try {
+        const parsed = JSON.parse(errorBody)
+        const seErrors = parsed.errors || []
+        if (seErrors.length > 0) {
+          errorMessage = seErrors.map((e: any) => e.message).join('; ')
         }
-      )
+      } catch { /* use default message */ }
+
+      return errorResponse('VOID_FAILED', errorMessage)
     }
 
     const voidData = await voidResponse.json()
+    console.log('[void-label] ShipEngine response:', JSON.stringify(voidData))
 
-    // Update shipment record in database
-    const { error: updateError } = await supabaseClient
+    if (voidData.approved === false) {
+      return errorResponse('VOID_REJECTED', 'ShipEngine rejected the void request. The label may have already been used.')
+    }
+
+    // --- Update shipments table ---
+    const { error: shipmentError } = await supabaseClient
       .from('shipments')
       .update({
         voided: true,
         voided_at: new Date().toISOString(),
-        status: 'voided'
+        status: 'voided',
+        updated_at: new Date().toISOString(),
       })
       .eq('label_id', label_id)
 
-    if (updateError) {
-      console.error('Error updating shipment:', updateError)
+    if (shipmentError) {
+      console.error('[void-label] Error updating shipment:', shipmentError)
     }
 
-    // Remove tracking number from order
-    if (shipment.order_id) {
-      await supabaseClient
-        .from('orders')
-        .update({
-          tracking_number: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', shipment.order_id)
+    // --- Reset order shipping state ---
+    const { error: orderError } = await supabaseClient
+      .from('orders')
+      .update({
+        tracking_number: null,
+        tracking_url: null,
+        status: 'processing',
+        shipped_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order_id)
+
+    if (orderError) {
+      console.error('[void-label] Error updating order:', orderError)
     }
+
+    console.log(`[void-label] Label ${label_id} voided successfully`)
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        approved: voidData.approved,
-        message: voidData.approved ? 'Label voided successfully' : 'Void request submitted'
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Void label error:', error)
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to void label'
-        }
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    )
+    console.error('[void-label] Unexpected error:', error)
+    return errorResponse('INTERNAL_ERROR', error.message || 'Failed to void label', 500)
   }
 })
