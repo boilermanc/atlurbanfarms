@@ -218,7 +218,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { profile, loading: profileLoading } = useCustomerProfile(user?.id);
   const { addresses, loading: addressesLoading } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
-  const { value: shipEngineEnabled } = useSetting('integrations', 'shipstation_enabled');
+  const { value: shipEngineEnabled, loading: shipEngineSettingLoading } = useSetting('integrations', 'shipstation_enabled');
   const { value: defaultShipDay } = useSetting('shipping', 'default_ship_day');
   const { value: weeklyCutoffDay } = useSetting('shipping', 'weekly_cutoff_day');
   const { value: weeklyCutoffTime } = useSetting('shipping', 'weekly_cutoff_time');
@@ -1193,8 +1193,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         return;
       }
 
-      // Check if shipping method is selected (ShipEngine enabled)
-      if (shipEngineEnabled && !selectedShippingRate) {
+      // Block if ShipEngine is enabled OR still loading (treat loading as enabled to be safe)
+      const shippingRequired = shipEngineEnabled || shipEngineSettingLoading;
+      if (shippingRequired && !selectedShippingRate) {
         setOrderError('Please select a shipping method before continuing.');
         shippingMethodRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
@@ -1603,6 +1604,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   };
 
   const handlePaymentSuccess = async (paymentIntentId: string) => {
+    if (deliveryMethod === 'shipping' && !selectedShippingRate) {
+      console.error('[handlePaymentSuccess] WARNING: Payment succeeded but no shipping rate selected. Order will be created with fallback shipping. PaymentIntent:', paymentIntentId);
+    }
+
     // Payment succeeded — NOW create the order with payment_status: 'paid'
     // Build shipping details for order (only for shipping orders)
     const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
@@ -1657,7 +1662,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         country: 'US',
         phone: formData.phone
       } : null,
-      shippingMethod: deliveryMethod === 'pickup' ? 'Local Pickup' : (selectedShippingRate?.service_type || 'Standard'),
+      shippingMethod: deliveryMethod === 'pickup'
+        ? 'Local Pickup'
+        : selectedShippingRate
+          ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
+          : 'Standard (rate unavailable)',
       shippingCost: shippingCost,
       customerId: user?.id || null,
       paymentStatus: 'paid',
@@ -3650,8 +3659,34 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   <button
                     key={state.abbreviation}
                     onClick={() => {
-                      setFormData(prev => ({ ...prev, state: state.abbreviation }));
+                      // Use handleAddressChange to ensure rate clearing and re-fetch triggers
+                      handleAddressChange({
+                        target: { name: 'state', value: state.abbreviation }
+                      } as React.ChangeEvent<HTMLSelectElement>);
                       setStateSheetOpen(false);
+
+                      // If all address fields are now present, re-fetch rates for new state
+                      // Use a short timeout to let state update propagate
+                      setTimeout(() => {
+                        if (formData.address1.trim() && formData.city.trim() && formData.zip.trim()) {
+                          const address = {
+                            name: `${formData.firstName} ${formData.lastName}`.trim(),
+                            phone: formData.phone,
+                            address_line1: formData.address1,
+                            address_line2: formData.address2 || undefined,
+                            city_locality: formData.city,
+                            state_province: state.abbreviation,
+                            postal_code: formData.zip,
+                            country_code: 'US' as const,
+                          };
+                          setAddressValidated(true);
+                          const orderItems = items.map(item => ({
+                            quantity: item.quantity * (item.seedlingsPerUnit || 1),
+                            weight_per_item: 0.5,
+                          }));
+                          fetchRates(address, orderItems);
+                        }
+                      }, 50);
                     }}
                     className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-colors mb-1 ${
                       formData.state === state.abbreviation ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700 hover:bg-gray-50'

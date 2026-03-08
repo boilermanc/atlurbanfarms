@@ -555,6 +555,76 @@ function generateDeliveryInfoHtml(data: Record<string, any>): string {
   return ''
 }
 
+// Convert "10:00:00" or "14:00" → "10:00 AM" / "2:00 PM"
+function formatTimeString(time: string): string {
+  const parts = time.split(':')
+  let hours = parseInt(parts[0], 10)
+  const minutes = parts[1] || '00'
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  if (hours > 12) hours -= 12
+  if (hours === 0) hours = 12
+  return `${hours}:${minutes} ${ampm}`
+}
+
+// Build blue-themed shipping block HTML
+function buildShipBlock(data: Record<string, any>): string {
+  const name = data.shippingAddress?.name
+    || data.shipping_name
+    || [data.shipping_first_name, data.shipping_last_name].filter(Boolean).join(' ')
+    || ''
+  const address = data.shippingAddress?.address
+    || data.shipping_address
+    || data.shipping_address_line1
+    || ''
+  const cityStateZip = data.shipping_city_state_zip
+    || (data.shippingAddress
+      ? [data.shippingAddress.city, data.shippingAddress.state].filter(Boolean).join(', ') + (data.shippingAddress.zip ? ' ' + data.shippingAddress.zip : '')
+      : [data.shipping_city, data.shipping_state].filter(Boolean).join(', ') + (data.shipping_zip ? ' ' + data.shipping_zip : ''))
+
+  const parts: string[] = []
+  parts.push('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #eff6ff; border-radius: 8px; margin: 25px 0;"><tr><td style="padding: 20px;">')
+  parts.push('<h3 style="color: #1e40af; margin: 0 0 15px; font-size: 16px;">Shipping To</h3>')
+  if (name) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px; font-weight: bold;">${name}</p>`)
+  if (address) parts.push(`<p style="color: #666; font-size: 14px; margin: 0 0 3px;">${address}</p>`)
+  if (cityStateZip.trim()) parts.push(`<p style="color: #666; font-size: 14px; margin: 0;">${cityStateZip}</p>`)
+  parts.push('</td></tr></table>')
+  return parts.join('')
+}
+
+// Build green-themed pickup block HTML
+function buildPickupBlock(data: Record<string, any>): string {
+  const locationName = data.pickupInfo?.locationName
+    || data.pickup_location_name
+    || 'Pickup Location'
+  // pickupInfo.address is a full address string from checkout; pickup_address is street only from DB lookup
+  const address = data.pickupInfo?.address
+    || data.pickup_address
+    || ''
+  // city/state/zip only shown as separate line when address comes from DB fields (no pickupInfo)
+  const cityStateZip = !data.pickupInfo ? (data.pickup_city_state_zip || '') : ''
+  const date = data.pickupInfo?.date
+    || data.pickup_date_formatted
+    || ''
+  const timeWindow = data.pickupInfo?.timeRange
+    || data.pickup_time_window
+    || ''
+  const orderNumber = data.order_number || data.orderNumber || data.order_id || ''
+  const instructions = data.pickupInfo?.instructions || data.pickup_instructions || ''
+
+  const parts: string[] = []
+  parts.push('<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f0fdf4; border-radius: 8px; margin: 25px 0;"><tr><td style="padding: 20px;">')
+  parts.push('<h3 style="color: #166534; margin: 0 0 15px; font-size: 16px;">Pickup Details</h3>')
+  parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px; font-weight: bold;">${locationName}</p>`)
+  if (address) parts.push(`<p style="color: #666; font-size: 14px; margin: 0 0 3px;">${address}</p>`)
+  if (cityStateZip) parts.push(`<p style="color: #666; font-size: 14px; margin: 0 0 10px;">${cityStateZip}</p>`)
+  if (date) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px;"><strong>Date:</strong> ${date}</p>`)
+  if (timeWindow) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px;"><strong>Time:</strong> ${timeWindow}</p>`)
+  if (orderNumber) parts.push(`<p style="color: #333; font-size: 14px; margin: 0 0 5px;"><strong>Order:</strong> #${orderNumber}</p>`)
+  if (instructions) parts.push(`<p style="color: #666; font-size: 13px; margin: 10px 0 0; font-style: italic;">${instructions}</p>`)
+  parts.push('</td></tr></table>')
+  return parts.join('')
+}
+
 // Normalize templateData keys from camelCase (client) to snake_case (DB templates)
 // Also formats values (currency, item lists, dates) for direct template substitution
 function normalizeTemplateData(templateKey: string, data: Record<string, any>): Record<string, any> {
@@ -768,7 +838,7 @@ serve(async (req) => {
             .maybeSingle()
 
           // Only show shipping note for non-pickup orders
-          const isPickupOrder = !!(templateData && templateData.pickupInfo)
+          const isPickupOrder = !!(templateData && (templateData.is_pickup || templateData.pickupInfo))
           if (!isPickupOrder) {
             allVariables.shipping_note = shippingNote?.value
               || allVariables.shipping_note
@@ -782,6 +852,53 @@ serve(async (req) => {
             allVariables.header_content = `<img src="${allVariables.logo_url}" alt="${allVariables.business_name}" style="max-height: 60px; max-width: 200px;">`
           } else {
             allVariables.header_content = `<h1 style="color: #ffffff; margin: 0; font-size: 24px;">${allVariables.business_name}</h1>`
+          }
+
+          // Build delivery block (ship vs. pickup) — overrides delivery_info from normalizeTemplateData
+          if (isPickupOrder) {
+            // If we have pickup_location_id but no pickupInfo object, query the DB for location details
+            if (templateData?.pickup_location_id && !templateData?.pickupInfo) {
+              const { data: location } = await supabaseClient
+                .from('pickup_locations')
+                .select('name, address_line1, city, state, postal_code')
+                .eq('id', templateData.pickup_location_id)
+                .single()
+
+              if (location) {
+                allVariables.pickup_location_name = location.name
+                allVariables.pickup_address = location.address_line1
+                allVariables.pickup_city_state_zip = `${location.city}, ${location.state} ${location.postal_code}`
+              }
+
+              // Format pickup_date as "Tuesday, March 11"
+              if (templateData?.pickup_date) {
+                try {
+                  const d = new Date(templateData.pickup_date + 'T12:00:00')
+                  allVariables.pickup_date_formatted = d.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                } catch { /* ignore date parse errors */ }
+              }
+
+              // Format time window as "10:00 AM – 2:00 PM"
+              if (templateData?.pickup_time_start && templateData?.pickup_time_end) {
+                allVariables.pickup_time_window = `${formatTimeString(templateData.pickup_time_start)} \u2013 ${formatTimeString(templateData.pickup_time_end)}`
+              }
+            }
+
+            const deliveryBlock = buildPickupBlock({ ...allVariables, ...templateData })
+            allVariables.delivery_info = deliveryBlock
+            allVariables.DELIVERY_BLOCK = deliveryBlock
+          } else {
+            // Build ship block if any shipping data is available
+            const mergedData = { ...allVariables, ...templateData }
+            if (mergedData.shippingAddress || mergedData.shipping_name || mergedData.shipping_address || mergedData.shipping_first_name) {
+              const deliveryBlock = buildShipBlock(mergedData)
+              allVariables.delivery_info = deliveryBlock
+              allVariables.DELIVERY_BLOCK = deliveryBlock
+            }
           }
         }
 
