@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
-import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText, Package, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText, Package, CheckCircle2, XCircle, AlertCircle, ChevronDown, RotateCcw } from 'lucide-react';
 
 const formatStatusLabel = (status: string) =>
   ORDER_STATUS_CONFIG[status as OrderStatus]?.label || status.replace(/_/g, ' ');
@@ -11,17 +11,23 @@ const formatStatusLabel = (status: string) =>
 interface OrdersPageProps {
   onViewOrder: ViewOrderHandler;
   onNavigate?: (page: string) => void;
+  initialDateFilter?: { from: string; to: string } | null;
+  onDateFilterConsumed?: () => void;
 }
 
-const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
+const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initialDateFilter, onDateFilterConsumed }) => {
 
   // Filter state
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState<string>('');
-  const [dateTo, setDateTo] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string[]>(initialDateFilter ? [] : ['processing', 'on_hold']);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [dateFrom, setDateFrom] = useState<string>(initialDateFilter?.from || '');
+  const [dateTo, setDateTo] = useState<string>(initialDateFilter?.to || '');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [trashLoading, setTrashLoading] = useState<string | null>(null);
 
   // Selection state for batch printing
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
@@ -48,13 +54,21 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
 
   // Build filters object
   const filters = useMemo(() => ({
-    status: statusFilter,
+    statuses: statusFilter.length > 0 && !showTrash ? statusFilter : undefined,
+    showTrashed: showTrash,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: searchTerm || undefined,
     page: currentPage,
     perPage: 20,
-  }), [statusFilter, dateFrom, dateTo, searchTerm, currentPage]);
+  }), [statusFilter, showTrash, dateFrom, dateTo, searchTerm, currentPage]);
+
+  // Consume the initial date filter so it doesn't re-apply on subsequent navigations
+  useEffect(() => {
+    if (initialDateFilter) {
+      onDateFilterConsumed?.();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch orders
   const { orders, totalCount, totalPages, loading, error, refetch } = useOrders(filters);
@@ -80,9 +94,30 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
     setCurrentPage(1);
   };
 
+  // Close status dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setStatusDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Toggle a status in the multi-select filter
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter(prev => {
+      const next = prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status];
+      return next;
+    });
+    setCurrentPage(1);
+  };
+
   // Clear all filters
   const clearFilters = () => {
-    setStatusFilter('all');
+    setStatusFilter(['processing', 'on_hold']);
+    setShowTrash(false);
     setDateFrom('');
     setDateTo('');
     setSearchTerm('');
@@ -90,8 +125,43 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
     setCurrentPage(1);
   };
 
-  // Check if any filters are active
-  const hasActiveFilters = statusFilter !== 'all' || dateFrom || dateTo || searchTerm;
+  // Check if any filters are active (default is processing + on_hold)
+  const isDefaultStatus = statusFilter.length === 2 && statusFilter.includes('processing') && statusFilter.includes('on_hold');
+  const hasActiveFilters = !isDefaultStatus || showTrash || dateFrom || dateTo || searchTerm;
+
+  // Move order to trash (soft delete)
+  const moveToTrash = useCallback(async (orderId: string) => {
+    setTrashLoading(orderId);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', orderId);
+      if (error) throw error;
+      refetch();
+    } catch (err: any) {
+      alert('Failed to move to trash: ' + err.message);
+    } finally {
+      setTrashLoading(null);
+    }
+  }, [refetch]);
+
+  // Restore order from trash
+  const restoreFromTrash = useCallback(async (orderId: string) => {
+    setTrashLoading(orderId);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ deleted_at: null })
+        .eq('id', orderId);
+      if (error) throw error;
+      refetch();
+    } catch (err: any) {
+      alert('Failed to restore order: ' + err.message);
+    } finally {
+      setTrashLoading(null);
+    }
+  }, [refetch]);
 
   // Selection handlers
   const toggleOrderSelection = useCallback((orderId: string, e: React.MouseEvent) => {
@@ -176,10 +246,24 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate }) => {
     if (bulkActionType === 'status') {
       await executeBulkStatusChange();
     } else if (bulkActionType === 'archive') {
-      alert('Archive feature coming soon!');
-      setShowBulkConfirm(false);
+      setBulkLoading(true);
+      try {
+        const ids = Array.from(selectedOrders);
+        const { error } = await supabase
+          .from('orders')
+          .update({ deleted_at: new Date().toISOString() })
+          .in('id', ids);
+        if (error) throw error;
+        clearSelection();
+        refetch();
+      } catch (err: any) {
+        alert('Failed to move to trash: ' + err.message);
+      } finally {
+        setBulkLoading(false);
+        setShowBulkConfirm(false);
+      }
     }
-  }, [bulkActionType, executeBulkStatusChange]);
+  }, [bulkActionType, executeBulkStatusChange, selectedOrders, clearSelection, refetch]);
 
   // Bulk label creation handler - sequential to avoid rate limits
   const handleBulkCreateLabels = useCallback(async () => {
@@ -441,13 +525,38 @@ ${ordersToprint.map(order => `<div class="order">
         {/* Filters */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[150px]">
+            <div className="flex-1 min-w-[150px] relative" ref={statusDropdownRef}>
               <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
-              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all">
-                <option value="all">All Statuses</option>
-                {ORDER_STATUSES.map((status) => (<option key={status} value={status}>{ORDER_STATUS_CONFIG[status].label}</option>))}
-              </select>
+              <button type="button" onClick={() => setStatusDropdownOpen(prev => !prev)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all text-left flex items-center justify-between"
+                disabled={showTrash}>
+                <span className="truncate">
+                  {showTrash ? 'Trash' : statusFilter.length === 0 ? 'All Statuses' : statusFilter.length === 1 ? ORDER_STATUS_CONFIG[statusFilter[0] as OrderStatus]?.label : `${statusFilter.length} statuses`}
+                </span>
+                <ChevronDown size={16} className={`text-slate-400 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {statusDropdownOpen && !showTrash && (
+                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+                  <button type="button" onClick={() => { setStatusFilter([]); setCurrentPage(1); }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-600">
+                    <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${statusFilter.length === 0 ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                      {statusFilter.length === 0 && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    </span>
+                    All Statuses
+                  </button>
+                  <div className="border-t border-slate-100 my-1" />
+                  {ORDER_STATUSES.map((status) => (
+                    <button key={status} type="button" onClick={() => toggleStatusFilter(status)}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700">
+                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${statusFilter.includes(status) ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                        {statusFilter.includes(status) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </span>
+                      <span className={`w-2 h-2 rounded-full ${ORDER_STATUS_CONFIG[status].color}`} />
+                      {ORDER_STATUS_CONFIG[status].label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-[150px]">
               <label className="block text-sm font-medium text-slate-600 mb-1">From Date</label>
@@ -470,6 +579,11 @@ ${ordersToprint.map(order => `<div class="order">
                 <button type="submit" className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium">Search</button>
               </form>
             </div>
+            <button onClick={() => { setShowTrash(prev => !prev); setCurrentPage(1); }}
+              className={`px-4 py-2.5 border rounded-xl transition-colors whitespace-nowrap font-medium flex items-center gap-2 ${showTrash ? 'bg-red-50 border-red-200 text-red-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+              <Trash2 size={16} />
+              {showTrash ? 'Exit Trash' : 'Trash'}
+            </button>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors whitespace-nowrap font-medium">Clear Filters</button>
             )}
@@ -479,12 +593,18 @@ ${ordersToprint.map(order => `<div class="order">
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                 className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-slate-200">
                 <span className="text-sm text-slate-500">Active filters:</span>
-                {statusFilter !== 'all' && (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-                    Status: {ORDER_STATUS_CONFIG[statusFilter as OrderStatus]?.label || statusFilter}
-                    <button onClick={() => setStatusFilter('all')} className="hover:text-emerald-900"><X size={14} /></button>
+                {showTrash && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
+                    Trash
+                    <button onClick={() => setShowTrash(false)} className="hover:text-red-900"><X size={14} /></button>
                   </span>
                 )}
+                {!showTrash && statusFilter.length > 0 && statusFilter.map(s => (
+                  <span key={s} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
+                    {ORDER_STATUS_CONFIG[s as OrderStatus]?.label || s}
+                    <button onClick={() => toggleStatusFilter(s)} className="hover:text-emerald-900"><X size={14} /></button>
+                  </span>
+                ))}
                 {dateFrom && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     From: {dateFrom}
@@ -509,6 +629,14 @@ ${ordersToprint.map(order => `<div class="order">
         </div>
 
         {error && (<div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700">{error}</div>)}
+
+        {showTrash && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
+            <Trash2 size={18} className="text-red-500" />
+            <span className="text-red-700 font-medium">Viewing Trash</span>
+            <span className="text-red-500 text-sm">— These orders have been soft-deleted. Click the restore icon to bring them back.</span>
+          </div>
+        )}
 
         {/* Bulk Actions Toolbar */}
         <AnimatePresence>
@@ -595,6 +723,7 @@ ${ordersToprint.map(order => `<div class="order">
                     <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Total</th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Status</th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Shipping</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-12"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -632,6 +761,23 @@ ${ordersToprint.map(order => `<div class="order">
                           <span className="text-xs text-slate-300">&mdash;</span>
                         )}
                       </td>
+                      <td className="px-2 py-4 text-center">
+                        {showTrash ? (
+                          <button onClick={(e) => { e.stopPropagation(); restoreFromTrash(order.id); }}
+                            disabled={trashLoading === order.id}
+                            title="Restore from Trash"
+                            className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+                            {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                          </button>
+                        ) : order.status === 'cancelled' && !order.isLegacy ? (
+                          <button onClick={(e) => { e.stopPropagation(); moveToTrash(order.id); }}
+                            disabled={trashLoading === order.id}
+                            title="Move to Trash"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
+                            {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          </button>
+                        ) : null}
+                      </td>
                     </motion.tr>
                   ))}
                 </tbody>
@@ -651,7 +797,7 @@ ${ordersToprint.map(order => `<div class="order">
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Confirm Bulk Action</h3>
                 <p className="text-slate-600 mb-6">
                   {bulkActionType === 'status' && bulkStatus && (<>Are you sure you want to change the status of <strong>{selectedOrders.size}</strong> {selectedOrders.size === 1 ? 'order' : 'orders'} to <strong>{ORDER_STATUS_CONFIG[bulkStatus as OrderStatus].label}</strong>?</>)}
-                  {bulkActionType === 'archive' && (<>Are you sure you want to archive <strong>{selectedOrders.size}</strong> {selectedOrders.size === 1 ? 'order' : 'orders'}?</>)}
+                  {bulkActionType === 'archive' && (<>Are you sure you want to move <strong>{selectedOrders.size}</strong> {selectedOrders.size === 1 ? 'order' : 'orders'} to trash?</>)}
                 </p>
                 <div className="flex items-center gap-3 justify-end">
                   <button onClick={() => setShowBulkConfirm(false)} disabled={bulkLoading} className="px-4 py-2 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>

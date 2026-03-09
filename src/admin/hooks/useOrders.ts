@@ -30,6 +30,7 @@ export interface OrderFilters {
   page?: number;
   perPage?: number;
   deliveryMethod?: 'all' | 'shipping' | 'pickup';
+  showTrashed?: boolean;  // Show only soft-deleted orders
 }
 
 export interface OrderItem {
@@ -277,6 +278,14 @@ export function useOrders(filters: OrderFilters = {}) {
         ? 'shipments!inner(id, status, tracking_status, tracking_number, voided, created_at)'
         : 'shipments(id, status, tracking_status, tracking_number, voided, created_at)';
 
+      // --- Separate COUNT queries for accurate total (no row data) ---
+      let countNewQuery = supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true });
+      let countLegacyQuery = supabase
+        .from('legacy_orders')
+        .select('*', { count: 'exact', head: true });
+
       // Build data query for regular orders
       let dataQuery = supabase
         .from('orders')
@@ -368,7 +377,7 @@ export function useOrders(filters: OrderFilters = {}) {
         }
       }
 
-      // Build legacy orders query
+      // Build legacy orders query (include items for count display)
       let legacyQuery = supabase
         .from('legacy_orders')
         .select(`
@@ -379,76 +388,115 @@ export function useOrders(filters: OrderFilters = {}) {
             last_name,
             email,
             phone
+          ),
+          legacy_order_items (
+            id,
+            product_name,
+            quantity,
+            line_total
           )
         `)
         .order('order_date', { ascending: false });
+
+      // Apply soft-delete filter (trash view vs normal view)
+      if (filters.showTrashed) {
+        dataQuery = dataQuery.not('deleted_at', 'is', null);
+        countNewQuery = countNewQuery.not('deleted_at', 'is', null);
+        // Legacy orders don't have soft-delete — exclude from trash view
+        legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        countLegacyQuery = countLegacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+      } else {
+        dataQuery = dataQuery.is('deleted_at', null);
+        countNewQuery = countNewQuery.is('deleted_at', null);
+      }
 
       // Apply status filter (supports both single status and multiple statuses)
       if (filters.statuses && filters.statuses.length > 0) {
         dataQuery = dataQuery.in('status', filters.statuses);
         legacyQuery = legacyQuery.in('status', filters.statuses);
+        countNewQuery = countNewQuery.in('status', filters.statuses);
+        countLegacyQuery = countLegacyQuery.in('status', filters.statuses);
       } else if (filters.status && filters.status !== 'all') {
         dataQuery = dataQuery.eq('status', filters.status);
         legacyQuery = legacyQuery.eq('status', filters.status);
+        countNewQuery = countNewQuery.eq('status', filters.status);
+        countLegacyQuery = countLegacyQuery.eq('status', filters.status);
       }
 
       // Apply delivery method filter (legacy orders are all shipping, no pickup)
       if (filters.deliveryMethod && filters.deliveryMethod !== 'all') {
         const isPickup = filters.deliveryMethod === 'pickup';
         dataQuery = dataQuery.eq('is_pickup', isPickup);
+        countNewQuery = countNewQuery.eq('is_pickup', isPickup);
         // Legacy orders don't have pickup option - exclude them if filtering for pickup only
         if (isPickup) {
-          legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // Effectively exclude all
+          legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+          countLegacyQuery = countLegacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
         }
       }
 
       // Legacy orders never have shipments — exclude for filters that require shipment data
       if (shippingFilter && shippingFilter !== 'no_label') {
         legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        countLegacyQuery = countLegacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
       }
 
       // Apply date range filters
       if (filters.dateFrom) {
         dataQuery = dataQuery.gte('created_at', filters.dateFrom);
         legacyQuery = legacyQuery.gte('order_date', filters.dateFrom);
+        countNewQuery = countNewQuery.gte('created_at', filters.dateFrom);
+        countLegacyQuery = countLegacyQuery.gte('order_date', filters.dateFrom);
       }
       if (filters.dateTo) {
         const endDate = new Date(filters.dateTo);
         endDate.setDate(endDate.getDate() + 1);
         dataQuery = dataQuery.lt('created_at', endDate.toISOString());
         legacyQuery = legacyQuery.lt('order_date', endDate.toISOString());
+        countNewQuery = countNewQuery.lt('created_at', endDate.toISOString());
+        countLegacyQuery = countLegacyQuery.lt('order_date', endDate.toISOString());
       }
 
       // Apply search filter
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         dataQuery = dataQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
+        countNewQuery = countNewQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
         // For legacy orders, search by woo_order_id or billing_email
-        // Check if search term looks like a WC order number
         const wcMatch = searchTerm.match(/^wc-?(\d+)$/i);
         if (wcMatch) {
           legacyQuery = legacyQuery.eq('woo_order_id', parseInt(wcMatch[1]));
+          countLegacyQuery = countLegacyQuery.eq('woo_order_id', parseInt(wcMatch[1]));
         } else if (/^\d+$/.test(searchTerm)) {
           legacyQuery = legacyQuery.eq('woo_order_id', parseInt(searchTerm));
+          countLegacyQuery = countLegacyQuery.eq('woo_order_id', parseInt(searchTerm));
         } else {
           legacyQuery = legacyQuery.ilike('billing_email', `%${searchTerm}%`);
+          countLegacyQuery = countLegacyQuery.ilike('billing_email', `%${searchTerm}%`);
         }
       }
 
-      // Execute both queries in parallel
-      // Wrap legacy query in a function to handle errors gracefully
+      // Execute all queries in parallel (data + count)
       const fetchLegacyOrders = async () => {
         try {
           return await legacyQuery;
         } catch {
-          // Return empty result if legacy_orders table doesn't exist
           return { data: [], error: null };
         }
       };
+      const fetchLegacyCount = async () => {
+        try {
+          return await countLegacyQuery;
+        } catch {
+          return { count: 0, error: null };
+        }
+      };
 
-      const [dataResult, legacyResult] = await Promise.all([
+      const [dataResult, legacyResult, newCountResult, legacyCountResult] = await Promise.all([
         dataQuery,
         fetchLegacyOrders(),
+        countNewQuery,
+        fetchLegacyCount(),
       ]);
 
       if (dataResult.error) throw dataResult.error;
@@ -569,7 +617,15 @@ export function useOrders(filters: OrderFilters = {}) {
         internal_notes: null,
         created_at: order.order_date,
         updated_at: order.order_date,
-        items: [], // Items loaded separately via useLegacyOrderItems
+        items: (order.legacy_order_items || []).map((item: any) => ({
+          id: item.id,
+          product_id: item.product_id || '',
+          product_name: item.product_name,
+          product_image: null,
+          quantity: item.quantity,
+          unit_price: item.line_total / (item.quantity || 1),
+          line_total: item.line_total,
+        })),
         is_pickup: false,
         pickup_location_id: null,
         pickup_date: null,
@@ -593,7 +649,10 @@ export function useOrders(filters: OrderFilters = {}) {
       const paginatedOrders = allOrders.slice((page - 1) * perPage, page * perPage);
 
       setOrders(paginatedOrders);
-      setTotalCount(allOrders.length);
+      // Use COUNT query results for accurate total (not capped by data fetch limits).
+      // Fall back to client-side length when shipping filter narrows results further.
+      const accurateCount = (newCountResult.count || 0) + ((legacyCountResult as any).count || 0);
+      setTotalCount(shippingFilter ? allOrders.length : accurateCount);
     } catch (err: any) {
       console.error('Error fetching orders:', err);
       setError(err.message || 'Failed to fetch orders');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Star, Plus, X, Link, Package, Layers, ShoppingBag, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Star, Plus, X, Link, Package, Layers, ShoppingBag, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import { useProductTags } from '../hooks/useProductTags';
 import { useProductTagAssignments } from '../hooks/useProductTagAssignments';
 import RichTextEditor from '../components/RichTextEditor';
@@ -148,6 +148,7 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
   const [relationships, setRelationships] = useState<ProductRelationship[]>([]);
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   // Auto-sync seedlings_per_unit from bundle relationships
   useEffect(() => {
@@ -651,6 +652,16 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
     ));
   };
 
+  const moveRelationship = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= relationships.length) return;
+    setRelationships(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next.map((r, idx) => ({ ...r, sort_order: idx }));
+    });
+  };
+
   const filteredAvailableProducts = availableProducts.filter(p => {
     // Exclude products already in the relationship list
     if (relationships.some(r => r.child_product_id === p.id)) return false;
@@ -1101,11 +1112,20 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
               </div>
             ) : (
               <div className="space-y-2">
-                {relationships.map((rel) => {
+                {relationships.map((rel, index) => {
                   const isItemOos = (rel.product?.quantity_available ?? 0) <= 0;
                   return (
-                  <div key={rel.child_product_id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                  <div
+                    key={rel.child_product_id}
+                    draggable
+                    onDragStart={() => setDragIndex(index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => { if (dragIndex !== null) moveRelationship(dragIndex, index); setDragIndex(null); }}
+                    onDragEnd={() => setDragIndex(null)}
+                    className={`flex items-center justify-between p-3 bg-slate-50 rounded-xl transition-opacity ${dragIndex === index ? 'opacity-40' : ''}`}
+                  >
                     <div className="flex-1 flex items-center gap-2">
+                      <GripVertical size={16} className="text-slate-400 cursor-grab shrink-0" />
                       <span className="font-medium text-slate-800">{rel.product?.name}</span>
                       {isItemOos && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Out of Stock</span>

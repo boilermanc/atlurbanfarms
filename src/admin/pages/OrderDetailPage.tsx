@@ -20,7 +20,7 @@ import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import useShipmentManagement from '../hooks/useShipmentManagement';
 import { supabase } from '../../lib/supabase';
-import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle } from 'lucide-react';
+import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 
 // Helper to format pickup time
 const formatPickupTime = (timeStr: string): string => {
@@ -50,8 +50,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const { addNote, loading: addingNote } = useAddOrderNote();
   const { cancelOrder, loading: cancellingOrder } = useCancelOrder();
   // Local state
-  const [newStatus, setNewStatus] = useState<string>('');
-  const [statusNote, setStatusNote] = useState<string>('');
   const [newNote, setNewNote] = useState<string>('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -118,15 +116,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   // Shipping Label state
   const { shipment, loading: shipmentLoading, error: shipmentError, createLabel, voidLabel, canCreateLabel, canVoidLabel, refetch: refetchShipment } = useShipmentManagement(orderId);
   const [labelServiceCode, setLabelServiceCode] = useState('ups_ground');
-  const [labelWeight, setLabelWeight] = useState(2);
-  const [labelLength, setLabelLength] = useState(10);
-  const [labelWidth, setLabelWidth] = useState(8);
-  const [labelHeight, setLabelHeight] = useState(6);
+  const [labelPackages, setLabelPackages] = useState<Array<{ weight: number; length: number; width: number; height: number }>>([
+    { weight: 2, length: 10, width: 8, height: 6 }
+  ]);
   const [labelCreating, setLabelCreating] = useState(false);
   const [labelVoiding, setLabelVoiding] = useState(false);
   const [labelError, setLabelError] = useState<string | null>(null);
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [copiedTracking, setCopiedTracking] = useState(false);
+  // Rates state
+  const [fetchedRates, setFetchedRates] = useState<Array<{ rate_id: string; carrier_id: string; carrier_code: string; carrier_friendly_name: string; service_code: string; service_type: string; shipping_amount: number; currency: string; delivery_days: number | null; estimated_delivery_date: string | null; guaranteed_service: boolean }>>([]);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [selectedRate, setSelectedRate] = useState<typeof fetchedRates[number] | null>(null);
 
   // Sync service code from order when loaded
   useEffect(() => {
@@ -347,66 +348,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         {config.label}
       </span>
     );
-  };
-
-  // Handle status update
-  const handleUpdateStatus = async () => {
-    if (!order || !newStatus) return;
-
-    const result = await updateStatus(
-      order.id,
-      newStatus as OrderStatus,
-      statusNote || undefined,
-      adminUser?.id
-    );
-
-    if (result.success) {
-      // Send pickup_ready email when status changes to ready_for_pickup
-      if (newStatus === 'ready_for_pickup' && order.is_pickup) {
-        try {
-          const pickup = order.pickup_reservation;
-          const location = pickup?.location;
-
-          const pickupAddress = location
-            ? [location.address_line1, location.address_line2, `${location.city}, ${location.state} ${location.postal_code}`]
-                .filter(Boolean)
-                .join(', ')
-            : '';
-
-          const pickupDate = order.pickup_date
-            ? new Date(order.pickup_date).toLocaleDateString('en-US', {
-                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-              })
-            : '';
-
-          const pickupTime = order.pickup_time_start
-            ? `${formatPickupTime(order.pickup_time_start)}${order.pickup_time_end ? ` – ${formatPickupTime(order.pickup_time_end)}` : ''}`
-            : '';
-
-          supabase.functions.invoke('send-email', {
-            body: {
-              to: order.customer_email,
-              template: 'pickup_ready',
-              templateData: {
-                customer_name: order.customer_name || 'Valued Customer',
-                order_number: order.order_number,
-                pickup_location: location?.name || '',
-                pickup_address: pickupAddress,
-                pickup_date: pickupDate,
-                pickup_time: pickupTime,
-                pickup_instructions: location?.instructions || 'Please bring a valid ID and your order confirmation.',
-              },
-            },
-          });
-        } catch (emailErr) {
-          console.error('Failed to send pickup_ready email:', emailErr);
-        }
-      }
-
-      setNewStatus('');
-      setStatusNote('');
-      refetch();
-    }
   };
 
   // Handle add note
@@ -737,6 +678,190 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     URL.revokeObjectURL(url);
   };
 
+  const handlePrintInvoice = () => {
+    if (!order) return;
+
+    const orderItems = order.items || [];
+    const orderNum = order.order_number;
+    const orderDate = formatDate(order.created_at);
+    const paidDate = formatDate((order as any).paid_at);
+
+    // Line items
+    let itemsHtml = '';
+    orderItems.forEach((item) => {
+      itemsHtml += `
+        <tr>
+          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${item.product_name || 'Product'}</td>
+          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.unit_price)}</td>
+          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.line_total)}</td>
+        </tr>`;
+    });
+
+    // Bill To
+    const billName = `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || order.customer_name || '';
+    const billEmail = order.customer_email || '';
+    const billPhone = order.customer_phone || '';
+    const billStreet = order.billing_address_line1;
+    const billStreet2 = order.billing_address_line2;
+    const billCity = order.billing_city;
+    const billState = order.billing_state;
+    const billZip = order.billing_zip;
+    const billToHtml = `
+      <div>
+        <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Bill To</h3>
+        ${billName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${billName}</p>` : ''}
+        ${billEmail ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billEmail}</p>` : ''}
+        ${billPhone ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billPhone}</p>` : ''}
+        ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet}</p>` : ''}
+        ${billStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet2}</p>` : ''}
+        ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billCity || ''}${billCity && billState ? ', ' : ''}${billState || ''} ${billZip || ''}</p>` : ''}
+      </div>`;
+
+    // Ship To / Pickup
+    let deliveryHtml = '';
+    if (order.is_pickup) {
+      const pickupDate = order.pickup_date ? new Date(order.pickup_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+      const pickupStart = order.pickup_time_start ? formatPickupTime(order.pickup_time_start) : '';
+      const pickupEnd = order.pickup_time_end ? formatPickupTime(order.pickup_time_end) : '';
+      const timeRange = pickupStart && pickupEnd ? `${pickupStart} - ${pickupEnd}` : pickupStart || '';
+      deliveryHtml = `
+        <div>
+          <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Pickup</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5;">Local Pickup</p>
+          ${pickupDate ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${pickupDate}</p>` : ''}
+          ${timeRange ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${timeRange}</p>` : ''}
+        </div>`;
+    } else {
+      const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
+      const shipStreet = order.shipping_address_line1;
+      const shipStreet2 = order.shipping_address_line2;
+      const shipCity = order.shipping_city;
+      const shipState = order.shipping_state;
+      const shipZip = order.shipping_zip;
+      if (shipStreet) {
+        deliveryHtml = `
+          <div>
+            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
+            ${shipName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${shipName}</p>` : ''}
+            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet}</p>
+            ${shipStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet2}</p>` : ''}
+            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>
+          </div>`;
+      }
+    }
+
+    // Payment info
+    const payMethod = (order as any).payment_method || 'stripe';
+    const payLabel = payMethod === 'stripe' ? 'Credit Card (Stripe)' : payMethod.charAt(0).toUpperCase() + payMethod.slice(1);
+    const paymentHtml = `
+      <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
+        <strong style="color: #111827;">Payment:</strong> ${payLabel}
+        ${paidDate && paidDate !== 'N/A' ? ` &mdash; Paid ${paidDate}` : ''}
+      </div>`;
+
+    // Customer notes
+    const notesHtml = order.customer_notes ? `
+      <div style="font-size: 13px; color: #4b5563; line-height: 1.6; margin-top: 4px;">
+        <strong style="color: #111827;">Customer Notes:</strong> ${order.customer_notes}
+      </div>` : '';
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice #${orderNum} - ATL Urban Farms</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #111827; font-size: 14px; }
+          @media print {
+            body { padding: 20px; }
+            @page { size: portrait; margin: 0.5in; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 700px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; border-bottom: 3px solid #10b981; padding-bottom: 20px;">
+            <div>
+              <p style="margin: 0 0 4px; font-size: 18px; font-weight: 800; color: #10b981; letter-spacing: 0.5px;">ATL URBAN FARMS</p>
+              <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #111827;">INVOICE</h1>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0; font-weight: 700; font-size: 15px;">Order #${orderNum}</p>
+              <p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">Ordered: ${orderDate}</p>
+              ${paidDate && paidDate !== 'N/A' ? `<p style="margin: 2px 0 0; color: #6b7280; font-size: 13px;">Paid: ${paidDate}</p>` : ''}
+            </div>
+          </div>
+
+          <!-- Bill To / Ship To -->
+          <div style="display: flex; gap: 40px; margin-bottom: 28px;">
+            ${billToHtml}
+            ${deliveryHtml}
+          </div>
+
+          <!-- Line Items Table -->
+          ${itemsHtml ? `
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Product</th>
+                <th style="padding: 8px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
+                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Unit Price</th>
+                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Line Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          ` : '<p style="color: #6b7280; font-style: italic;">No line items.</p>'}
+
+          <!-- Totals Block -->
+          <div style="margin-left: auto; width: 260px;">
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Subtotal</span>
+              <span>${formatCurrency(order.subtotal)}</span>
+            </div>
+            ${order.discount_amount && order.discount_amount > 0 ? `
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #16a34a;">${(order as any).promotion_code ? `Discount (${(order as any).promotion_code})` : 'Discount'}</span>
+              <span style="color: #16a34a;">-${formatCurrency(order.discount_amount)}</span>
+            </div>` : ''}
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Shipping</span>
+              <span>${order.shipping_cost > 0 ? formatCurrency(order.shipping_cost) : (order.is_pickup ? 'Pickup' : '$0.00')}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+              <span style="color: #6b7280;">Tax</span>
+              <span>${formatCurrency(order.tax)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 16px;">
+              <span>Total</span>
+              <span>${formatCurrency(order.total)}</span>
+            </div>
+          </div>
+
+          <!-- Payment & Notes -->
+          <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            ${paymentHtml}
+            ${notesHtml}
+          </div>
+
+          <!-- Footer -->
+          <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
+            <p style="margin: 0;">Thank you for your order!</p>
+            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // --- Inline editing: start-edit helpers ---
   const startEditStatus = () => {
     if (!order) return;
@@ -795,14 +920,35 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     if (!order) return;
     setSavingStatus(true);
     try {
+      // Capture previous status BEFORE the update for history tracking
+      const previousStatus = order.status;
+      const newOrderStatus = statusForm.status;
+
       const { error: err } = await supabase.from('orders').update({
-        status: statusForm.status,
+        status: newOrderStatus,
         payment_status: statusForm.payment_status,
         internal_notes: statusForm.internal_notes || null,
         customer_notes: statusForm.customer_notes || null,
         updated_at: new Date().toISOString(),
       }).eq('id', order.id);
       if (err) throw err;
+
+      // Record status change in order_status_history if status actually changed
+      if (newOrderStatus !== previousStatus) {
+        const { error: historyError } = await supabase
+          .from('order_status_history')
+          .insert({
+            order_id: order.id,
+            status: newOrderStatus,
+            from_status: previousStatus || null,
+            changed_by: adminUser?.id || null,
+            change_source: 'admin',
+          });
+        if (historyError) {
+          console.warn('Could not add status history:', historyError);
+        }
+      }
+
       setToast({ message: 'Status & payment updated', type: 'success' });
       setEditingStatus(false);
       refetch();
@@ -1063,6 +1209,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               </p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
+              <button
+                onClick={handlePrintInvoice}
+                title="Print a clean invoice for this order"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Invoice
+              </button>
               <button
                 onClick={handleExport}
                 title="Download order data as JSON for backup or integration purposes"
@@ -1534,83 +1690,208 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               {canCreateLabel ? (
                 /* STATE A: Create Label Form */
                 <div className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">UPS Service</label>
-                    <select
-                      value={labelServiceCode}
-                      onChange={(e) => setLabelServiceCode(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    >
-                      <option value="ups_ground">UPS Ground</option>
-                      <option value="ups_2nd_day_air">UPS 2nd Day Air</option>
-                      <option value="ups_3_day_select">UPS 3 Day Select</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">Package Weight (lbs)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      value={labelWeight}
-                      onChange={(e) => setLabelWeight(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">Dimensions (inches)</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          value={labelLength}
-                          onChange={(e) => setLabelLength(parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          placeholder="L"
-                        />
-                        <span className="text-xs text-slate-400 mt-0.5 block text-center">Length</span>
+                  {/* Package List */}
+                  {labelPackages.map((pkg, i) => (
+                    <div key={i} className="border border-slate-200 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-600">Package {i + 1}</span>
+                        {labelPackages.length > 1 && (
+                          <button
+                            onClick={() => setLabelPackages(prev => prev.filter((_, idx) => idx !== i))}
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                            title="Remove package"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          value={labelWidth}
-                          onChange={(e) => setLabelWidth(parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          placeholder="W"
-                        />
-                        <span className="text-xs text-slate-400 mt-0.5 block text-center">Width</span>
-                      </div>
-                      <div>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          value={labelHeight}
-                          onChange={(e) => setLabelHeight(parseFloat(e.target.value) || 0)}
-                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                          placeholder="H"
-                        />
-                        <span className="text-xs text-slate-400 mt-0.5 block text-center">Height</span>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <input
+                            type="number" step="0.1" min="0.1"
+                            value={pkg.weight}
+                            onChange={(e) => setLabelPackages(prev => prev.map((p, idx) => idx === i ? { ...p, weight: parseFloat(e.target.value) || 0 } : p))}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                          />
+                          <span className="text-xs text-slate-400 mt-0.5 block text-center">lbs</span>
+                        </div>
+                        <div>
+                          <input
+                            type="number" step="0.1" min="1"
+                            value={pkg.length}
+                            onChange={(e) => setLabelPackages(prev => prev.map((p, idx) => idx === i ? { ...p, length: parseFloat(e.target.value) || 0 } : p))}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            placeholder="L"
+                          />
+                          <span className="text-xs text-slate-400 mt-0.5 block text-center">L</span>
+                        </div>
+                        <div>
+                          <input
+                            type="number" step="0.1" min="1"
+                            value={pkg.width}
+                            onChange={(e) => setLabelPackages(prev => prev.map((p, idx) => idx === i ? { ...p, width: parseFloat(e.target.value) || 0 } : p))}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            placeholder="W"
+                          />
+                          <span className="text-xs text-slate-400 mt-0.5 block text-center">W</span>
+                        </div>
+                        <div>
+                          <input
+                            type="number" step="0.1" min="1"
+                            value={pkg.height}
+                            onChange={(e) => setLabelPackages(prev => prev.map((p, idx) => idx === i ? { ...p, height: parseFloat(e.target.value) || 0 } : p))}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            placeholder="H"
+                          />
+                          <span className="text-xs text-slate-400 mt-0.5 block text-center">H</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
 
+                  {/* Add Package Button */}
+                  <button
+                    onClick={() => setLabelPackages(prev => [...prev, { weight: 2, length: 10, width: 8, height: 6 }])}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-dashed border-slate-300 rounded-lg hover:border-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Package
+                  </button>
+
+                  {/* Recalculate Rates Button */}
+                  <button
+                    onClick={async () => {
+                      if (!order) return;
+                      setRatesLoading(true);
+                      setLabelError(null);
+                      setFetchedRates([]);
+                      setSelectedRate(null);
+                      try {
+                        const shipTo = {
+                          name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
+                          address_line1: order.shipping_address_line1 || '',
+                          address_line2: order.shipping_address_line2 || '',
+                          city_locality: order.shipping_city || '',
+                          state_province: order.shipping_state || '',
+                          postal_code: order.shipping_zip || '',
+                          country_code: 'US',
+                        };
+                        const packages = labelPackages.map(pkg => ({
+                          weight: { value: pkg.weight, unit: 'pound' as const },
+                          dimensions: { length: pkg.length, width: pkg.width, height: pkg.height, unit: 'inch' as const },
+                        }));
+                        const { data, error: fnError } = await supabase.functions.invoke('shipengine-get-rates', {
+                          body: { ship_to: shipTo, packages },
+                        });
+                        if (fnError) throw new Error(fnError.message || 'Failed to fetch rates');
+                        if (!data.success) throw new Error(data.error?.message || 'Failed to fetch rates');
+                        setFetchedRates(data.rates || []);
+                        if ((data.rates || []).length === 0) {
+                          setLabelError('No rates returned. Check package dimensions and shipping address.');
+                        }
+                      } catch (err: any) {
+                        setLabelError(err.message || 'Failed to fetch rates');
+                      } finally {
+                        setRatesLoading(false);
+                      }
+                    }}
+                    disabled={ratesLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 border border-slate-200 disabled:opacity-50 transition-colors"
+                  >
+                    {ratesLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Fetching Rates...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Recalculate Rates
+                      </>
+                    )}
+                  </button>
+
+                  {/* Rates List */}
+                  {fetchedRates.length > 0 && (
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Select Rate</label>
+                      <div className="max-h-52 overflow-y-auto space-y-1.5 border border-slate-200 rounded-lg p-2">
+                        {fetchedRates.map((rate) => (
+                          <button
+                            key={rate.rate_id}
+                            onClick={async () => {
+                              setSelectedRate(rate);
+                              setLabelServiceCode(rate.service_code);
+                              if (!order) return;
+                              try {
+                                const { error: updateErr } = await supabase.from('orders').update({
+                                  shipping_rate_id: rate.rate_id,
+                                  shipping_cost: rate.shipping_amount,
+                                  shipping_method_name: `${rate.carrier_friendly_name} ${rate.service_type}`,
+                                  shipping_carrier_id: rate.carrier_id,
+                                  shipping_service_code: rate.service_code,
+                                  updated_at: new Date().toISOString(),
+                                }).eq('id', order.id);
+                                if (updateErr) console.error('Failed to save rate to order:', updateErr);
+                                else refetch();
+                              } catch (err) {
+                                console.error('Failed to save rate to order:', err);
+                              }
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                              selectedRate?.rate_id === rate.rate_id
+                                ? 'bg-emerald-50 border border-emerald-300 text-emerald-800'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{rate.carrier_friendly_name}</span>
+                              <span className="font-semibold">${rate.shipping_amount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-0.5">
+                              <span className="text-xs text-slate-500">{rate.service_type}</span>
+                              {rate.delivery_days != null && (
+                                <span className="text-xs text-slate-500">{rate.delivery_days} day{rate.delivery_days !== 1 ? 's' : ''}</span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fallback UPS Service dropdown (when no rates fetched) */}
+                  {fetchedRates.length === 0 && (
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">UPS Service</label>
+                      <select
+                        value={labelServiceCode}
+                        onChange={(e) => setLabelServiceCode(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      >
+                        <option value="ups_ground">UPS Ground</option>
+                        <option value="ups_2nd_day_air">UPS 2nd Day Air</option>
+                        <option value="ups_3_day_select">UPS 3 Day Select</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Create Shipping Label Button */}
                   <button
                     onClick={async () => {
                       setLabelCreating(true);
                       setLabelError(null);
+                      const packagesPayload = labelPackages.map(pkg => ({
+                        weight: { value: pkg.weight, unit: 'pound' as const },
+                        dimensions: { length: pkg.length, width: pkg.width, height: pkg.height, unit: 'inch' as const },
+                      }));
                       const result = await createLabel({
-                        service_code: labelServiceCode,
-                        package_weight_lbs: labelWeight,
-                        package_length: labelLength,
-                        package_width: labelWidth,
-                        package_height: labelHeight,
+                        service_code: selectedRate?.service_code || labelServiceCode,
+                        package_weight_lbs: labelPackages[0].weight,
+                        package_length: labelPackages[0].length,
+                        package_width: labelPackages[0].width,
+                        package_height: labelPackages[0].height,
+                        packages: packagesPayload,
                       });
                       setLabelCreating(false);
                       if (!result.success) {
@@ -1980,6 +2261,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       <span>Subtotal</span>
                       <span>{formatCurrency(order.subtotal)}</span>
                     </div>
+                    {(order.discount_amount ?? 0) > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>{order.promotion_code ? `Promo Code (${order.promotion_code})` : (order.discount_description || 'Discount')}</span>
+                        <span>-{formatCurrency(order.discount_amount)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-slate-600">
                       <span>Shipping</span>
                       <span>{formatCurrency(order.shipping_cost)}</span>
@@ -2130,8 +2417,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       <span>{formatCurrency(order.tax)}</span>
                     </div>
                     {(order.discount_amount ?? 0) > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>Discount</span>
+                      <div className="flex justify-between text-emerald-600">
+                        <span>{order.promotion_code ? `Promo Code (${order.promotion_code})` : (order.discount_description || 'Discount')}</span>
                         <span>-{formatCurrency(order.discount_amount)}</span>
                       </div>
                     )}

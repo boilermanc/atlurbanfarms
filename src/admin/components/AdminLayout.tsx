@@ -577,6 +577,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null);
   const [showGiftCardCreateModal, setShowGiftCardCreateModal] = useState(false);
   const [selectedBlogPostId, setSelectedBlogPostId] = useState<string | null>(null);
+  const [ordersInitialDateFilter, setOrdersInitialDateFilter] = useState<{ from: string; to: string } | null>(null);
   const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
@@ -728,6 +729,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     handleNavigate('gift-cards');
   };
 
+  const handleViewOrdersByDate = (date: string) => {
+    setOrdersInitialDateFilter({ from: date, to: date });
+    handleNavigate('orders');
+  };
+
   const handleBackToOrders = () => {
     setOrderContext(null);
     handleNavigate('orders');
@@ -747,7 +753,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
     switch (currentPage) {
       case 'orders':
-        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} />;
+        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} />;
       case 'order-detail':
         return selectedOrderId ? (
           <OrderDetailPage
@@ -829,7 +835,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'email-templates':
         return <EmailTemplatesPage />;
       case 'reports':
-        return <ReportsPage />;
+        return <ReportsPage onViewOrdersByDate={handleViewOrdersByDate} />;
       case 'users-roles':
         return <AdminUsersPage />;
       case 'audit-log':

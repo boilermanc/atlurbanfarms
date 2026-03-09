@@ -14,7 +14,7 @@ interface FulfillmentPageProps {
 
 const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   // Multi-select status filter state
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(['processing', 'pending_payment']));
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(['processing']));
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -95,7 +95,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
 
   // Clear all filters
   const clearFilters = () => {
-    setSelectedStatuses(new Set(['processing', 'pending_payment']));
+    setSelectedStatuses(new Set(['processing']));
     setDateFrom('');
     setDateTo('');
     setSearchTerm('');
@@ -104,9 +104,8 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   };
 
   // Check if any filters are active (beyond default)
-  const hasActiveFilters = selectedStatuses.size !== 2 ||
+  const hasActiveFilters = selectedStatuses.size !== 1 ||
     !selectedStatuses.has('processing') ||
-    !selectedStatuses.has('pending_payment') ||
     dateFrom || dateTo || searchTerm;
 
   // Selection handlers
@@ -226,141 +225,158 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
       });
     };
 
+    const getDeliveryBadge = (order: Order) => {
+      if (order.is_pickup) return { label: 'P', cls: 'badge-pickup', text: 'PICKUP' };
+      return { label: 'S', cls: 'badge-ship', text: 'SHIP' };
+    };
+
+    const getPickupInfo = (order: Order) => {
+      const res = order.pickup_reservation;
+      const locName = res?.location?.name || 'TBD';
+      const date = order.pickup_date || res?.pickup_date;
+      const start = order.pickup_time_start || res?.pickup_time_start;
+      const end = order.pickup_time_end || res?.pickup_time_end;
+      let dateStr = '';
+      if (date) {
+        const d = new Date(date + 'T00:00:00');
+        dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+      let timeStr = '';
+      if (start && end) {
+        const fmt = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+        };
+        timeStr = `${fmt(start)} – ${fmt(end)}`;
+      }
+      return { locName, dateStr, timeStr };
+    };
+
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Pick Lists - ATL Urban Farms</title>
+        <title>Packing Lists - ATL Urban Farms</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; }
-          .order { page-break-after: always; padding: 20px; }
-          .order:last-child { page-break-after: auto; }
-          .header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
-          .header h1 { font-size: 24px; margin-bottom: 5px; }
-          .header .order-number { font-family: monospace; font-size: 20px; font-weight: bold; }
-          .header .date { color: #666; font-size: 12px; }
-          .section { margin-bottom: 20px; }
-          .section-title { font-weight: bold; font-size: 12px; text-transform: uppercase; color: #666; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-          .customer-info { display: flex; gap: 40px; }
-          .customer-info div { flex: 1; }
-          .customer-info p { margin: 4px 0; }
-          .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .items-table th, .items-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-          .items-table th { background: #f5f5f5; font-size: 11px; text-transform: uppercase; }
-          .items-table .qty { text-align: center; font-weight: bold; font-size: 18px; width: 60px; }
-          .items-table .product { font-weight: 500; }
-          .items-table .price { text-align: right; width: 100px; }
-          .items-table .checkbox { width: 40px; text-align: center; }
-          .items-table .checkbox-box { display: inline-block; width: 20px; height: 20px; border: 2px solid #000; }
-          .totals { margin-top: 20px; text-align: right; }
-          .totals table { margin-left: auto; }
-          .totals td { padding: 4px 12px; }
-          .totals .total-row { font-weight: bold; font-size: 16px; border-top: 2px solid #000; }
-          .shipping-address { background: #f9f9f9; padding: 12px; border-radius: 4px; }
-          .notes { background: #fff9e6; padding: 12px; border-radius: 4px; border: 1px solid #f0e6cc; }
-          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b; }
+
+          .order-block { page-break-after: always; padding: 24px; }
+          .order-block:last-child { page-break-after: auto; }
+
+          /* Header row */
+          .order-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 16px; }
+          .order-header-left { display: flex; align-items: baseline; gap: 16px; }
+          .order-number { font-family: monospace; font-size: 22px; font-weight: 800; }
+          .customer-name { font-size: 18px; font-weight: 700; }
+          .order-date { color: #64748b; font-size: 12px; }
+          .badge { display: inline-block; padding: 4px 14px; border-radius: 4px; font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+          .badge-ship { background: #dbeafe; color: #1e40af; border: 2px solid #1e40af; }
+          .badge-pickup { background: #fef3c7; color: #92400e; border: 2px solid #92400e; }
+
+          /* Delivery block */
+          .delivery-block { margin-bottom: 20px; padding: 14px; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .delivery-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; }
+          .delivery-block p { margin: 3px 0; font-size: 14px; }
+          .delivery-block .loc-name { font-weight: 700; font-size: 15px; }
+
+          /* Items table */
+          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          .items-table th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+          .items-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+          .items-table .col-pick { width: 44px; text-align: center; }
+          .items-table .col-qty { width: 64px; text-align: center; font-weight: 800; font-size: 20px; }
+          .items-table .col-product { font-weight: 600; font-size: 15px; }
+          .checkbox-box { display: inline-block; width: 22px; height: 22px; border: 2px solid #000; border-radius: 3px; }
+
+          /* Customer notes */
+          .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+          .customer-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #854d0e; margin-bottom: 4px; }
+          .customer-note-text { font-size: 14px; line-height: 1.5; }
+
+          /* Internal notes */
+          .internal-note { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+          .internal-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #0369a1; margin-bottom: 4px; }
+          .internal-note-text { font-size: 14px; line-height: 1.5; }
+
+          /* Separator */
+          .order-separator { border: none; border-top: 2px dashed #94a3b8; margin: 24px 0 0 0; }
+
           @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .order-block { padding: 16px 0; }
           }
         </style>
       </head>
       <body>
-        ${ordersToPrint.map(order => `
-          <div class="order">
-            <div class="header">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                  <h1>Pick List</h1>
-                  <div class="order-number">${order.order_number}</div>
-                  <div class="date">${formatDateForPrint(order.created_at)}</div>
-                </div>
-                <div>
-                  <span class="status-badge">${formatStatusLabel(order.status)}</span>
-                </div>
+        ${ordersToPrint.map(order => {
+          const badge = getDeliveryBadge(order);
+          const pickup = order.is_pickup ? getPickupInfo(order) : null;
+          return `
+          <div class="order-block">
+            <div class="order-header">
+              <div class="order-header-left">
+                <span class="order-number">${order.order_number}</span>
+                <span class="customer-name">${order.customer_name || 'Guest'}</span>
+                <span class="badge ${badge.cls}">${badge.text}</span>
               </div>
+              <div class="order-date">${formatDateForPrint(order.created_at)}</div>
             </div>
 
-            <div class="section">
-              <div class="section-title">Customer & Shipping</div>
-              <div class="customer-info">
-                <div>
-                  <p><strong>${order.customer_name || 'Guest'}</strong></p>
-                  <p>${order.customer_email}</p>
-                  ${order.customer_phone ? `<p>${order.customer_phone}</p>` : ''}
-                </div>
-                <div class="shipping-address">
-                  ${order.shipping_address ? `
-                    <p><strong>${order.shipping_address.name}</strong></p>
-                    <p>${order.shipping_address.street}</p>
-                    ${order.shipping_address.street2 ? `<p>${order.shipping_address.street2}</p>` : ''}
-                    <p>${order.shipping_address.city}, ${order.shipping_address.state} ${order.shipping_address.zip}</p>
-                  ` : '<p>No shipping address</p>'}
-                </div>
-              </div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">Items to Pick</div>
-              <table class="items-table">
-                <thead>
-                  <tr>
-                    <th class="checkbox">Pick</th>
-                    <th class="qty">Qty</th>
-                    <th class="product">Product</th>
-                    <th class="price">Unit Price</th>
-                    <th class="price">Line Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${(order.items || []).map(item => `
-                    <tr>
-                      <td class="checkbox"><span class="checkbox-box"></span></td>
-                      <td class="qty">${item.quantity}</td>
-                      <td class="product">${item.product_name}</td>
-                      <td class="price">${formatCurrencyForPrint(item.unit_price)}</td>
-                      <td class="price">${formatCurrencyForPrint(item.line_total)}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-
-            <div class="totals">
-              <table>
-                <tr>
-                  <td>Subtotal:</td>
-                  <td>${formatCurrencyForPrint(order.subtotal)}</td>
-                </tr>
-                <tr>
-                  <td>Shipping (${order.shipping_method || 'Standard'}):</td>
-                  <td>${formatCurrencyForPrint(order.shipping_cost)}</td>
-                </tr>
-                <tr>
-                  <td>Tax:</td>
-                  <td>${formatCurrencyForPrint(order.tax)}</td>
-                </tr>
-                <tr class="total-row">
-                  <td>Total:</td>
-                  <td>${formatCurrencyForPrint(order.total)}</td>
-                </tr>
-              </table>
+            <div class="delivery-block">
+              ${order.is_pickup ? `
+                <div class="delivery-label">Pickup Details</div>
+                <p class="loc-name">${pickup!.locName}</p>
+                ${pickup!.dateStr ? `<p>${pickup!.dateStr}</p>` : ''}
+                ${pickup!.timeStr ? `<p>${pickup!.timeStr}</p>` : ''}
+              ` : `
+                <div class="delivery-label">Ship To</div>
+                ${order.shipping_address ? `
+                  <p><strong>${order.shipping_address.name}</strong></p>
+                  <p>${order.shipping_address.street}</p>
+                  ${order.shipping_address.street2 ? `<p>${order.shipping_address.street2}</p>` : ''}
+                  <p>${order.shipping_address.city}, ${order.shipping_address.state} ${order.shipping_address.zip}</p>
+                ` : '<p>No shipping address</p>'}
+              `}
             </div>
 
             ${order.customer_notes ? `
-              <div class="section" style="margin-top: 20px;">
-                <div class="section-title">Customer Notes</div>
-                <div class="notes">${escapeHtml(order.customer_notes).replace(/\n/g, '<br>')}</div>
+              <div class="customer-note">
+                <div class="customer-note-label">Customer Note</div>
+                <div class="customer-note-text">${escapeHtml(order.customer_notes).replace(/\n/g, '<br>')}</div>
               </div>
             ` : ''}
+
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th class="col-pick">Pick</th>
+                  <th class="col-qty">Qty</th>
+                  <th class="col-product">Product</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(order.items || []).map(item => `
+                  <tr>
+                    <td class="col-pick"><span class="checkbox-box"></span></td>
+                    <td class="col-qty">${item.quantity}</td>
+                    <td class="col-product">${item.product_name}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
             ${order.internal_notes ? `
-              <div class="section" style="margin-top: 20px;">
-                <div class="section-title">Internal Notes</div>
-                <div class="notes">${escapeHtml(order.internal_notes).replace(/\n/g, '<br>')}</div>
+              <div class="internal-note">
+                <div class="internal-note-label">Internal Notes</div>
+                <div class="internal-note-text">${escapeHtml(order.internal_notes).replace(/\n/g, '<br>')}</div>
               </div>
             ` : ''}
-          </div>
-        `).join('')}
+
+            <hr class="order-separator" />
+          </div>`;
+        }).join('')}
       </body>
       </html>
     `;
@@ -407,6 +423,17 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
             line_total,
             products (
               name
+            )
+          ),
+          pickup_reservations (
+            id,
+            pickup_date,
+            pickup_time_start,
+            pickup_time_end,
+            status,
+            notes,
+            pickup_locations (
+              id, name, address_line1, city, state, postal_code
             )
           )
         `)
@@ -478,6 +505,15 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
         pickup_date: order.pickup_date,
         pickup_time_start: order.pickup_time_start,
         pickup_time_end: order.pickup_time_end,
+        pickup_reservation: order.pickup_reservations?.[0] ? {
+          id: order.pickup_reservations[0].id,
+          location: order.pickup_reservations[0].pickup_locations,
+          pickup_date: order.pickup_reservations[0].pickup_date,
+          pickup_time_start: order.pickup_reservations[0].pickup_time_start,
+          pickup_time_end: order.pickup_reservations[0].pickup_time_end,
+          status: order.pickup_reservations[0].status,
+          notes: order.pickup_reservations[0].notes,
+        } : undefined,
       }));
 
       openPrintWindow(filteredOrders);

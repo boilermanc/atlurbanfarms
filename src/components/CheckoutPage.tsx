@@ -3329,7 +3329,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
           {/* Right Column: Order Summary */}
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-32">
+            <div className="lg:sticky lg:top-32 lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

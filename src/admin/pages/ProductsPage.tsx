@@ -32,6 +32,8 @@ interface Product {
   primary_image: ProductImage | null;
   created_at: string;
   purchase_count?: number;
+  new_purchase_count?: number;
+  legacy_purchase_count?: number;
   product_type?: string;
   stock_status?: string;
   track_inventory?: boolean;
@@ -91,26 +93,53 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
         .order('name', { ascending: true });
       if (supabaseError) throw supabaseError;
 
-      // Fetch purchase counts from order_items (excluding cancelled orders)
-      const { data: orderItemsData, error: orderItemsError } = await supabase
-        .from('order_items')
-        .select('product_id, quantity, orders!inner(status)');
+      // Fetch purchase counts from both new and legacy order items
+      const [orderItemsResult, legacyItemsResult] = await Promise.all([
+        supabase
+          .from('order_items')
+          .select('product_id, quantity, orders!inner(status)'),
+        supabase
+          .from('legacy_order_items')
+          .select('product_id, woo_product_id, quantity'),
+      ]);
 
-      if (orderItemsError) throw orderItemsError;
+      if (orderItemsResult.error) throw orderItemsResult.error;
+      if (legacyItemsResult.error) throw legacyItemsResult.error;
 
-      // Calculate total purchases per product
-      const purchaseCounts: Record<string, number> = {};
-      (orderItemsData || []).forEach((item: any) => {
+      // Build woo_id → product UUID map for legacy items missing product_id
+      const wooIdToProductId: Record<number, string> = {};
+      (data || []).forEach((p: any) => {
+        if (p.woo_id) wooIdToProductId[p.woo_id] = p.id;
+      });
+
+      // Tally new-platform purchases (excluding cancelled orders)
+      const newCounts: Record<string, number> = {};
+      (orderItemsResult.data || []).forEach((item: any) => {
         if (item.orders?.status !== 'cancelled') {
-          purchaseCounts[item.product_id] = (purchaseCounts[item.product_id] || 0) + item.quantity;
+          newCounts[item.product_id] = (newCounts[item.product_id] || 0) + item.quantity;
         }
       });
 
-      const productsWithPrimaryImage = (data || []).map(product => ({
-        ...product,
-        primary_image: product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0] || null,
-        purchase_count: purchaseCounts[product.id] || 0
-      }));
+      // Tally legacy WooCommerce purchases
+      const legacyCounts: Record<string, number> = {};
+      (legacyItemsResult.data || []).forEach((item: any) => {
+        const productId = item.product_id || (item.woo_product_id && wooIdToProductId[item.woo_product_id]);
+        if (productId) {
+          legacyCounts[productId] = (legacyCounts[productId] || 0) + item.quantity;
+        }
+      });
+
+      const productsWithPrimaryImage = (data || []).map(product => {
+        const newCount = newCounts[product.id] || 0;
+        const legacyCount = legacyCounts[product.id] || 0;
+        return {
+          ...product,
+          primary_image: product.images?.find((img: ProductImage) => img.is_primary) || product.images?.[0] || null,
+          purchase_count: newCount + legacyCount,
+          new_purchase_count: newCount,
+          legacy_purchase_count: legacyCount,
+        };
+      });
       // Enrich bundle products with computed stock from component items
       const enrichedProducts = await enrichBundleStock(productsWithPrimaryImage);
       setProducts(enrichedProducts);
@@ -412,7 +441,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                         <span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span>
                       )}
                     </td>
-                    <td className="py-4 px-6"><span className="text-slate-600 font-medium">{product.purchase_count || 0}</span></td>
+                    <td className="py-4 px-6">
+                      <span
+                        className="text-slate-600 font-medium"
+                        title={product.legacy_purchase_count ? `${product.purchase_count} total (${product.new_purchase_count} new + ${product.legacy_purchase_count} legacy)` : undefined}
+                      >
+                        {product.purchase_count || 0}
+                      </span>
+                    </td>
                     <td className="py-4 px-6" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleToggleActive(product)}

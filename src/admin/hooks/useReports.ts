@@ -128,21 +128,34 @@ export function useSalesReport(startDate: string, endDate: string) {
       const startISO = formatDateForQuery(startDate);
       const endISO = getEndOfDay(endDate);
 
-      // Fetch orders within date range
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('id, total, created_at, status')
-        .gte('created_at', startISO)
-        .lte('created_at', endISO)
-        .neq('status', 'cancelled');
+      // Fetch both platform orders and legacy WooCommerce orders in parallel
+      const [platformResult, legacyResult] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('id, total, created_at, status, deleted_at')
+          .gte('created_at', startISO)
+          .lte('created_at', endISO)
+          .neq('status', 'cancelled')
+          .is('deleted_at', null),
+        supabase
+          .from('legacy_orders')
+          .select('id, total, order_date, status')
+          .gte('order_date', startISO)
+          .lte('order_date', endISO)
+          .neq('status', 'cancelled'),
+      ]);
 
-      if (ordersError) throw ordersError;
+      if (platformResult.error) throw platformResult.error;
+      if (legacyResult.error) throw legacyResult.error;
 
-      const orders = ordersData || [];
+      const platformOrders = platformResult.data || [];
+      const legacyOrders = legacyResult.data || [];
 
-      // Calculate summary
-      const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
-      const totalOrders = orders.length;
+      // Calculate summary from both sources
+      const platformRevenue = platformOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const legacyRevenue = legacyOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const totalRevenue = platformRevenue + legacyRevenue;
+      const totalOrders = platformOrders.length + legacyOrders.length;
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
       // Group by day for daily sales
@@ -157,9 +170,19 @@ export function useSalesReport(startDate: string, endDate: string) {
         current.setDate(current.getDate() + 1);
       }
 
-      // Populate with actual data
-      orders.forEach((order) => {
+      // Populate with platform orders
+      platformOrders.forEach((order) => {
         const dateKey = new Date(order.created_at).toISOString().split('T')[0];
+        const existing = dailySalesMap.get(dateKey) || { revenue: 0, orders: 0 };
+        dailySalesMap.set(dateKey, {
+          revenue: existing.revenue + (order.total || 0),
+          orders: existing.orders + 1,
+        });
+      });
+
+      // Populate with legacy orders
+      legacyOrders.forEach((order) => {
+        const dateKey = new Date(order.order_date).toISOString().split('T')[0];
         const existing = dailySalesMap.get(dateKey) || { revenue: 0, orders: 0 };
         dailySalesMap.set(dateKey, {
           revenue: existing.revenue + (order.total || 0),

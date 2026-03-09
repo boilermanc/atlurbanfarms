@@ -8,7 +8,7 @@ import {
   useCustomersReport,
   useShippingReport,
 } from '../hooks/useReports';
-import { DollarSign, Package, Users, Truck, Download } from 'lucide-react';
+import { DollarSign, Package, Users, Truck, Download, ExternalLink } from 'lucide-react';
 
 type ReportType = 'sales' | 'products' | 'customers' | 'shipping';
 type DatePreset = 'today' | 'week' | 'month' | 'custom';
@@ -27,7 +27,11 @@ const DATE_PRESETS: { id: DatePreset; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
-const ReportsPage: React.FC = () => {
+interface ReportsPageProps {
+  onViewOrdersByDate?: (date: string) => void;
+}
+
+const ReportsPage: React.FC<ReportsPageProps> = ({ onViewOrdersByDate }) => {
   const [activeReport, setActiveReport] = useState<ReportType>('sales');
   const [datePreset, setDatePreset] = useState<DatePreset>('month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
@@ -327,6 +331,9 @@ const ReportsPage: React.FC = () => {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Date</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Orders</th>
                             <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Revenue</th>
+                            {onViewOrdersByDate && (
+                              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase"></th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -337,6 +344,17 @@ const ReportsPage: React.FC = () => {
                               <td className="px-6 py-3 text-right text-emerald-600 font-medium">
                                 {formatCurrency(day.revenue)}
                               </td>
+                              {onViewOrdersByDate && (
+                                <td className="px-6 py-3 text-right">
+                                  <button
+                                    onClick={() => onViewOrdersByDate(day.date)}
+                                    className="inline-flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                                  >
+                                    View Orders
+                                    <ExternalLink size={14} />
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
