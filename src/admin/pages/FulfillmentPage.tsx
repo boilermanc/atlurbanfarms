@@ -200,7 +200,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   const escapeHtml = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
-  const openPrintWindow = useCallback((ordersToPrint: Order[]) => {
+  const openPrintWindow = useCallback(async (ordersToPrint: Order[]) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Please allow popups to print orders');
@@ -252,6 +252,36 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
       }
       return { locName, dateStr, timeStr };
     };
+
+    // Fetch bundle children for all products in these orders
+    const allProductIds = [...new Set(ordersToPrint.flatMap(o => (o.items || []).map(i => i.product_id)).filter(Boolean))];
+    const bundleChildrenMap: Record<string, { name: string; quantity: number }[]> = {};
+    if (allProductIds.length > 0) {
+      const { data: bundleData } = await supabase
+        .from('product_relationships')
+        .select('parent_product_id, child_product_id, quantity, sort_order')
+        .in('parent_product_id', allProductIds)
+        .eq('relationship_type', 'bundle')
+        .order('sort_order');
+      if (bundleData && bundleData.length > 0) {
+        const childIds = [...new Set(bundleData.map(r => r.child_product_id))];
+        const { data: childProducts } = await supabase
+          .from('products')
+          .select('id, name')
+          .in('id', childIds);
+        const productNameMap: Record<string, string> = {};
+        (childProducts || []).forEach((p: any) => { productNameMap[p.id] = p.name; });
+        for (const rel of bundleData) {
+          if (!bundleChildrenMap[rel.parent_product_id]) {
+            bundleChildrenMap[rel.parent_product_id] = [];
+          }
+          bundleChildrenMap[rel.parent_product_id].push({
+            name: productNameMap[rel.child_product_id] || 'Unknown',
+            quantity: rel.quantity || 1,
+          });
+        }
+      }
+    }
 
     const html = `
       <!DOCTYPE html>
@@ -357,13 +387,32 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
                 </tr>
               </thead>
               <tbody>
-                ${(order.items || []).map(item => `
-                  <tr>
-                    <td class="col-pick"><span class="checkbox-box"></span></td>
-                    <td class="col-qty">${item.quantity}</td>
-                    <td class="col-product">${item.product_name}</td>
-                  </tr>
-                `).join('')}
+                ${(order.items || []).map(item => {
+                  const children = bundleChildrenMap[item.product_id];
+                  if (children && children.length > 0) {
+                    return `
+                      <tr style="background: #f8fafc;">
+                        <td class="col-pick"></td>
+                        <td class="col-qty">${item.quantity}</td>
+                        <td class="col-product">${item.product_name} <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">BUNDLE</span></td>
+                      </tr>
+                      ${children.map(child => `
+                        <tr>
+                          <td class="col-pick"><span class="checkbox-box"></span></td>
+                          <td class="col-qty">${child.quantity * item.quantity}</td>
+                          <td class="col-product" style="padding-left: 36px; font-size: 13px; color: #475569;">${child.name}</td>
+                        </tr>
+                      `).join('')}
+                    `;
+                  }
+                  return `
+                    <tr>
+                      <td class="col-pick"><span class="checkbox-box"></span></td>
+                      <td class="col-qty">${item.quantity}</td>
+                      <td class="col-product">${item.product_name}</td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
 
@@ -388,10 +437,10 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
     };
   }, []);
 
-  const handlePrintSelected = useCallback(() => {
+  const handlePrintSelected = useCallback(async () => {
     const ordersToPrint = orders.filter(o => selectedOrders.has(o.id));
     if (ordersToPrint.length === 0) return;
-    openPrintWindow(ordersToPrint);
+    await openPrintWindow(ordersToPrint);
   }, [orders, selectedOrders, openPrintWindow]);
 
   const handlePrintAllFiltered = useCallback(async () => {
@@ -516,7 +565,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
         } : undefined,
       }));
 
-      openPrintWindow(filteredOrders);
+      await openPrintWindow(filteredOrders);
     } catch (err: any) {
       console.error('Error fetching orders for print:', err);
       alert('Failed to fetch orders: ' + err.message);

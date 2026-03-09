@@ -308,7 +308,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
   }, [clearSelection]);
 
   // Print functions
-  const openPrintWindow = useCallback((ordersToprint: Order[]) => {
+  const openPrintWindow = useCallback(async (ordersToprint: Order[]) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Please allow popups to print orders');
@@ -323,6 +323,36 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     };
+
+    // Fetch bundle children for all products in these orders
+    const allProductIds = [...new Set(ordersToprint.flatMap(o => (o.items || []).map(i => i.product_id)).filter(Boolean))];
+    const bundleChildrenMap: Record<string, { name: string; quantity: number }[]> = {};
+    if (allProductIds.length > 0) {
+      const { data: bundleData } = await supabase
+        .from('product_relationships')
+        .select('parent_product_id, child_product_id, quantity, sort_order')
+        .in('parent_product_id', allProductIds)
+        .eq('relationship_type', 'bundle')
+        .order('sort_order');
+      if (bundleData && bundleData.length > 0) {
+        const childIds = [...new Set(bundleData.map(r => r.child_product_id))];
+        const { data: childProducts } = await supabase
+          .from('products')
+          .select('id, name')
+          .in('id', childIds);
+        const productNameMap: Record<string, string> = {};
+        (childProducts || []).forEach((p: any) => { productNameMap[p.id] = p.name; });
+        for (const rel of bundleData) {
+          if (!bundleChildrenMap[rel.parent_product_id]) {
+            bundleChildrenMap[rel.parent_product_id] = [];
+          }
+          bundleChildrenMap[rel.parent_product_id].push({
+            name: productNameMap[rel.child_product_id] || 'Unknown',
+            quantity: rel.quantity || 1,
+          });
+        }
+      }
+    }
 
     const html = `<!DOCTYPE html><html><head><title>Pick Lists - ATL Urban Farms</title><style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -374,7 +404,14 @@ ${ordersToprint.map(order => `<div class="order">
   </div></div>
   <div class="section"><div class="section-title">Items to Pick</div>
     <table class="items-table"><thead><tr><th class="checkbox">Pick</th><th class="qty">Qty</th><th class="product">Product</th><th class="price">Unit Price</th><th class="price">Line Total</th></tr></thead>
-    <tbody>${(order.items || []).map(item => `<tr><td class="checkbox"><span class="checkbox-box"></span></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name}</td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>`).join('')}</tbody></table>
+    <tbody>${(order.items || []).map(item => {
+      const children = bundleChildrenMap[item.product_id];
+      if (children && children.length > 0) {
+        return `<tr style="background: #f5f5f5;"><td class="checkbox"></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name} <span style="font-size: 10px; color: #888; font-weight: bold;">BUNDLE</span></td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>` +
+          children.map(child => `<tr><td class="checkbox"><span class="checkbox-box"></span></td><td class="qty">${child.quantity * item.quantity}</td><td class="product" style="padding-left: 32px; font-size: 13px; color: #555;">${child.name}</td><td class="price"></td><td class="price"></td></tr>`).join('');
+      }
+      return `<tr><td class="checkbox"><span class="checkbox-box"></span></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name}</td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>`;
+    }).join('')}</tbody></table>
   </div>
   <div class="totals"><table><tr><td>Subtotal:</td><td>${formatCurrencyForPrint(order.subtotal)}</td></tr><tr><td>Shipping (${order.shipping_method || 'Standard'}):</td><td>${formatCurrencyForPrint(order.shipping_cost)}</td></tr><tr><td>Tax:</td><td>${formatCurrencyForPrint(order.tax)}</td></tr><tr class="total-row"><td>Total:</td><td>${formatCurrencyForPrint(order.total)}</td></tr></table></div>
   ${order.internal_notes ? `<div class="section" style="margin-top: 20px;"><div class="section-title">Internal Notes</div><div class="notes">${order.internal_notes.replace(/\n/g, '<br>')}</div></div>` : ''}
@@ -386,10 +423,10 @@ ${ordersToprint.map(order => `<div class="order">
     printWindow.onload = () => { printWindow.print(); };
   }, []);
 
-  const handlePrintSelected = useCallback(() => {
+  const handlePrintSelected = useCallback(async () => {
     const ordersToPrint = orders.filter(o => selectedOrders.has(o.id));
     if (ordersToPrint.length === 0) return;
-    openPrintWindow(ordersToPrint);
+    await openPrintWindow(ordersToPrint);
   }, [orders, selectedOrders, openPrintWindow]);
 
   const handlePrintAllProcessing = useCallback(async () => {
@@ -416,7 +453,7 @@ ${ordersToprint.map(order => `<div class="order">
         items: (order.order_items || []).map((item: any) => ({ id: item.id, product_id: item.product_id, product_name: item.product_name || item.products?.name || 'Unknown Product', product_image: null, quantity: item.quantity, unit_price: item.product_price, line_total: item.line_total })),
       }));
 
-      openPrintWindow(processingOrders);
+      await openPrintWindow(processingOrders);
     } catch (err: any) {
       console.error('Error fetching processing orders:', err);
       alert('Failed to fetch processing orders: ' + err.message);

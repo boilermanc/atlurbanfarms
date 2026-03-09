@@ -124,6 +124,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [labelError, setLabelError] = useState<string | null>(null);
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [copiedTracking, setCopiedTracking] = useState(false);
+  const [overridePickup, setOverridePickup] = useState(false);
   // Rates state
   const [fetchedRates, setFetchedRates] = useState<Array<{ rate_id: string; carrier_id: string; carrier_code: string; carrier_friendly_name: string; service_code: string; service_type: string; shipping_amount: number; currency: string; delivery_days: number | null; estimated_delivery_date: string | null; guaranteed_service: boolean }>>([]);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -1429,6 +1430,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       : 'Time not specified'}
                   </p>
                 </div>
+
+                {/* Override: allow creating a shipping label on a pickup order */}
+                {!overridePickup && !shipment && (
+                  <div className="border-t border-slate-200 pt-4 print:hidden">
+                    <button
+                      onClick={() => setOverridePickup(true)}
+                      className="text-sm text-amber-600 underline hover:text-amber-800"
+                    >
+                      Create shipping label anyway (override)
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -1672,8 +1685,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           </div>
         </div>
 
-        {/* Section 5: Shipping Label — only for shipping orders */}
-        {!order.is_pickup && (
+        {/* Section 5: Shipping Label — only for shipping orders (or pickup with override/existing label) */}
+        {(!order.is_pickup || overridePickup || shipment) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Label</h2>
