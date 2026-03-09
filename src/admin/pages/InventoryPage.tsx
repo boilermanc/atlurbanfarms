@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { Printer } from 'lucide-react';
 import InventoryPrintReport, { InventoryReportRow } from '../components/InventoryPrintReport';
 
-const UNFULFILLED_ORDER_STATUSES = ['pending_payment', 'processing', 'on_hold'];
+const UNFULFILLED_ORDER_STATUSES = ['processing', 'on_hold'];
 
 interface InventoryPageProps {
   onNavigateToBatchEdit?: (batchId?: string) => void;

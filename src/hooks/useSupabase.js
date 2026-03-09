@@ -380,6 +380,7 @@ export function useCombinedOrders(customerId) {
             )
           `)
           .eq('customer_id', customerId)
+          .not('status', 'in', '("pending_payment","failed")')
           .order('created_at', { ascending: false })
 
         if (newOrdersResult.error) {
@@ -1160,6 +1161,7 @@ export function useCreateOrder() {
     promotionCode = null,
     discountAmount = 0,
     discountDescription = null,
+    promotionDiscount = 0, // promo-only discount (excludes credits/gift cards)
     // Customer notes
     customerNotes = null,
     // Growing system
@@ -1249,6 +1251,29 @@ export function useCreateOrder() {
         tax_note: taxNote
       }
 
+      // Re-validate promotion at order creation time to enforce per-customer limits
+      // This prevents TOCTOU race conditions between "Apply Promo" and "Place Order"
+      if (promotionId && promotionCode) {
+        const promoCartItems = cartItems.map(item => ({
+          product_id: item.id || item.product?.id,
+          quantity: item.quantity,
+          price: item.price || item.product?.price
+        }))
+        const { data: promoCheck, error: promoError } = await supabase.rpc('calculate_cart_discount', {
+          p_cart_items: promoCartItems,
+          p_coupon_code: promotionCode,
+          p_customer_id: customerId || null,
+          p_customer_email: customerInfo.email || null
+        })
+        if (promoError) {
+          console.error('Error re-validating promotion:', promoError)
+          throw new Error('Could not validate promotion. Please try again.')
+        }
+        if (promoCheck && !promoCheck.valid) {
+          throw new Error(promoCheck.message || 'This promotion is no longer valid. Please remove it and try again.')
+        }
+      }
+
       // Prepare order items for RPC
       const orderItems = cartItems.map(item => ({
         product_id: item.id || item.product?.id,
@@ -1279,31 +1304,25 @@ export function useCreateOrder() {
       // Order created successfully - now handle non-critical updates
 
       // Record promotion usage if a promotion was applied
-      if (promotionId && discountAmount > 0) {
-        const { error: usageError } = await supabase
-          .from('promotion_usage')
-          .insert({
-            promotion_id: promotionId,
-            order_id: result.order_id,
-            customer_id: customerId,
-            customer_email: customerInfo.email,
-            discount_amount: discountAmount
+      // Uses record_promotion_usage RPC which atomically inserts the usage row
+      // AND increments times_used / total_discount_given on the promotions table
+      if (promotionId) {
+        const promoAmt = promotionDiscount || 0
+        if (promoAmt > 0) {
+          const { data: usageResult, error: usageError } = await supabase.rpc('record_promotion_usage', {
+            p_promotion_id: promotionId,
+            p_order_id: result.order_id,
+            p_customer_id: customerId || null,
+            p_customer_email: customerInfo.email,
+            p_discount_amount: promoAmt
           })
 
-        if (usageError) {
-          console.error('Error recording promotion usage:', usageError)
-          // Don't fail the order if usage tracking fails - the order itself succeeded
-        }
-
-        // Update promotion stats
-        const { error: statsError } = await supabase.rpc('increment_promotion_usage', {
-          p_promotion_id: promotionId,
-          p_discount_amount: discountAmount
-        })
-
-        if (statsError) {
-          console.error('Error updating promotion stats:', statsError)
-          // Don't fail the order if stats update fails
+          if (usageError) {
+            console.error('Error recording promotion usage:', usageError)
+            // Don't fail the order if usage tracking fails - the order itself succeeded
+          } else if (usageResult && !usageResult.success) {
+            console.error('Error recording promotion usage:', usageResult.error)
+          }
         }
       }
 
@@ -1392,7 +1411,7 @@ export function useCreateOrder() {
           id: result.order_id,
           order_number: result.order_number,
           ...orderData,
-          status: 'pending_payment',
+          status: paymentStatus === 'paid' ? 'processing' : 'pending_payment',
           items: cartItems.map(item => ({
             id: item.id || item.product?.id,
             name: item.name || item.product?.name,

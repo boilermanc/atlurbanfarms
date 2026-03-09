@@ -167,7 +167,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
         const { count: pendingCount } = await supabase
           .from('orders')
           .select('*', { count: 'exact', head: true })
-          .in('status', ['pending_payment', 'processing', 'on_hold']);
+          .in('status', ['processing', 'on_hold']);
 
         // Fetch inventory stats from products table directly
         // Get total active products

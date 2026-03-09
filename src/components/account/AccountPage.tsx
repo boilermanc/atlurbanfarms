@@ -138,7 +138,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
       case 'addresses':
         return <AddressBook userId={user.id} />;
       case 'settings':
-        return <SettingsTab userId={user.id} userEmail={user.email || ''} />;
+        return <SettingsTab userId={user.id} userEmail={user.email || ''} onNavigate={onNavigate} />;
       case 'profile':
       default:
         return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => handleTabChange('settings')} />;
@@ -286,9 +286,10 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
 interface SettingsTabProps {
   userId: string;
   userEmail: string;
+  onNavigate: (view: string) => void;
 }
 
-const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
+const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail, onNavigate }) => {
   const { profile, loading: profileLoading } = useCustomerProfile(userId);
   const [newsletterEnabled, setNewsletterEnabled] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(false);
@@ -346,22 +347,41 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
 
   // Password change state
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
   const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false);
   const [passwordChangeError, setPasswordChangeError] = useState<string | null>(null);
 
+  const { signOut } = useAuth();
+
+  // Sign out and redirect after successful password change
+  useEffect(() => {
+    if (passwordChangeSuccess) {
+      const timer = setTimeout(async () => {
+        await signOut();
+        onNavigate('login');
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [passwordChangeSuccess, signOut, onNavigate]);
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentPassword) {
+      setPasswordChangeError('Please enter your current password');
+      return;
+    }
+
     if (newPassword.length < 8) {
-      setPasswordChangeError('Password must be at least 8 characters');
+      setPasswordChangeError('New password must be at least 8 characters');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordChangeError('Passwords do not match');
+      setPasswordChangeError('New passwords do not match');
       return;
     }
 
@@ -369,11 +389,25 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
     setPasswordChangeError(null);
 
     try {
+      // Verify current password first
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setPasswordChangeError('Current password is incorrect');
+        setPasswordChangeLoading(false);
+        return;
+      }
+
+      // Update to new password
       const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) throw error;
 
       setPasswordChangeSuccess(true);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -385,6 +419,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
 
   const closePasswordModal = () => {
     setIsPasswordModalOpen(false);
+    setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
     setPasswordChangeError(null);
@@ -705,23 +740,31 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
                       <div>
                         <p className="font-medium text-emerald-600">Password updated!</p>
                         <p className="text-sm text-emerald-600 mt-1">
-                          Your password has been changed successfully.
+                          Your password has been changed successfully. You will be signed out momentarily.
                         </p>
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={closePasswordModal}
-                    className="w-full px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-xl hover:bg-gray-200 transition-colors"
-                  >
-                    Close
-                  </button>
                 </div>
               ) : (
                 <form onSubmit={handlePasswordChange} className="space-y-4">
                   <p className="text-sm text-gray-500">
-                    Enter your new password. It must be at least 8 characters long.
+                    Verify your current password, then enter a new one (at least 8 characters).
                   </p>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter current password"
+                      required
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-gray-400">
@@ -769,9 +812,9 @@ const SettingsTab: React.FC<SettingsTabProps> = ({ userId, userEmail }) => {
                     </button>
                     <button
                       type="submit"
-                      disabled={passwordChangeLoading || !newPassword || !confirmPassword}
+                      disabled={passwordChangeLoading || !currentPassword || !newPassword || !confirmPassword}
                       className={`flex-1 px-4 py-3 font-medium rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                        passwordChangeLoading || !newPassword || !confirmPassword
+                        passwordChangeLoading || !currentPassword || !newPassword || !confirmPassword
                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-emerald-600 text-white hover:bg-emerald-700'
                       }`}

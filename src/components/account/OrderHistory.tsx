@@ -61,8 +61,21 @@ interface Order {
   pickup_time_start: string | null;
   pickup_time_end: string | null;
   discount_amount: number | null;
+  promotion_code: string | null;
+  discount_description: string | null;
   customer_name: string | null;
   customer_email: string | null;
+  customer_notes: string | null;
+  payment_method: string | null;
+  paid_at: string | null;
+  stripe_payment_intent_id: string | null;
+  billing_first_name: string | null;
+  billing_last_name: string | null;
+  billing_address_line1: string | null;
+  billing_address_line2: string | null;
+  billing_city: string | null;
+  billing_state: string | null;
+  billing_zip: string | null;
   order_items: OrderItem[];
   shipments?: Shipment[];
   isLegacy: false;
@@ -302,6 +315,15 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
     }).format(amount || 0);
   };
 
+  const formatPickupTime = (timeStr: string): string => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
   const handlePrintInvoice = (order: CombinedOrder) => {
     const orderNum = getOrderNumber(order);
     const orderDate = formatDate(order.orderDate);
@@ -312,53 +334,135 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
       (order as Order).order_items.forEach((item: OrderItem) => {
         itemsHtml += `
           <tr>
-            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb;">${item.product?.name || item.product_name || 'Product'}</td>
-            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
-            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.product_price)}</td>
-            <td style="padding: 12px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.line_total)}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${item.product?.name || item.product_name || 'Product'}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.product_price)}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.line_total)}</td>
           </tr>`;
       });
     }
 
-    // Build address
-    let addressHtml = '';
+    // Build Ship To / Pickup block
+    let deliveryHtml = '';
     if (!order.isLegacy) {
       const o = order as Order;
-      const addr = o.shipping_address;
-      const name = addr?.name || `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim();
-      const street = addr?.street || o.shipping_address_line1;
-      const street2 = addr?.street2 || o.shipping_address_line2;
-      const city = addr?.city || o.shipping_city;
-      const state = addr?.state || o.shipping_state;
-      const zip = addr?.zip || o.shipping_zip;
-      if (street) {
-        addressHtml = `
-          <div style="margin-bottom: 24px;">
-            <h3 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 8px;">Shipping Address</h3>
-            ${name ? `<p style="margin: 0; font-weight: 600;">${name}</p>` : ''}
-            <p style="margin: 0;">${street}</p>
-            ${street2 ? `<p style="margin: 0;">${street2}</p>` : ''}
-            <p style="margin: 0;">${city || ''}${city && state ? ', ' : ''}${state || ''} ${zip || ''}</p>
+      if (o.is_pickup) {
+        const pickupDate = o.pickup_date ? new Date(o.pickup_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+        const pickupStart = o.pickup_time_start ? formatPickupTime(o.pickup_time_start) : '';
+        const pickupEnd = o.pickup_time_end ? formatPickupTime(o.pickup_time_end) : '';
+        const timeRange = pickupStart && pickupEnd ? `${pickupStart} - ${pickupEnd}` : pickupStart || '';
+        deliveryHtml = `
+          <div>
+            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Pickup</h3>
+            <p style="margin: 0; font-size: 13px; line-height: 1.5;">Local Pickup</p>
+            ${pickupDate ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${pickupDate}</p>` : ''}
+            ${timeRange ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${timeRange}</p>` : ''}
           </div>`;
+      } else {
+        const addr = o.shipping_address;
+        const name = addr?.name || `${o.shipping_first_name || ''} ${o.shipping_last_name || ''}`.trim();
+        const street = addr?.street || o.shipping_address_line1;
+        const street2 = addr?.street2 || o.shipping_address_line2;
+        const city = addr?.city || o.shipping_city;
+        const state = addr?.state || o.shipping_state;
+        const zip = addr?.zip || o.shipping_zip;
+        if (street) {
+          deliveryHtml = `
+            <div>
+              <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
+              ${name ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${name}</p>` : ''}
+              <p style="margin: 0; font-size: 13px; line-height: 1.5;">${street}</p>
+              ${street2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${street2}</p>` : ''}
+              <p style="margin: 0; font-size: 13px; line-height: 1.5;">${city || ''}${city && state ? ', ' : ''}${state || ''} ${zip || ''}</p>
+            </div>`;
+        }
       }
     } else {
       const lo = order as LegacyOrder;
       if (lo.shipping_address || lo.shipping_city) {
         const name = `${lo.shipping_first_name || ''} ${lo.shipping_last_name || ''}`.trim();
-        addressHtml = `
-          <div style="margin-bottom: 24px;">
-            <h3 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin-bottom: 8px;">Shipping Address</h3>
-            ${name ? `<p style="margin: 0; font-weight: 600;">${name}</p>` : ''}
-            ${lo.shipping_address ? `<p style="margin: 0;">${lo.shipping_address}</p>` : ''}
-            <p style="margin: 0;">${lo.shipping_city || ''}${lo.shipping_city && lo.shipping_state ? ', ' : ''}${lo.shipping_state || ''} ${lo.shipping_zip || ''}</p>
+        deliveryHtml = `
+          <div>
+            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
+            ${name ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${name}</p>` : ''}
+            ${lo.shipping_address ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${lo.shipping_address}</p>` : ''}
+            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${lo.shipping_city || ''}${lo.shipping_city && lo.shipping_state ? ', ' : ''}${lo.shipping_state || ''} ${lo.shipping_zip || ''}</p>
           </div>`;
       }
+    }
+
+    // Build Bill To block
+    let billToHtml = '';
+    if (!order.isLegacy) {
+      const o = order as Order;
+      const billName = `${o.billing_first_name || ''} ${o.billing_last_name || ''}`.trim() || o.customer_name || '';
+      const billEmail = o.customer_email || '';
+      const billStreet = o.billing_address_line1;
+      const billStreet2 = o.billing_address_line2;
+      const billCity = o.billing_city;
+      const billState = o.billing_state;
+      const billZip = o.billing_zip;
+      billToHtml = `
+        <div>
+          <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Bill To</h3>
+          ${billName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${billName}</p>` : ''}
+          ${billEmail ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billEmail}</p>` : ''}
+          ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet}</p>` : ''}
+          ${billStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet2}</p>` : ''}
+          ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billCity || ''}${billCity && billState ? ', ' : ''}${billState || ''} ${billZip || ''}</p>` : ''}
+        </div>`;
+    } else {
+      const lo = order as LegacyOrder;
+      const billName = `${lo.billing_first_name || ''} ${lo.billing_last_name || ''}`.trim();
+      billToHtml = `
+        <div>
+          <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Bill To</h3>
+          ${billName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${billName}</p>` : ''}
+          ${lo.billing_email ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${lo.billing_email}</p>` : ''}
+          ${lo.billing_address ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${lo.billing_address}</p>` : ''}
+          ${lo.billing_city ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${lo.billing_city || ''}${lo.billing_city && lo.billing_state ? ', ' : ''}${lo.billing_state || ''} ${lo.billing_zip || ''}</p>` : ''}
+        </div>`;
     }
 
     // Shipping cost
     const shippingCost = order.isLegacy
       ? (order as LegacyOrder).shipping
       : (order as Order).shipping_cost;
+
+    // Payment info
+    let paymentHtml = '';
+    if (!order.isLegacy) {
+      const o = order as Order;
+      const method = o.payment_method || 'stripe';
+      const methodLabel = method === 'stripe' ? 'Credit Card (Stripe)' : method.charAt(0).toUpperCase() + method.slice(1);
+      const paidDate = o.paid_at ? formatDate(o.paid_at) : '';
+      paymentHtml = `
+        <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
+          <strong style="color: #111827;">Payment:</strong> ${methodLabel}
+          ${paidDate ? ` &mdash; Paid ${paidDate}` : ''}
+        </div>`;
+    } else {
+      const lo = order as LegacyOrder;
+      if (lo.payment_method) {
+        paymentHtml = `
+          <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
+            <strong style="color: #111827;">Payment:</strong> ${lo.payment_method}
+          </div>`;
+      }
+    }
+
+    // Customer notes
+    let notesHtml = '';
+    if (!order.isLegacy && (order as Order).customer_notes) {
+      notesHtml = `
+        <div style="font-size: 13px; color: #4b5563; line-height: 1.6; margin-top: 4px;">
+          <strong style="color: #111827;">Customer Notes:</strong> ${(order as Order).customer_notes}
+        </div>`;
+    }
+
+    // Paid date for header
+    const paidAt = !order.isLegacy ? (order as Order).paid_at : null;
+    const paidDateStr = paidAt ? formatDate(paidAt) : '';
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -369,68 +473,84 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
       <head>
         <title>Invoice #${orderNum} - ATL Urban Farms</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #111827; }
-          @media print { body { padding: 20px; } }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #111827; font-size: 14px; }
+          @media print {
+            body { padding: 20px; }
+            @page { size: portrait; margin: 0.5in; }
+          }
         </style>
       </head>
       <body>
         <div style="max-width: 700px; margin: 0 auto;">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 2px solid #10b981; padding-bottom: 24px;">
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; border-bottom: 3px solid #10b981; padding-bottom: 20px;">
             <div>
+              <p style="margin: 0 0 4px; font-size: 18px; font-weight: 800; color: #10b981; letter-spacing: 0.5px;">ATL URBAN FARMS</p>
               <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #111827;">INVOICE</h1>
-              <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">ATL Urban Farms</p>
             </div>
             <div style="text-align: right;">
-              <p style="margin: 0; font-weight: 700;">Order #${orderNum}</p>
-              <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">${orderDate}</p>
+              <p style="margin: 0; font-weight: 700; font-size: 15px;">Order #${orderNum}</p>
+              <p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">Ordered: ${orderDate}</p>
+              ${paidDateStr ? `<p style="margin: 2px 0 0; color: #6b7280; font-size: 13px;">Paid: ${paidDateStr}</p>` : ''}
             </div>
           </div>
 
-          ${addressHtml}
+          <!-- Bill To / Ship To -->
+          <div style="display: flex; gap: 40px; margin-bottom: 28px;">
+            ${billToHtml}
+            ${deliveryHtml}
+          </div>
 
+          <!-- Line Items Table -->
           ${itemsHtml ? `
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
             <thead>
               <tr style="border-bottom: 2px solid #e5e7eb;">
-                <th style="padding: 8px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Item</th>
-                <th style="padding: 8px; text-align: center; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
-                <th style="padding: 8px; text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Price</th>
-                <th style="padding: 8px; text-align: right; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Total</th>
+                <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Product</th>
+                <th style="padding: 8px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
+                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Unit Price</th>
+                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Line Total</th>
               </tr>
             </thead>
             <tbody>${itemsHtml}</tbody>
           </table>
           ` : '<p style="color: #6b7280; font-style: italic;">Item details not available for this order.</p>'}
 
-          <div style="margin-left: auto; width: 250px;">
+          <!-- Totals Block -->
+          <div style="margin-left: auto; width: 260px;">
             <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
               <span style="color: #6b7280;">Subtotal</span>
               <span>${formatCurrency(order.subtotal)}</span>
             </div>
             ${!order.isLegacy && (order as Order).discount_amount && (order as Order).discount_amount! > 0 ? `
             <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
-              <span style="color: #6b7280;">Discount</span>
-              <span>-${formatCurrency((order as Order).discount_amount!)}</span>
+              <span style="color: #16a34a;">${(order as Order).promotion_code ? `Discount (${(order as Order).promotion_code})` : ((order as Order).discount_description || 'Discount')}</span>
+              <span style="color: #16a34a;">-${formatCurrency((order as Order).discount_amount!)}</span>
             </div>` : ''}
-            ${shippingCost > 0 ? `
             <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
               <span style="color: #6b7280;">Shipping</span>
-              <span>${formatCurrency(shippingCost)}</span>
-            </div>` : ''}
-            ${(order.tax || 0) > 0 ? `
+              <span>${shippingCost > 0 ? formatCurrency(shippingCost) : ((!order.isLegacy && (order as Order).is_pickup) ? 'Pickup' : '$0.00')}</span>
+            </div>
             <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
               <span style="color: #6b7280;">Tax</span>
-              <span>${formatCurrency(order.tax)}</span>
-            </div>` : ''}
+              <span>${formatCurrency(order.tax || 0)}</span>
+            </div>
             <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 16px;">
               <span>Total</span>
               <span>${formatCurrency(order.total)}</span>
             </div>
           </div>
 
-          <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
+          <!-- Payment & Notes Footer -->
+          <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            ${paymentHtml}
+            ${notesHtml}
+          </div>
+
+          <!-- Thank You -->
+          <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
             <p style="margin: 0;">Thank you for your order!</p>
-            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; atlurbanfarms.com</p>
+            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
           </div>
         </div>
         <script>window.onload = function() { window.print(); }</script>
@@ -668,6 +788,14 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                             <span className="text-gray-500">Subtotal</span>
                             <span className="text-gray-900">{formatCurrency(order.subtotal || 0)}</span>
                           </div>
+                          {!order.isLegacy && ((order as Order).discount_amount ?? 0) > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-emerald-600">
+                                {(order as Order).promotion_code ? `Promo Code (${(order as Order).promotion_code})` : ((order as Order).discount_description || 'Discount')}
+                              </span>
+                              <span className="text-emerald-600">-{formatCurrency((order as Order).discount_amount!)}</span>
+                            </div>
+                          )}
                           {/* Shipping/Delivery fee - handle both order types */}
                           {order.isLegacy ? (
                             (order as LegacyOrder).shipping > 0 && (

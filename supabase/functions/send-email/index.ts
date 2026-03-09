@@ -838,13 +838,31 @@ serve(async (req) => {
             .maybeSingle()
 
           // Only show shipping note for non-pickup orders
-          const isPickupOrder = !!(templateData && (templateData.is_pickup || templateData.pickupInfo))
+          const isPickupOrder = !!(templateData && (templateData.is_pickup || templateData.isPickup || templateData.pickupInfo))
           if (!isPickupOrder) {
-            allVariables.shipping_note = shippingNote?.value
+            const noteText = shippingNote?.value
               || allVariables.shipping_note
               || 'We ship live plants Monday through Wednesday only to ensure they arrive fresh and healthy!'
+            allVariables.shipping_note = noteText
+            // shipping_note_block wraps the note in its <p> tag so the template can hide it entirely for pickup
+            allVariables.shipping_note_block = `<p style="color: #666; font-size: 14px; line-height: 1.6; background-color: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 20px;"><strong>Note:</strong> ${noteText}</p>`
+            // Show "Shipping: $X.XX" row for shipping orders
+            allVariables.shipping_row = `<tr><td style="text-align: right; padding: 5px 0;"><span style="color: #666;">Shipping:</span><span style="color: #333; margin-left: 20px;">${allVariables.order_shipping || allVariables.shipping || ''}</span></td></tr>`
           } else {
             allVariables.shipping_note = ''
+            allVariables.shipping_note_block = ''
+            // Hide shipping cost row for pickup orders
+            allVariables.shipping_row = ''
+          }
+
+          // Build discount row if a discount was applied
+          if (allVariables.discount_amount && allVariables.discount_amount !== '') {
+            const discountLabel = allVariables.promo_code
+              ? `Promo Code (${allVariables.promo_code})`
+              : (allVariables.discount_label || 'Discount')
+            allVariables.discount_row = `<tr><td style="text-align: right; padding: 5px 0;"><span style="color: #16a34a;">${discountLabel}:</span><span style="color: #16a34a; margin-left: 20px;">-${allVariables.discount_amount}</span></td></tr>`
+          } else {
+            allVariables.discount_row = ''
           }
 
           // Generate header content — use logo image if available, otherwise text
@@ -1000,6 +1018,7 @@ serve(async (req) => {
 
     const info = await transport.sendMail({
       from: fromAddress,
+      replyTo: 'ATL Urban Farms <sheree@atlurbanfarms.com>',
       to: recipients.join(', '),
       ...(bccRecipients ? { bcc: bccRecipients } : {}),
       subject: emailSubject,

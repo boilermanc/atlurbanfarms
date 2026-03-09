@@ -32,6 +32,13 @@ const formatCurrency = (value: number | null) => {
   }).format(value);
 };
 
+const formatPriceCell = (price: number, salePrice: number | null) => {
+  if (salePrice !== null && !Number.isNaN(salePrice) && salePrice > 0) {
+    return `${formatCurrency(price)} / ${formatCurrency(salePrice)}`;
+  }
+  return formatCurrency(price);
+};
+
 const formatTimestamp = (date: Date | null) => {
   if (!date) return 'Preparing latest snapshot...';
   return date.toLocaleString('en-US', {
@@ -42,6 +49,44 @@ const formatTimestamp = (date: Date | null) => {
     hour: 'numeric',
     minute: '2-digit',
   });
+};
+
+interface CategoryGroup {
+  category: string;
+  rows: InventoryReportRow[];
+  varietyCount: number;
+  totalInventory: number;
+  totalPendingOrders: number;
+  totalAlerts: number;
+}
+
+const groupByCategory = (rows: InventoryReportRow[]): CategoryGroup[] => {
+  const groups: CategoryGroup[] = [];
+  let currentCategory = '';
+  let currentGroup: CategoryGroup | null = null;
+
+  for (const row of rows) {
+    if (row.category !== currentCategory) {
+      if (currentGroup) groups.push(currentGroup);
+      currentCategory = row.category;
+      currentGroup = {
+        category: currentCategory,
+        rows: [],
+        varietyCount: 0,
+        totalInventory: 0,
+        totalPendingOrders: 0,
+        totalAlerts: 0,
+      };
+    }
+    currentGroup!.rows.push(row);
+    currentGroup!.varietyCount++;
+    currentGroup!.totalInventory += row.currentInventory;
+    currentGroup!.totalPendingOrders += row.pendingOrders || 0;
+    currentGroup!.totalAlerts += row.alertCount || 0;
+  }
+  if (currentGroup) groups.push(currentGroup);
+
+  return groups;
 };
 
 const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
@@ -57,6 +102,11 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
   if (!isOpen) return null;
 
   const canPrint = !loading && rows.length > 0 && !error;
+  const categoryGroups = groupByCategory(rows);
+
+  const grandTotalVarieties = rows.length;
+  const grandTotalInventory = rows.reduce((sum, r) => sum + r.currentInventory, 0);
+  const grandTotalPending = rows.reduce((sum, r) => sum + (r.pendingOrders || 0), 0);
 
   return (
     <div className="inventory-print-overlay" role="dialog" aria-modal="true">
@@ -101,6 +151,11 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-slate-500">ATL Urban Farms</p>
               <h1 className="text-2xl font-bold text-slate-900 mt-1">Inventory Report</h1>
+              {rows.length > 0 && (
+                <p className="text-sm font-medium text-slate-700 mt-1">
+                  Total Active Products: {rows.length}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">Prepared</p>
@@ -125,61 +180,67 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
             </div>
           ) : (
             <table className="inventory-print-table">
+              <colgroup>
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th>Product Name</th>
-                  <th>Regular Price</th>
-                  <th>Sale Price</th>
-                  <th>Pending Orders</th>
-                  <th>Waiting</th>
-                  <th>Current Inventory</th>
-                  <th>Counted</th>
+                  <th className="text-left-col">Product Name</th>
+                  <th>Online Inventory</th>
+                  <th>New Inventory</th>
+                  <th>Alerts</th>
+                  <th>Price / Sale Price</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, index, array) => {
-                  const prevCategory = index > 0 ? array[index - 1].category : null;
-                  const isNewCategory = row.category !== prevCategory;
-                  return (
-                    <tr
-                      key={row.id}
-                      className={isNewCategory ? 'inventory-print-row category-break' : 'inventory-print-row'}
-                    >
-                      <td className="category-cell">
-                        {row.category}
+                {categoryGroups.map((group) => (
+                  <React.Fragment key={group.category}>
+                    {group.rows.map((row, index) => (
+                      <tr
+                        key={row.id}
+                        className={index === 0 ? 'inventory-print-row category-break' : 'inventory-print-row'}
+                      >
+                        <td>{row.category}</td>
+                        <td className="text-left-col">
+                          <span className="product-name">{row.name}</span>
+                        </td>
+                        <td>{row.currentInventory}</td>
+                        <td></td>
+                        <td>{row.alertCount > 0 ? row.alertCount : ''}</td>
+                        <td>{formatPriceCell(row.price, row.salePrice)}</td>
+                      </tr>
+                    ))}
+                    <tr className="subtotal-row">
+                      <td></td>
+                      <td className="subtotal-label">
+                        {group.category} Subtotal
                       </td>
-                      <td>
-                        <span className="product-name">{row.name}</span>
-                      </td>
-                      <td>{formatCurrency(row.price)}</td>
-                      <td>{formatCurrency(row.salePrice)}</td>
-                      <td className="numeric-cell">{row.pendingOrders || 0}</td>
-                      <td className="numeric-cell">{row.alertCount > 0 ? row.alertCount : ''}</td>
-                      <td className="numeric-cell">{row.currentInventory}</td>
-                      <td className="counted-cell" aria-label="Counted blanks">
-                        <div className="counted-box" />
+                      <td className="subtotal-value">{group.totalInventory}</td>
+                      <td></td>
+                      <td className="subtotal-value">{group.totalAlerts || ''}</td>
+                      <td className="subtotal-info">
+                        {group.varietyCount} varieties &middot; {group.totalPendingOrders} pending
                       </td>
                     </tr>
-                  );
-                })}
+                  </React.Fragment>
+                ))}
               </tbody>
               <tfoot>
-                <tr style={{ borderTop: '2px solid #334155', fontWeight: 700 }}>
+                <tr className="grand-total-row">
                   <td></td>
-                  <td style={{ textAlign: 'right', letterSpacing: '0.05em' }}>TOTALS</td>
+                  <td className="grand-total-label">GRAND TOTAL</td>
+                  <td className="grand-total-value">{grandTotalInventory}</td>
                   <td></td>
                   <td></td>
-                  <td className="numeric-cell">
-                    {rows.reduce((sum, r) => sum + (r.pendingOrders || 0), 0)}
+                  <td className="grand-total-info">
+                    {grandTotalVarieties} varieties &middot; {grandTotalPending} pending
                   </td>
-                  <td className="numeric-cell">
-                    {rows.reduce((sum, r) => sum + r.alertCount, 0) || ''}
-                  </td>
-                  <td className="numeric-cell">
-                    {rows.reduce((sum, r) => sum + r.currentInventory, 0)}
-                  </td>
-                  <td></td>
                 </tr>
               </tfoot>
             </table>

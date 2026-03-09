@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
-import { FileSpreadsheet, Download, Loader2, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, Download, Loader2, AlertCircle, Printer } from 'lucide-react';
 
 // Note: Cell styling (bold, fill colors, alternating rows) requires xlsx-js-style.
 // To enable: `npm install xlsx-js-style` and change the import above to:
@@ -256,6 +256,114 @@ const WeeklySalesReportPage: React.FC = () => {
       shippedCount: shipped.length,
     };
   }, [orders]);
+
+  // --- Daily breakdown for on-screen table ---
+  const dailySummary = useMemo(() => {
+    if (!orders || orders.length === 0) return null;
+
+    const byDate = new Map<string, { orders: number; cancelled: number; subtotal: number; shipping: number; tax: number; revenue: number }>();
+
+    // Build a date → stats map
+    for (const o of orders) {
+      const key = toDateInputValue(o.orderDate);
+      const entry = byDate.get(key) || { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, revenue: 0 };
+      entry.orders += 1;
+      entry.subtotal += o.seedlingIncome + o.otherRevenue;
+      entry.shipping += o.shippingIncome;
+      entry.tax += o.tax;
+      entry.revenue += o.orderTotal;
+      byDate.set(key, entry);
+    }
+
+    // Sort by date ascending
+    const rows = Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, stats]) => ({ date, ...stats }));
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        orders: acc.orders + r.orders,
+        cancelled: acc.cancelled + r.cancelled,
+        subtotal: acc.subtotal + r.subtotal,
+        shipping: acc.shipping + r.shipping,
+        tax: acc.tax + r.tax,
+        revenue: acc.revenue + r.revenue,
+      }),
+      { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, revenue: 0 },
+    );
+
+    return { rows, totals };
+  }, [orders]);
+
+  // --- Week date range header ---
+  const weekRangeLabel = useMemo(() => {
+    const s = new Date(weekStart + 'T00:00:00');
+    const e = new Date(weekEnd + 'T00:00:00');
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return `Week of ${fmt(s)} – ${fmt(e)}`;
+  }, [weekStart, weekEnd]);
+
+  // --- Print report ---
+  const printReport = useCallback(() => {
+    if (!dailySummary) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('Please allow popups to print'); return; }
+
+    const html = `<!DOCTYPE html>
+<html><head><title>Weekly Sales Report - ATL Urban Farms</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 32px; color: #1e293b; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: right; border-bottom: 2px solid #cbd5e1; }
+  th:first-child { text-align: left; }
+  td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; text-align: right; font-size: 14px; }
+  td:first-child { text-align: left; font-weight: 500; }
+  .totals-row td { font-weight: 800; border-top: 3px solid #000; border-bottom: none; font-size: 15px; }
+  .summary-cards { display: flex; gap: 16px; margin-bottom: 24px; }
+  .card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .card-label { font-size: 11px; text-transform: uppercase; color: #64748b; }
+  .card-value { font-size: 22px; font-weight: 800; }
+  @media print { body { padding: 0; } }
+</style>
+</head><body>
+  <h1>Weekly Sales Report</h1>
+  <div class="subtitle">${weekRangeLabel}</div>
+  <div class="summary-cards">
+    <div class="card"><div class="card-label">Total Orders</div><div class="card-value">${summary?.totalOrders ?? 0}</div></div>
+    <div class="card"><div class="card-label">Total Seedlings</div><div class="card-value">${(summary?.totalSeedlings ?? 0).toLocaleString()}</div></div>
+    <div class="card"><div class="card-label">Shipping Income</div><div class="card-value">${formatCurrency(summary?.totalShipping ?? 0)}</div></div>
+    <div class="card"><div class="card-label">Total Revenue</div><div class="card-value">${formatCurrency(summary?.totalRevenue ?? 0)}</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Date</th><th>Orders</th><th>Cancelled</th><th>Gross Subtotal</th><th>Shipping</th><th>Tax</th><th>Revenue</th>
+    </tr></thead>
+    <tbody>
+      ${dailySummary.rows.map(r => {
+        const d = new Date(r.date + 'T00:00:00');
+        const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        return `<tr>
+          <td>${label}</td><td>${r.orders}</td><td>${r.cancelled}</td>
+          <td>${formatCurrency(r.subtotal)}</td><td>${formatCurrency(r.shipping)}</td>
+          <td>${formatCurrency(r.tax)}</td><td>${formatCurrency(r.revenue)}</td>
+        </tr>`;
+      }).join('')}
+      <tr class="totals-row">
+        <td>TOTALS</td><td>${dailySummary.totals.orders}</td><td>${dailySummary.totals.cancelled}</td>
+        <td>${formatCurrency(dailySummary.totals.subtotal)}</td><td>${formatCurrency(dailySummary.totals.shipping)}</td>
+        <td>${formatCurrency(dailySummary.totals.tax)}</td><td>${formatCurrency(dailySummary.totals.revenue)}</td>
+      </tr>
+    </tbody>
+  </table>
+</body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => { printWindow.print(); };
+  }, [dailySummary, weekRangeLabel, summary]);
 
   // --- Excel export ---
   const downloadExcel = useCallback(() => {
@@ -531,10 +639,11 @@ const WeeklySalesReportPage: React.FC = () => {
         </div>
       )}
 
-      {/* Summary + Download */}
+      {/* Summary + Table + Actions */}
       {summary && !loading && (
         <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4 font-admin-display">Report Summary</h2>
+          <h2 className="text-lg font-semibold text-slate-800 mb-1 font-admin-display">{weekRangeLabel}</h2>
+          <p className="text-sm text-slate-500 mb-4">Report Summary</p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-slate-50 rounded-lg p-4">
@@ -567,13 +676,67 @@ const WeeklySalesReportPage: React.FC = () => {
             </span>
           </div>
 
-          <button
-            onClick={downloadExcel}
-            className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-          >
-            <Download size={18} />
-            Download Excel
-          </button>
+          {/* Daily breakdown table */}
+          {dailySummary && (
+            <div className="overflow-x-auto mb-6">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-slate-300">
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Date</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Orders</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Cancelled</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Gross Subtotal</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Shipping</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Tax</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailySummary.rows.map((row, idx) => {
+                    const d = new Date(row.date + 'T00:00:00');
+                    const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    return (
+                      <tr key={row.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                        <td className="py-3 px-4 font-medium text-slate-800">{label}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{row.orders}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{row.cancelled}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.subtotal)}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.shipping)}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.tax)}</td>
+                        <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.revenue)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t-2 border-slate-800 font-bold">
+                    <td className="py-3 px-4 text-slate-900">TOTALS</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{dailySummary.totals.orders}</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{dailySummary.totals.cancelled}</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.subtotal)}</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.shipping)}</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.tax)}</td>
+                    <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.revenue)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={downloadExcel}
+              className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              <Download size={18} />
+              Download Excel
+            </button>
+            <button
+              onClick={printReport}
+              className="px-6 py-3 bg-slate-700 text-white font-semibold rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+            >
+              <Printer size={18} />
+              Print Report
+            </button>
+          </div>
         </div>
       )}
     </div>

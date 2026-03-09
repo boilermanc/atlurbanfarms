@@ -241,6 +241,21 @@ serve(async (req) => {
               })
               .eq('id', pendingOrder.id)
 
+            // Record promotion usage for force-created order
+            const forceOd = pendingOrder.order_data as Record<string, unknown>
+            const forcePromoId = forceOd.promotion_id as string | null
+            const forcePromoAmt = (forceOd.promotion_discount as number | null) || (forceOd.discount_amount as number | null)
+            if (forcePromoId && forcePromoAmt && forcePromoAmt > 0) {
+              const forceEmail = pendingOrder.customer_email || (forceOd.guest_email as string | null)
+              await supabaseClient.rpc('record_promotion_usage', {
+                p_promotion_id: forcePromoId,
+                p_order_id: forceResult.order_id,
+                p_customer_id: pendingOrder.customer_id || null,
+                p_customer_email: forceEmail,
+                p_discount_amount: forcePromoAmt
+              })
+            }
+
             console.log(`Webhook: Force-created order ${forceResult.order_number} for PI ${piId} (stock warning)`)
             break
           }
@@ -259,20 +274,16 @@ serve(async (req) => {
             // Record promotion usage if applicable
             const od = pendingOrder.order_data as Record<string, unknown>
             const promoId = od.promotion_id as string | null
-            const discountAmt = od.discount_amount as number | null
-            if (promoId && discountAmt && discountAmt > 0) {
-              await supabaseClient
-                .from('promotion_usage')
-                .insert({
-                  promotion_id: promoId,
-                  order_id: rpcResult.order_id,
-                  customer_id: pendingOrder.customer_id || null,
-                  customer_email: pendingOrder.customer_email,
-                  discount_amount: discountAmt
-                })
-              await supabaseClient.rpc('increment_promotion_usage', {
+            // Use promo-specific discount if available, fallback to total discount
+            const promoDiscountAmt = (od.promotion_discount as number | null) || (od.discount_amount as number | null)
+            if (promoId && promoDiscountAmt && promoDiscountAmt > 0) {
+              const customerEmail = pendingOrder.customer_email || (od.guest_email as string | null)
+              await supabaseClient.rpc('record_promotion_usage', {
                 p_promotion_id: promoId,
-                p_discount_amount: discountAmt
+                p_order_id: rpcResult.order_id,
+                p_customer_id: pendingOrder.customer_id || null,
+                p_customer_email: customerEmail,
+                p_discount_amount: promoDiscountAmt
               })
             }
 

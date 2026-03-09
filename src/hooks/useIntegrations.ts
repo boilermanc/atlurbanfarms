@@ -148,6 +148,7 @@ export function useEmailService() {
       discount?: number
       discountLabel?: string
       promoCode?: string
+      is_pickup?: boolean
     }
   ) => {
     return sendEmail({

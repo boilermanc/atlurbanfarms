@@ -110,6 +110,10 @@ export function useShipmentManagement(orderId: string | null) {
     package_length?: number;
     package_width?: number;
     package_height?: number;
+    packages?: Array<{
+      weight: { value: number; unit: string };
+      dimensions?: { length: number; width: number; height: number; unit: string };
+    }>;
   }): Promise<CreateLabelResult> => {
     if (!orderId) {
       return {
@@ -133,6 +137,7 @@ export function useShipmentManagement(orderId: string | null) {
           package_length: params.package_length,
           package_width: params.package_width,
           package_height: params.package_height,
+          packages: params.packages,
         }
       });
 

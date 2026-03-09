@@ -729,11 +729,63 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
     setSendingInvoice(true);
     setInvoiceError(null);
     try {
+      // Build templateData matching the shape send-email expects
+      const customerName = selectedCustomer
+        ? [selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ')
+        : '';
+      const isPickup = deliveryMethod === 'pickup';
+      const pickupLoc = pickupLocations.find((loc) => loc.id === selectedPickupLocation);
+
+      const templateData: Record<string, any> = {
+        orderNumber: createdOrder.number,
+        customerName: customerName || 'Valued Customer',
+        items: lineItems.map((item) => ({
+          name: item.product_name,
+          quantity: item.quantity,
+          price: item.product_price,
+        })),
+        subtotal,
+        shipping,
+        tax,
+        total,
+        is_pickup: isPickup,
+        siteUrl: window.location.origin,
+      };
+
+      if (isPickup) {
+        templateData.pickup_location_id = selectedPickupLocation || null;
+        templateData.pickup_date = selectedPickupSlot?.slot_date || null;
+        templateData.pickup_time_start = selectedPickupSlot?.start_time || null;
+        templateData.pickup_time_end = selectedPickupSlot?.end_time || null;
+        if (pickupLoc) {
+          templateData.pickupInfo = {
+            locationName: pickupLoc.name,
+            address: [pickupLoc.address_line1, pickupLoc.city, pickupLoc.state, pickupLoc.postal_code].filter(Boolean).join(', '),
+            date: selectedPickupSlot?.slot_date || '',
+            timeRange: selectedPickupSlot
+              ? `${selectedPickupSlot.start_time} – ${selectedPickupSlot.end_time}`
+              : '',
+          };
+        }
+      } else {
+        templateData.shippingAddress = {
+          name: shippingAddress.name,
+          address: shippingAddress.street + (shippingAddress.street2 ? ', ' + shippingAddress.street2 : ''),
+          city: shippingAddress.city,
+          state: shippingAddress.state,
+          zip: shippingAddress.zip,
+        };
+        if (selectedRate) {
+          templateData.shippingMethodName = `${selectedRate.carrier_friendly_name} - ${selectedRate.service_type}`;
+        }
+      }
+
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
-          template_key: 'order_confirmation',
-          order_id: createdOrder.id,
+          template: 'order_confirmation',
           to: recipientEmail,
+          bcc: 'sheree@atlurbanfarms.com',
+          templateData,
         },
       });
       if (error) throw error;

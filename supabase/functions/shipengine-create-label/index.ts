@@ -11,6 +11,10 @@ interface CreateLabelRequest {
   package_length?: number
   package_width?: number
   package_height?: number
+  packages?: Array<{
+    weight: { value: number; unit: string }
+    dimensions?: { length: number; width: number; height: number; unit: string }
+  }>
 }
 
 interface ShipEngineLabelResponse {
@@ -151,8 +155,10 @@ serve(async (req) => {
     if (!VALID_SERVICE_CODES.includes(service_code)) {
       return errorResponse('INVALID_REQUEST', `Invalid service_code. Must be one of: ${VALID_SERVICE_CODES.join(', ')}`)
     }
-    if (!package_weight_lbs || package_weight_lbs <= 0) {
-      return errorResponse('INVALID_REQUEST', 'package_weight_lbs is required and must be greater than 0')
+    const hasPackagesArray = Array.isArray(body.packages) && body.packages.length > 0
+
+    if (!hasPackagesArray && (!package_weight_lbs || package_weight_lbs <= 0)) {
+      return errorResponse('INVALID_REQUEST', 'package_weight_lbs is required (and must be > 0) when packages array is not provided')
     }
 
     const pkgLength = body.package_length || 10
@@ -261,10 +267,12 @@ serve(async (req) => {
           postal_code: shipTo.postal_code || order.shipping_zip,
           country_code: normalizeCountry(shipTo.country_code || order.shipping_country),
         },
-        packages: [{
-          weight: { value: package_weight_lbs, unit: 'pound' },
-          dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
-        }],
+        packages: hasPackagesArray
+          ? body.packages!
+          : [{
+              weight: { value: package_weight_lbs, unit: 'pound' },
+              dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
+            }],
       },
       label_format: 'pdf',
       label_layout: '4x6',
