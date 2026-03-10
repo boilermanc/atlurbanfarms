@@ -696,7 +696,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         // seedlingsPerUnit accounts for bundles (e.g., "20 Seedling Variety Pack" = 20 physical seedlings)
         const orderItems = items.map(item => ({
           quantity: item.quantity * (item.seedlingsPerUnit || 1),
-          weight_per_item: 0.5 // Default weight per seedling in pounds
+
         }));
         const totalQty = orderItems.reduce((sum, oi) => sum + oi.quantity, 0);
         console.log('[Checkout] Fetching rates for', orderItems.length, 'line items, total seedlings:', totalQty, 'items:', orderItems);
@@ -769,7 +769,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       setAddressValidated(true);
       const orderItems = items.map(item => ({
         quantity: item.quantity * (item.seedlingsPerUnit || 1),
-        weight_per_item: 0.5,
+
       }));
       await fetchRates(address, orderItems);
     }
@@ -821,7 +821,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
       const orderItems = items.map(item => ({
         quantity: item.quantity * (item.seedlingsPerUnit || 1),
-        weight_per_item: 0.5,
+
       }));
       await fetchRates(address, orderItems);
     }
@@ -988,7 +988,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       setAddressValidated(true);
       const orderItems = items.map(item => ({
         quantity: item.quantity * (item.seedlingsPerUnit || 1),
-        weight_per_item: 0.5,
+
       }));
       await fetchRates(shippingAddress, orderItems);
     }
@@ -3686,7 +3686,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           setAddressValidated(true);
                           const orderItems = items.map(item => ({
                             quantity: item.quantity * (item.seedlingsPerUnit || 1),
-                            weight_per_item: 0.5,
+                    
                           }));
                           fetchRates(address, orderItems);
                         }

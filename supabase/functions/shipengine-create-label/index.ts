@@ -4,10 +4,14 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
 import { sendShippingEmail, getCarrierDisplayName, generateTrackingUrl } from '../_shared/shipping-emails.ts'
 
+// Standard weight per seedling based on WooCommerce historical data
+const SEEDLING_WEIGHT_OZ = 1.92
+const SEEDLING_WEIGHT_LBS = SEEDLING_WEIGHT_OZ / 16  // ~0.12 lbs
+
 interface CreateLabelRequest {
   order_id: string
   service_code: string
-  package_weight_lbs: number
+  package_weight_lbs?: number
   package_length?: number
   package_width?: number
   package_height?: number
@@ -156,50 +160,6 @@ serve(async (req) => {
     }
     const hasPackagesArray = Array.isArray(body.packages) && body.packages.length > 0
 
-    if (!hasPackagesArray && (!package_weight_lbs || package_weight_lbs <= 0)) {
-      return errorResponse('INVALID_REQUEST', 'package_weight_lbs is required (and must be > 0) when packages array is not provided')
-    }
-
-    // --- Resolve package dimensions from shipping_packages table ---
-    let pkgLength = body.package_length || 0
-    let pkgWidth = body.package_width || 0
-    let pkgHeight = body.package_height || 0
-    let pkgEmptyWeight = 0
-
-    if (!hasPackagesArray && (!pkgLength || !pkgWidth || !pkgHeight)) {
-      // Try shipping_packages table first (default active package)
-      const { data: defaultPkg } = await supabaseClient
-        .from('shipping_packages')
-        .select('length, width, height, empty_weight')
-        .eq('is_default', true)
-        .eq('is_active', true)
-        .limit(1)
-        .single()
-
-      if (defaultPkg) {
-        pkgLength = pkgLength || defaultPkg.length
-        pkgWidth = pkgWidth || defaultPkg.width
-        pkgHeight = pkgHeight || defaultPkg.height
-        pkgEmptyWeight = defaultPkg.empty_weight || 0
-        console.log(`[create-label] Using shipping_packages default: ${pkgLength}x${pkgWidth}x${pkgHeight}, empty_weight: ${pkgEmptyWeight}lbs`)
-      } else {
-        // Last resort: config_settings default_package
-        const shippingPkgSettings = await getShippingSettings(supabaseClient, ['default_package'])
-        const defaultPackage = shippingPkgSettings.default_package
-        if (defaultPackage) {
-          pkgLength = pkgLength || defaultPackage.length || 10
-          pkgWidth = pkgWidth || defaultPackage.width || 8
-          pkgHeight = pkgHeight || defaultPackage.height || 6
-          console.log(`[create-label] Falling back to config_settings default_package: ${pkgLength}x${pkgWidth}x${pkgHeight}`)
-        } else {
-          pkgLength = pkgLength || 10
-          pkgWidth = pkgWidth || 8
-          pkgHeight = pkgHeight || 6
-          console.log(`[create-label] No package config found, using hardcoded defaults: ${pkgLength}x${pkgWidth}x${pkgHeight}`)
-        }
-      }
-    }
-
     // --- Load config ---
     const integrationSettings = await getIntegrationSettings(supabaseClient, [
       'shipengine_api_key'
@@ -258,8 +218,10 @@ serve(async (req) => {
       return errorResponse('MISSING_CONFIG', 'Warehouse address is not configured. Set it in Admin > Settings > Shipping.')
     }
 
-    // --- Build ship_to from order ---
-    const shipTo = order.shipping_address_normalized || {
+    // --- Build ship_to from order's shipping address fields ---
+    // Always use the order's own shipping columns (never shipping_address_normalized,
+    // which may contain a pickup location address for pickup orders).
+    const shipTo = {
       name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
       phone: order.shipping_phone || '',
       address_line1: order.shipping_address_line1,
@@ -274,8 +236,75 @@ serve(async (req) => {
       return errorResponse('INVALID_ADDRESS', 'Order is missing a shipping address')
     }
 
+    // --- Dynamic package calculation from order items ---
+    let finalPackages: Array<{ weight: { value: number; unit: string }; dimensions?: { length: number; width: number; height: number; unit: string } }>
+
+    if (hasPackagesArray) {
+      finalPackages = body.packages!
+    } else {
+      // Query order items for total seedling quantity
+      const { data: orderItems } = await supabaseClient
+        .from('order_items')
+        .select('quantity')
+        .eq('order_id', order_id)
+
+      const totalQuantity = (orderItems || []).reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0)
+
+      // Find the right package from shipping_packages by quantity range
+      const { data: packageConfigs } = await supabaseClient
+        .from('shipping_packages')
+        .select('name, length, width, height, empty_weight, min_quantity, max_quantity')
+        .eq('is_active', true)
+        .order('min_quantity', { ascending: true })
+
+      let selectedPkg: any = null
+      if (packageConfigs && packageConfigs.length > 0) {
+        // Find best-fit package where quantity falls within [min, max]
+        const fits = packageConfigs.filter((p: any) =>
+          totalQuantity >= Number(p.min_quantity) && totalQuantity <= Number(p.max_quantity)
+        )
+        if (fits.length > 0) {
+          // Prefer smallest max_quantity that still fits
+          fits.sort((a: any, b: any) => Number(a.max_quantity) - Number(b.max_quantity))
+          selectedPkg = fits[0]
+        }
+        // If quantity exceeds all packages, use the largest
+        if (!selectedPkg) {
+          selectedPkg = packageConfigs[packageConfigs.length - 1]
+        }
+      }
+
+      if (selectedPkg) {
+        const emptyWeight = Number(selectedPkg.empty_weight)
+        const calculatedWeight = emptyWeight + (totalQuantity * SEEDLING_WEIGHT_LBS)
+        // Allow manual override via package_weight_lbs
+        const finalWeight = (package_weight_lbs && package_weight_lbs > 0) ? package_weight_lbs : calculatedWeight
+
+        finalPackages = [{
+          weight: { value: Math.round(finalWeight * 100) / 100, unit: 'pound' },
+          dimensions: {
+            length: Number(selectedPkg.length),
+            width: Number(selectedPkg.width),
+            height: Number(selectedPkg.height),
+            unit: 'inch'
+          }
+        }]
+        console.log(`[create-label] Dynamic package: ${selectedPkg.name} for ${totalQuantity} seedlings, ` +
+          `calculated: ${Math.round(calculatedWeight * 100) / 100}lbs, final: ${Math.round(finalWeight * 100) / 100}lbs`)
+      } else {
+        // Fallback: use manual weight or error
+        const fallbackWeight = package_weight_lbs || 1
+        finalPackages = [{
+          weight: { value: fallbackWeight, unit: 'pound' },
+          dimensions: { length: 12, width: 10, height: 6, unit: 'inch' }
+        }]
+        console.warn(`[create-label] No shipping_packages config found, using fallback: ${fallbackWeight}lbs`)
+      }
+    }
+
     // --- Call ShipEngine to create label ---
-    console.log(`[create-label] Creating label for order ${order.order_number || order_id}: ${service_code}, ${package_weight_lbs}lbs`)
+    const totalWeight = finalPackages.reduce((sum, p) => sum + p.weight.value, 0)
+    console.log(`[create-label] Creating label for order ${order.order_number || order_id}: ${service_code}, ${totalWeight}lbs`)
 
     const labelRequestBody = {
       shipment: {
@@ -293,21 +322,16 @@ serve(async (req) => {
           country_code: warehouseAddress.country_code || 'US',
         },
         ship_to: {
-          name: shipTo.name || `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(),
-          phone: shipTo.phone || order.shipping_phone || '',
-          address_line1: shipTo.address_line1 || order.shipping_address_line1,
-          address_line2: shipTo.address_line2 || order.shipping_address_line2 || '',
-          city_locality: shipTo.city_locality || order.shipping_city,
-          state_province: shipTo.state_province || order.shipping_state,
-          postal_code: shipTo.postal_code || order.shipping_zip,
-          country_code: normalizeCountry(shipTo.country_code || order.shipping_country),
+          name: shipTo.name,
+          phone: shipTo.phone,
+          address_line1: shipTo.address_line1,
+          address_line2: shipTo.address_line2,
+          city_locality: shipTo.city_locality,
+          state_province: shipTo.state_province,
+          postal_code: shipTo.postal_code,
+          country_code: shipTo.country_code,
         },
-        packages: hasPackagesArray
-          ? body.packages!
-          : [{
-              weight: { value: package_weight_lbs + pkgEmptyWeight, unit: 'pound' },
-              dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
-            }],
+        packages: finalPackages,
       },
       label_format: 'pdf',
       label_layout: '4x6',

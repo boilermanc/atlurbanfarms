@@ -1018,7 +1018,7 @@ serve(async (req) => {
 
     const info = await transport.sendMail({
       from: fromAddress,
-      replyTo: 'ATL Urban Farms <sheree@atlurbanfarms.com>',
+      replyTo: recipients[0],
       to: recipients.join(', '),
       ...(bccRecipients ? { bcc: bccRecipients } : {}),
       subject: emailSubject,

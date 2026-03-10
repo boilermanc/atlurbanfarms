@@ -28,12 +28,15 @@ interface PackageDetails {
   }
 }
 
+// Standard weight per seedling based on WooCommerce historical data
+const SEEDLING_WEIGHT_OZ = 1.92
+const SEEDLING_WEIGHT_LBS = SEEDLING_WEIGHT_OZ / 16  // ~0.12 lbs
+
 interface RateRequest {
   ship_to: Address
   packages?: PackageDetails[]
   order_items?: Array<{
     quantity: number
-    weight_per_item?: number  // pounds, default 0.5
   }>
 }
 
@@ -779,21 +782,19 @@ serve(async (req) => {
       // Calculate packages based on order items using shipping_packages config
       const packageConfigs = await getShippingPackageConfigs(supabaseClient)
       const totalQuantity = order_items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
-      const avgWeight = order_items.length > 0
-        ? order_items.reduce((sum, item) => sum + (Number(item.weight_per_item) || 0.5), 0) / order_items.length
-        : 0.5
 
       console.log('[shipengine-get-rates] Package calculation input:', JSON.stringify({
         order_items_count: order_items.length,
         order_items_quantities: order_items.map((item: any) => ({ qty: item.quantity, type: typeof item.quantity })),
         totalQuantity,
-        avgWeight,
+        seedlingWeightOz: SEEDLING_WEIGHT_OZ,
+        seedlingWeightLbs: SEEDLING_WEIGHT_LBS,
         packageConfigs_count: packageConfigs.length,
         packageConfigs: packageConfigs.map(c => ({ name: c.name, min: c.min_quantity, max: c.max_quantity }))
       }))
 
       if (packageConfigs.length > 0) {
-        packageBreakdown = calculateOrderPackages(totalQuantity, avgWeight, packageConfigs)
+        packageBreakdown = calculateOrderPackages(totalQuantity, SEEDLING_WEIGHT_LBS, packageConfigs)
         packageList = packageBreakdown.packages
       } else {
         console.warn('[shipengine-get-rates] No active package configs found, using default package')

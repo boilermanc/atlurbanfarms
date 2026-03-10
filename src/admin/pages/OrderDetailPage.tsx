@@ -117,7 +117,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const { shipment, loading: shipmentLoading, error: shipmentError, createLabel, voidLabel, canCreateLabel, canVoidLabel, refetch: refetchShipment } = useShipmentManagement(orderId);
   const [labelServiceCode, setLabelServiceCode] = useState('ups_ground');
   const [labelPackages, setLabelPackages] = useState<Array<{ weight: number; length: number; width: number; height: number }>>([
-    { weight: 2, length: 10, width: 8, height: 6 }
+    { weight: 1, length: 12, width: 5, height: 5 }
   ]);
   const [labelCreating, setLabelCreating] = useState(false);
   const [labelVoiding, setLabelVoiding] = useState(false);
@@ -136,6 +136,26 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       setLabelServiceCode(order.shipping_service_code);
     }
   }, [order?.shipping_service_code]);
+
+  // Pre-fill label package weight/dimensions from order seedling count
+  useEffect(() => {
+    if (!order?.items || order.items.length === 0) return;
+    const totalQty = order.items.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
+    if (totalQty <= 0) return;
+
+    const SEEDLING_WEIGHT_LBS = 0.12;
+    // Box selection by seedling count
+    let box: { length: number; width: number; height: number; empty_weight: number };
+    if (totalQty <= 10) {
+      box = { length: 12, width: 5, height: 5, empty_weight: 0.25 };
+    } else if (totalQty <= 20) {
+      box = { length: 11.25, width: 8.75, height: 5, empty_weight: 0.50 };
+    } else {
+      box = { length: 11.25, width: 8.75, height: 10, empty_weight: 0.75 };
+    }
+    const weight = Math.round((box.empty_weight + totalQty * SEEDLING_WEIGHT_LBS) * 100) / 100;
+    setLabelPackages([{ weight, length: box.length, width: box.width, height: box.height }]);
+  }, [order?.items]);
 
   // Print mode: auto-print when opened via ?print=true
   const [isPrintMode] = useState(() => {
@@ -1764,7 +1784,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
                   {/* Add Package Button */}
                   <button
-                    onClick={() => setLabelPackages(prev => [...prev, { weight: 2, length: 10, width: 8, height: 6 }])}
+                    onClick={() => setLabelPackages(prev => [...prev, prev[0] || { weight: 1, length: 12, width: 5, height: 5 }])}
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-slate-600 border border-dashed border-slate-300 rounded-lg hover:border-slate-400 hover:text-slate-700 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />

@@ -81,7 +81,6 @@ export interface ShippingRatesResult {
 
 export interface OrderItem {
   quantity: number
-  weight_per_item?: number
 }
 
 /**
