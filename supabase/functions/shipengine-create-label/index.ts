@@ -160,9 +160,45 @@ serve(async (req) => {
       return errorResponse('INVALID_REQUEST', 'package_weight_lbs is required (and must be > 0) when packages array is not provided')
     }
 
-    const pkgLength = body.package_length || 10
-    const pkgWidth = body.package_width || 8
-    const pkgHeight = body.package_height || 6
+    // --- Resolve package dimensions from shipping_packages table ---
+    let pkgLength = body.package_length || 0
+    let pkgWidth = body.package_width || 0
+    let pkgHeight = body.package_height || 0
+    let pkgEmptyWeight = 0
+
+    if (!hasPackagesArray && (!pkgLength || !pkgWidth || !pkgHeight)) {
+      // Try shipping_packages table first (default active package)
+      const { data: defaultPkg } = await supabaseClient
+        .from('shipping_packages')
+        .select('length, width, height, empty_weight')
+        .eq('is_default', true)
+        .eq('is_active', true)
+        .limit(1)
+        .single()
+
+      if (defaultPkg) {
+        pkgLength = pkgLength || defaultPkg.length
+        pkgWidth = pkgWidth || defaultPkg.width
+        pkgHeight = pkgHeight || defaultPkg.height
+        pkgEmptyWeight = defaultPkg.empty_weight || 0
+        console.log(`[create-label] Using shipping_packages default: ${pkgLength}x${pkgWidth}x${pkgHeight}, empty_weight: ${pkgEmptyWeight}lbs`)
+      } else {
+        // Last resort: config_settings default_package
+        const shippingPkgSettings = await getShippingSettings(supabaseClient, ['default_package'])
+        const defaultPackage = shippingPkgSettings.default_package
+        if (defaultPackage) {
+          pkgLength = pkgLength || defaultPackage.length || 10
+          pkgWidth = pkgWidth || defaultPackage.width || 8
+          pkgHeight = pkgHeight || defaultPackage.height || 6
+          console.log(`[create-label] Falling back to config_settings default_package: ${pkgLength}x${pkgWidth}x${pkgHeight}`)
+        } else {
+          pkgLength = pkgLength || 10
+          pkgWidth = pkgWidth || 8
+          pkgHeight = pkgHeight || 6
+          console.log(`[create-label] No package config found, using hardcoded defaults: ${pkgLength}x${pkgWidth}x${pkgHeight}`)
+        }
+      }
+    }
 
     // --- Load config ---
     const integrationSettings = await getIntegrationSettings(supabaseClient, [
@@ -269,7 +305,7 @@ serve(async (req) => {
         packages: hasPackagesArray
           ? body.packages!
           : [{
-              weight: { value: package_weight_lbs, unit: 'pound' },
+              weight: { value: package_weight_lbs + pkgEmptyWeight, unit: 'pound' },
               dimensions: { length: pkgLength, width: pkgWidth, height: pkgHeight, unit: 'inch' },
             }],
       },

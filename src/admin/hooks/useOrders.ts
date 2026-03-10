@@ -425,11 +425,12 @@ export function useOrders(filters: OrderFilters = {}) {
       }
 
       // Apply status filter (supports both single status and multiple statuses)
-      if (filters.statuses && filters.statuses.length > 0) {
-        dataQuery = dataQuery.in('status', filters.statuses);
-        legacyQuery = legacyQuery.in('status', filters.statuses);
-        countNewQuery = countNewQuery.in('status', filters.statuses);
-        countLegacyQuery = countLegacyQuery.in('status', filters.statuses);
+      const statusArr = Array.isArray(filters.statuses) ? filters.statuses : [];
+      if (statusArr.length > 0) {
+        dataQuery = dataQuery.in('status', statusArr);
+        legacyQuery = legacyQuery.in('status', statusArr);
+        countNewQuery = countNewQuery.in('status', statusArr);
+        countLegacyQuery = countLegacyQuery.in('status', statusArr);
       } else if (filters.status && filters.status !== 'all') {
         dataQuery = dataQuery.eq('status', filters.status);
         legacyQuery = legacyQuery.eq('status', filters.status);
@@ -551,7 +552,7 @@ export function useOrders(filters: OrderFilters = {}) {
           id: item.id,
           product_id: item.product_id,
           product_name: item.product_name || item.products?.name || 'Unknown Product',
-          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.url || null,
+          product_image: (() => { const imgs = Array.isArray(item.products?.images) ? item.products.images : []; return (imgs.find((img: any) => img.is_primary) || imgs[0])?.url || null; })(),
           quantity: item.quantity,
           unit_price: item.product_price,
           line_total: item.line_total,
@@ -587,7 +588,7 @@ export function useOrders(filters: OrderFilters = {}) {
         } : undefined,
         // Pick the active (non-voided) shipment, falling back to the latest one
         ...(() => {
-          const shipments = order.shipments || [];
+          const shipments = Array.isArray(order.shipments) ? order.shipments : [];
           const activeShipment = shipments.find((s: any) => !s.voided) || shipments[0];
           if (!activeShipment) return {};
           return {
@@ -675,7 +676,9 @@ export function useOrders(filters: OrderFilters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [filters.status, filters.statuses, filters.shippingStatus, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage]);
+  // Stabilize dependencies: serialize statuses array to avoid reference-comparison issues,
+  // and include showTrashed which was previously missing (stale closure bug).
+  }, [filters.status, JSON.stringify(filters.statuses), filters.showTrashed, filters.shippingStatus, filters.deliveryMethod, filters.dateFrom, filters.dateTo, filters.search, page, perPage]);
 
   useEffect(() => {
     fetchOrders();
@@ -842,7 +845,7 @@ export function useOrder(orderId: string | null) {
           id: item.id,
           product_id: item.product_id,
           product_name: item.product_name || item.products?.name || 'Unknown Product',
-          product_image: (item.products?.images?.find((img: any) => img.is_primary) || item.products?.images?.[0])?.url || null,
+          product_image: (() => { const imgs = Array.isArray(item.products?.images) ? item.products.images : []; return (imgs.find((img: any) => img.is_primary) || imgs[0])?.url || null; })(),
           quantity: item.quantity,
           unit_price: item.product_price,
           line_total: item.line_total,
