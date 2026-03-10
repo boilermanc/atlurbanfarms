@@ -194,6 +194,15 @@ serve(async (req) => {
       return errorResponse('ORDER_NOT_FOUND', 'Order not found', 404)
     }
 
+    // --- Guard: pickup orders without a shipping address ---
+    if (order.is_pickup && !order.shipping_address_line1) {
+      return errorResponse(
+        'MISSING_SHIPPING_ADDRESS',
+        "This is a pickup order with no shipping address on file. Update the order's shipping address before creating a label.",
+        400
+      )
+    }
+
     // --- Load warehouse address ---
     const shippingSettings = await getShippingSettings(supabaseClient, ['warehouse_address'])
 

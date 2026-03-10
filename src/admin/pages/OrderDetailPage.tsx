@@ -1928,7 +1928,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       });
                       setLabelCreating(false);
                       if (!result.success) {
-                        setLabelError(result.error?.message || 'Failed to create label');
+                        if (result.error?.code === 'MISSING_SHIPPING_ADDRESS') {
+                          setLabelError('This is a pickup order with no shipping address. Edit the shipping address section above before creating a label.');
+                        } else {
+                          setLabelError(result.error?.message || 'Failed to create label');
+                        }
                       } else {
                         setLabelError(null);
                         refetch();

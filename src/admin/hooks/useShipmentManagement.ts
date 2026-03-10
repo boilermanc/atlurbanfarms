@@ -142,6 +142,19 @@ export function useShipmentManagement(orderId: string | null) {
       });
 
       if (fnError) {
+        // supabase.functions.invoke treats non-2xx as FunctionsHttpError.
+        // The real error payload is in fnError.context (a Response object).
+        let parsed: any = null;
+        try {
+          if (fnError.context && typeof fnError.context.json === 'function') {
+            parsed = await fnError.context.json();
+          }
+        } catch { /* ignore parse failure */ }
+
+        if (parsed && parsed.error) {
+          setError(parsed.error.message || 'Failed to create label');
+          return { success: false, error: parsed.error };
+        }
         throw new Error(fnError.message || 'Failed to create label');
       }
 
