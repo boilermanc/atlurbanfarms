@@ -11,6 +11,7 @@ const SEEDLING_WEIGHT_LBS = SEEDLING_WEIGHT_OZ / 16  // ~0.12 lbs
 interface CreateLabelRequest {
   order_id: string
   service_code: string
+  rate_id?: string
   package_weight_lbs?: number
   package_length?: number
   package_width?: number
@@ -313,37 +314,51 @@ serve(async (req) => {
 
     // --- Call ShipEngine to create label ---
     const totalWeight = finalPackages.reduce((sum, p) => sum + p.weight.value, 0)
-    console.log(`[create-label] Creating label for order ${order.order_number || order_id}: ${service_code}, ${totalWeight}lbs`)
+    console.log(`[create-label] Creating label for order ${order.order_number || order_id}: ${service_code}, ${totalWeight}lbs, rate_id=${body.rate_id || 'none'}`)
 
-    const labelRequestBody = {
-      shipment: {
-        carrier_id: UPS_CARRIER_ID,
-        service_code,
-        ship_from: {
-          name: warehouseAddress.name || 'ATL Urban Farms',
-          company_name: warehouseAddress.company_name || 'ATL Urban Farms',
-          phone: warehouseAddress.phone || '',
-          address_line1: warehouseAddress.address_line1,
-          address_line2: warehouseAddress.address_line2 || '',
-          city_locality: warehouseAddress.city_locality,
-          state_province: warehouseAddress.state_province,
-          postal_code: warehouseAddress.postal_code,
-          country_code: warehouseAddress.country_code || 'US',
+    // Prefer rate_id when available (from rate shopping). This is especially
+    // important for multi-package (MPS) shipments where the inline shipment
+    // approach can fail with UPS "XML Shipping System is unavailable" errors.
+    let labelRequestBody: Record<string, any>
+
+    if (body.rate_id) {
+      labelRequestBody = {
+        rate_id: body.rate_id,
+        label_format: 'pdf',
+        label_layout: '4x6',
+      }
+      console.log(`[create-label] Using rate_id: ${body.rate_id}`)
+    } else {
+      labelRequestBody = {
+        shipment: {
+          carrier_id: UPS_CARRIER_ID,
+          service_code,
+          ship_from: {
+            name: warehouseAddress.name || 'ATL Urban Farms',
+            company_name: warehouseAddress.company_name || 'ATL Urban Farms',
+            phone: warehouseAddress.phone || '',
+            address_line1: warehouseAddress.address_line1,
+            address_line2: warehouseAddress.address_line2 || '',
+            city_locality: warehouseAddress.city_locality,
+            state_province: warehouseAddress.state_province,
+            postal_code: warehouseAddress.postal_code,
+            country_code: warehouseAddress.country_code || 'US',
+          },
+          ship_to: {
+            name: shipTo.name,
+            phone: shipTo.phone,
+            address_line1: shipTo.address_line1,
+            address_line2: shipTo.address_line2,
+            city_locality: shipTo.city_locality,
+            state_province: shipTo.state_province,
+            postal_code: shipTo.postal_code,
+            country_code: shipTo.country_code,
+          },
+          packages: finalPackages,
         },
-        ship_to: {
-          name: shipTo.name,
-          phone: shipTo.phone,
-          address_line1: shipTo.address_line1,
-          address_line2: shipTo.address_line2,
-          city_locality: shipTo.city_locality,
-          state_province: shipTo.state_province,
-          postal_code: shipTo.postal_code,
-          country_code: shipTo.country_code,
-        },
-        packages: finalPackages,
-      },
-      label_format: 'pdf',
-      label_layout: '4x6',
+        label_format: 'pdf',
+        label_layout: '4x6',
+      }
     }
 
     const labelResponse = await fetch('https://api.shipengine.com/v1/labels', {

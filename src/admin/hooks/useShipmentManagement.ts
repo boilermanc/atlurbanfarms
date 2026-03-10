@@ -106,6 +106,7 @@ export function useShipmentManagement(orderId: string | null) {
   // Create label for order
   const createLabel = useCallback(async (params: {
     service_code: string;
+    rate_id?: string;
     package_weight_lbs: number;
     package_length?: number;
     package_width?: number;
@@ -133,6 +134,7 @@ export function useShipmentManagement(orderId: string | null) {
         body: {
           order_id: orderId,
           service_code: params.service_code,
+          rate_id: params.rate_id,
           package_weight_lbs: params.package_weight_lbs,
           package_length: params.package_length,
           package_width: params.package_width,

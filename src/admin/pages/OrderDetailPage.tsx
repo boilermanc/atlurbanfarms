@@ -1920,6 +1920,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       }));
                       const result = await createLabel({
                         service_code: selectedRate?.service_code || labelServiceCode,
+                        rate_id: selectedRate?.rate_id,
                         package_weight_lbs: labelPackages[0].weight,
                         package_length: labelPackages[0].length,
                         package_width: labelPackages[0].width,

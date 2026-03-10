@@ -1316,7 +1316,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         growing_system: growingSystem === 'Other' ? growingSystemOther.trim() : growingSystem,
         payment_status: 'paid',
         tax_rate_applied: taxResult.taxRate,
-        tax_note: taxResult.taxNote
+        tax_note: taxResult.taxNote,
+        // Billing address (defaults to shipping — no separate billing form yet)
+        billing_first_name: shippingInfo?.firstName || formData.firstName,
+        billing_last_name: shippingInfo?.lastName || formData.lastName,
+        billing_address_line1: shippingInfo?.address1 || formData.address1,
+        billing_address_line2: shippingInfo?.address2 || formData.address2 || null,
+        billing_city: shippingInfo?.city || formData.city,
+        billing_state: shippingInfo?.state || formData.state,
+        billing_zip: shippingInfo?.zip || formData.zip,
       };
 
       const pendingOrderItems = items.map(item => ({
