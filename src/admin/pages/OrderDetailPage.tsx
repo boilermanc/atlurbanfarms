@@ -1556,7 +1556,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
             <div className="p-6">
               {!editingBilling ? (
                 <div>
-                  {(order.billing_first_name || order.billing_last_name || order.billing_address_line1) ? (
+                  {order.billing_address_line1 ? (
                     <address className="text-slate-600 not-italic leading-relaxed">
                       <p className="font-medium text-slate-800">{`${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || 'Name not provided'}</p>
                       <p>{order.billing_address_line1 || 'Street not provided'}</p>

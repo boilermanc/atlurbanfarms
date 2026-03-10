@@ -131,14 +131,13 @@ serve(async (req) => {
       return errorResponse('UNAUTHORIZED', 'Invalid or expired token', 401)
     }
 
-    const { data: adminRole } = await supabaseClient
-      .from('admin_user_roles')
-      .select('id')
-      .eq('customer_id', user.id)
-      .eq('is_active', true)
+    const { data: customer } = await supabaseClient
+      .from('customers')
+      .select('role')
+      .eq('id', user.id)
       .single()
 
-    if (!adminRole) {
+    if (!customer || customer.role !== 'admin') {
       return errorResponse('FORBIDDEN', 'Admin access required', 403)
     }
 

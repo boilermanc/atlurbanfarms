@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
-import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler } from '../hooks/useOrders';
+import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler, getOrderSeedlingTotal } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
 import { Printer, X, RefreshCw, Search, ChevronDown, Check, Mail, Trash2, FileText } from 'lucide-react';
 
@@ -315,10 +315,10 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
           .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
           .items-table th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; text-align: left; border-bottom: 2px solid #cbd5e1; }
           .items-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-          .items-table .col-pick { width: 44px; text-align: center; }
+          .items-table .col-pick { width: 64px; text-align: center; }
           .items-table .col-qty { width: 64px; text-align: center; font-weight: 800; font-size: 20px; }
           .items-table .col-product { font-weight: 600; font-size: 15px; }
-          .checkbox-box { display: inline-block; width: 22px; height: 22px; border: 2px solid #000; border-radius: 3px; }
+          .items-table .totals-row td { border-top: 2px solid #334155; font-weight: 700; padding-top: 10px; }
 
           /* Customer notes */
           .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
@@ -381,38 +381,50 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
             <table class="items-table">
               <thead>
                 <tr>
-                  <th class="col-pick">Pick</th>
+                  <th class="col-pick">Seedling #</th>
                   <th class="col-qty">Qty</th>
                   <th class="col-product">Product</th>
                 </tr>
               </thead>
               <tbody>
-                ${(order.items || []).map(item => {
-                  const children = bundleChildrenMap[item.product_id];
-                  if (children && children.length > 0) {
+                ${(() => {
+                  let totalQty = 0;
+                  const rows = (order.items || []).map(item => {
+                    const children = bundleChildrenMap[item.product_id];
+                    if (children && children.length > 0) {
+                      children.forEach(child => { totalQty += child.quantity * item.quantity; });
+                      return `
+                        <tr style="background: #f8fafc;">
+                          <td class="col-pick"></td>
+                          <td class="col-qty">${item.quantity}</td>
+                          <td class="col-product">${item.product_name} <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">BUNDLE</span></td>
+                        </tr>
+                        ${children.map(child => `
+                          <tr>
+                            <td class="col-pick"></td>
+                            <td class="col-qty">${child.quantity * item.quantity}</td>
+                            <td class="col-product" style="padding-left: 36px; font-size: 13px; color: #475569;">${child.name}</td>
+                          </tr>
+                        `).join('')}
+                      `;
+                    }
+                    totalQty += item.quantity;
                     return `
-                      <tr style="background: #f8fafc;">
+                      <tr>
                         <td class="col-pick"></td>
                         <td class="col-qty">${item.quantity}</td>
-                        <td class="col-product">${item.product_name} <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">BUNDLE</span></td>
+                        <td class="col-product">${item.product_name}</td>
                       </tr>
-                      ${children.map(child => `
-                        <tr>
-                          <td class="col-pick"><span class="checkbox-box"></span></td>
-                          <td class="col-qty">${child.quantity * item.quantity}</td>
-                          <td class="col-product" style="padding-left: 36px; font-size: 13px; color: #475569;">${child.name}</td>
-                        </tr>
-                      `).join('')}
                     `;
-                  }
-                  return `
-                    <tr>
-                      <td class="col-pick"><span class="checkbox-box"></span></td>
-                      <td class="col-qty">${item.quantity}</td>
-                      <td class="col-product">${item.product_name}</td>
+                  }).join('');
+                  return rows + `
+                    <tr class="totals-row">
+                      <td class="col-pick"></td>
+                      <td class="col-qty">${totalQty}</td>
+                      <td class="col-product">Total</td>
                     </tr>
                   `;
-                }).join('')}
+                })()}
               </tbody>
             </table>
 
@@ -463,13 +475,15 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
             email,
             phone
           ),
-          order_items (
+          order_items_with_product (
             id,
             product_id,
             product_name,
             product_price,
             quantity,
             line_total,
+            product_type,
+            bundle_item_count,
             products (
               name
             )
@@ -540,7 +554,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
         customer_notes: order.customer_notes,
         created_at: order.created_at,
         updated_at: order.updated_at,
-        items: (order.order_items || []).map((item: any) => ({
+        items: (order.order_items_with_product || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
           product_name: item.product_name || item.products?.name || 'Unknown Product',
@@ -548,6 +562,8 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
           quantity: item.quantity,
           unit_price: item.product_price,
           line_total: item.line_total,
+          product_type: item.product_type || null,
+          seedlings_per_unit: item.bundle_item_count || null,
         })),
         is_pickup: order.is_pickup || false,
         pickup_location_id: order.pickup_location_id,
@@ -1163,7 +1179,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
                         {order.customer_email}
                       </td>
                       <td className="px-6 py-4 text-center text-slate-600">
-                        {order.items?.length || 0}
+                        {getOrderSeedlingTotal(order.items || [])}
                       </td>
                       <td className="px-6 py-4 text-right text-slate-800 font-semibold">
                         {formatCurrency(order.total)}

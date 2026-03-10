@@ -1248,7 +1248,15 @@ export function useCreateOrder() {
         gift_card_amount: giftCardAmount,
         // Tax audit
         tax_rate_applied: taxRateApplied,
-        tax_note: taxNote
+        tax_note: taxNote,
+        // Billing address (defaults to shipping — no separate billing form yet)
+        billing_first_name: shippingInfo?.firstName || customerInfo.firstName,
+        billing_last_name: shippingInfo?.lastName || customerInfo.lastName,
+        billing_address_line1: shippingInfo?.address1 || null,
+        billing_address_line2: shippingInfo?.address2 || null,
+        billing_city: shippingInfo?.city || null,
+        billing_state: shippingInfo?.state || null,
+        billing_zip: shippingInfo?.zip || null
       }
 
       // Re-validate promotion at order creation time to enforce per-customer limits

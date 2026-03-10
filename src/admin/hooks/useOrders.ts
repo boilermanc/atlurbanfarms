@@ -41,7 +41,19 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  product_type?: string;
+  seedlings_per_unit?: number;
 }
+
+/** Effective seedling count for an order item (accounts for bundles). */
+export const getItemSeedlingCount = (item: OrderItem): number =>
+  item.product_type === 'bundle' && item.seedlings_per_unit
+    ? item.quantity * item.seedlings_per_unit
+    : item.quantity;
+
+/** Total seedling count across all items in an order. */
+export const getOrderSeedlingTotal = (items: OrderItem[]): number =>
+  items.reduce((sum, item) => sum + getItemSeedlingCount(item), 0);
 
 export interface OrderRefundItem {
   order_item_id: string;
@@ -298,13 +310,15 @@ export function useOrders(filters: OrderFilters = {}) {
             email,
             phone
           ),
-          order_items (
+          order_items_with_product (
             id,
             product_id,
             product_name,
             product_price,
             quantity,
             line_total,
+            product_type,
+            bundle_item_count,
             products (
               name,
               images:product_images(id, url, is_primary, sort_order)
@@ -533,7 +547,7 @@ export function useOrders(filters: OrderFilters = {}) {
         internal_notes: order.internal_notes,
         created_at: order.created_at,
         updated_at: order.updated_at,
-        items: (order.order_items || []).map((item: any) => ({
+        items: (order.order_items_with_product || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
           product_name: item.product_name || item.products?.name || 'Unknown Product',
@@ -541,6 +555,8 @@ export function useOrders(filters: OrderFilters = {}) {
           quantity: item.quantity,
           unit_price: item.product_price,
           line_total: item.line_total,
+          product_type: item.product_type || null,
+          seedlings_per_unit: item.bundle_item_count || null,
         })),
         refunds: (order.order_refunds || []).map((refund: any) => ({
           id: refund.id,
@@ -705,13 +721,15 @@ export function useOrder(orderId: string | null) {
             email,
             phone
           ),
-          order_items (
+          order_items_with_product (
             id,
             product_id,
             product_name,
             product_price,
             quantity,
             line_total,
+            product_type,
+            bundle_item_count,
             products (
               name,
               images:product_images(id, url, is_primary, sort_order)
@@ -820,7 +838,7 @@ export function useOrder(orderId: string | null) {
         growing_system: orderData.growing_system,
         created_at: orderData.created_at,
         updated_at: orderData.updated_at,
-        items: (orderData.order_items || []).map((item: any) => ({
+        items: (orderData.order_items_with_product || []).map((item: any) => ({
           id: item.id,
           product_id: item.product_id,
           product_name: item.product_name || item.products?.name || 'Unknown Product',
@@ -828,6 +846,8 @@ export function useOrder(orderId: string | null) {
           quantity: item.quantity,
           unit_price: item.product_price,
           line_total: item.line_total,
+          product_type: item.product_type || null,
+          seedlings_per_unit: item.bundle_item_count || null,
         })),
         status_history: (historyData || []).map((h: any) => ({
           id: h.id,

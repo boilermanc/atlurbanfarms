@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
-import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler } from '../hooks/useOrders';
+import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler, getOrderSeedlingTotal } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
 import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText, Package, CheckCircle2, XCircle, AlertCircle, ChevronDown, RotateCcw } from 'lucide-react';
 
@@ -374,8 +374,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .items-table .qty { text-align: center; font-weight: bold; font-size: 18px; width: 60px; }
 .items-table .product { font-weight: 500; }
 .items-table .price { text-align: right; width: 100px; }
-.items-table .checkbox { width: 40px; text-align: center; }
-.items-table .checkbox-box { display: inline-block; width: 20px; height: 20px; border: 2px solid #000; }
+.items-table .checkbox { width: 64px; text-align: center; }
+.items-table .totals-row td { border-top: 2px solid #333; font-weight: 700; }
 .totals { margin-top: 20px; text-align: right; }
 .totals table { margin-left: auto; }
 .totals td { padding: 4px 12px; }
@@ -403,15 +403,21 @@ ${ordersToprint.map(order => `<div class="order">
     <div class="shipping-address">${order.shipping_address ? `<p><strong>${order.shipping_address.name}</strong></p><p>${order.shipping_address.street}</p>${order.shipping_address.street2 ? `<p>${order.shipping_address.street2}</p>` : ''}<p>${order.shipping_address.city}, ${order.shipping_address.state} ${order.shipping_address.zip}</p>` : '<p>No shipping address</p>'}</div>
   </div></div>
   <div class="section"><div class="section-title">Items to Pick</div>
-    <table class="items-table"><thead><tr><th class="checkbox">Pick</th><th class="qty">Qty</th><th class="product">Product</th><th class="price">Unit Price</th><th class="price">Line Total</th></tr></thead>
-    <tbody>${(order.items || []).map(item => {
-      const children = bundleChildrenMap[item.product_id];
-      if (children && children.length > 0) {
-        return `<tr style="background: #f5f5f5;"><td class="checkbox"></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name} <span style="font-size: 10px; color: #888; font-weight: bold;">BUNDLE</span></td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>` +
-          children.map(child => `<tr><td class="checkbox"><span class="checkbox-box"></span></td><td class="qty">${child.quantity * item.quantity}</td><td class="product" style="padding-left: 32px; font-size: 13px; color: #555;">${child.name}</td><td class="price"></td><td class="price"></td></tr>`).join('');
-      }
-      return `<tr><td class="checkbox"><span class="checkbox-box"></span></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name}</td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>`;
-    }).join('')}</tbody></table>
+    <table class="items-table"><thead><tr><th class="checkbox">Seedling #</th><th class="qty">Qty</th><th class="product">Product</th><th class="price">Unit Price</th><th class="price">Line Total</th></tr></thead>
+    <tbody>${(() => {
+      let totalQty = 0;
+      const rows = (order.items || []).map(item => {
+        const children = bundleChildrenMap[item.product_id];
+        if (children && children.length > 0) {
+          children.forEach(child => { totalQty += child.quantity * item.quantity; });
+          return `<tr style="background: #f5f5f5;"><td class="checkbox"></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name} <span style="font-size: 10px; color: #888; font-weight: bold;">BUNDLE</span></td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>` +
+            children.map(child => `<tr><td class="checkbox"></td><td class="qty">${child.quantity * item.quantity}</td><td class="product" style="padding-left: 32px; font-size: 13px; color: #555;">${child.name}</td><td class="price"></td><td class="price"></td></tr>`).join('');
+        }
+        totalQty += item.quantity;
+        return `<tr><td class="checkbox"></td><td class="qty">${item.quantity}</td><td class="product">${item.product_name}</td><td class="price">${formatCurrencyForPrint(item.unit_price)}</td><td class="price">${formatCurrencyForPrint(item.line_total)}</td></tr>`;
+      }).join('');
+      return rows + `<tr class="totals-row"><td class="checkbox"></td><td class="qty">${totalQty}</td><td class="product">Total</td><td class="price"></td><td class="price"></td></tr>`;
+    })()}</tbody></table>
   </div>
   <div class="totals"><table><tr><td>Subtotal:</td><td>${formatCurrencyForPrint(order.subtotal)}</td></tr><tr><td>Shipping (${order.shipping_method || 'Standard'}):</td><td>${formatCurrencyForPrint(order.shipping_cost)}</td></tr><tr><td>Tax:</td><td>${formatCurrencyForPrint(order.tax)}</td></tr><tr class="total-row"><td>Total:</td><td>${formatCurrencyForPrint(order.total)}</td></tr></table></div>
   ${order.internal_notes ? `<div class="section" style="margin-top: 20px;"><div class="section-title">Internal Notes</div><div class="notes">${order.internal_notes.replace(/\n/g, '<br>')}</div></div>` : ''}
@@ -434,7 +440,7 @@ ${ordersToprint.map(order => `<div class="order">
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select(`*, customers (id, first_name, last_name, email, phone), order_items (id, product_id, product_name, product_price, quantity, line_total, products (name))`)
+        .select(`*, customers (id, first_name, last_name, email, phone), order_items_with_product (id, product_id, product_name, product_price, quantity, line_total, product_type, bundle_item_count, products (name))`)
         .eq('status', 'processing')
         .order('created_at', { ascending: false });
 
@@ -450,7 +456,7 @@ ${ordersToprint.map(order => `<div class="order">
         shipping_address: order.shipping_address || (order.shipping_address_line1 ? { name: `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim(), street: order.shipping_address_line1, street2: order.shipping_address_line2 || null, city: order.shipping_city, state: order.shipping_state, zip: order.shipping_zip } : null),
         shipping_method: order.shipping_method, tracking_number: order.tracking_number, estimated_delivery: order.estimated_delivery,
         internal_notes: order.internal_notes, created_at: order.created_at, updated_at: order.updated_at,
-        items: (order.order_items || []).map((item: any) => ({ id: item.id, product_id: item.product_id, product_name: item.product_name || item.products?.name || 'Unknown Product', product_image: null, quantity: item.quantity, unit_price: item.product_price, line_total: item.line_total })),
+        items: (order.order_items_with_product || []).map((item: any) => ({ id: item.id, product_id: item.product_id, product_name: item.product_name || item.products?.name || 'Unknown Product', product_image: null, quantity: item.quantity, unit_price: item.product_price, line_total: item.line_total, product_type: item.product_type || null, seedlings_per_unit: item.bundle_item_count || null })),
       }));
 
       await openPrintWindow(processingOrders);
@@ -778,7 +784,7 @@ ${ordersToprint.map(order => `<div class="order">
                       <td className="px-6 py-4 text-slate-600">{formatDate(order.created_at)}</td>
                       <td className="px-6 py-4 text-slate-800">{order.customer_name || (<span className="text-slate-400 italic">Guest</span>)}</td>
                       <td className="px-6 py-4 text-slate-500 text-sm">{order.customer_email}</td>
-                      <td className="px-6 py-4 text-center text-slate-600">{order.items?.length || 0}</td>
+                      <td className="px-6 py-4 text-center text-slate-600">{getOrderSeedlingTotal(order.items || [])}</td>
                       <td className="px-6 py-4 text-right text-slate-800 font-semibold">{formatCurrency(order.total)}</td>
                       <td className="px-6 py-4 text-center">{getStatusBadge(order.status)}</td>
                       <td className="px-4 py-4 text-center">
