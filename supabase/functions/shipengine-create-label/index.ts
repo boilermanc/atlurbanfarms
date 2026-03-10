@@ -411,6 +411,8 @@ serve(async (req) => {
         label_format: 'pdf',
         shipment_cost: labelData.shipment_cost?.amount,
         status: 'label_created',
+        voided: false,
+        voided_at: null,
       }, { onConflict: 'order_id' })
 
     if (shipmentError) {
@@ -460,10 +462,13 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        label_id: labelData.label_id,
         label_url: labelData.label_download?.pdf || labelData.label_download?.href,
         tracking_number: labelData.tracking_number,
         tracking_url: trackingUrl,
         shipment_cost: labelData.shipment_cost?.amount,
+        carrier_code: 'ups',
+        service_code,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

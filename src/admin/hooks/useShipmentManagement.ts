@@ -83,16 +83,16 @@ export function useShipmentManagement(orderId: string | null) {
 
       if (fetchError) {
         console.warn('Shipment fetch warning:', fetchError.code, fetchError.message);
-        setShipment(null);
+        // Don't overwrite existing (optimistic) shipment data on error
         setLoading(false);
         return;
       }
 
       setShipment(data?.[0] || null);
     } catch (err: any) {
-      // Silently handle errors - shipment data is optional
+      // Silently handle errors - shipment data is optional.
+      // Don't overwrite existing (optimistic) shipment data on error.
       console.warn('Error fetching shipment (non-critical):', err.message);
-      setShipment(null);
     } finally {
       setLoading(false);
     }
@@ -165,7 +165,34 @@ export function useShipmentManagement(orderId: string | null) {
         return data;
       }
 
-      // Refresh shipment data
+      // Optimistically update shipment state from the response so the UI
+      // switches from "Create Label" to "Label Details" immediately, even
+      // if the subsequent DB fetch fails (e.g. RLS, timing).
+      setShipment({
+        id: '',
+        order_id: orderId!,
+        label_id: data.label_id || null,
+        tracking_number: data.tracking_number || null,
+        carrier_id: null,
+        carrier_code: data.carrier_code || null,
+        service_code: data.service_code || params.service_code || null,
+        label_url: data.label_url || null,
+        label_format: 'pdf',
+        shipment_cost: data.shipment_cost ?? null,
+        status: 'label_created',
+        tracking_status: null,
+        tracking_status_description: null,
+        estimated_delivery_date: null,
+        actual_delivery_date: null,
+        last_tracking_update: null,
+        voided: false,
+        voided_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+      // Also fetch the full record from the DB (will overwrite optimistic
+      // data with the real row including the server-generated id).
       await fetchShipment();
 
       return data;

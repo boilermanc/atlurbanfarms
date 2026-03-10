@@ -54,6 +54,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [markingPickedUp, setMarkingPickedUp] = useState(false);
+  const [showConvertToShipModal, setShowConvertToShipModal] = useState(false);
+  const [convertingToShip, setConvertingToShip] = useState(false);
   const { refundOrder, loading: refunding } = useOrderRefund();
   const { processManualRefund, loading: processingManualRefund } = useManualRefund();
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -442,6 +444,55 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       console.error('Error marking as picked up:', err);
     } finally {
       setMarkingPickedUp(false);
+    }
+  };
+
+  // Handle converting a pickup order to a ship order
+  const handleConvertToShip = async () => {
+    if (!order) return;
+
+    setConvertingToShip(true);
+    try {
+      // Update the order: clear pickup fields, set as shipping order
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({
+          is_pickup: false,
+          shipping_method: 'standard',
+          shipping_method_name: null,
+          pickup_location_id: null,
+          pickup_date: null,
+          pickup_time_start: null,
+          pickup_time_end: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order.id);
+
+      if (orderError) throw orderError;
+
+      // Cancel the pickup reservation if one exists
+      if (order.pickup_reservation?.id) {
+        const { error: reservationError } = await supabase
+          .from('pickup_reservations')
+          .update({ status: 'cancelled' })
+          .eq('id', order.pickup_reservation.id);
+
+        if (reservationError) throw reservationError;
+      }
+
+      setShowConvertToShipModal(false);
+      setToast({ message: 'Order converted to ship order', type: 'success' });
+      await refetch();
+
+      // Auto-open shipping address edit if no address exists
+      if (!order.shipping_address_line1) {
+        startEditShipping();
+      }
+    } catch (err: any) {
+      console.error('Error converting to ship order:', err);
+      setToast({ message: 'Failed to convert order: ' + (err.message || 'Unknown error'), type: 'error' });
+    } finally {
+      setConvertingToShip(false);
     }
   };
 
@@ -1381,7 +1432,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           </div>
 
           {/* Ship To Card - Pickup or Shipping */}
-          {order.is_pickup && order.pickup_reservation ? (
+          {order.is_pickup && order.pickup_reservation && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
               <div className="px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center justify-between">
@@ -1451,9 +1502,19 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   </p>
                 </div>
 
+                {/* Convert to Ship Order */}
+                <div className="border-t border-slate-200 pt-4 print:hidden">
+                  <button
+                    onClick={() => setShowConvertToShipModal(true)}
+                    className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Convert to Ship Order
+                  </button>
+                </div>
+
                 {/* Override: allow creating a shipping label on a pickup order */}
                 {!overridePickup && !shipment && (
-                  <div className="border-t border-slate-200 pt-4 print:hidden">
+                  <div className="pt-2 print:hidden">
                     <button
                       onClick={() => setOverridePickup(true)}
                       className="text-sm text-amber-600 underline hover:text-amber-800"
@@ -1464,9 +1525,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 )}
               </div>
             </div>
-          ) : (
-            /* Section 2: Shipping Address (editable) */
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+          )}
+          {/* Section 2: Shipping Address (editable) — always visible so admins can add/edit shipping on any order */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Address</h2>
                 {!editingShipping && (
@@ -1499,7 +1560,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                         </p>
                       </address>
                     ) : (
-                      <p className="text-slate-400 italic">No shipping address</p>
+                      <div className="text-center py-2">
+                        <p className="text-slate-400 italic">No shipping address</p>
+                        {order.is_pickup && (
+                          <button onClick={startEditShipping} className="mt-2 text-sm text-emerald-600 underline hover:text-emerald-800 print:hidden">
+                            Add shipping address to convert to shipped order
+                          </button>
+                        )}
+                      </div>
                     )}
                     {(order.shipping_phone || order.customer_phone) && (
                       <p className="text-slate-500 text-sm">{order.shipping_phone || order.customer_phone}</p>
@@ -1547,7 +1615,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 )}
               </div>
             </div>
-          )}
         </div>
 
         {/* Section 3: Billing Address & Section 4: Shipping Method & Tracking */}
@@ -1937,6 +2004,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       } else {
                         setLabelError(null);
                         refetch();
+                        refetchShipment();
                       }
                     }}
                     disabled={labelCreating || shipmentLoading}
@@ -2892,6 +2960,54 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                   >
                     {cancellingOrder ? 'Cancelling...' : 'Cancel Order'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Convert to Ship Order Modal */}
+        <AnimatePresence>
+          {showConvertToShipModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowConvertToShipModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Convert to Ship Order</h3>
+                <p className="text-slate-600 mb-4">
+                  This will cancel the pickup reservation and convert order{' '}
+                  <span className="font-mono text-slate-800">{order?.order_number}</span>{' '}
+                  to a shipping order. This cannot be undone.
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                  <p className="text-amber-700 text-sm">
+                    You will need to add a shipping address and create a shipping label after conversion.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowConvertToShipModal(false)}
+                    className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                  >
+                    Keep as Pickup
+                  </button>
+                  <button
+                    onClick={handleConvertToShip}
+                    disabled={convertingToShip}
+                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {convertingToShip ? 'Converting...' : 'Convert to Ship'}
                   </button>
                 </div>
               </motion.div>
