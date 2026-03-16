@@ -39,8 +39,8 @@ const GiftCardsPage: React.FC = () => {
   }, []);
 
   return (
-    <section className="min-h-screen bg-white">
-      <div className="max-w-[960px] mx-auto">
+    <section className="min-h-screen bg-white pt-28 md:pt-32">
+      <div className="max-w-[960px] mx-auto px-4">
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -64,8 +64,7 @@ const GiftCardsPage: React.FC = () => {
             src={`https://giftup.app/place-order/${siteId}?platform=hosted&display=inline`}
             title="Gift Cards"
             className="w-full rounded-xl"
-            scrolling="no"
-            style={{ height: 1100, border: 'none', overflow: 'hidden' }}
+            style={{ height: 'calc(100vh - 10rem)', minHeight: 600, border: 'none' }}
             allow="payment"
           />
         )}
