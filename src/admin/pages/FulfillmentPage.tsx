@@ -1456,9 +1456,9 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                   <div>
                     <h3 className="text-xl font-bold text-slate-800">Compose Email</h3>
                     <p className="text-sm text-slate-500 mt-1">
-                      Sending to {(() => {
+                      Sending {(() => {
                         const recipientCount = orders.filter(o => selectedOrders.has(o.id) && o.customer_email).length;
-                        return `${recipientCount} ${recipientCount === 1 ? 'recipient' : 'recipients'}`;
+                        return `${recipientCount} individual ${recipientCount === 1 ? 'email' : 'emails'} — one per recipient`;
                       })()}
                     </p>
                   </div>
