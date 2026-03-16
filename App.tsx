@@ -104,24 +104,29 @@ type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking'
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
-  if (pathname === '/admin/login') return 'admin-login';
-  if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'admin';
-  if (pathname === '/welcome') return 'welcome';
-  if (pathname === '/tracking' || pathname.startsWith('/tracking/')) return 'tracking';
-  if (pathname === '/privacy') return 'privacy';
-  if (pathname === '/terms') return 'terms';
-  if (pathname === '/schools') return 'schools';
-  if (pathname === '/calendar') return 'calendar';
-  if (pathname === '/blog' || pathname.startsWith('/blog/')) return 'blog';
-  if (pathname === '/gift-cards') return 'gift-cards';
-  if (pathname === '/login') return 'login';
-  if (pathname === '/register') return 'register';
-  if (pathname === '/forgot-password') return 'forgot-password';
-  if (pathname === '/reset-password') return 'reset-password';
-  if (pathname === '/account' || pathname.startsWith('/account/')) return 'account';
-  if (pathname === '/newsletter/confirmed') return 'newsletter-confirmed';
-  if (pathname === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
-  if (pathname === '/unsubscribe') return 'unsubscribe';
+  // Strip trailing slash (except root)
+  const path = pathname.length > 1 ? pathname.replace(/\/$/, '') : pathname;
+  if (path === '/admin/login') return 'admin-login';
+  if (path === '/admin' || path.startsWith('/admin/')) return 'admin';
+  if (path === '/welcome') return 'welcome';
+  if (path === '/tracking' || path.startsWith('/tracking/')) return 'tracking';
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
+  if (path === '/schools') return 'schools';
+  if (path === '/calendar') return 'calendar';
+  if (path === '/blog' || path.startsWith('/blog/')) return 'blog';
+  if (path === '/gift-cards') return 'gift-cards';
+  if (path === '/shop' || path.startsWith('/shop/')) return 'shop';
+  if (path === '/faq') return 'faq';
+  if (path === '/about') return 'about';
+  if (path === '/login') return 'login';
+  if (path === '/register') return 'register';
+  if (path === '/forgot-password') return 'forgot-password';
+  if (path === '/reset-password') return 'reset-password';
+  if (path === '/account' || path.startsWith('/account/')) return 'account';
+  if (path === '/newsletter/confirmed') return 'newsletter-confirmed';
+  if (path === '/newsletter/unsubscribed') return 'newsletter-unsubscribed';
+  if (path === '/unsubscribe') return 'unsubscribe';
   return 'home';
 };
 
@@ -138,6 +143,9 @@ const getPathForView = (view: ViewType): string => {
     case 'calendar': return '/calendar';
     case 'blog': return '/blog';
     case 'gift-cards': return '/gift-cards';
+    case 'shop': return '/shop';
+    case 'faq': return '/faq';
+    case 'about': return '/about';
     case 'login': return '/login';
     case 'register': return '/register';
     case 'forgot-password': return '/forgot-password';
@@ -207,7 +215,13 @@ const App: React.FC = () => {
   const { cart, setCart, addToCart, updateQuantity, removeFromCart, clearCart } = useCartSync();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [view, setView] = useState<ViewType>(() => getViewFromPath(window.location.pathname));
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (window.location.pathname.startsWith('/shop')) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('category') || 'All';
+    }
+    return 'All';
+  });
   const [categoryNavKey, setCategoryNavKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFilter, setCalendarFilter] = useState<string | undefined>(undefined);
@@ -393,6 +407,11 @@ const App: React.FC = () => {
       } else {
         setBlogSlug(null);
       }
+      // Update category on popstate for shop
+      if (pathname.startsWith('/shop')) {
+        const urlParams = new URLSearchParams(window.location.search);
+        setSelectedCategory(urlParams.get('category') || 'All');
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -418,7 +437,7 @@ const App: React.FC = () => {
     setView('shop');
     window.scrollTo(0, 0);
     // Update URL to reflect search
-    window.history.pushState({ view: 'shop', search: query }, '', '/');
+    window.history.pushState({ view: 'shop', search: query }, '', '/shop');
   }, []);
 
   const handleNavigate = useCallback((newView: ViewType, category: string = 'All', options?: { calendarFilter?: string }) => {
@@ -446,9 +465,13 @@ const App: React.FC = () => {
       setBlogSlug(null);
     }
 
-    // Update browser URL for admin views
-    const newPath = getPathForView(newView);
-    if (window.location.pathname !== newPath) {
+    // Update browser URL
+    let newPath = getPathForView(newView);
+    if (newView === 'shop' && category && category !== 'All') {
+      newPath = `/shop?category=${encodeURIComponent(category)}`;
+    }
+    const currentUrl = window.location.pathname + window.location.search;
+    if (currentUrl !== newPath) {
       window.history.pushState({ view: newView }, '', newPath);
     }
   }, []);

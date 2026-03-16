@@ -63,7 +63,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [allSubscribers, setAllSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
+  const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'pending' | 'all'>('all');
+  const [subscriberSourceFilter, setSubscriberSourceFilter] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscriberSearchInput, setSubscriberSearchInput] = useState('');
   const [subscriberSearch, setSubscriberSearch] = useState('');
@@ -361,6 +362,10 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         query = query.eq('status', subscriberFilter);
       }
 
+      if (subscriberSourceFilter) {
+        query = query.eq('source', subscriberSourceFilter);
+      }
+
       if (subscriberSearch) {
         query = query.or(`email.ilike.%${subscriberSearch}%,first_name.ilike.%${subscriberSearch}%,last_name.ilike.%${subscriberSearch}%`);
       }
@@ -406,7 +411,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     };
 
     loadData();
-  }, [activeTab, customerSearch, subscriberFilter, subscriberSearch, selectedTagFilters, sortField, sortDirection, currentPage, pageSize]);
+  }, [activeTab, customerSearch, subscriberFilter, subscriberSourceFilter, subscriberSearch, selectedTagFilters, sortField, sortDirection, currentPage, pageSize]);
 
   const handleCustomerClick = (customerId: string) => {
     onViewCustomer?.(customerId);
@@ -555,20 +560,43 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: 'Total Subscribers', value: newsletterStats.total, borderColor: 'border-l-slate-400' },
-              { label: 'Pending', value: newsletterStats.pending, borderColor: 'border-l-amber-400' },
-              { label: 'Active', value: newsletterStats.active, borderColor: 'border-l-emerald-400' },
+              {
+                label: 'Total Subscribers',
+                value: newsletterStats.total,
+                borderColor: 'border-l-slate-400',
+                active: subscriberFilter === 'all' && !subscriberSourceFilter,
+                onClick: () => { setSubscriberFilter('all'); setSubscriberSourceFilter(null); },
+              },
+              {
+                label: 'Pending',
+                value: newsletterStats.pending,
+                borderColor: 'border-l-amber-400',
+                active: subscriberFilter === 'pending' && !subscriberSourceFilter,
+                onClick: () => { setSubscriberFilter('pending'); setSubscriberSourceFilter(null); },
+              },
+              {
+                label: 'Active',
+                value: newsletterStats.active,
+                borderColor: 'border-l-emerald-400',
+                active: subscriberFilter === 'active' && !subscriberSourceFilter,
+                onClick: () => { setSubscriberFilter('active'); setSubscriberSourceFilter(null); },
+              },
               ...Object.entries(newsletterStats.sourceCounts)
                 .sort((a, b) => b[1] - a[1])
                 .map(([source, count]) => ({
                   label: source,
                   value: count,
                   borderColor: 'border-l-purple-400',
+                  active: subscriberSourceFilter === source,
+                  onClick: () => { setSubscriberFilter('all'); setSubscriberSourceFilter(source); },
                 })),
             ].map((card) => (
               <div
                 key={card.label}
-                className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor}`}
+                onClick={card.onClick}
+                className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor} cursor-pointer transition-all hover:shadow-md ${
+                  card.active ? 'ring-2 ring-offset-1 ring-slate-400' : ''
+                }`}
               >
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{card.label}</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1">{card.value.toLocaleString()}</p>
@@ -894,7 +922,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                   </div>
                   <select
                     value={subscriberFilter}
-                    onChange={(e) => setSubscriberFilter(e.target.value as SubscriberStatus | 'all')}
+                    onChange={(e) => { setSubscriberFilter(e.target.value as SubscriberStatus | 'pending' | 'all'); setSubscriberSourceFilter(null); }}
                     className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   >
                     <option value="all">All Statuses</option>

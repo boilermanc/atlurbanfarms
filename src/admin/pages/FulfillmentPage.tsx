@@ -290,27 +290,13 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
       return;
     }
 
-    const formatCurrencyForPrint = (amount: number) => {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      }).format(amount);
-    };
-
     const formatDateForPrint = (dateString: string) => {
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
       });
-    };
-
-    const getDeliveryBadge = (order: Order) => {
-      if (order.is_pickup) return { label: 'P', cls: 'badge-pickup', text: 'PICKUP' };
-      return { label: 'S', cls: 'badge-ship', text: 'SHIP' };
     };
 
     const getPickupInfo = (order: Order) => {
@@ -336,9 +322,22 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
       return { locName, dateStr, timeStr };
     };
 
-    // Fetch bundle children for all products in these orders
+    // Fetch logo URL from branding settings
+    let logoUrl = '';
+    try {
+      const { data: logoData } = await supabase
+        .from('config_settings')
+        .select('value')
+        .eq('category', 'branding')
+        .eq('key', 'logo_url')
+        .single();
+      logoUrl = logoData?.value || '';
+    } catch { /* logo is optional */ }
+
+    // Collect parent product IDs from all order items
     const allProductIds = [...new Set(ordersToPrint.flatMap(o => (o.items || []).map(i => i.product_id)).filter(Boolean))];
-    const bundleChildrenMap: Record<string, { name: string; quantity: number }[]> = {};
+
+    const bundleChildrenMap: Record<string, { name: string; quantity: number; product_id: string }[]> = {};
     if (allProductIds.length > 0) {
       const { data: bundleData } = await supabase
         .from('product_relationships')
@@ -347,7 +346,7 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
         .eq('relationship_type', 'bundle')
         .order('sort_order');
       if (bundleData && bundleData.length > 0) {
-        const childIds = [...new Set(bundleData.map(r => r.child_product_id))];
+        const childIds = [...new Set(bundleData.map((r: any) => r.child_product_id))];
         const { data: childProducts } = await supabase
           .from('products')
           .select('id, name')
@@ -361,9 +360,31 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           bundleChildrenMap[rel.parent_product_id].push({
             name: productNameMap[rel.child_product_id] || 'Unknown',
             quantity: rel.quantity || 1,
+            product_id: rel.child_product_id,
           });
         }
       }
+    }
+
+    // Collect all product IDs including bundle children for category lookup
+    const allChildIds = Object.values(bundleChildrenMap).flatMap(children => children.map(c => c.product_id));
+    const allProductIdsForCategory = [...new Set([...allProductIds, ...allChildIds])];
+
+    // Fetch category assignments
+    const categoryMap: Record<string, { name: string; sort_order: number }> = {};
+    if (allProductIdsForCategory.length > 0) {
+      const { data: catData } = await supabase
+        .from('product_category_assignments')
+        .select('product_id, product_categories(name, sort_order)')
+        .in('product_id', allProductIdsForCategory);
+      (catData || []).forEach((row: any) => {
+        if (!categoryMap[row.product_id] && row.product_categories) {
+          categoryMap[row.product_id] = {
+            name: row.product_categories.name,
+            sort_order: row.product_categories.sort_order ?? 9999,
+          };
+        }
+      });
     }
 
     const html = `
@@ -373,47 +394,52 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
         <title>Packing Lists - ATL Urban Farms</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #1e293b; }
 
           .order-block { page-break-after: always; padding: 24px; }
           .order-block:last-child { page-break-after: auto; }
 
-          /* Header row */
-          .order-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #000; padding-bottom: 12px; margin-bottom: 16px; }
-          .order-header-left { display: flex; align-items: baseline; gap: 16px; }
-          .order-number { font-family: monospace; font-size: 22px; font-weight: 800; }
-          .customer-name { font-size: 18px; font-weight: 700; }
-          .order-date { color: #64748b; font-size: 12px; }
-          .badge { display: inline-block; padding: 4px 14px; border-radius: 4px; font-size: 14px; font-weight: 800; letter-spacing: 1px; }
-          .badge-ship { background: #dbeafe; color: #1e40af; border: 2px solid #1e40af; }
-          .badge-pickup { background: #fef3c7; color: #92400e; border: 2px solid #92400e; }
+          /* Header */
+          .pl-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 3px solid #000; margin-bottom: 18px; }
+          .pl-logo { height: 44px; width: auto; display: block; margin-bottom: 6px; }
+          .pl-brand-name { font-size: 15px; font-weight: 700; }
+          .pl-brand-contact { font-size: 11px; color: #64748b; line-height: 1.7; }
+          .pl-order-meta { text-align: right; }
+          .pl-order-num { font-family: monospace; font-size: 20px; font-weight: 800; }
+          .pl-order-date { font-size: 11px; color: #64748b; margin-top: 2px; margin-bottom: 6px; }
+          .badge { display: inline-block; }
+          .badge-ship { background: #dbeafe; color: #1e40af; border: 1.5px solid #1e40af; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+          .badge-pickup { background: #fef3c7; color: #92400e; border: 1.5px solid #92400e; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; }
 
-          /* Delivery block */
-          .delivery-block { margin-bottom: 20px; padding: 14px; border-radius: 6px; border: 1px solid #e2e8f0; }
-          .delivery-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; }
-          .delivery-block p { margin: 3px 0; font-size: 14px; }
-          .delivery-block .loc-name { font-weight: 700; font-size: 15px; }
+          /* Two-column info block */
+          .pl-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+          .pl-block { padding: 10px 12px; border: 0.5px solid #e2e8f0; border-radius: 6px; }
+          .pl-block-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8; margin-bottom: 6px; }
+          .pl-block p { margin: 2px 0; font-size: 13px; line-height: 1.5; }
+          .pl-divider { border: none; border-top: 0.5px solid #e2e8f0; margin: 6px 0; }
+          .pl-shipping-label { font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; margin-top: 2px; }
 
           /* Items table */
-          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-          .items-table th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; text-align: left; border-bottom: 2px solid #cbd5e1; }
-          .items-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-          .items-table .col-pick { width: 64px; text-align: center; }
-          .items-table .col-qty { width: 64px; text-align: center; font-weight: 800; font-size: 20px; }
-          .items-table .col-product { font-weight: 600; font-size: 15px; }
-          .items-table .totals-row td { border-top: 2px solid #334155; font-weight: 700; padding-top: 10px; }
+          .items-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; }
+          .items-table col.col-num { width: 68px; }
+          .items-table col.col-qty { width: 44px; }
+          .items-table th { background: #f1f5f9; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; padding: 6px 8px; border-bottom: 1.5px solid #cbd5e1; white-space: nowrap; }
+          .items-table th.col-num, .items-table th.col-qty { text-align: center; }
+          .items-table td { padding: 4px 8px; border-bottom: 0.5px solid #e2e8f0; font-size: 13px; color: #1e293b; }
+          .items-table td.col-num { text-align: center; color: #94a3b8; font-size: 10px; }
+          .items-table td.col-qty { text-align: center; font-weight: 700; font-size: 14px; }
+          .items-table tr.cat-row td { background: #f8fafc; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; padding: 4px 8px; }
+          .items-table tr.totals-row td { border-top: 2px solid #334155; font-weight: 700; padding-top: 6px; font-size: 13px; }
+          .items-table tr.totals-row td.col-qty { font-size: 14px; }
 
-          /* Customer notes */
+          /* Notes */
           .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
           .customer-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #854d0e; margin-bottom: 4px; }
-          .customer-note-text { font-size: 14px; line-height: 1.5; }
-
-          /* Internal notes */
+          .customer-note-text { font-size: 13px; line-height: 1.5; }
           .internal-note { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
           .internal-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #0369a1; margin-bottom: 4px; }
-          .internal-note-text { font-size: 14px; line-height: 1.5; }
+          .internal-note-text { font-size: 13px; line-height: 1.5; }
 
-          /* Separator */
           .order-separator { border: none; border-top: 2px dashed #94a3b8; margin: 24px 0 0 0; }
 
           @media print {
@@ -424,34 +450,103 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
       </head>
       <body>
         ${ordersToPrint.map(order => {
-          const badge = getDeliveryBadge(order);
-          const pickup = order.is_pickup ? getPickupInfo(order) : null;
+          const isPickup = order.is_pickup;
+          const badgeCls = isPickup ? 'badge-pickup' : 'badge-ship';
+          const badgeText = isPickup ? 'PICKUP' : 'SHIP';
+          const pickup = isPickup ? getPickupInfo(order) : null;
+          const shippingCompany = (order as any).shipping_company || (order as any).shipping_address?.company || '';
+
+          // Flatten bundles into individual child rows
+          const flatItems: { product_id: string; product_name: string; quantity: number }[] = [];
+          for (const item of order.items || []) {
+            const children = bundleChildrenMap[item.product_id];
+            if (children && children.length > 0) {
+              for (const child of children) {
+                flatItems.push({
+                  product_id: child.product_id,
+                  product_name: child.name,
+                  quantity: child.quantity * item.quantity,
+                });
+              }
+            } else {
+              flatItems.push({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                quantity: item.quantity,
+              });
+            }
+          }
+
+          // Sort by category sort_order, then category name, then product name
+          flatItems.sort((a, b) => {
+            const catA = categoryMap[a.product_id];
+            const catB = categoryMap[b.product_id];
+            const sortA = catA ? catA.sort_order : 9999;
+            const sortB = catB ? catB.sort_order : 9999;
+            const nameA = catA ? catA.name : 'zzz';
+            const nameB = catB ? catB.name : 'zzz';
+            if (sortA !== sortB) return sortA - sortB;
+            if (nameA !== nameB) return nameA.localeCompare(nameB);
+            return a.product_name.localeCompare(b.product_name);
+          });
+
+          // Build rows with category headers
+          let currentCat = '';
+          let totalQty = 0;
+          const itemRows = flatItems.map(item => {
+            const cat = categoryMap[item.product_id]?.name || 'Uncategorized';
+            let catHeader = '';
+            if (cat !== currentCat) {
+              currentCat = cat;
+              catHeader = `<tr class="cat-row"><td colspan="3">${escapeHtml(cat)}</td></tr>`;
+            }
+            totalQty += item.quantity;
+            return `${catHeader}<tr>
+              <td class="col-num"></td>
+              <td class="col-qty">${item.quantity}</td>
+              <td>${escapeHtml(item.product_name)}</td>
+            </tr>`;
+          }).join('');
+
           return `
           <div class="order-block">
-            <div class="order-header">
-              <div class="order-header-left">
-                <span class="order-number">${order.order_number}</span>
-                <span class="customer-name">${order.customer_name || 'Guest'}</span>
-                <span class="badge ${badge.cls}">${badge.text}</span>
+            <div class="pl-header">
+              <div>
+                ${logoUrl ? `<img src="${logoUrl}" class="pl-logo" onerror="this.style.display='none'" alt="ATL Urban Farms">` : ''}
+                <div class="pl-brand-name">ATL Urban Farms</div>
+                <div class="pl-brand-contact">(770) 678-6552<br>orders@atlurbanfarms.com</div>
               </div>
-              <div class="order-date">${formatDateForPrint(order.created_at)}</div>
+              <div class="pl-order-meta">
+                <div class="pl-order-num">${order.order_number}</div>
+                <div class="pl-order-date">${formatDateForPrint(order.created_at)}</div>
+                <span class="badge ${badgeCls}">${badgeText}</span>
+              </div>
             </div>
 
-            <div class="delivery-block">
-              ${order.is_pickup ? `
-                <div class="delivery-label">Pickup Details</div>
-                <p class="loc-name">${pickup!.locName}</p>
-                ${pickup!.dateStr ? `<p>${pickup!.dateStr}</p>` : ''}
-                ${pickup!.timeStr ? `<p>${pickup!.timeStr}</p>` : ''}
-              ` : `
-                <div class="delivery-label">Ship To</div>
-                ${order.shipping_address ? `
-                  <p><strong>${order.shipping_address.name}</strong></p>
-                  <p>${order.shipping_address.street}</p>
-                  ${order.shipping_address.street2 ? `<p>${order.shipping_address.street2}</p>` : ''}
-                  <p>${order.shipping_address.city}, ${order.shipping_address.state} ${order.shipping_address.zip}</p>
+            <div class="pl-two-col">
+              <div class="pl-block">
+                <div class="pl-block-label">${isPickup ? 'Pickup' : 'Ship To'}</div>
+                ${isPickup && pickup ? `
+                  <p style="font-weight:700">${escapeHtml(pickup.locName)}</p>
+                  ${pickup.dateStr ? `<p>${escapeHtml(pickup.dateStr)}</p>` : ''}
+                  ${pickup.timeStr ? `<p>${escapeHtml(pickup.timeStr)}</p>` : ''}
+                ` : order.shipping_address ? `
+                  <p style="font-weight:700">${escapeHtml(order.shipping_address.name || '')}</p>
+                  ${shippingCompany ? `<p>${escapeHtml(shippingCompany)}</p>` : ''}
+                  <p>${escapeHtml(order.shipping_address.street || '')}</p>
+                  ${order.shipping_address.street2 ? `<p>${escapeHtml(order.shipping_address.street2)}</p>` : ''}
+                  <p>${escapeHtml(order.shipping_address.city || '')}, ${escapeHtml(order.shipping_address.state || '')} ${escapeHtml(order.shipping_address.zip || '')}</p>
                 ` : '<p>No shipping address</p>'}
-              `}
+              </div>
+              <div class="pl-block">
+                <div class="pl-block-label">Customer</div>
+                <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
+                ${order.customer_email ? `<p style="color:#64748b">${escapeHtml(order.customer_email)}</p>` : ''}
+                ${order.customer_phone ? `<p style="color:#64748b">${escapeHtml(order.customer_phone)}</p>` : ''}
+                <hr class="pl-divider">
+                <div class="pl-shipping-label">Shipping Method</div>
+                <p>${escapeHtml(order.shipping_method || 'Standard')}</p>
+              </div>
             </div>
 
             ${order.customer_notes ? `
@@ -462,52 +557,25 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
             ` : ''}
 
             <table class="items-table">
+              <colgroup>
+                <col class="col-num">
+                <col class="col-qty">
+                <col>
+              </colgroup>
               <thead>
                 <tr>
-                  <th class="col-pick">Seedling #</th>
+                  <th class="col-num">Seedling #</th>
                   <th class="col-qty">Qty</th>
-                  <th class="col-product">Product</th>
+                  <th>Product</th>
                 </tr>
               </thead>
               <tbody>
-                ${(() => {
-                  let totalQty = 0;
-                  const rows = (order.items || []).map(item => {
-                    const children = bundleChildrenMap[item.product_id];
-                    if (children && children.length > 0) {
-                      children.forEach(child => { totalQty += child.quantity * item.quantity; });
-                      return `
-                        <tr style="background: #f8fafc;">
-                          <td class="col-pick"></td>
-                          <td class="col-qty">${item.quantity}</td>
-                          <td class="col-product">${item.product_name} <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">BUNDLE</span></td>
-                        </tr>
-                        ${children.map(child => `
-                          <tr>
-                            <td class="col-pick"></td>
-                            <td class="col-qty">${child.quantity * item.quantity}</td>
-                            <td class="col-product" style="padding-left: 36px; font-size: 13px; color: #475569;">${child.name}</td>
-                          </tr>
-                        `).join('')}
-                      `;
-                    }
-                    totalQty += item.quantity;
-                    return `
-                      <tr>
-                        <td class="col-pick"></td>
-                        <td class="col-qty">${item.quantity}</td>
-                        <td class="col-product">${item.product_name}</td>
-                      </tr>
-                    `;
-                  }).join('');
-                  return rows + `
-                    <tr class="totals-row">
-                      <td class="col-pick"></td>
-                      <td class="col-qty">${totalQty}</td>
-                      <td class="col-product">Total</td>
-                    </tr>
-                  `;
-                })()}
+                ${itemRows}
+                <tr class="totals-row">
+                  <td class="col-num"></td>
+                  <td class="col-qty">${totalQty}</td>
+                  <td>Total</td>
+                </tr>
               </tbody>
             </table>
 
