@@ -32,7 +32,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const [searchInput, setSearchInput] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -212,6 +212,40 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         }
       }
 
+      // Step A2: Pre-filter to only customers with orders
+      const [{ data: orderCustomerIds }, { data: legacyCustomerIds }] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('customer_id')
+          .limit(10000),
+        supabase
+          .from('legacy_orders')
+          .select('customer_id')
+          .limit(10000),
+      ]);
+
+      const customersWithOrderIds = [...new Set([
+        ...(orderCustomerIds || []).map((o: any) => o.customer_id),
+        ...(legacyCustomerIds || []).map((o: any) => o.customer_id),
+      ])].filter(Boolean);
+
+      if (customersWithOrderIds.length === 0) {
+        setCustomers([]);
+        setTotalCount(0);
+        return;
+      }
+
+      // If tag filters are active, intersect with order-having customers
+      const filterIds = tagFilterIds !== null
+        ? tagFilterIds.filter(id => customersWithOrderIds.includes(id))
+        : customersWithOrderIds;
+
+      if (filterIds.length === 0) {
+        setCustomers([]);
+        setTotalCount(0);
+        return;
+      }
+
       // Step B: Paginated customer query with count
       let query = supabase
         .from('customers')
@@ -221,14 +255,11 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
             tag:customer_tags(*)
           )
         `, { count: 'exact' })
-        .order(sortField, { ascending: sortDirection === 'asc' });
+        .order(sortField, { ascending: sortDirection === 'asc' })
+        .in('id', filterIds);
 
       if (customerSearch) {
         query = query.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%,company.ilike.%${customerSearch}%`);
-      }
-
-      if (tagFilterIds !== null) {
-        query = query.in('id', tagFilterIds);
       }
 
       query = query.range(offset, offset + pageSize - 1);
@@ -242,14 +273,11 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
         let fallbackQuery = supabase
           .from('customers')
           .select('*', { count: 'exact' })
-          .order(sortField, { ascending: sortDirection === 'asc' });
+          .order(sortField, { ascending: sortDirection === 'asc' })
+          .in('id', filterIds);
 
         if (customerSearch) {
           fallbackQuery = fallbackQuery.or(`email.ilike.%${customerSearch}%,first_name.ilike.%${customerSearch}%,last_name.ilike.%${customerSearch}%,phone.ilike.%${customerSearch}%`);
-        }
-
-        if (tagFilterIds !== null) {
-          fallbackQuery = fallbackQuery.in('id', tagFilterIds);
         }
 
         fallbackQuery = fallbackQuery.range(offset, offset + pageSize - 1);
