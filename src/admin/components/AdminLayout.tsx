@@ -65,6 +65,7 @@ const BlogEditPage = lazy(() => import('../pages/BlogEditPage'));
 const GrowingSystemsPage = lazy(() => import('../pages/GrowingSystemsPage'));
 const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'));
 const WeeklySalesReportPage = lazy(() => import('../pages/WeeklySalesReportPage'));
+const EmailReportsPage = lazy(() => import('../pages/EmailReportsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -122,6 +123,7 @@ const PAGE_TITLES: Record<string, string> = {
   'growing-systems': 'Growing Systems',
   'growing-interests': 'Growing Interests',
   'weekly-sales-report': 'Weekly Sales Report',
+  'email-reports': 'Email Reports',
 };
 
 // Dashboard Stats Interface
@@ -579,6 +581,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [selectedBlogPostId, setSelectedBlogPostId] = useState<string | null>(null);
   const [ordersInitialDateFilter, setOrdersInitialDateFilter] = useState<{ from: string; to: string } | null>(null);
   const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { isAdmin, adminUser, loading } = useAdminAuth();
 
@@ -836,6 +839,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <EmailTemplatesPage />;
       case 'reports':
         return <ReportsPage onViewOrdersByDate={handleViewOrdersByDate} />;
+      case 'email-reports':
+        return <EmailReportsPage />;
       case 'users-roles':
         return <AdminUsersPage />;
       case 'audit-log':
@@ -902,15 +907,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     <AdminProvider currentPage={currentPage} navigate={handleNavigate}>
       <div className="min-h-screen brand-gradient-subtle flex font-admin-body">
         {/* Sidebar */}
-        <AdminSidebar currentPage={currentPage} onNavigate={handleNavigate} />
+        <AdminSidebar currentPage={currentPage} onNavigate={(page) => { handleNavigate(page); setSidebarOpen(false); }} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main content area */}
-        <div className="flex-1 flex flex-col min-w-0 ml-64">
+        <div className="flex-1 flex flex-col min-w-0 md:ml-64">
           {/* Header */}
-          <AdminHeader title={pageTitle} onLogout={handleLogout} />
+          <AdminHeader title={pageTitle} onLogout={handleLogout} onMenuClick={() => setSidebarOpen(prev => !prev)} />
 
           {/* Main content */}
-          <main className="flex-1 p-8 overflow-auto max-w-[1600px]">
+          <main className="flex-1 p-4 md:p-8 overflow-auto max-w-[1600px]">
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
                 {renderPage()}

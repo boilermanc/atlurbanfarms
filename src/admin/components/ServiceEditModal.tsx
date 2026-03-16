@@ -213,7 +213,7 @@ const ServiceEditModal: React.FC<ServiceEditModalProps> = ({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto max-sm:rounded-none max-sm:max-h-full max-sm:h-full max-sm:mx-0"
           >
             <div className="sticky top-0 bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between z-10">
               <h2 className="text-xl font-semibold text-slate-800">

@@ -539,7 +539,7 @@ ${ordersToprint.map(order => `<div class="order">
     <AdminPageWrapper>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Orders</h1>
             <p className="text-slate-500 mt-1">
@@ -549,7 +549,7 @@ ${ordersToprint.map(order => `<div class="order">
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={handlePrintAllProcessing} disabled={printLoading} className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50 font-medium">
               {printLoading ? <RefreshCw size={18} className="animate-spin" /> : <Printer size={18} />}
               Print All Processing

@@ -91,7 +91,7 @@ const ZoneEditModal: React.FC<ZoneEditModalProps> = ({ zone, onSave, onClose }) 
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden max-sm:rounded-none max-sm:max-h-full max-sm:h-full">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>

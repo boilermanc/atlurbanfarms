@@ -451,7 +451,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Customers</h1>
             <p className="text-slate-500 text-sm mt-1">
@@ -645,7 +645,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th
@@ -762,6 +763,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                       )}
                     </tbody>
                   </table>
+                  </div>
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
@@ -839,7 +841,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
@@ -884,6 +887,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </motion.div>
             )}

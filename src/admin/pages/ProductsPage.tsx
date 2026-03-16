@@ -289,7 +289,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
   return (
     <AdminPageWrapper>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Products</h1>
             <p className="text-slate-500 text-sm mt-1">Manage your product catalog</p>
@@ -398,7 +398,8 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
               <p className="text-slate-500">{searchQuery || categoryFilter !== 'all' || statusFilter !== 'all' || selectedTagIds.length > 0 ? 'Try adjusting your filters' : 'Get started by adding your first product'}</p>
             </div>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left py-3 px-6 text-xs font-semibold uppercase tracking-wider text-slate-500">Product</th>
@@ -476,6 +477,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">

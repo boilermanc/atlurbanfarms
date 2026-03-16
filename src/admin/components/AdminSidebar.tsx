@@ -45,6 +45,8 @@ interface NavSection {
 interface AdminSidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const NAV_SECTIONS: NavSection[] = [
@@ -100,6 +102,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'REPORTS',
     items: [
       { id: 'reports', label: 'Reports', icon: BarChart3 },
+      { id: 'email-reports', label: 'Email Reports', icon: Mail },
     ],
   },
   {
@@ -111,9 +114,17 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate }) => {
+const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate, isOpen = false, onClose }) => {
   return (
-    <aside className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col fixed left-0 top-0 font-admin-body print-hidden">
+    <>
+      {/* Mobile backdrop overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside className={`w-64 h-screen bg-white border-r border-slate-200 flex flex-col fixed left-0 top-0 z-50 font-admin-body print-hidden transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
       {/* Logo */}
       <div className="px-6 py-6 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -178,6 +189,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate }) 
         </p>
       </div>
     </aside>
+    </>
   );
 };
 

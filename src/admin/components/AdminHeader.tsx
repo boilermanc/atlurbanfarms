@@ -15,7 +15,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ title, onMenuClick, onLogout 
         {/* Hamburger menu button */}
         <button
           onClick={onMenuClick}
-          className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+          className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Toggle sidebar"
         >
           <Menu size={22} />

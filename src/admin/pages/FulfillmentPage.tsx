@@ -713,7 +713,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
     <AdminPageWrapper>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 font-admin-display">Fulfillment</h1>
             <p className="text-slate-500 mt-1">

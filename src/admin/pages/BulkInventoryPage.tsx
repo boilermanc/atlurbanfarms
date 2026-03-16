@@ -544,7 +544,8 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">
@@ -739,6 +740,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

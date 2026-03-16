@@ -261,7 +261,8 @@ const AlertsPage: React.FC = () => {
 
                 {/* Subscribers Table */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Email</th>
@@ -340,6 +341,7 @@ const AlertsPage: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -354,7 +356,8 @@ const AlertsPage: React.FC = () => {
                 className="space-y-4"
               >
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[600px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
@@ -432,6 +435,7 @@ const AlertsPage: React.FC = () => {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </motion.div>
             )}

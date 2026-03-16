@@ -1698,7 +1698,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           {/* Section 4: Shipping Method & Tracking */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Method & Tracking</h2>
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Method{shipment && !shipment.voided ? '' : ' & Tracking'}</h2>
               {!editingTracking && (
                 <button onClick={startEditTracking} className="text-slate-400 hover:text-emerald-600 transition-colors print:hidden" title="Edit shipping & tracking">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1727,22 +1727,27 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     <p className="text-slate-400 text-sm">Shipping Cost</p>
                     <p className="text-slate-700">{formatCurrency(order.shipping_cost)}</p>
                   </div>
-                  <div>
-                    <p className="text-slate-400 text-sm">Tracking Number</p>
-                    <p className="text-slate-700">{order.tracking_number || <span className="text-slate-300 italic">None</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-400 text-sm">Tracking URL</p>
-                    {order.tracking_url ? (
-                      <a href={order.tracking_url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 text-sm break-all">{order.tracking_url}</a>
-                    ) : (
-                      <p className="text-slate-300 italic">None</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-slate-400 text-sm">Estimated Delivery</p>
-                    <p className="text-slate-700">{order.estimated_delivery_date ? formatDate(order.estimated_delivery_date) : order.estimated_delivery ? formatDate(order.estimated_delivery) : <span className="text-slate-300 italic">Not set</span>}</p>
-                  </div>
+                  {/* Only show tracking fields when no active shipment — Section 5 handles tracking in that case */}
+                  {!(shipment && !shipment.voided) && (
+                    <>
+                      <div>
+                        <p className="text-slate-400 text-sm">Tracking Number</p>
+                        <p className="text-slate-700">{order.tracking_number || <span className="text-slate-300 italic">None</span>}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm">Tracking URL</p>
+                        {order.tracking_url ? (
+                          <a href={order.tracking_url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 text-sm break-all">{order.tracking_url}</a>
+                        ) : (
+                          <p className="text-slate-300 italic">None</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-slate-400 text-sm">Estimated Delivery</p>
+                        <p className="text-slate-700">{order.estimated_delivery_date ? formatDate(order.estimated_delivery_date) : order.estimated_delivery ? formatDate(order.estimated_delivery) : <span className="text-slate-300 italic">Not set</span>}</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1754,18 +1759,23 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     <label className="block text-xs font-medium text-slate-500">Shipping Cost ($)</label>
                     <input type="number" step="0.01" min="0" value={trackingForm.shipping_cost} onChange={(e) => setTrackingForm(f => ({ ...f, shipping_cost: parseFloat(e.target.value) || 0 }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">Tracking Number</label>
-                    <input type="text" value={trackingForm.tracking_number} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_number: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">Tracking URL</label>
-                    <input type="text" value={trackingForm.tracking_url} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_url: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="https://..." />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-slate-500">Estimated Delivery Date</label>
-                    <input type="date" value={trackingForm.estimated_delivery_date} onChange={(e) => setTrackingForm(f => ({ ...f, estimated_delivery_date: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                  </div>
+                  {/* Only show tracking edit fields when no active shipment */}
+                  {!(shipment && !shipment.voided) && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">Tracking Number</label>
+                        <input type="text" value={trackingForm.tracking_number} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_number: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">Tracking URL</label>
+                        <input type="text" value={trackingForm.tracking_url} onChange={(e) => setTrackingForm(f => ({ ...f, tracking_url: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" placeholder="https://..." />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-500">Estimated Delivery Date</label>
+                        <input type="date" value={trackingForm.estimated_delivery_date} onChange={(e) => setTrackingForm(f => ({ ...f, estimated_delivery_date: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -2027,7 +2037,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     <div>
                       <p className="text-slate-400 text-sm">Tracking Number</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-slate-700 font-medium font-mono">{shipment.tracking_number || 'N/A'}</p>
+                        {(() => {
+                          const trackingUrl = order.tracking_url || (shipment.tracking_number
+                            ? (shipment.carrier_code === 'usps'
+                              ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${shipment.tracking_number}`
+                              : `https://www.ups.com/track?tracknum=${shipment.tracking_number}`)
+                            : null);
+                          return shipment.tracking_number && trackingUrl ? (
+                            <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 font-medium font-mono">{shipment.tracking_number}</a>
+                          ) : (
+                            <p className="text-slate-700 font-medium font-mono">{shipment.tracking_number || 'N/A'}</p>
+                          );
+                        })()}
                         {shipment.tracking_number && (
                           <button
                             onClick={() => {
@@ -2057,6 +2078,24 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       <p className="text-slate-400 text-sm">Label Cost</p>
                       <p className="text-slate-700">{shipment.shipment_cost != null ? `$${Number(shipment.shipment_cost).toFixed(2)}` : 'N/A'}</p>
                     </div>
+                    {shipment.tracking_status && (
+                      <div>
+                        <p className="text-slate-400 text-sm">Tracking Status</p>
+                        <p className="text-slate-700">{shipment.tracking_status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}{shipment.tracking_status_description ? ` — ${shipment.tracking_status_description}` : ''}</p>
+                      </div>
+                    )}
+                    {shipment.estimated_delivery_date && (
+                      <div>
+                        <p className="text-slate-400 text-sm">Estimated Delivery</p>
+                        <p className="text-slate-700">{formatDate(shipment.estimated_delivery_date)}</p>
+                      </div>
+                    )}
+                    {shipment.last_tracking_update && (
+                      <div>
+                        <p className="text-slate-400 text-sm">Last Tracking Update</p>
+                        <p className="text-slate-700">{formatDate(shipment.last_tracking_update, true)}</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-2">

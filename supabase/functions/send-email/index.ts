@@ -741,12 +741,18 @@ serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
+  // Hoist variables needed for error logging in catch block
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+  let logRecipientEmail = 'unknown'
+  let logTemplateKey: string | null = null
+  let logCategory: string | null = null
+  let logSubject: string | null = null
+  let logOrderId: string | null = null
+
   try {
-    // Create Supabase client with service role
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
 
     // Fetch shared email header and footer from brand settings
     const { data: brandRows } = await supabaseClient
@@ -797,6 +803,11 @@ serve(async (req) => {
     // Parse request body
     const { to, bcc, from: fromOverride, subject, html, text, template, templateData }: EmailRequest = await req.json()
 
+    // Populate logging context
+    logRecipientEmail = (Array.isArray(to) ? to[0] : to) || 'unknown'
+    logSubject = subject || null
+    logOrderId = templateData?.order_id || templateData?.orderId || null
+
     // Build email content
     let emailSubject = subject
     let emailHtml = html
@@ -806,9 +817,11 @@ serve(async (req) => {
     if (template) {
       // Map old template names to new ones
       const templateKey = templateKeyMap[template] || template
+      logTemplateKey = templateKey
 
       // Try to get template from database
       const dbTemplate = await getEmailTemplate(supabaseClient, templateKey)
+      logCategory = dbTemplate?.category || null
 
       // Fetch brand settings once — used by both DB templates and fallbacks
       const brandSettings = await getBrandingSettings(supabaseClient)
@@ -1027,6 +1040,26 @@ serve(async (req) => {
       ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
     })
 
+    // Log successful email send
+    logSubject = emailSubject || logSubject
+    try {
+      await supabaseClient.from('email_logs').insert({
+        recipient_email: recipients[0],
+        template_key: logTemplateKey,
+        template_category: logCategory,
+        subject: emailSubject,
+        status: 'sent',
+        smtp_message_id: info.messageId || null,
+        order_id: logOrderId,
+        metadata: {
+          recipient_count: recipients.length,
+          has_bcc: !!bccRecipients,
+        },
+      })
+    } catch (logErr) {
+      console.error('Failed to log email send:', logErr)
+    }
+
     return new Response(
       JSON.stringify({ success: true, id: info.messageId || crypto.randomUUID() }),
       {
@@ -1037,6 +1070,22 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Email send error:', error)
+
+    // Log failed email send
+    try {
+      await supabaseClient.from('email_logs').insert({
+        recipient_email: logRecipientEmail,
+        template_key: logTemplateKey,
+        template_category: logCategory,
+        subject: logSubject,
+        status: 'failed',
+        error_message: error.message || String(error),
+        order_id: logOrderId,
+      })
+    } catch (logErr) {
+      console.error('Failed to log email failure:', logErr)
+    }
+
     return new Response(
       JSON.stringify({ error: error.message || 'Failed to send email' }),
       {

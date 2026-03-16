@@ -744,7 +744,7 @@ const ShippingPickupTab: React.FC = () => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 w-full max-w-2xl border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl p-6 w-full max-w-2xl border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto max-sm:rounded-none max-sm:max-h-full max-sm:h-full max-sm:p-4"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">

@@ -213,7 +213,8 @@ const AdminUsersPage: React.FC = () => {
               transition={{ duration: 0.2 }}
             >
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
@@ -275,6 +276,7 @@ const AdminUsersPage: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {users.length === 0 && (
                   <div className="p-12 text-center">
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
