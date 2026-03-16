@@ -302,13 +302,17 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
     const getPickupInfo = (order: Order) => {
       const res = order.pickup_reservation;
       const locName = res?.location?.name || 'TBD';
+      const locAddr1 = (res?.location as any)?.address_line1 || '';
+      const locCity = (res?.location as any)?.city || '';
+      const locState = (res?.location as any)?.state || '';
+      const locZip = (res?.location as any)?.postal_code || '';
       const date = order.pickup_date || res?.pickup_date;
       const start = order.pickup_time_start || res?.pickup_time_start;
       const end = order.pickup_time_end || res?.pickup_time_end;
       let dateStr = '';
       if (date) {
         const d = new Date(date + 'T00:00:00');
-        dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
       }
       let timeStr = '';
       if (start && end) {
@@ -319,20 +323,17 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
         };
         timeStr = `${fmt(start)} – ${fmt(end)}`;
       }
-      return { locName, dateStr, timeStr };
+      return { locName, locAddr1, locCity, locState, locZip, dateStr, timeStr };
     };
 
     // Fetch logo URL from branding settings
-    let logoUrl = '';
-    try {
-      const { data: logoData } = await supabase
-        .from('config_settings')
-        .select('value')
-        .eq('category', 'branding')
-        .eq('key', 'logo_url')
-        .single();
-      logoUrl = logoData?.value || '';
-    } catch { /* logo is optional */ }
+    const { data: logoConfig } = await supabase
+      .from('config_settings')
+      .select('value')
+      .eq('category', 'branding')
+      .eq('key', 'logo_url')
+      .single();
+    const logoUrl = logoConfig?.value ? String(logoConfig.value).replace(/^"|"$/g, '') : '';
 
     // Collect parent product IDs from all order items
     const allProductIds = [...new Set(ordersToPrint.flatMap(o => (o.items || []).map(i => i.product_id)).filter(Boolean))];
@@ -400,24 +401,23 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           .order-block:last-child { page-break-after: auto; }
 
           /* Header */
-          .pl-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 3px solid #000; margin-bottom: 18px; }
-          .pl-logo { height: 44px; width: auto; display: block; margin-bottom: 6px; }
-          .pl-brand-name { font-size: 15px; font-weight: 700; }
-          .pl-brand-contact { font-size: 11px; color: #64748b; line-height: 1.7; }
+          .pl-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 3px solid #1e293b; margin-bottom: 18px; }
+          .pl-logo-block { display: flex; align-items: center; gap: 12px; }
+          .pl-brand-name { font-size: 16px; font-weight: 700; color: #1e293b; line-height: 1.2; }
+          .pl-brand-contact { font-size: 11px; color: #64748b; line-height: 1.8; }
           .pl-order-meta { text-align: right; }
           .pl-order-num { font-family: monospace; font-size: 20px; font-weight: 800; }
-          .pl-order-date { font-size: 11px; color: #64748b; margin-top: 2px; margin-bottom: 6px; }
-          .badge { display: inline-block; }
-          .badge-ship { background: #dbeafe; color: #1e40af; border: 1.5px solid #1e40af; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-          .badge-pickup { background: #fef3c7; color: #92400e; border: 1.5px solid #92400e; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+          .pl-order-date { font-size: 11px; color: #64748b; margin-top: 2px; text-align: right; }
+          .badge-ship { background: #dbeafe; color: #1e40af; border: 1.5px solid #1e40af; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }
+          .badge-pickup { background: #fef3c7; color: #92400e; border: 1.5px solid #92400e; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }
 
           /* Two-column info block */
           .pl-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
           .pl-block { padding: 10px 12px; border: 0.5px solid #e2e8f0; border-radius: 6px; }
           .pl-block-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8; margin-bottom: 6px; }
           .pl-block p { margin: 2px 0; font-size: 13px; line-height: 1.5; }
-          .pl-divider { border: none; border-top: 0.5px solid #e2e8f0; margin: 6px 0; }
-          .pl-shipping-label { font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 2px; margin-top: 2px; }
+          .pl-block .muted { color: #64748b; }
+          .pl-pickup-divider { border: none; border-top: 0.5px solid #e2e8f0; margin: 6px 0; }
 
           /* Items table */
           .items-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; }
@@ -455,6 +455,13 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           const badgeText = isPickup ? 'PICKUP' : 'SHIP';
           const pickup = isPickup ? getPickupInfo(order) : null;
           const shippingCompany = (order as any).shipping_company || (order as any).shipping_address?.company || '';
+
+          const formatPhone = (p: string) => {
+            const d = p.replace(/\D/g, '');
+            if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+            if (d.length === 11 && d[0] === '1') return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+            return p;
+          };
 
           // Flatten bundles into individual child rows
           const flatItems: { product_id: string; product_name: string; quantity: number }[] = [];
@@ -511,25 +518,36 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           return `
           <div class="order-block">
             <div class="pl-header">
-              <div>
-                ${logoUrl ? `<img src="${logoUrl}" class="pl-logo" onerror="this.style.display='none'" alt="ATL Urban Farms">` : ''}
-                <div class="pl-brand-name">ATL Urban Farms</div>
-                <div class="pl-brand-contact">(770) 678-6552<br>orders@atlurbanfarms.com</div>
+              <div class="pl-logo-block">
+                ${logoUrl ? `<img src="${logoUrl}" style="height:56px;width:auto;border-radius:8px;" onerror="this.style.display='none'" alt="ATL Urban Farms" />` : ''}
+                <div>
+                  <div class="pl-brand-name">ATL Urban Farms</div>
+                  <div class="pl-brand-contact">(770) 678-6552<br>support@atlurbanfarms.com</div>
+                </div>
               </div>
               <div class="pl-order-meta">
                 <div class="pl-order-num">${order.order_number}</div>
                 <div class="pl-order-date">${formatDateForPrint(order.created_at)}</div>
-                <span class="badge ${badgeCls}">${badgeText}</span>
+                <span class="${badgeCls}">${badgeText}</span>
               </div>
             </div>
 
             <div class="pl-two-col">
               <div class="pl-block">
-                <div class="pl-block-label">${isPickup ? 'Pickup' : 'Ship To'}</div>
+                <div class="pl-block-label">Customer</div>
+                <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
+                ${order.customer_email ? `<p class="muted">${escapeHtml(order.customer_email)}</p>` : ''}
+                ${order.customer_phone ? `<p class="muted">${escapeHtml(formatPhone(order.customer_phone))}</p>` : ''}
+              </div>
+              <div class="pl-block">
+                <div class="pl-block-label">${isPickup ? 'Pickup Location' : 'Ship To'}</div>
                 ${isPickup && pickup ? `
                   <p style="font-weight:700">${escapeHtml(pickup.locName)}</p>
-                  ${pickup.dateStr ? `<p>${escapeHtml(pickup.dateStr)}</p>` : ''}
-                  ${pickup.timeStr ? `<p>${escapeHtml(pickup.timeStr)}</p>` : ''}
+                  ${pickup.locAddr1 ? `<p class="muted">${escapeHtml(pickup.locAddr1)}</p>` : ''}
+                  ${(pickup.locCity || pickup.locState) ? `<p class="muted">${escapeHtml([pickup.locCity, pickup.locState, pickup.locZip].filter(Boolean).join(', '))}</p>` : ''}
+                  ${(pickup.dateStr || pickup.timeStr) ? `<hr class="pl-pickup-divider">` : ''}
+                  ${pickup.dateStr ? `<p style="font-weight:700">${escapeHtml(pickup.dateStr)}</p>` : ''}
+                  ${pickup.timeStr ? `<p class="muted">${escapeHtml(pickup.timeStr)}</p>` : ''}
                 ` : order.shipping_address ? `
                   <p style="font-weight:700">${escapeHtml(order.shipping_address.name || '')}</p>
                   ${shippingCompany ? `<p>${escapeHtml(shippingCompany)}</p>` : ''}
@@ -537,15 +555,6 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                   ${order.shipping_address.street2 ? `<p>${escapeHtml(order.shipping_address.street2)}</p>` : ''}
                   <p>${escapeHtml(order.shipping_address.city || '')}, ${escapeHtml(order.shipping_address.state || '')} ${escapeHtml(order.shipping_address.zip || '')}</p>
                 ` : '<p>No shipping address</p>'}
-              </div>
-              <div class="pl-block">
-                <div class="pl-block-label">Customer</div>
-                <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
-                ${order.customer_email ? `<p style="color:#64748b">${escapeHtml(order.customer_email)}</p>` : ''}
-                ${order.customer_phone ? `<p style="color:#64748b">${escapeHtml(order.customer_phone)}</p>` : ''}
-                <hr class="pl-divider">
-                <div class="pl-shipping-label">Shipping Method</div>
-                <p>${escapeHtml(order.shipping_method || 'Standard')}</p>
               </div>
             </div>
 
