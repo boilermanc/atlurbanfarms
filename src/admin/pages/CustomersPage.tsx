@@ -462,6 +462,25 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     return name || 'No Name';
   };
 
+  const handleUpdateSubscriberStatus = async (subscriber: NewsletterSubscriber, newStatus: SubscriberStatus) => {
+    const updates: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() };
+    if (newStatus === 'unsubscribed') {
+      updates.unsubscribed_at = new Date().toISOString();
+    } else if (newStatus === 'active') {
+      updates.unsubscribed_at = null;
+      updates.subscribed_at = subscriber.subscribed_at; // preserve original
+    }
+    const { error } = await supabase
+      .from('newsletter_subscribers')
+      .update(updates)
+      .eq('id', subscriber.id);
+    if (error) {
+      alert('Failed to update subscriber status: ' + error.message);
+    } else {
+      await fetchSubscribers();
+    }
+  };
+
   // Newsletter summary stats computed from unfiltered subscriber data
   const newsletterStats = useMemo(() => {
     const total = allSubscribers.length;
@@ -950,12 +969,13 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                         <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Source</th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Subscribed</th>
+                        <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {subscribers.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center">
+                          <td colSpan={6} className="px-6 py-12 text-center">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <Mail size={32} className="text-slate-400" />
                             </div>
@@ -981,6 +1001,23 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                             <td className="px-6 py-4 text-slate-600">{subscriber.source || '-'}</td>
                             <td className="px-6 py-4 text-slate-500 text-sm">
                               {formatDate(subscriber.subscribed_at)}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {subscriber.status === 'active' ? (
+                                <button
+                                  onClick={() => handleUpdateSubscriberStatus(subscriber, 'unsubscribed')}
+                                  className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                                >
+                                  Unsubscribe
+                                </button>
+                              ) : subscriber.status === 'unsubscribed' ? (
+                                <button
+                                  onClick={() => handleUpdateSubscriberStatus(subscriber, 'active')}
+                                  className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+                                >
+                                  Reactivate
+                                </button>
+                              ) : null}
                             </td>
                           </tr>
                         ))
