@@ -70,7 +70,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
     dateTo: dateTo || undefined,
     search: searchTerm || undefined,
     page: currentPage,
-    perPage: 20,
+    perPage: 1000,
   }), [selectedStatuses, dateFrom, dateTo, searchTerm, currentPage]);
 
   // Fetch orders
@@ -1266,6 +1266,9 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Order #
                     </th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">
+                      Type
+                    </th>
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Date
                     </th>
@@ -1317,6 +1320,17 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                         <span className="font-mono text-slate-800 font-medium">
                           {order.order_number}
                         </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        {order.is_pickup ? (
+                          <span className="inline-block px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200 tracking-wide">
+                            PICKUP
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full border border-blue-200 tracking-wide">
+                            SHIP
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-slate-600">
                         {formatDate(order.created_at)}
