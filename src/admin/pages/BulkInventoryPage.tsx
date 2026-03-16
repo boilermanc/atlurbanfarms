@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth } from '../hooks/useAdminAuth';
-import { Package, Save, AlertCircle, CheckCircle, RefreshCw, Bell, Star } from 'lucide-react';
+import { Package, Save, AlertCircle, CheckCircle, RefreshCw, Bell, Star, X } from 'lucide-react';
 
 interface ProductInventory {
   id: string;
@@ -42,10 +42,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   // Track changes: Map<product_id, new_value>
   const [changes, setChanges] = useState<Map<string, number>>(new Map());
 
-  // Bulk regular price
-  const [bulkRegularPrice, setBulkRegularPrice] = useState<string>('');
-  const [applyingBulkPrice, setApplyingBulkPrice] = useState(false);
-
   // Sale price per-row state
   const [salePriceInputs, setSalePriceInputs] = useState<Map<string, string>>(new Map());
   const [salePriceStatus, setSalePriceStatus] = useState<Map<string, 'saving' | 'success' | 'error'>>(new Map());
@@ -58,22 +54,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
   useEffect(() => {
     applyFilters();
   }, [products, statusFilter, categoryFilter, categoryHierarchy]);
-
-  // Pre-fill bulk regular price if all visible products share the same compare_at_price
-  useEffect(() => {
-    if (filteredProducts.length === 0) {
-      setBulkRegularPrice('');
-      return;
-    }
-    const prices = filteredProducts
-      .map((p) => p.compare_at_price)
-      .filter((p): p is number => p != null);
-    if (prices.length === filteredProducts.length && new Set(prices).size === 1) {
-      setBulkRegularPrice(prices[0].toString());
-    } else {
-      setBulkRegularPrice('');
-    }
-  }, [filteredProducts]);
 
   const fetchProducts = async () => {
     try {
@@ -330,51 +310,48 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
     fetchProducts();
   };
 
-  const handleApplyBulkPrice = async () => {
-    const price = parseFloat(bulkRegularPrice);
-    if (isNaN(price) || price <= 0) return;
-
-    const count = filteredProducts.length;
-    if (count === 0) return;
-
-    const confirmed = window.confirm(
-      `Set 'was' price to $${price.toFixed(2)} for all ${count} products?`
-    );
-    if (!confirmed) return;
-
-    try {
-      setApplyingBulkPrice(true);
-      setError(null);
-
-      const productIds = filteredProducts.map((p) => p.id);
-
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({
-          compare_at_price: price,
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', productIds);
-
-      if (updateError) throw updateError;
-
-      setSuccessMessage(`'Was' price updated to $${price.toFixed(2)} for ${count} product(s)`);
-      await fetchProducts();
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err: any) {
-      console.error('Error applying bulk price:', err);
-      setError(err.message || 'Failed to apply bulk regular price');
-    } finally {
-      setApplyingBulkPrice(false);
-    }
-  };
-
   // Sale price helpers
   const getSalePriceDisplay = (product: ProductInventory): string => {
     if (salePriceInputs.has(product.id)) return salePriceInputs.get(product.id)!;
     // Pre-fill: if product is already on sale, show current (discounted) price
     if (product.compare_at_price != null && product.price != null) return String(product.price);
     return '';
+  };
+
+  const isOnSale = (product: ProductInventory): boolean => {
+    return product.compare_at_price != null;
+  };
+
+  const getOriginalPrice = (product: ProductInventory): number | null => {
+    // Use the higher of price/compare_at_price to handle inverted data
+    if (product.compare_at_price != null && product.price != null) {
+      return Math.max(product.price, product.compare_at_price);
+    }
+    return product.price;
+  };
+
+  const handleClearSale = async (product: ProductInventory) => {
+    if (product.compare_at_price == null) return;
+    try {
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'saving'));
+      const restoredPrice = Math.max(product.price ?? 0, product.compare_at_price ?? 0);
+      const { error } = await supabase
+        .from('products')
+        .update({
+          price: restoredPrice,
+          compare_at_price: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', product.id);
+      if (error) throw error;
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'success'));
+      setSalePriceInputs(prev => { const m = new Map(prev); m.delete(product.id); return m; });
+      await fetchProducts();
+      setTimeout(() => setSalePriceStatus(prev => { const m = new Map(prev); m.delete(product.id); return m; }), 2000);
+    } catch (err: any) {
+      setSalePriceStatus(prev => new Map(prev).set(product.id, 'error'));
+      setSalePriceErrors(prev => new Map(prev).set(product.id, err.message || 'Failed to clear sale'));
+    }
   };
 
   const handleSalePriceChange = (productId: string, value: string) => {
@@ -402,10 +379,12 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       try {
         setSalePriceStatus(prev => new Map(prev).set(product.id, 'saving'));
 
+        // Restore the higher of the two prices as the original
+        const restoredPrice = Math.max(product.price ?? 0, product.compare_at_price ?? 0);
         const { error } = await supabase
           .from('products')
           .update({
-            price: product.compare_at_price,
+            price: restoredPrice,
             compare_at_price: null,
             updated_at: new Date().toISOString(),
           })
@@ -431,25 +410,24 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
       return;
     }
 
-    // Compare against the "original" (non-sale) price
-    const originalPrice = product.compare_at_price != null ? product.compare_at_price : product.price;
-    if (originalPrice != null && salePrice >= originalPrice) {
-      setSalePriceErrors(prev => new Map(prev).set(product.id, `Must be less than $${Number(originalPrice).toFixed(2)}`));
+    // Compare against the "original" (non-sale) price — use the higher of price/compare_at_price
+    // to handle inverted data from prior bulk updates
+    const originalPrice = Math.max(product.price ?? 0, product.compare_at_price ?? 0);
+    if (originalPrice > 0 && salePrice >= originalPrice) {
+      setSalePriceErrors(prev => new Map(prev).set(product.id, `Must be less than $${originalPrice.toFixed(2)}`));
       return;
     }
 
     try {
       setSalePriceStatus(prev => new Map(prev).set(product.id, 'saving'));
 
+      // Always store: compare_at_price = original (higher) price, price = sale (lower) price
+      const origPrice = Math.max(product.price ?? 0, product.compare_at_price ?? 0);
       const updatePayload: Record<string, any> = {
         price: salePrice,
+        compare_at_price: origPrice,
         updated_at: new Date().toISOString(),
       };
-
-      // Only set compare_at_price if not already on sale
-      if (product.compare_at_price == null) {
-        updatePayload.compare_at_price = product.price;
-      }
 
       const { error } = await supabase
         .from('products')
@@ -526,37 +504,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                 </option>
               ))}
             </select>
-
-            {/* Bulk Regular Price */}
-            <div className="flex items-center gap-2 pl-4 border-l border-slate-200">
-              <label className="text-sm font-medium text-slate-600 whitespace-nowrap">Set 'Was' Price for All</label>
-              <div className="flex items-center gap-1">
-                <span className="text-slate-400">$</span>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={bulkRegularPrice}
-                  onChange={(e) => setBulkRegularPrice(e.target.value)}
-                  placeholder="e.g. 2.00"
-                  className="w-24 px-3 py-2 text-right border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
-              </div>
-              <button
-                onClick={handleApplyBulkPrice}
-                disabled={applyingBulkPrice || !bulkRegularPrice || parseFloat(bulkRegularPrice) <= 0 || isNaN(parseFloat(bulkRegularPrice)) || filteredProducts.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                {applyingBulkPrice ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Applying...
-                  </>
-                ) : (
-                  'Apply to All'
-                )}
-              </button>
-            </div>
           </div>
 
           {/* Save Actions */}
@@ -612,9 +559,6 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                   <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Price
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Was
-                  </th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Sale Price
                   </th>
@@ -632,7 +576,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
               <tbody className="divide-y divide-slate-100">
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={8} className="px-6 py-12 text-center">
                       <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Package size={32} className="text-slate-400" />
                       </div>
@@ -699,15 +643,9 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                           <span className="text-slate-600 text-sm">{product.category_name}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className={product.compare_at_price != null ? 'text-emerald-600 font-semibold' : 'text-slate-500'}>
-                            {product.price != null ? `$${Number(product.price).toFixed(2)}` : '-'}
+                          <span className="text-slate-700 font-medium">
+                            {getOriginalPrice(product) != null ? `$${Number(getOriginalPrice(product)).toFixed(2)}` : '-'}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-slate-400 line-through">
-                            {product.compare_at_price != null ? `$${Number(product.compare_at_price).toFixed(2)}` : ''}
-                          </span>
-                          {product.compare_at_price == null && <span className="text-slate-300">-</span>}
                         </td>
                         <td className="px-4 py-4">
                           <div className="relative">
@@ -721,15 +659,26 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                                 onChange={(e) => handleSalePriceChange(product.id, e.target.value)}
                                 onBlur={() => handleSalePriceCommit(product)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                                placeholder="— no sale —"
+                                placeholder="none"
                                 className={`w-28 px-3 py-2 text-right border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                                   salePriceErrors.has(product.id)
                                     ? 'border-red-300 bg-red-50 focus:ring-red-500/20 focus:border-red-500'
                                     : salePriceStatus.get(product.id) === 'success'
                                     ? 'border-emerald-300 bg-emerald-50 focus:ring-emerald-500/20 focus:border-emerald-500'
+                                    : isOnSale(product)
+                                    ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500'
                                     : 'border-slate-200 bg-white focus:ring-emerald-500/20 focus:border-emerald-500'
                                 }`}
                               />
+                              {isOnSale(product) && salePriceStatus.get(product.id) !== 'saving' && (
+                                <button
+                                  onClick={() => handleClearSale(product)}
+                                  title="Remove sale price"
+                                  className="w-6 h-6 flex items-center justify-center rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
                               {salePriceStatus.get(product.id) === 'saving' && (
                                 <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                               )}
