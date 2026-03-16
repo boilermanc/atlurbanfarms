@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
@@ -62,6 +62,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const totalPages = Math.ceil(totalCount / pageSize);
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
+  const [allSubscribers, setAllSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscriberSearchInput, setSubscriberSearchInput] = useState('');
@@ -370,11 +371,14 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
       setSubscribers(data || []);
 
-      const { count } = await supabase
+      // Fetch all subscribers (unfiltered) for summary stats
+      const { data: allData } = await supabase
         .from('newsletter_subscribers')
-        .select('*', { count: 'exact', head: true });
+        .select('*')
+        .order('subscribed_at', { ascending: false });
 
-      setSubscriberCount(count || 0);
+      setAllSubscribers(allData || []);
+      setSubscriberCount(allData?.length || 0);
     } catch (err) {
       console.error('Error fetching subscribers:', err);
       setError('Failed to load newsletter subscribers');
@@ -453,6 +457,19 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     return name || 'No Name';
   };
 
+  // Newsletter summary stats computed from unfiltered subscriber data
+  const newsletterStats = useMemo(() => {
+    const total = allSubscribers.length;
+    const pending = allSubscribers.filter(s => s.status === 'pending' as any).length;
+    const active = allSubscribers.filter(s => s.status === 'active').length;
+    const sourceCounts: Record<string, number> = {};
+    allSubscribers.forEach(s => {
+      const src = s.source || 'Unknown';
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+    });
+    return { total, pending, active, sourceCounts };
+  }, [allSubscribers]);
+
   const tabs: { id: TabType; label: string }[] = [
     { id: 'customers', label: 'All Customers' },
     { id: 'newsletter', label: 'Newsletter Subscribers' },
@@ -499,32 +516,59 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
           )}
         </div>
 
-        {/* Customer Segments Stats Bar */}
-        {segmentsLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 animate-pulse">
-                <div className="h-3 w-20 bg-slate-200 rounded mb-3" />
-                <div className="h-7 w-14 bg-slate-200 rounded" />
+        {/* Stats Bar - switches based on active tab */}
+        {activeTab === 'customers' ? (
+          <>
+            {segmentsLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 animate-pulse">
+                    <div className="h-3 w-20 bg-slate-200 rounded mb-3" />
+                    <div className="h-7 w-14 bg-slate-200 rounded" />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : segments && (
+            ) : segments && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                  { label: 'Total in Database', value: segments.totalInDatabase, borderColor: 'border-l-slate-400' },
+                  { label: 'Ever Ordered', value: segments.everOrdered, borderColor: 'border-l-blue-400' },
+                  { label: 'Ordered & Subscribed', value: segments.orderedAndSubscribed, borderColor: 'border-l-emerald-400', clickable: true },
+                  { label: 'Newsletter Only', value: segments.newsletterOnly, borderColor: 'border-l-purple-400' },
+                  { label: 'Active Since 2024', value: segments.activeSince2024, borderColor: 'border-l-orange-400' },
+                  { label: 'Ghost Accounts', value: segments.ghostAccounts, borderColor: 'border-l-red-400' },
+                ].map((card) => (
+                  <div
+                    key={card.label}
+                    onClick={card.clickable ? () => { setActiveTab('newsletter'); setSubscriberFilter('active'); } : undefined}
+                    className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor} ${
+                      card.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{card.label}</p>
+                    <p className="text-2xl font-bold text-slate-800 mt-1">{card.value.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: 'Total in Database', value: segments.totalInDatabase, borderColor: 'border-l-slate-400' },
-              { label: 'Ever Ordered', value: segments.everOrdered, borderColor: 'border-l-blue-400' },
-              { label: 'Ordered & Subscribed', value: segments.orderedAndSubscribed, borderColor: 'border-l-emerald-400', clickable: true },
-              { label: 'Newsletter Only', value: segments.newsletterOnly, borderColor: 'border-l-purple-400' },
-              { label: 'Active Since 2024', value: segments.activeSince2024, borderColor: 'border-l-orange-400' },
-              { label: 'Ghost Accounts', value: segments.ghostAccounts, borderColor: 'border-l-red-400' },
+              { label: 'Total Subscribers', value: newsletterStats.total, borderColor: 'border-l-slate-400' },
+              { label: 'Pending', value: newsletterStats.pending, borderColor: 'border-l-amber-400' },
+              { label: 'Active', value: newsletterStats.active, borderColor: 'border-l-emerald-400' },
+              ...Object.entries(newsletterStats.sourceCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([source, count]) => ({
+                  label: source,
+                  value: count,
+                  borderColor: 'border-l-purple-400',
+                })),
             ].map((card) => (
               <div
                 key={card.label}
-                onClick={card.clickable ? () => { setActiveTab('newsletter'); setSubscriberFilter('active'); } : undefined}
-                className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor} ${
-                  card.clickable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
-                }`}
+                className={`bg-white rounded-xl p-4 shadow-sm border border-slate-200/60 border-l-4 ${card.borderColor}`}
               >
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{card.label}</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1">{card.value.toLocaleString()}</p>
