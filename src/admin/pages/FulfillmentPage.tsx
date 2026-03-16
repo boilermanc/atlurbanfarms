@@ -2,8 +2,10 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler, getOrderSeedlingTotal } from '../hooks/useOrders';
+import { useEmailService } from '../../hooks/useIntegrations';
+import { useEmailTemplates, EmailTemplate } from '../hooks/useEmailTemplates';
 import { supabase } from '../../lib/supabase';
-import { Printer, X, RefreshCw, Search, ChevronDown, Check, Mail, Trash2, FileText } from 'lucide-react';
+import { Printer, X, RefreshCw, Search, ChevronDown, Check, Mail, Trash2, FileText, Send, AlertCircle, CheckCircle } from 'lucide-react';
 
 const formatStatusLabel = (status: string) =>
   ORDER_STATUS_CONFIG[status as OrderStatus]?.label || status.replace(/_/g, ' ');
@@ -34,6 +36,18 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkActionType, setBulkActionType] = useState<'status' | 'print' | 'email' | 'archive'>('status');
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Email compose modal state
+  const [showEmailCompose, setShowEmailCompose] = useState(false);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailResults, setEmailResults] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>('');
+
+  // Email hooks
+  const { sendEmail } = useEmailService();
+  const { templates: emailTemplates } = useEmailTemplates();
 
   // Update order status hook
   const { updateStatus } = useUpdateOrderStatus();
@@ -179,8 +193,77 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   }, []);
 
   const handleBulkEmailInvoices = useCallback(() => {
-    alert('Email Invoices feature coming soon!');
+    setEmailSubject('');
+    setEmailBody('');
+    setEmailResults(null);
+    setSelectedTemplateKey('');
+    setShowEmailCompose(true);
   }, []);
+
+  const handleTemplateSelect = useCallback((templateKey: string) => {
+    setSelectedTemplateKey(templateKey);
+    if (!templateKey) {
+      setEmailSubject('');
+      setEmailBody('');
+      return;
+    }
+    const template = emailTemplates.find(t => t.template_key === templateKey);
+    if (template) {
+      setEmailSubject(template.subject_line);
+      // Strip HTML tags for the body textarea, keep plain text version if available
+      setEmailBody(template.plain_text_content || template.html_content.replace(/<[^>]*>/g, ''));
+    }
+  }, [emailTemplates]);
+
+  const handleSendBulkEmail = useCallback(async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) return;
+
+    const selectedOrdersList = orders.filter(o => selectedOrders.has(o.id));
+    const recipients = selectedOrdersList
+      .map(o => ({ email: o.customer_email, name: o.customer_name, orderId: o.id, orderNumber: o.order_number }))
+      .filter(r => r.email);
+
+    if (recipients.length === 0) {
+      alert('No valid email addresses found for selected orders.');
+      return;
+    }
+
+    setEmailSending(true);
+    setEmailResults(null);
+
+    let sent = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    // Wrap body in simple HTML
+    const htmlBody = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; line-height: 1.6;">${line || '&nbsp;'}</p>`).join('\n')}
+</div>`;
+
+    for (const recipient of recipients) {
+      try {
+        const result = await sendEmail({
+          to: recipient.email!,
+          subject: emailSubject,
+          html: htmlBody,
+          text: emailBody,
+        });
+
+        if (result.success) {
+          sent++;
+        } else {
+          failed++;
+          errors.push(`${recipient.email}: ${result.error || 'Unknown error'}`);
+        }
+      } catch (err: any) {
+        failed++;
+        errors.push(`${recipient.email}: ${err.message}`);
+      }
+    }
+
+    setEmailSending(false);
+    setEmailResults({ sent, failed, errors });
+  }, [emailSubject, emailBody, orders, selectedOrders, sendEmail]);
 
   const handleBulkArchive = useCallback(() => {
     setBulkActionType('archive');
@@ -1031,7 +1114,7 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
                     <button
                       onClick={handleBulkEmailInvoices}
                       className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30"
-                      title="Email invoices (coming soon)"
+                      title="Email selected customers"
                     >
                       <Mail size={18} />
                       <span className="hidden sm:inline">Email</span>
@@ -1255,6 +1338,164 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
                       'Confirm'
                     )}
                   </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* Email Compose Modal */}
+        <AnimatePresence>
+          {showEmailCompose && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => !emailSending && setShowEmailCompose(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">Compose Email</h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Sending to {(() => {
+                        const recipientCount = orders.filter(o => selectedOrders.has(o.id) && o.customer_email).length;
+                        return `${recipientCount} ${recipientCount === 1 ? 'recipient' : 'recipients'}`;
+                      })()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => !emailSending && setShowEmailCompose(false)}
+                    className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                    disabled={emailSending}
+                  >
+                    <X size={20} className="text-slate-500" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                  {/* Recipients preview */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">To</label>
+                    <div className="flex flex-wrap gap-1.5 p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-24 overflow-y-auto">
+                      {orders.filter(o => selectedOrders.has(o.id) && o.customer_email).map(o => (
+                        <span key={o.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">
+                          {o.customer_name || o.customer_email}
+                        </span>
+                      ))}
+                      {orders.filter(o => selectedOrders.has(o.id) && !o.customer_email).length > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full">
+                          <AlertCircle size={12} />
+                          {orders.filter(o => selectedOrders.has(o.id) && !o.customer_email).length} without email
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Template selector */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Template (optional)</label>
+                    <select
+                      value={selectedTemplateKey}
+                      onChange={(e) => handleTemplateSelect(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      disabled={emailSending}
+                    >
+                      <option value="">Write custom email...</option>
+                      {emailTemplates.filter(t => t.is_active).map(t => (
+                        <option key={t.template_key} value={t.template_key}>
+                          {t.name} {t.category ? `(${t.category})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Subject */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Enter email subject..."
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      disabled={emailSending}
+                    />
+                  </div>
+
+                  {/* Body */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
+                    <textarea
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                      placeholder="Write your message..."
+                      rows={10}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-y font-sans leading-relaxed"
+                      disabled={emailSending}
+                    />
+                  </div>
+
+                  {/* Results */}
+                  {emailResults && (
+                    <div className={`p-4 rounded-xl border ${emailResults.failed > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        {emailResults.failed > 0 ? (
+                          <AlertCircle size={18} className="text-amber-600" />
+                        ) : (
+                          <CheckCircle size={18} className="text-emerald-600" />
+                        )}
+                        <span className="font-semibold text-slate-800">
+                          {emailResults.sent} sent{emailResults.failed > 0 ? `, ${emailResults.failed} failed` : ''}
+                        </span>
+                      </div>
+                      {emailResults.errors.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {emailResults.errors.map((err, i) => (
+                            <li key={i} className="text-xs text-red-600">{err}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center gap-3 justify-end p-6 border-t border-slate-200">
+                  <button
+                    onClick={() => setShowEmailCompose(false)}
+                    disabled={emailSending}
+                    className="px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium disabled:opacity-50"
+                  >
+                    {emailResults ? 'Close' : 'Cancel'}
+                  </button>
+                  {!emailResults && (
+                    <button
+                      onClick={handleSendBulkEmail}
+                      disabled={emailSending || !emailSubject.trim() || !emailBody.trim()}
+                      className="px-5 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {emailSending ? (
+                        <>
+                          <RefreshCw size={18} className="animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={18} />
+                          Send Email
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </motion.div>
             </motion.div>
