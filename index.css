@@ -1,5 +1,6 @@
 /* Tailwind CSS v4 */
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* Configure source paths for Tailwind to scan */
 @source "./*.{tsx,ts,jsx,js,html}";
