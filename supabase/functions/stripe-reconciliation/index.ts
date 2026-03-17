@@ -300,9 +300,12 @@ serve(async (req) => {
         order_date: order?.created_at ?? legacyOrderData?.order_date ?? null,
         order_total: order != null
           ? Number(order.total)
-          : (legacyOrderData?.total != null ? Number(legacyOrderData.total) : null),
-        tax: order != null ? Number(order.tax) : (legacyOrderData?.tax != null ? Number(legacyOrderData.tax) : null),
-        shipping: order != null ? Number(order.shipping_cost) : (legacyOrderData?.shipping != null ? Number(legacyOrderData.shipping) : null),
+          : (legacyOrderData?.order_total != null ? Number(legacyOrderData.order_total)
+            : (legacyOrderData?.total != null ? Number(legacyOrderData.total) : null)),
+        tax: order != null ? Number(order.tax)
+          : (legacyOrderData?.tax != null ? Number(legacyOrderData.tax) : null),
+        shipping: order != null ? Number(order.shipping_cost)
+          : (legacyOrderData?.shipping != null ? Number(legacyOrderData.shipping) : null),
         discount: order != null ? Number(order.discount_amount) : null,
         gift_card: order != null ? Number(order.gift_card_amount) : null,
         refund_total: order != null ? order.refund_total : null,
