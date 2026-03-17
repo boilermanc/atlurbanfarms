@@ -129,18 +129,46 @@ const CSV_COLUMNS: Array<{ label: string; key: keyof ReconciliationRow }> = [
   { label: 'Note', key: 'note' },
 ];
 
-function exportCsv(rows: ReconciliationRow[], startDate: string, endDate: string) {
+function exportCsv(rows: ReconciliationRow[], groups: PayoutGroup[], startDate: string, endDate: string) {
   const escape = (v: unknown) => {
     const s = v == null ? '' : String(v);
     return s.includes(',') || s.includes('"') || s.includes('\n')
       ? `"${s.replace(/"/g, '""')}"`
       : s;
   };
+
+  const colCount = CSV_COLUMNS.length;
+  const blankRow = Array(colCount).fill('').join(',');
+
   const header = CSV_COLUMNS.map(c => escape(c.label)).join(',');
-  const body = rows
-    .map(row => CSV_COLUMNS.map(c => escape(row[c.key])).join(','))
-    .join('\n');
-  const csv = `${header}\n${body}`;
+
+  const bodyLines: string[] = [];
+  for (const group of groups) {
+    const groupNet = group.rows.reduce((acc, r) => acc + (r.stripe_net || 0), 0);
+    // Payout header row
+    const payoutCells = Array(colCount).fill('');
+    payoutCells[0] = 'PAYOUT';
+    payoutCells[1] = group.payout_id;
+    payoutCells[2] = group.payout_date;
+    payoutCells[4] = `Deposit: ${groupNet.toFixed(2)}`;
+    bodyLines.push(payoutCells.map(escape).join(','));
+
+    // Order rows
+    for (const row of group.rows) {
+      bodyLines.push(CSV_COLUMNS.map(c => escape(row[c.key])).join(','));
+    }
+
+    // Subtotal row
+    const subCells = Array(colCount).fill('');
+    subCells[0] = 'SUBTOTAL';
+    subCells[4] = groupNet.toFixed(2);
+    bodyLines.push(subCells.map(escape).join(','));
+
+    // Blank separator
+    bodyLines.push(blankRow);
+  }
+
+  const csv = `${header}\n${bodyLines.join('\n')}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -245,7 +273,7 @@ const StripeReconciliationPage: React.FC = () => {
 
         {rows.length > 0 && (
           <button
-            onClick={() => exportCsv(rows, startDate, endDate)}
+            onClick={() => exportCsv(rows, groups, startDate, endDate)}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors font-medium text-sm"
           >
             <Download size={16} />
@@ -376,12 +404,9 @@ const StripeReconciliationPage: React.FC = () => {
                           </span>
                           Payout — {fmtDate(group.payout_date)}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-white font-bold tabular-nums">
-                          {fmt(group.payout_total)}
-                        </td>
                         <td
-                          colSpan={11}
-                          className="px-3 py-2.5 text-right text-white/80 text-xs font-medium"
+                          colSpan={12}
+                          className="px-3 py-2.5 text-right text-white font-bold tabular-nums"
                         >
                           Net deposit: {fmt(groupNet)}
                         </td>
