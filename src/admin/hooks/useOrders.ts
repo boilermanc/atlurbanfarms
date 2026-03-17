@@ -172,6 +172,7 @@ export interface Order {
   pickup_time_start: string | null;
   pickup_time_end: string | null;
   pickup_reservation?: PickupReservation;
+  pickup_location?: PickupLocation | null;
   // Shipment fields (for list view)
   shipment_status?: string | null;
   shipment_tracking_status?: string | null;
@@ -357,6 +358,14 @@ export function useOrders(filters: OrderFilters = {}) {
               phone,
               instructions
             )
+          ),
+          pickup_locations (
+            id,
+            name,
+            address_line1,
+            city,
+            state,
+            postal_code
           ),
           ${shipmentsJoin}
         `)
@@ -586,6 +595,7 @@ export function useOrders(filters: OrderFilters = {}) {
           status: order.pickup_reservations[0].status,
           notes: order.pickup_reservations[0].notes,
         } : undefined,
+        pickup_location: order.pickup_locations || null,
         // Pick the active (non-voided) shipment, falling back to the latest one
         ...(() => {
           const shipments = Array.isArray(order.shipments) ? order.shipments : [];

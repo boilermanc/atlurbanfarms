@@ -301,11 +301,12 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
 
     const getPickupInfo = (order: Order) => {
       const res = order.pickup_reservation;
-      const locName = res?.location?.name || 'TBD';
-      const locAddr1 = (res?.location as any)?.address_line1 || '';
-      const locCity = (res?.location as any)?.city || '';
-      const locState = (res?.location as any)?.state || '';
-      const locZip = (res?.location as any)?.postal_code || '';
+      const directLoc = order.pickup_location;
+      const locName = res?.location?.name || directLoc?.name || 'Local Pickup';
+      const locAddr1 = (res?.location as any)?.address_line1 || directLoc?.address_line1 || '';
+      const locCity = (res?.location as any)?.city || directLoc?.city || '';
+      const locState = (res?.location as any)?.state || directLoc?.state || '';
+      const locZip = (res?.location as any)?.postal_code || directLoc?.postal_code || '';
       const date = order.pickup_date || res?.pickup_date;
       const start = order.pickup_time_start || res?.pickup_time_start;
       const end = order.pickup_time_end || res?.pickup_time_end;
@@ -658,6 +659,9 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
             pickup_locations (
               id, name, address_line1, city, state, postal_code
             )
+          ),
+          pickup_locations (
+            id, name, address_line1, city, state, postal_code
           )
         `)
         .in('status', Array.from(selectedStatuses))
@@ -739,6 +743,7 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           status: order.pickup_reservations[0].status,
           notes: order.pickup_reservations[0].notes,
         } : undefined,
+        pickup_location: order.pickup_locations || null,
       }));
 
       await openPrintWindow(filteredOrders);
