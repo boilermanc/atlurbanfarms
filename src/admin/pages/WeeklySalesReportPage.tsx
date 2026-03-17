@@ -67,6 +67,10 @@ interface NormalizedOrder {
   orderTotal: number;
   firstName: string;
   lastName: string;
+  email: string;
+  phone: string;
+  city: string;
+  zip: string;
   state: string;
   customerNote: string;
   tax: number;
@@ -154,7 +158,8 @@ const WeeklySalesReportPage: React.FC = () => {
           .from('legacy_orders')
           .select(`
             id, woo_order_id, order_date, shipping, subtotal, tax, total,
-            shipping_first_name, shipping_last_name, shipping_state, status,
+            shipping_first_name, shipping_last_name, shipping_state, shipping_city, shipping_zip,
+            billing_email, status,
             legacy_order_items ( quantity, product_name, line_total )
           `)
           .gte('order_date', startISO)
@@ -165,7 +170,9 @@ const WeeklySalesReportPage: React.FC = () => {
           .from('orders')
           .select(`
             id, order_number, created_at, shipping_cost, subtotal, tax, total,
-            shipping_first_name, shipping_last_name, shipping_state,
+            shipping_first_name, shipping_last_name, shipping_state, shipping_city, shipping_zip,
+            shipping_phone, guest_email,
+            customers ( email, phone ),
             shipping_method_name, discount_amount, promotion_code, is_pickup, status,
             order_items ( quantity, product_name, line_total )
           `)
@@ -193,6 +200,10 @@ const WeeklySalesReportPage: React.FC = () => {
           orderTotal: o.total || 0,
           firstName: o.shipping_first_name || '',
           lastName: o.shipping_last_name || '',
+          email: o.billing_email || '',
+          phone: '',
+          city: o.shipping_city || '',
+          zip: o.shipping_zip || '',
           state: o.shipping_state || '',
           customerNote: '',
           tax: o.tax || 0,
@@ -214,6 +225,10 @@ const WeeklySalesReportPage: React.FC = () => {
           orderTotal: o.total || 0,
           firstName: o.shipping_first_name || '',
           lastName: o.shipping_last_name || '',
+          email: o.guest_email || (o as any).customers?.email || '',
+          phone: o.shipping_phone || (o as any).customers?.phone || '',
+          city: o.shipping_city || '',
+          zip: o.shipping_zip || '',
           state: o.shipping_state || '',
           customerNote: '',
           tax: o.tax || 0,
@@ -410,8 +425,9 @@ const WeeklySalesReportPage: React.FC = () => {
     const HEADERS = [
       'Order ID', 'Order Date', 'Shipping Income', '#Seedlings', '#Other',
       'Seedling Income', 'Discount', 'Order Total', 'Customer First', 'Customer Last',
-      'State', 'Customer Note', 'Tax', '$Other', 'Shipping Method',
+      'Email', 'Phone', 'City', 'Zip', 'State', 'Customer Note', 'Tax', '$Other', 'Shipping Method',
     ];
+    const COL_COUNT = HEADERS.length;
     data.push(HEADERS);
 
     // Track which rows are section headers and order data for styling
@@ -421,7 +437,7 @@ const WeeklySalesReportPage: React.FC = () => {
 
     const addSection = (label: string, list: NormalizedOrder[]) => {
       sectionRows.push(data.length);
-      const sectionRow: (string | number | null)[] = new Array(15).fill('');
+      const sectionRow: (string | number | null)[] = new Array(COL_COUNT).fill('');
       sectionRow[0] = label;
       data.push(sectionRow);
 
@@ -437,6 +453,10 @@ const WeeklySalesReportPage: React.FC = () => {
           o.orderTotal,
           o.firstName,
           o.lastName,
+          o.email,
+          o.phone,
+          o.city,
+          o.zip,
           o.state,
           o.customerNote,
           o.tax,
@@ -463,22 +483,36 @@ const WeeklySalesReportPage: React.FC = () => {
     const summaryStartRow = data.length;
 
     // Totals row
-    data.push([
-      'TOTALS', '', sumShipping, sumSeedlings, sumOtherQty,
-      sumSeedlingIncome, sumDiscount, sumTotal, '', '', '', '', sumTax, sumOtherRev, '',
-    ]);
+    const emptyTotalsRow: (string | number | null)[] = new Array(COL_COUNT).fill('');
+    emptyTotalsRow[0] = 'TOTALS';
+    emptyTotalsRow[2] = sumShipping;
+    emptyTotalsRow[3] = sumSeedlings;
+    emptyTotalsRow[4] = sumOtherQty;
+    emptyTotalsRow[5] = sumSeedlingIncome;
+    emptyTotalsRow[6] = sumDiscount;
+    emptyTotalsRow[7] = sumTotal;
+    emptyTotalsRow[16] = sumTax;
+    emptyTotalsRow[17] = sumOtherRev;
+    data.push(emptyTotalsRow);
+
+    const makeSummaryRow = (label: string, colCValue: number): (string | number | null)[] => {
+      const row: (string | number | null)[] = new Array(COL_COUNT).fill('');
+      row[0] = label;
+      row[2] = colCValue;
+      return row;
+    };
 
     const avgShipPerOrder = shipped.length > 0 ? sumShipping / shipped.length : 0;
-    data.push(['Avg Shipping/Order', '', avgShipPerOrder, '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(makeSummaryRow('Avg Shipping/Order', avgShipPerOrder));
 
     const sevenTimesShipped = 7 * shipped.length;
-    data.push(['$7 x Shipped Orders', '', sevenTimesShipped, '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(makeSummaryRow('$7 x Shipped Orders', sevenTimesShipped));
 
     const weeklyIncome = sumSeedlingIncome - sumDiscount;
-    data.push(['Weekly Income', '', weeklyIncome, '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(makeSummaryRow('Weekly Income', weeklyIncome));
 
     const avgShipCost = shipped.length > 0 ? sumShipping / shipped.length : 0;
-    data.push(['Avg Ship/Order Cost', '', avgShipCost, '', '', '', '', '', '', '', '', '', '', '', '']);
+    data.push(makeSummaryRow('Avg Ship/Order Cost', avgShipCost));
 
     // --- Create worksheet ---
     const ws = XLSX.utils.aoa_to_sheet(data);
@@ -487,7 +521,8 @@ const WeeklySalesReportPage: React.FC = () => {
     ws['!cols'] = [
       { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 10 },
       { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
-      { wch: 8 },  { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 20 },
+      { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 10 }, { wch: 8 },
+      { wch: 30 }, { wch: 10 }, { wch: 10 }, { wch: 20 },
     ];
 
     // Merged cells for section headers
@@ -498,7 +533,7 @@ const WeeklySalesReportPage: React.FC = () => {
     ws['!merges'] = merges;
 
     // Apply number formats and styles
-    const CURRENCY_COLS = [2, 5, 6, 7, 12, 13];
+    const CURRENCY_COLS = [2, 5, 6, 7, 16, 17];
     const NUMBER_COLS = [3, 4];
 
     // Helper to set cell properties
@@ -510,13 +545,13 @@ const WeeklySalesReportPage: React.FC = () => {
     };
 
     // Row 3 (header row) — bold green
-    for (let c = 0; c < 15; c++) {
+    for (let c = 0; c < COL_COUNT; c++) {
       setCell(3, c, STYLE_HEADER);
     }
 
     // Section header rows — bold yellow
     for (const r of sectionRows) {
-      for (let c = 0; c < 15; c++) {
+      for (let c = 0; c < COL_COUNT; c++) {
         setCell(r, c, STYLE_SECTION);
       }
     }
@@ -529,7 +564,7 @@ const WeeklySalesReportPage: React.FC = () => {
         continue;
       }
       const rowStyle = altIndex % 2 === 1 ? STYLE_ROW_ALT : STYLE_DEFAULT;
-      for (let c = 0; c < 15; c++) {
+      for (let c = 0; c < COL_COUNT; c++) {
         setCell(r, c, rowStyle);
       }
       for (const c of CURRENCY_COLS) {
@@ -564,7 +599,7 @@ const WeeklySalesReportPage: React.FC = () => {
     setCell(2, 5, STYLE_BOLD, '#,##0');
 
     // Auto-filter on header row
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3, c: 14 } }) };
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: 3, c: COL_COUNT - 1 } }) };
 
     // Freeze top 4 rows (works with xlsx-js-style; community xlsx may ignore)
     if (!ws['!freeze']) {
