@@ -676,7 +676,7 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
         query = query.lt('created_at', endDate.toISOString());
       }
       if (searchTerm) {
-        query = query.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
+        query = query.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,shipping_first_name.ilike.%${searchTerm}%,shipping_last_name.ilike.%${searchTerm}%,billing_first_name.ilike.%${searchTerm}%,billing_last_name.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;

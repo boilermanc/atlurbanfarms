@@ -18,7 +18,7 @@ interface OrdersPageProps {
 const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initialDateFilter, onDateFilterConsumed }) => {
 
   // Filter state
-  const [statusFilter, setStatusFilter] = useState<string[]>(initialDateFilter ? [] : ['processing', 'on_hold']);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const [showTrash, setShowTrash] = useState(false);
@@ -116,7 +116,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
 
   // Clear all filters
   const clearFilters = () => {
-    setStatusFilter(['processing', 'on_hold']);
+    setStatusFilter([]);
     setShowTrash(false);
     setDateFrom('');
     setDateTo('');
@@ -125,9 +125,8 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
     setCurrentPage(1);
   };
 
-  // Check if any filters are active (default is processing + on_hold)
-  const isDefaultStatus = statusFilter.length === 2 && statusFilter.includes('processing') && statusFilter.includes('on_hold');
-  const hasActiveFilters = !isDefaultStatus || showTrash || dateFrom || dateTo || searchTerm;
+  // Check if any filters are active (default is all statuses / empty array)
+  const hasActiveFilters = statusFilter.length > 0 || showTrash || dateFrom || dateTo || searchTerm;
 
   // Move order to trash (soft delete)
   const moveToTrash = useCallback(async (orderId: string) => {
