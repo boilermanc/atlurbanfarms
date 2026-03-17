@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Upload, Trash2, Save, Code, Eye, ImagePlus, MonitorPlay, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Save, Code, Eye, ImagePlus, MonitorPlay, Copy, Check, X, Plus } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import RichTextEditor from '../components/RichTextEditor';
 import { useAdminAuth } from '../hooks/useAdminAuth';
+import { useBlogTags, useBlogPostTags, BlogTag } from '../hooks/useBlogTags';
 
 type EditorMode = 'visual' | 'html' | 'preview';
 
@@ -47,6 +48,64 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const htmlImageInputRef = useRef<HTMLInputElement>(null);
   const urlImageInputRef = useRef<HTMLInputElement>(null);
   const htmlTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Tag state
+  const { tags: allTags, createTag: createBlogTag } = useBlogTags();
+  const { postTags, addTagToPost, removeTagFromPost } = useBlogPostTags(postId);
+  const [tagInput, setTagInput] = useState('');
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [pendingTags, setPendingTags] = useState<BlogTag[]>([]); // for new posts before save
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close tag dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Tags to display (from DB for existing posts, from local state for new posts)
+  const displayTags = isEditMode ? postTags : pendingTags;
+
+  // Filter available tags for dropdown
+  const filteredAvailableTags = allTags.filter(tag =>
+    !displayTags.some(dt => dt.id === tag.id) &&
+    tag.name.toLowerCase().includes(tagInput.toLowerCase())
+  );
+
+  const canCreateNewTag = tagInput.trim().length > 0 &&
+    !allTags.some(t => t.name.toLowerCase() === tagInput.trim().toLowerCase());
+
+  const handleAddTag = useCallback(async (tag: BlogTag) => {
+    if (isEditMode) {
+      await addTagToPost(tag.id);
+    } else {
+      setPendingTags(prev => [...prev, tag]);
+    }
+    setTagInput('');
+    setTagDropdownOpen(false);
+  }, [isEditMode, addTagToPost]);
+
+  const handleCreateAndAddTag = useCallback(async () => {
+    if (!tagInput.trim()) return;
+    const result = await createBlogTag(tagInput.trim());
+    if (result.success && result.data) {
+      await handleAddTag(result.data);
+    }
+  }, [tagInput, createBlogTag, handleAddTag]);
+
+  const handleRemoveTag = useCallback(async (tagId: string) => {
+    if (isEditMode) {
+      await removeTagFromPost(tagId);
+    } else {
+      setPendingTags(prev => prev.filter(t => t.id !== tagId));
+    }
+  }, [isEditMode, removeTagFromPost]);
 
   const [formData, setFormData] = useState<BlogFormData>({
     title: '',
@@ -322,10 +381,19 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
         if (updateError) throw updateError;
         onSave();
       } else {
-        const { error: insertError } = await supabase
+        const { data: newPost, error: insertError } = await supabase
           .from('blog_posts')
-          .insert(postData);
+          .insert(postData)
+          .select('id')
+          .single();
         if (insertError) throw insertError;
+
+        // Save pending tags for the new post
+        if (newPost && pendingTags.length > 0) {
+          await supabase
+            .from('blog_post_tags')
+            .insert(pendingTags.map(tag => ({ blog_post_id: newPost.id, tag_id: tag.id })));
+        }
         onSave();
       }
     } catch (err: any) {
@@ -728,6 +796,88 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                 placeholder="e.g. Growing Tips, News..."
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
+            </div>
+
+            {/* Tags */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h3 className="text-sm font-semibold text-slate-800 mb-3">Tags</h3>
+
+              {/* Assigned tags */}
+              {displayTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {displayTags.map(tag => (
+                    <span
+                      key={tag.id}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full border border-emerald-200"
+                    >
+                      {tag.name}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag.id)}
+                        className="hover:text-red-600 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Tag input with dropdown */}
+              <div className="relative" ref={tagDropdownRef}>
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value);
+                    setTagDropdownOpen(true);
+                  }}
+                  onFocus={() => setTagDropdownOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (canCreateNewTag) {
+                        handleCreateAndAddTag();
+                      } else if (filteredAvailableTags.length > 0) {
+                        handleAddTag(filteredAvailableTags[0]);
+                      }
+                    }
+                  }}
+                  placeholder="Add a tag..."
+                  className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+
+                {tagDropdownOpen && (tagInput.length > 0 || allTags.length > 0) && (
+                  <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {filteredAvailableTags.map(tag => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => handleAddTag(tag)}
+                        className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                    {canCreateNewTag && (
+                      <button
+                        type="button"
+                        onClick={handleCreateAndAddTag}
+                        className="w-full px-4 py-2 text-left text-sm text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2 border-t border-slate-100"
+                      >
+                        <Plus size={14} />
+                        Create "{tagInput.trim()}"
+                      </button>
+                    )}
+                    {filteredAvailableTags.length === 0 && !canCreateNewTag && (
+                      <div className="px-4 py-2 text-sm text-slate-400">
+                        No matching tags
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Author */}

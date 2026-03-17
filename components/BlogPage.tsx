@@ -5,6 +5,12 @@ import DOMPurify from 'dompurify';
 import { supabase } from '../src/lib/supabase';
 import { usePageContent } from '../src/hooks/useSiteContent';
 
+interface BlogTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface BlogPost {
   id: string;
   title: string;
@@ -15,6 +21,7 @@ interface BlogPost {
   category: string | null;
   published_at: string | null;
   created_at: string;
+  tags?: BlogTag[];
 }
 
 interface BlogPageProps {
@@ -35,12 +42,19 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
       try {
         const { data, error } = await supabase
           .from('blog_posts')
-          .select('id, title, slug, excerpt, featured_image_url, author_name, category, published_at, created_at')
+          .select('id, title, slug, excerpt, featured_image_url, author_name, category, published_at, created_at, blog_post_tags ( tag_id, blog_tags ( id, name, slug ) )')
           .eq('is_published', true)
           .order('published_at', { ascending: false });
 
         if (error) throw error;
-        setPosts(data || []);
+        const postsWithTags = (data || []).map((post: any) => ({
+          ...post,
+          tags: (post.blog_post_tags || [])
+            .map((pt: any) => pt.blog_tags)
+            .filter(Boolean)
+            .sort((a: BlogTag, b: BlogTag) => a.name.localeCompare(b.name)),
+        }));
+        setPosts(postsWithTags);
       } catch (err) {
         console.error('Error fetching blog posts:', err);
         setError('Unable to load blog posts. Please try again later.');
@@ -178,12 +192,19 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
 
                 {/* Content */}
                 <div className="p-6">
-                  {/* Category */}
-                  {post.category && (
-                    <div className="mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                        {post.category}
-                      </span>
+                  {/* Category & Tags */}
+                  {(post.category || (post.tags && post.tags.length > 0)) && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {post.category && (
+                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                          {post.category}
+                        </span>
+                      )}
+                      {post.tags?.map(tag => (
+                        <span key={tag.id} className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+                          {tag.name}
+                        </span>
+                      ))}
                     </div>
                   )}
 

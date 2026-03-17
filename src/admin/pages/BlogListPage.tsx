@@ -3,6 +3,12 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
 import { Plus, Search, Edit2, Trash2, FileText } from 'lucide-react';
 
+interface BlogTag {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface BlogPost {
   id: string;
   title: string;
@@ -15,6 +21,7 @@ interface BlogPost {
   created_at: string;
   updated_at: string;
   featured_image_url: string | null;
+  tags?: BlogTag[];
 }
 
 interface BlogListPageProps {
@@ -37,11 +44,18 @@ const BlogListPage: React.FC<BlogListPageProps> = ({ onEditPost, onCreatePost })
       // Use service-level select - RLS admin policy allows full access
       const { data, error: fetchError } = await supabase
         .from('blog_posts')
-        .select('*')
+        .select('*, blog_post_tags ( tag_id, blog_tags ( id, name, slug ) )')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setPosts(data || []);
+      const postsWithTags = (data || []).map((post: any) => ({
+        ...post,
+        tags: (post.blog_post_tags || [])
+          .map((pt: any) => pt.blog_tags)
+          .filter(Boolean)
+          .sort((a: BlogTag, b: BlogTag) => a.name.localeCompare(b.name)),
+      }));
+      setPosts(postsWithTags);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load blog posts');
     } finally {
@@ -55,8 +69,10 @@ const BlogListPage: React.FC<BlogListPageProps> = ({ onEditPost, onCreatePost })
 
   const filteredPosts = useMemo(() => {
     return posts.filter(post => {
-      const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (post.category || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const q = searchQuery.toLowerCase();
+      const matchesSearch = post.title.toLowerCase().includes(q) ||
+        (post.category || '').toLowerCase().includes(q) ||
+        (post.tags || []).some(t => t.name.toLowerCase().includes(q));
       const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'published' && post.is_published) ||
         (statusFilter === 'draft' && !post.is_published);
@@ -176,6 +192,7 @@ const BlogListPage: React.FC<BlogListPageProps> = ({ onEditPost, onCreatePost })
               <tr className="border-b border-slate-100">
                 <th className="text-left py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Title</th>
                 <th className="text-left py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+                <th className="text-left py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Tags</th>
                 <th className="text-left py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
                 <th className="text-left py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
                 <th className="text-right py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
@@ -210,6 +227,19 @@ const BlogListPage: React.FC<BlogListPageProps> = ({ onEditPost, onCreatePost })
                   <td className="py-4 px-6">
                     {post.category ? (
                       <span className="text-sm text-slate-600">{post.category}</span>
+                    ) : (
+                      <span className="text-sm text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-4 px-6">
+                    {post.tags && post.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {post.tags.map(tag => (
+                          <span key={tag.id} className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-sm text-slate-400">—</span>
                     )}
