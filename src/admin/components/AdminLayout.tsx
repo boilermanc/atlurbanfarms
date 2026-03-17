@@ -66,6 +66,7 @@ const GrowingSystemsPage = lazy(() => import('../pages/GrowingSystemsPage'));
 const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'));
 const WeeklySalesReportPage = lazy(() => import('../pages/WeeklySalesReportPage'));
 const EmailReportsPage = lazy(() => import('../pages/EmailReportsPage'));
+const StripeReconciliationPage = lazy(() => import('../pages/StripeReconciliationPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -124,6 +125,7 @@ const PAGE_TITLES: Record<string, string> = {
   'growing-interests': 'Growing Interests',
   'weekly-sales-report': 'Weekly Sales Report',
   'email-reports': 'Email Reports',
+  'stripe-reconciliation': 'Stripe Reconciliation',
 };
 
 // Dashboard Stats Interface
@@ -841,6 +843,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <ReportsPage onViewOrdersByDate={handleViewOrdersByDate} />;
       case 'email-reports':
         return <EmailReportsPage />;
+      case 'stripe-reconciliation':
+        return <StripeReconciliationPage />;
       case 'users-roles':
         return <AdminUsersPage />;
       case 'audit-log':
