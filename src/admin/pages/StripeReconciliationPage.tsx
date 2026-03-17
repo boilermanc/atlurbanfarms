@@ -130,6 +130,31 @@ const CSV_COLUMNS: Array<{ label: string; key: keyof ReconciliationRow }> = [
   { label: 'Note', key: 'note' },
 ];
 
+// Numeric columns to aggregate in SUBTOTAL / GRAND TOTAL rows, by CSV column index.
+const NUMERIC_COL_INDICES: Array<{ key: keyof ReconciliationRow; idx: number }> = [
+  { key: 'stripe_gross',  idx: 4  },
+  { key: 'stripe_net',    idx: 5  },
+  { key: 'stripe_fee',    idx: 6  },
+  { key: 'order_total',   idx: 11 },
+  { key: 'tax',           idx: 12 },
+  { key: 'shipping',      idx: 13 },
+  { key: 'discount',      idx: 14 },
+  { key: 'gift_card',     idx: 15 },
+  { key: 'refund_total',  idx: 16 },
+  { key: 'seedlings',     idx: 17 },
+  { key: 'products',      idx: 18 },
+];
+
+function buildTotalCells(label: string, rowSet: ReconciliationRow[], colCount: number): string[] {
+  const cells = Array(colCount).fill('');
+  cells[0] = label;
+  for (const { key, idx } of NUMERIC_COL_INDICES) {
+    const sum = rowSet.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+    cells[idx] = sum.toFixed(2);
+  }
+  return cells;
+}
+
 function exportCsv(rows: ReconciliationRow[], groups: PayoutGroup[], startDate: string, endDate: string) {
   const escape = (v: unknown) => {
     const s = v == null ? '' : String(v);
@@ -140,12 +165,12 @@ function exportCsv(rows: ReconciliationRow[], groups: PayoutGroup[], startDate: 
 
   const colCount = CSV_COLUMNS.length;
   const blankRow = Array(colCount).fill('').join(',');
-
   const header = CSV_COLUMNS.map(c => escape(c.label)).join(',');
 
   const bodyLines: string[] = [];
   for (const group of groups) {
     const groupNet = group.rows.reduce((acc, r) => acc + (r.stripe_net || 0), 0);
+
     // Payout header row
     const payoutCells = Array(colCount).fill('');
     payoutCells[0] = 'PAYOUT';
@@ -159,15 +184,15 @@ function exportCsv(rows: ReconciliationRow[], groups: PayoutGroup[], startDate: 
       bodyLines.push(CSV_COLUMNS.map(c => escape(row[c.key])).join(','));
     }
 
-    // Subtotal row
-    const subCells = Array(colCount).fill('');
-    subCells[0] = 'SUBTOTAL';
-    subCells[4] = groupNet.toFixed(2);
-    bodyLines.push(subCells.map(escape).join(','));
+    // Subtotal row — all numeric columns
+    bodyLines.push(buildTotalCells('SUBTOTAL', group.rows, colCount).map(escape).join(','));
 
     // Blank separator
     bodyLines.push(blankRow);
   }
+
+  // Grand total row across all rows
+  bodyLines.push(buildTotalCells('GRAND TOTAL', rows, colCount).map(escape).join(','));
 
   const csv = `${header}\n${bodyLines.join('\n')}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
