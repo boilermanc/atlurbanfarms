@@ -25,6 +25,7 @@ interface ReconciliationRow {
   products: number | null;
   billing_first_name: string | null;
   billing_last_name: string | null;
+  note: string | null;
 }
 
 interface PayoutGroup {
@@ -88,6 +89,8 @@ const STATUS_STYLES: Record<string, string> = {
   on_hold: 'bg-purple-50 text-purple-700 border-purple-200',
   pending_payment: 'bg-amber-50 text-amber-700 border-amber-200',
   UNMATCHED: 'bg-red-100 text-red-800 border-red-300',
+  NO_LEGACY_MATCH: 'bg-slate-100 text-slate-500 border-slate-300',
+  LEGACY_FUZZY: 'bg-orange-50 text-orange-700 border-orange-300',
 };
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -123,6 +126,7 @@ const CSV_COLUMNS: Array<{ label: string; key: keyof ReconciliationRow }> = [
   { label: 'Products', key: 'products' },
   { label: 'First Name', key: 'billing_first_name' },
   { label: 'Last Name', key: 'billing_last_name' },
+  { label: 'Note', key: 'note' },
 ];
 
 function exportCsv(rows: ReconciliationRow[], startDate: string, endDate: string) {
@@ -338,6 +342,7 @@ const StripeReconciliationPage: React.FC = () => {
                   <th className={TH_R}>Seedlings</th>
                   <th className={TH}>First Name</th>
                   <th className={TH}>Last Name</th>
+                  <th className={TH}>Note</th>
                 </tr>
               </thead>
 
@@ -387,7 +392,9 @@ const StripeReconciliationPage: React.FC = () => {
                         <tr
                           key={row.stripe_txn_id}
                           className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
-                            row.order_status === 'UNMATCHED' ? 'bg-red-50/40' : ''
+                            row.order_status === 'UNMATCHED' ? 'bg-red-50/40' :
+                            row.order_status === 'LEGACY_FUZZY' ? 'bg-orange-50/40' :
+                            row.order_status === 'NO_LEGACY_MATCH' ? 'bg-slate-50/60' : ''
                           }`}
                         >
                           <td className={COL_CLASSES.status}>
@@ -433,6 +440,9 @@ const StripeReconciliationPage: React.FC = () => {
                           </td>
                           <td className={COL_CLASSES.name}>{row.billing_first_name ?? '—'}</td>
                           <td className={COL_CLASSES.name}>{row.billing_last_name ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-xs text-slate-400 max-w-[240px] truncate" title={row.note ?? undefined}>
+                            {row.note ?? ''}
+                          </td>
                         </tr>
                       ))}
 
@@ -471,7 +481,7 @@ const StripeReconciliationPage: React.FC = () => {
                         <td className="px-3 py-2.5 text-right font-bold tabular-nums text-slate-800">
                           {sub.seedlings > 0 ? fmt(sub.seedlings) : '—'}
                         </td>
-                        <td colSpan={2} />
+                        <td colSpan={3} />
                       </tr>
                     </React.Fragment>
                   );
@@ -512,7 +522,7 @@ const StripeReconciliationPage: React.FC = () => {
                   <td className="px-3 py-3 text-right font-bold tabular-nums text-white text-sm">
                     {grandTotals.seedlings > 0 ? fmt(grandTotals.seedlings) : '—'}
                   </td>
-                  <td colSpan={2} />
+                  <td colSpan={3} />
                 </tr>
               </tbody>
             </table>
