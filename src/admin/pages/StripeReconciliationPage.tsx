@@ -91,6 +91,7 @@ const STATUS_STYLES: Record<string, string> = {
   UNMATCHED: 'bg-red-100 text-red-800 border-red-300',
   NO_LEGACY_MATCH: 'bg-slate-100 text-slate-500 border-slate-300',
   LEGACY_FUZZY: 'bg-orange-50 text-orange-700 border-orange-300',
+  WOO_MATCHED: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {

@@ -237,36 +237,51 @@ serve(async (req) => {
       if (order) {
         orderStatus = order.status
       } else {
-        // Is this a pre-launch transaction?
-        const isPreLaunch = txn.created < LAUNCH_UNIX
-
-        if (isPreLaunch) {
-          // Try fuzzy match in legacy_orders by total + date
-          const txnAmountDollars = Math.abs(txn.amount / 100)
-          const txnDate = new Date(txn.created * 1000).toISOString().split('T')[0]
-          const dateMinus3 = new Date(txn.created * 1000 - 3 * 86400 * 1000).toISOString().split('T')[0]
-          const datePlus1 = new Date(txn.created * 1000 + 1 * 86400 * 1000).toISOString().split('T')[0]
-
-          const { data: legacyMatch } = await supabaseClient
-            .from('legacy_orders')
-            .select('woo_order_id, billing_first_name, billing_last_name, total, order_date')
-            .eq('total', txnAmountDollars)
-            .gte('order_date', dateMinus3)
-            .lte('order_date', datePlus1)
-            .or('payment_method.eq.Credit Card,payment_method.is.null')
-            .limit(1)
+        // ── Try woo_stripe_lookup first (exact PI match) ──────────────────────
+        let wooMatch: any = null
+        if (piId) {
+          const { data } = await supabaseClient
+            .from('woo_stripe_lookup')
+            .select('*')
+            .eq('stripe_intent_id', piId)
             .maybeSingle()
+          wooMatch = data
+        }
 
-          if (legacyMatch) {
-            orderStatus = 'LEGACY_FUZZY'
-            note = `Fuzzy match: WooCommerce order #${legacyMatch.woo_order_id} — verify manually`
-            legacyOrderData = legacyMatch
-          } else {
-            orderStatus = 'NO_LEGACY_MATCH'
-            note = `Pre-launch order (before ${LAUNCH_DATE}) — no PI stored in legacy orders`
-          }
+        if (wooMatch) {
+          orderStatus = 'WOO_MATCHED'
+          legacyOrderData = wooMatch
         } else {
-          orderStatus = 'UNMATCHED'
+          // Is this a pre-launch transaction?
+          const isPreLaunch = txn.created < LAUNCH_UNIX
+
+          if (isPreLaunch) {
+            // Try fuzzy match in legacy_orders by total + date
+            const txnAmountDollars = Math.abs(txn.amount / 100)
+            const dateMinus3 = new Date(txn.created * 1000 - 3 * 86400 * 1000).toISOString().split('T')[0]
+            const datePlus1 = new Date(txn.created * 1000 + 1 * 86400 * 1000).toISOString().split('T')[0]
+
+            const { data: fuzzyMatch } = await supabaseClient
+              .from('legacy_orders')
+              .select('woo_order_id, billing_first_name, billing_last_name, total, order_date')
+              .eq('total', txnAmountDollars)
+              .gte('order_date', dateMinus3)
+              .lte('order_date', datePlus1)
+              .or('payment_method.eq.Credit Card,payment_method.is.null')
+              .limit(1)
+              .maybeSingle()
+
+            if (fuzzyMatch) {
+              orderStatus = 'LEGACY_FUZZY'
+              note = `Fuzzy match: WooCommerce order #${fuzzyMatch.woo_order_id} — verify manually`
+              legacyOrderData = fuzzyMatch
+            } else {
+              orderStatus = 'NO_LEGACY_MATCH'
+              note = `Pre-launch order (before ${LAUNCH_DATE}) — no PI stored in legacy orders`
+            }
+          } else {
+            orderStatus = 'UNMATCHED'
+          }
         }
       }
 
@@ -280,16 +295,19 @@ serve(async (req) => {
         stripe_fee: txn.fee / 100,
         txn_type: txn.type,
         order_status: orderStatus,
-        order_number: order?.order_number ?? (legacyOrderData ? `WOO-${legacyOrderData.woo_order_id}` : null),
+        order_number: order?.order_number
+          ?? (legacyOrderData?.woo_order_id ? `WC-${legacyOrderData.woo_order_id}` : null),
         order_date: order?.created_at ?? legacyOrderData?.order_date ?? null,
-        order_total: order != null ? Number(order.total) : (legacyOrderData ? Number(legacyOrderData.total) : null),
-        tax: order != null ? Number(order.tax) : null,
-        shipping: order != null ? Number(order.shipping_cost) : null,
+        order_total: order != null
+          ? Number(order.total)
+          : (legacyOrderData?.total != null ? Number(legacyOrderData.total) : null),
+        tax: order != null ? Number(order.tax) : (legacyOrderData?.tax != null ? Number(legacyOrderData.tax) : null),
+        shipping: order != null ? Number(order.shipping_cost) : (legacyOrderData?.shipping != null ? Number(legacyOrderData.shipping) : null),
         discount: order != null ? Number(order.discount_amount) : null,
         gift_card: order != null ? Number(order.gift_card_amount) : null,
         refund_total: order != null ? order.refund_total : null,
-        seedlings: order != null ? order.seedlings : null,
-        products: order != null ? order.products : null,
+        seedlings: order != null ? order.seedlings : 0,
+        products: order != null ? order.products : 0,
         billing_first_name: order?.billing_first_name ?? legacyOrderData?.billing_first_name ?? null,
         billing_last_name: order?.billing_last_name ?? legacyOrderData?.billing_last_name ?? null,
         note: note ?? null,
