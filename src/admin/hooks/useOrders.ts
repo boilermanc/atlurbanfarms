@@ -481,12 +481,13 @@ export function useOrders(filters: OrderFilters = {}) {
         countLegacyQuery = countLegacyQuery.lt('order_date', endDate.toISOString());
       }
 
-      // Apply search filter
+      // Apply search filter (order number, email, and customer name)
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
-        dataQuery = dataQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
-        countNewQuery = countNewQuery.or(`order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%`);
-        // For legacy orders, search by woo_order_id or billing_email
+        const newOrderSearch = `order_number.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,shipping_first_name.ilike.%${searchTerm}%,shipping_last_name.ilike.%${searchTerm}%,billing_first_name.ilike.%${searchTerm}%,billing_last_name.ilike.%${searchTerm}%`;
+        dataQuery = dataQuery.or(newOrderSearch);
+        countNewQuery = countNewQuery.or(newOrderSearch);
+        // For legacy orders, search by woo_order_id, billing_email, or name
         const wcMatch = searchTerm.match(/^wc-?(\d+)$/i);
         if (wcMatch) {
           legacyQuery = legacyQuery.eq('woo_order_id', parseInt(wcMatch[1]));
@@ -495,8 +496,9 @@ export function useOrders(filters: OrderFilters = {}) {
           legacyQuery = legacyQuery.eq('woo_order_id', parseInt(searchTerm));
           countLegacyQuery = countLegacyQuery.eq('woo_order_id', parseInt(searchTerm));
         } else {
-          legacyQuery = legacyQuery.ilike('billing_email', `%${searchTerm}%`);
-          countLegacyQuery = countLegacyQuery.ilike('billing_email', `%${searchTerm}%`);
+          const legacySearch = `billing_email.ilike.%${searchTerm}%,billing_first_name.ilike.%${searchTerm}%,billing_last_name.ilike.%${searchTerm}%`;
+          legacyQuery = legacyQuery.or(legacySearch);
+          countLegacyQuery = countLegacyQuery.or(legacySearch);
         }
       }
 
@@ -942,6 +944,62 @@ export function useOrder(orderId: string | null) {
     error,
     refetch: fetchOrder,
   };
+}
+
+// Hook: Fetch adjacent (prev/next) order IDs for navigation
+export function useAdjacentOrders(orderId: string | null) {
+  const [prevOrderId, setPrevOrderId] = useState<string | null>(null);
+  const [nextOrderId, setNextOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!orderId) {
+      setPrevOrderId(null);
+      setNextOrderId(null);
+      return;
+    }
+
+    const fetchAdjacent = async () => {
+      try {
+        // Get current order's created_at
+        const { data: current } = await supabase
+          .from('orders')
+          .select('created_at')
+          .eq('id', orderId)
+          .single();
+
+        if (!current) return;
+
+        // Next (newer) order
+        const { data: newer } = await supabase
+          .from('orders')
+          .select('id')
+          .gt('created_at', current.created_at)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        // Previous (older) order
+        const { data: older } = await supabase
+          .from('orders')
+          .select('id')
+          .lt('created_at', current.created_at)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        setNextOrderId(newer?.id || null);
+        setPrevOrderId(older?.id || null);
+      } catch {
+        // Ignore errors — navigation is non-critical
+      }
+    };
+
+    fetchAdjacent();
+  }, [orderId]);
+
+  return { prevOrderId, nextOrderId };
 }
 
 // Hook: Update order status

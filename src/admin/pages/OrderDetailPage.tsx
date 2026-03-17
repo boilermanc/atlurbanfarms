@@ -4,6 +4,7 @@ import AdminPageWrapper from '../components/AdminPageWrapper';
 import ErrorBoundary from '../components/ErrorBoundary';
 import {
   useOrder,
+  useAdjacentOrders,
   useUpdateOrderStatus,
   useAddOrderNote,
   useCancelOrder,
@@ -20,7 +21,7 @@ import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import useShipmentManagement from '../hooks/useShipmentManagement';
 import { supabase } from '../../lib/supabase';
-import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
+import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle, Trash2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Helper to format pickup time
 const formatPickupTime = (timeStr: string): string => {
@@ -37,13 +38,15 @@ interface OrderDetailPageProps {
   onBack: () => void;
   onBackToCustomer?: () => void;
   customerContextName?: string;
+  onNavigateOrder?: (orderId: string) => void;
 }
 
-const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName }) => {
+const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName, onNavigateOrder }) => {
   const { adminUser } = useAdminAuth();
 
   // Fetch order data
   const { order, loading, error, refetch } = useOrder(orderId);
+  const { prevOrderId, nextOrderId } = useAdjacentOrders(orderId);
 
   // Hooks for actions
   const { updateStatus, loading: updatingStatus } = useUpdateOrderStatus();
@@ -1222,28 +1225,52 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         }
       `}</style>
       <div className="space-y-6 print:space-y-4">
-        {/* Back Buttons */}
-        <div className="flex items-center gap-3 print:hidden">
-          {onBackToCustomer && (
+        {/* Back Buttons + Order Navigation */}
+        <div className="flex items-center justify-between print:hidden">
+          <div className="flex items-center gap-3">
+            {onBackToCustomer && (
+              <button
+                onClick={onBackToCustomer}
+                className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Customer{customerContextName ? ` (${customerContextName})` : ''}
+              </button>
+            )}
             <button
-              onClick={onBackToCustomer}
-              className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 transition-colors"
+              onClick={() => onBack()}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              Back to Customer{customerContextName ? ` (${customerContextName})` : ''}
+              Back to Orders
             </button>
+          </div>
+          {onNavigateOrder && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => prevOrderId && onNavigateOrder(prevOrderId)}
+                disabled={!prevOrderId}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Previous order (older)"
+              >
+                <ChevronLeft size={16} />
+                Prev
+              </button>
+              <button
+                onClick={() => nextOrderId && onNavigateOrder(nextOrderId)}
+                disabled={!nextOrderId}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Next order (newer)"
+              >
+                Next
+                <ChevronRight size={16} />
+              </button>
+            </div>
           )}
-          <button
-            onClick={() => onBack()}
-            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Orders
-          </button>
         </div>
 
         <ErrorBoundary

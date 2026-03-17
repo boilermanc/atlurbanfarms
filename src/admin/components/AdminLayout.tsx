@@ -766,6 +766,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             onBack={handleBackToOrders}
             onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}
             customerContextName={orderContext?.customerName}
+            onNavigateOrder={(id: string) => { setSelectedOrderId(id); }}
           />
         ) : null;
       case 'legacy-order-detail':

@@ -61,6 +61,7 @@ export type { GrowingInterestOption } from './hooks/useGrowingInterests';
 export {
   useOrders,
   useOrder,
+  useAdjacentOrders,
   useLegacyOrder,
   useUpdateOrderStatus,
   useAddOrderNote,
