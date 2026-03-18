@@ -215,7 +215,7 @@ function getNextShipDate(cutoffDay: number, cutoffTime: string, shipDay: number)
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete, onUpdateCart }) => {
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
-  const { brandingSettings } = useBrandingSettings();
+  const { settings: brandingSettings } = useBrandingSettings();
   const [logoError, setLogoError] = useState(false);
   const { profile, loading: profileLoading } = useCustomerProfile(user?.id);
   const { addresses, loading: addressesLoading } = useAddresses(user?.id);
