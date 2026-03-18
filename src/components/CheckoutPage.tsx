@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CartItem } from '../../types';
 import { SHIPPING_NOTICE } from '../../constants';
-import { useCreateOrder, useAuth, useCustomerProfile, useAddresses } from '../hooks/useSupabase';
+import { useCreateOrder, useAuth, useCustomerProfile, useAddresses, useBrandingSettings } from '../hooks/useSupabase';
 import { useAddressValidation, useShippingRates, ShippingRate, ShippingAddress, ZoneInfo } from '../hooks/useShipping';
 import { usePickupLocations, useAvailablePickupSlots, formatPickupTime, formatPickupDate, groupSlotsByDate, PickupLocation, PickupSlot } from '../hooks/usePickup';
 import { useSetting } from '../admin/hooks/useSettings';
@@ -215,6 +215,8 @@ function getNextShipDate(cutoffDay: number, cutoffTime: string, shipDay: number)
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, onOrderComplete, onUpdateCart }) => {
   const { createOrder, loading: orderLoading } = useCreateOrder();
   const { user } = useAuth();
+  const { brandingSettings } = useBrandingSettings();
+  const [logoError, setLogoError] = useState(false);
   const { profile, loading: profileLoading } = useCustomerProfile(user?.id);
   const { addresses, loading: addressesLoading } = useAddresses(user?.id);
   const { value: stripeEnabled, loading: stripeSettingLoading } = useSetting('integrations', 'stripe_enabled');
@@ -1764,14 +1766,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
             onClick={onBack}
             className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-emerald-600 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" x2="5" y1="12" y2="12"/>
               <polyline points="12 19 5 12 12 5"/>
             </svg>
             Return to Cart
           </button>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">A</div>
+            {brandingSettings.logo_url && !logoError ? (
+              <img src={brandingSettings.logo_url} alt="ATL Urban Farms" className="h-8 w-auto" onError={() => setLogoError(true)} />
+            ) : (
+              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">A</div>
+            )}
             <span className="font-heading font-extrabold text-gray-900">Secure Checkout</span>
           </div>
           <div className="w-28 hidden md:block" />
