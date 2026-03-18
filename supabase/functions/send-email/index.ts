@@ -89,6 +89,11 @@ const fallbackTemplates: Record<string, (data: any, brand: Record<string, string
               Remember: We ship live plants Monday through Wednesday only to ensure they arrive fresh!
             </p>` : ''}
             ${data.siteUrl ? `<p style="text-align: center; margin-top: 30px;"><a href="${data.siteUrl}/account/orders" class="btn">View Invoice</a></p>` : ''}
+            ${data.isGuest ? `<div style="background-color: #f0fdf4; border-radius: 8px; padding: 24px; text-align: center; margin-top: 30px;">
+              <p style="color: #166534; font-size: 16px; font-weight: bold; margin: 0 0 8px;">Track your order and access your dashboard</p>
+              <p style="color: #333; font-size: 14px; line-height: 1.5; margin: 0 0 20px;">Create a free ATL Urban Farms account to track this order, save your shipping info, and unlock your Customer Dashboard.</p>
+              <a href="https://atlurbanfarms.com/register" class="btn">Create Your Account &rarr;</a>
+            </div>` : ''}
           </div>
           <div class="footer">
             <p style="margin: 0 0 5px; font-size: 14px;">www.AtlUrbanFarms.com</p>
@@ -857,10 +862,11 @@ serve(async (req) => {
               || allVariables.shipping_note
               || 'We ship live plants Monday through Wednesday only to ensure they arrive fresh and healthy!'
             allVariables.shipping_note = noteText
-            // shipping_note_block wraps the note in its <p> tag so the template can hide it entirely for pickup
-            allVariables.shipping_note_block = `<p style="color: #666; font-size: 14px; line-height: 1.6; background-color: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 20px;"><strong>Note:</strong> ${noteText}</p>`
-            // Show "Shipping: $X.XX" row for shipping orders
-            allVariables.shipping_row = `<tr><td style="text-align: right; padding: 5px 0;"><span style="color: #666;">Shipping:</span><span style="color: #333; margin-left: 20px;">${allVariables.order_shipping || allVariables.shipping || ''}</span></td></tr>`
+            // shipping_note_block wraps the note in a <tr><td><p> so it sits correctly in the outer email table
+            allVariables.shipping_note_block = `<tr><td style="padding:0 20px;background-color:#ffffff;"><p style="color: #666; font-size: 14px; line-height: 1.6; background-color: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 10px;"><strong>Note:</strong> ${noteText}</p></td></tr>`
+            // Show "Shipping: $X.XX" row matching the two-column totals table style
+            const shippingAmount = allVariables.order_shipping || allVariables.shipping || formatCurrency(0)
+            allVariables.shipping_row = `<tr><td style="padding:4px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#333333;">Shipping</td><td align="right" style="padding:4px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#333333;">${shippingAmount}</td></tr>`
           } else {
             allVariables.shipping_note = ''
             allVariables.shipping_note_block = ''
@@ -873,7 +879,7 @@ serve(async (req) => {
             const discountLabel = allVariables.promo_code
               ? `Promo Code (${allVariables.promo_code})`
               : (allVariables.discount_label || 'Discount')
-            allVariables.discount_row = `<tr><td style="text-align: right; padding: 5px 0;"><span style="color: #16a34a;">${discountLabel}:</span><span style="color: #16a34a; margin-left: 20px;">-${allVariables.discount_amount}</span></td></tr>`
+            allVariables.discount_row = `<tr><td style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">${discountLabel}</td><td align="right" style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">-${allVariables.discount_amount}</td></tr>`
           } else {
             allVariables.discount_row = ''
           }
@@ -921,15 +927,32 @@ serve(async (req) => {
 
             const deliveryBlock = buildPickupBlock({ ...allVariables, ...templateData })
             allVariables.delivery_info = deliveryBlock
-            allVariables.DELIVERY_BLOCK = deliveryBlock
+            allVariables.DELIVERY_BLOCK = `<tr><td style="padding:0 20px;background-color:#ffffff;">${deliveryBlock}</td></tr>`
           } else {
             // Build ship block if any shipping data is available
             const mergedData = { ...allVariables, ...templateData }
             if (mergedData.shippingAddress || mergedData.shipping_name || mergedData.shipping_address || mergedData.shipping_first_name) {
               const deliveryBlock = buildShipBlock(mergedData)
               allVariables.delivery_info = deliveryBlock
-              allVariables.DELIVERY_BLOCK = deliveryBlock
+              allVariables.DELIVERY_BLOCK = `<tr><td style="padding:0 20px;background-color:#ffffff;">${deliveryBlock}</td></tr>`
             }
+          }
+
+          // Guest account creation CTA — show only when no customer_id (guest checkout)
+          const isGuestOrder = !!(templateData?.isGuest || templateData?.is_guest)
+          if (isGuestOrder) {
+            const primaryColor = allVariables.primary_color || '#10b981'
+            allVariables.account_cta = `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 30px;">
+              <tr>
+                <td style="background-color: #f0fdf4; border-radius: 8px; padding: 24px; text-align: center;">
+                  <p style="color: #166534; font-size: 16px; font-weight: bold; margin: 0 0 8px;">Track your order and access your dashboard</p>
+                  <p style="color: #333; font-size: 14px; line-height: 1.5; margin: 0 0 20px;">Create a free ATL Urban Farms account to track this order, save your shipping info, and unlock your Customer Dashboard.</p>
+                  <a href="https://atlurbanfarms.com/register" style="display: inline-block; background-color: ${primaryColor}; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Create Your Account &rarr;</a>
+                </td>
+              </tr>
+            </table>`
+          } else {
+            allVariables.account_cta = ''
           }
         }
 
