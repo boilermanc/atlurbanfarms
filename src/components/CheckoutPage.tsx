@@ -496,6 +496,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const lifetimeDiscount = isLifetime ? Math.round(subtotal * 0.10 * 100) / 100 : 0;
+
+  // Account-type auto-discount (school/Title I partners)
+  const ACCOUNT_TYPE_DISCOUNTS: Record<string, { pct: number; label: string }> = {
+    school_partner: { pct: 0.15, label: 'School Partner 15% Off' },
+    title1_partner: { pct: 0.20, label: 'Title I Partner 20% Off' },
+  };
+  const accountType = (profile as any)?.account_type as string | undefined;
+  const accountTypeEntry = accountType ? ACCOUNT_TYPE_DISCOUNTS[accountType] : undefined;
+  const accountDiscount = accountTypeEntry
+    ? Math.round(subtotal * accountTypeEntry.pct * 100) / 100
+    : 0;
+
   const autoPromoDiscount = autoPromotion?.valid ? autoPromotion.discount : 0;
   const manualPromoDiscount = appliedManualPromo?.valid ? appliedManualPromo.discount : 0;
   // Best promo wins between auto and manual
@@ -503,15 +515,17 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const activePromo = manualPromoDiscount >= autoPromoDiscount && manualPromoDiscount > 0
     ? appliedManualPromo
     : (autoPromoDiscount > 0 ? autoPromotion : null);
-  // Best discount wins — no stacking between lifetime and promo
-  const bestDiscount = Math.max(lifetimeDiscount, promoDiscount);
+  // Best discount wins — no stacking between lifetime, account-type, and promo
+  const bestDiscount = Math.max(lifetimeDiscount, accountDiscount, promoDiscount);
   const activeDiscountLabel = bestDiscount > 0
-    ? (lifetimeDiscount >= promoDiscount
-        ? 'Lifetime Member 10% Off'
-        : (activePromo?.description || activePromo?.promotion_name || 'Promotion'))
+    ? (accountDiscount >= lifetimeDiscount && accountDiscount >= promoDiscount && accountTypeEntry
+        ? accountTypeEntry.label
+        : lifetimeDiscount >= promoDiscount
+          ? 'Lifetime Member 10% Off'
+          : (activePromo?.description || activePromo?.promotion_name || 'Promotion'))
     : '';
-  // Free shipping from promo code
-  const promoFreeShipping = activePromo?.free_shipping === true && promoDiscount >= lifetimeDiscount;
+  // Free shipping from promo code (only if promo wins over all other discounts)
+  const promoFreeShipping = activePromo?.free_shipping === true && promoDiscount >= lifetimeDiscount && promoDiscount >= accountDiscount;
   const shippingCost = promoFreeShipping ? 0 : rawShippingCost;
 
   // For pickup orders, use the pickup location's state for tax (always in-state);
