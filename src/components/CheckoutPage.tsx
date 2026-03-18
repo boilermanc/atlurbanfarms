@@ -1816,8 +1816,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-emerald-900">Have an account? Sign in for a faster checkout.</p>
-                    <p className="text-xs text-emerald-700 mt-1">Use saved addresses, track your orders, and access your Customer Dashboard.</p>
+                    <p className="text-sm font-bold text-emerald-900">Preferred Growers get more — and it's free!</p>
+                    <p className="text-xs text-emerald-700 mt-1">Exclusive sales, grower resources, your personal dashboard, and more.</p>
                   </div>
                 </div>
 
@@ -1829,7 +1829,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
-                      <h4 className="text-sm font-heading font-extrabold text-gray-900">Returning Customer</h4>
+                      <h4 className="text-sm font-heading font-extrabold text-gray-900">Preferred Grower Login</h4>
                     </div>
 
                     {forgotPasswordMode ? (
@@ -1905,7 +1905,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
                           >
                             {showLoginPassword ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                                 <line x1="1" x2="23" y1="1" y2="23" />
                               </svg>
@@ -1948,7 +1948,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                       </svg>
-                      <h4 className="text-sm font-heading font-extrabold text-gray-900">New Customer</h4>
+                      <h4 className="text-sm font-heading font-extrabold text-gray-900">Become a Preferred Grower</h4>
                     </div>
 
                     <div className="space-y-3">
@@ -2019,7 +2019,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                               <line x1="1" x2="23" y1="1" y2="23" />
                             </svg>
                           ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                               <circle cx="12" cy="12" r="3" />
                             </svg>
@@ -2048,7 +2048,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                               <line x1="1" x2="23" y1="1" y2="23" />
                             </svg>
                           ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                               <circle cx="12" cy="12" r="3" />
                             </svg>
@@ -2068,7 +2068,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           onChange={handleRegisterInputChange}
                           className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer"
                         />
-                        <span className="text-xs text-gray-500">Send me growing tips and exclusive offers</span>
+                        <span className="text-xs text-gray-500">Send me Preferred Grower updates — flash sales, new varieties, and growing tips.</span>
                       </label>
 
                       <button
