@@ -4,6 +4,7 @@ import { CartItem } from '../types';
 import { useAutoApplyPromotion, useCartDiscount } from '../src/hooks/usePromotions';
 import { CartDiscountResult } from '../src/admin/types/promotions';
 import { useSetting } from '../src/admin/hooks/useSettings';
+import { useAuth, useCustomerProfile } from '../src/hooks/useSupabase';
 import { supabase } from '../src/lib/supabase';
 
 interface CartDrawerProps {
@@ -15,9 +16,23 @@ interface CartDrawerProps {
   onCheckout: () => void;
 }
 
+const ACCOUNT_TYPE_DISCOUNTS: Record<string, { pct: number; label: string }> = {
+  school_partner: { pct: 0.15, label: 'School Partner 15% Off' },
+  title1_partner: { pct: 0.20, label: 'Title I Partner 20% Off' },
+};
+
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemove, onUpdateQuantity, onCheckout }) => {
   const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const { value: customerShippingMessage } = useSetting('shipping', 'customer_shipping_message');
+
+  // Account-type auto-discount
+  const { user } = useAuth();
+  const { profile } = useCustomerProfile(user?.id);
+  const accountType = (profile as any)?.account_type as string | undefined;
+  const accountTypeEntry = accountType ? ACCOUNT_TYPE_DISCOUNTS[accountType] : undefined;
+  const accountDiscount = accountTypeEntry
+    ? Math.round(subtotal * accountTypeEntry.pct * 100) / 100
+    : 0;
 
   // Check for automatic promotions
   const { discount: autoDiscount } = useAutoApplyPromotion(items);
@@ -86,10 +101,17 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
 
   const autoDiscountAmount = autoDiscount?.valid ? autoDiscount.discount : 0;
   const manualDiscountAmount = appliedPromo?.valid ? appliedPromo.discount : 0;
-  // Best discount wins — no stacking
-  const useManual = manualDiscountAmount > 0 && manualDiscountAmount >= autoDiscountAmount;
-  const discountAmount = Math.max(autoDiscountAmount, manualDiscountAmount);
-  const activePromo = useManual ? appliedPromo : (autoDiscountAmount > 0 ? autoDiscount : null);
+  // Best promo wins between auto and manual
+  const promoDiscount = Math.max(autoDiscountAmount, manualDiscountAmount);
+  const activePromo = manualDiscountAmount > 0 && manualDiscountAmount >= autoDiscountAmount
+    ? appliedPromo : (autoDiscountAmount > 0 ? autoDiscount : null);
+  // Best discount wins — no stacking between account-type and promo
+  const discountAmount = Math.max(accountDiscount, promoDiscount);
+  const discountLabel = discountAmount > 0
+    ? (accountDiscount >= promoDiscount && accountTypeEntry
+        ? accountTypeEntry.label
+        : (activePromo?.description || activePromo?.promotion_name || 'Discount'))
+    : '';
   const isFreeShipping = freeShippingConfig?.enabled && subtotal >= freeShippingConfig.threshold;
   const total = subtotal - discountAmount;
 
@@ -261,9 +283,9 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                     <span>Subtotal</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
-                  {discountAmount > 0 && activePromo && (
+                  {discountAmount > 0 && (
                     <div className="flex justify-between text-sm brand-text font-medium">
-                      <span>{activePromo.description || activePromo.promotion_name || 'Discount'}</span>
+                      <span>{discountLabel}</span>
                       <span>-${discountAmount.toFixed(2)}</span>
                     </div>
                   )}
