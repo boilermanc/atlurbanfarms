@@ -247,13 +247,13 @@ const OrderConfirmation: React.FC<OrderConfirmationProps> = ({
                   <circle cx="12" cy="7" r="4" />
                 </svg>
               </div>
-              <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">Want to track this order easily?</h3>
-              <p className="text-sm text-gray-600 mb-6">Create a free account to view order history, save addresses, and get faster checkout next time.</p>
+              <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">Create your free account to track this order and unlock your Customer Dashboard</h3>
+              <p className="text-sm text-gray-600 mb-6">Save your shipping info, view order history, and access your personalized dashboard.</p>
               <button
                 onClick={() => onContinue()}
                 className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
               >
-                Create Account
+                Create Your Account
               </button>
             </div>
 

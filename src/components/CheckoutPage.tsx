@@ -1585,6 +1585,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         discount: bestDiscount > 0 ? bestDiscount : undefined,
         discountLabel: bestDiscount > 0 ? activeDiscountLabel : undefined,
         promoCode: bestDiscount > 0 && activePromo?.promotion_code ? activePromo.promotion_code : undefined,
+        isGuest: !user,
       });
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError);
@@ -1796,7 +1797,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   </div>
                   <div>
                     <p className="text-sm font-bold text-emerald-900">Have an account? Sign in for a faster checkout.</p>
-                    <p className="text-xs text-emerald-700 mt-1">Use saved addresses, track your orders, and earn seedling credits.</p>
+                    <p className="text-xs text-emerald-700 mt-1">Use saved addresses, track your orders, and access your Customer Dashboard.</p>
                   </div>
                 </div>
 
@@ -2060,7 +2061,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       >
                         {registerLoading ? (
                           <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Creating account...</>
-                        ) : 'Create Account'}
+                        ) : 'Create Your Account'}
                       </button>
                     </div>
                   </div>

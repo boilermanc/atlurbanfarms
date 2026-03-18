@@ -9,6 +9,8 @@ import { useBlogTags, useBlogPostTags, BlogTag } from '../hooks/useBlogTags';
 
 type EditorMode = 'visual' | 'html' | 'preview';
 
+type PostVisibility = 'public' | 'portal_school' | 'portal_wholesale' | 'members_only';
+
 interface BlogFormData {
   title: string;
   slug: string;
@@ -19,6 +21,7 @@ interface BlogFormData {
   is_published: boolean;
   published_at: string | null;
   featured_image_url: string | null;
+  visibility: PostVisibility;
 }
 
 interface BlogEditPageProps {
@@ -117,6 +120,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
     is_published: false,
     published_at: null,
     featured_image_url: null,
+    visibility: 'public',
   });
 
   const fetchPost = useCallback(async () => {
@@ -141,6 +145,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
           is_published: data.is_published || false,
           published_at: data.published_at || null,
           featured_image_url: data.featured_image_url || null,
+          visibility: data.visibility || 'public',
         });
       }
     } catch (err) {
@@ -371,6 +376,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
         author_name: formData.author_name.trim() || null,
         is_published: formData.is_published,
         published_at: formData.is_published ? (formData.published_at || new Date().toISOString()) : null,
+        visibility: formData.visibility,
       };
 
       if (isEditMode && postId) {
@@ -738,6 +744,27 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                   />
                 </button>
               </div>
+            </div>
+
+            {/* Visibility */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <label className="block text-sm font-semibold text-slate-800 mb-2">Visibility</label>
+              <select
+                value={formData.visibility}
+                onChange={(e) => setFormData(prev => ({ ...prev, visibility: e.target.value as PostVisibility }))}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              >
+                <option value="public">Public</option>
+                <option value="portal_school">School Portal Only</option>
+                <option value="portal_wholesale">Wholesale Portal Only</option>
+                <option value="members_only">Members Only</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-2">
+                {formData.visibility === 'public' && 'Visible to everyone on the blog.'}
+                {formData.visibility === 'portal_school' && 'Only school & Title I partners can view.'}
+                {formData.visibility === 'portal_wholesale' && 'Only wholesale accounts can view.'}
+                {formData.visibility === 'members_only' && 'Any logged-in customer can view.'}
+              </p>
             </div>
 
             {/* Featured Image */}

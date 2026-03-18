@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import DOMPurify from 'dompurify';
 import { supabase } from '../src/lib/supabase';
+import { useAuth } from '../src/hooks/useAuth';
+import { useCustomerProfile } from '../src/hooks/useSupabase';
+
+type PostVisibility = 'public' | 'portal_school' | 'portal_wholesale' | 'members_only';
 
 interface BlogTag {
   id: string;
@@ -21,25 +25,30 @@ interface BlogPost {
   category: string | null;
   published_at: string | null;
   created_at: string;
+  visibility?: PostVisibility;
   tags?: BlogTag[];
 }
 
 interface BlogPostPageProps {
   slug: string;
   onBack: () => void;
+  onNavigate?: (view: string) => void;
 }
 
-const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
+const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack, onNavigate }) => {
   const [post, setPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const { profile } = useCustomerProfile(user?.id);
 
   useEffect(() => {
     const fetchPost = async () => {
       try {
         const { data, error } = await supabase
           .from('blog_posts')
-          .select('id, title, slug, content, excerpt, featured_image_url, author_name, category, published_at, created_at, blog_post_tags ( tag_id, blog_tags ( id, name, slug ) )')
+          .select('id, title, slug, content, excerpt, featured_image_url, author_name, category, published_at, created_at, visibility, blog_post_tags ( tag_id, blog_tags ( id, name, slug ) )')
           .eq('slug', slug)
           .eq('is_published', true)
           .single();
@@ -66,6 +75,45 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
     fetchPost();
   }, [slug]);
 
+  // Visibility gate — runs after post is fetched and auth is resolved
+  useEffect(() => {
+    if (loading || authLoading || !post) return;
+
+    const visibility = post.visibility || 'public';
+    if (visibility === 'public') return;
+
+    const accountType = (profile as any)?.account_type as string | undefined;
+    const redirectUrl = `/login?redirect=/blog/${slug}`;
+
+    if (visibility === 'members_only') {
+      if (!user) {
+        window.history.replaceState({}, '', redirectUrl);
+        onNavigate?.('login');
+        return;
+      }
+    } else if (visibility === 'portal_school') {
+      if (!user || !['school_partner', 'title1_partner'].includes(accountType || '')) {
+        if (!user) {
+          window.history.replaceState({}, '', redirectUrl);
+          onNavigate?.('login');
+        } else {
+          setAccessDenied(true);
+        }
+        return;
+      }
+    } else if (visibility === 'portal_wholesale') {
+      if (!user || accountType !== 'wholesale') {
+        if (!user) {
+          window.history.replaceState({}, '', redirectUrl);
+          onNavigate?.('login');
+        } else {
+          setAccessDenied(true);
+        }
+        return;
+      }
+    }
+  }, [loading, authLoading, post, user, profile, slug, onNavigate]);
+
 
   if (loading) {
     return (
@@ -75,6 +123,29 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack }) => {
             <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
             <p className="text-gray-500">Loading article...</p>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen pt-40 pb-16 bg-site">
+        <div className="max-w-3xl mx-auto px-4 md:px-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-6 bg-amber-50 rounded-2xl flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-heading font-bold text-gray-900 mb-4">Access Restricted</h1>
+          <p className="text-gray-500 mb-8">This content is available to partner accounts only.</p>
+          <button
+            onClick={onBack}
+            className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors"
+          >
+            Back to Blog
+          </button>
         </div>
       </div>
     );

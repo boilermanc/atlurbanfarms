@@ -540,7 +540,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-[2.5rem] p-8 border-2 border-dashed border-gray-200">
                 <div className="text-center">
                   <h3 className="text-lg font-heading font-extrabold text-gray-900 mb-2">
-                    Want to track your order?
+                    Create your free account to track this order and unlock your Customer Dashboard
                   </h3>
                   <p className="text-xs text-gray-400 mb-6">
                     (just needs a password)
@@ -549,7 +549,7 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
                     onClick={onCreateAccount}
                     className="px-8 py-3.5 bg-gray-900 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-gray-200"
                   >
-                    Create Account
+                    Create Your Account
                   </button>
                 </div>
               </div>

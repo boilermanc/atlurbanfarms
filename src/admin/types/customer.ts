@@ -7,6 +7,8 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert
 
 export type CustomerRole = 'customer' | 'admin';
 
+export type AccountType = 'standard' | 'school_partner' | 'title1_partner' | 'wholesale';
+
 export interface Customer {
   id: string;
   email: string;
@@ -15,6 +17,7 @@ export interface Customer {
   phone: string | null;
   company: string | null;
   role: CustomerRole;
+  account_type: AccountType;
   is_tax_exempt: boolean;
   tax_exempt_reason: string | null;
   tax_exempt_certificate: string | null;

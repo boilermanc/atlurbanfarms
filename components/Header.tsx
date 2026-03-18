@@ -561,13 +561,13 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                           <circle cx="12" cy="7" r="4" />
                         </svg>
-                        {customerProfile?.first_name || 'My Account'}
+                        {customerProfile?.first_name || 'My Dashboard'}
                       </button>
                       {/* Mobile/Tablet: icon link to account */}
                       <button
                         onClick={() => onNavigate('account')}
                         className="lg:hidden p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
-                        aria-label="My Account"
+                        aria-label="My Dashboard"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -577,18 +577,18 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                     </>
                   ) : (
                     <>
-                      {/* Desktop My Account Button */}
+                      {/* Desktop Sign In Button */}
                       <button
                         onClick={() => onNavigate('login')}
                         className="hidden lg:flex items-center gap-2 px-4 py-2 text-base font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
                       >
-                        My Account
+                        Sign In
                       </button>
                       {/* Mobile/Tablet login icon */}
                       <button
                         onClick={() => onNavigate('login')}
                         className="lg:hidden p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all duration-200"
-                        aria-label="My Account"
+                        aria-label="Sign In"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -865,7 +865,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                           <circle cx="12" cy="7" r="4" />
                         </svg>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 text-sm">{customerProfile?.first_name || 'My Account'}</p>
+                          <p className="font-semibold text-gray-900 text-sm">{customerProfile?.first_name || 'My Dashboard'}</p>
                           <p className="text-xs text-gray-500 truncate">{user.email}</p>
                         </div>
                       </div>
@@ -877,7 +877,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                           }}
                           className="flex-1 py-2 px-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                          My Account
+                          My Dashboard
                         </button>
                         <button
                           onClick={async () => {
@@ -903,7 +903,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                         <circle cx="12" cy="7" r="4" />
                       </svg>
-                      My Account
+                      Sign In
                     </button>
                   )
                 )}

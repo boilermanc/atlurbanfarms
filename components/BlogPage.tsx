@@ -44,6 +44,7 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
           .from('blog_posts')
           .select('id, title, slug, excerpt, featured_image_url, author_name, category, published_at, created_at, blog_post_tags ( tag_id, blog_tags ( id, name, slug ) )')
           .eq('is_published', true)
+          .eq('visibility', 'public')
           .order('published_at', { ascending: false });
 
         if (error) throw error;

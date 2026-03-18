@@ -147,6 +147,47 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
         </p>
       </div>
 
+      {/* My Discount Card */}
+      {profile?.account_type === 'school_partner' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="text-emerald-700 font-heading font-extrabold text-lg">15%</span>
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-emerald-900">School Partner</h2>
+            <p className="text-emerald-700 text-sm mt-0.5">15% discount applied to all orders</p>
+            <p className="text-emerald-600/70 text-xs mt-1">Discount is automatically applied at checkout.</p>
+          </div>
+        </div>
+      )}
+      {profile?.account_type === 'title1_partner' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="text-emerald-700 font-heading font-extrabold text-lg">20%</span>
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-emerald-900">Title I Partner</h2>
+            <p className="text-emerald-700 text-sm mt-0.5">20% discount applied to all orders</p>
+            <p className="text-emerald-600/70 text-xs mt-1">Discount is automatically applied at checkout.</p>
+          </div>
+        </div>
+      )}
+      {profile?.account_type === 'wholesale' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4">
+          <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-700" viewBox="0 0 24 24">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="font-heading font-bold text-emerald-900">Wholesale Account</h2>
+            <p className="text-emerald-700 text-sm mt-0.5">Wholesale pricing applied at checkout</p>
+            <p className="text-emerald-600/70 text-xs mt-1">Discount is automatically applied at checkout.</p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Success/Error Messages */}
         {saveSuccess && (

@@ -600,6 +600,7 @@ const App: React.FC = () => {
             {blogSlug ? (
               <BlogPostPage
                 slug={blogSlug}
+                onNavigate={handleNavigate}
                 onBack={() => {
                   setBlogSlug(null);
                   window.history.pushState({ view: 'blog' }, '', '/blog');
@@ -663,7 +664,15 @@ const App: React.FC = () => {
           <LoginPage
             onNavigate={handleNavigate}
             onSuccess={() => {
-              handleNavigate('account');
+              const params = new URLSearchParams(window.location.search);
+              const redirect = params.get('redirect');
+              if (redirect && redirect.startsWith('/blog/')) {
+                const blogSlugFromRedirect = redirect.replace('/blog/', '');
+                setBlogSlug(blogSlugFromRedirect);
+                handleNavigate('blog' as ViewType);
+              } else {
+                handleNavigate('account');
+              }
             }}
           />
         );

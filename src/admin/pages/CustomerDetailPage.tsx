@@ -9,6 +9,7 @@ import {
   CustomerOrder,
   CustomerAttribution,
   CustomerRole,
+  AccountType,
   TAG_COLOR_CONFIG,
   EXPERIENCE_LEVEL_CONFIG,
   ENVIRONMENT_OPTIONS,
@@ -118,6 +119,7 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
   }, [toast]);
 
   const { updateRole, updating: updatingRole } = useCustomerRole();
+  const [updatingAccountType, setUpdatingAccountType] = useState(false);
   const { tags: assignedTags, assignTag, unassignTag } = useCustomerTagAssignments(customerId);
   const { tags: allTags } = useCustomerTags();
   const { systems: growingSystems } = useGrowingSystems();
@@ -1161,6 +1163,49 @@ const CustomerDetailPage: React.FC<CustomerDetailPageProps> = ({
                   >
                     <option value="customer">Customer</option>
                     <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* Account Type Dropdown */}
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Account Type</p>
+                  <select
+                    value={customer?.account_type || 'standard'}
+                    onChange={async (e) => {
+                      const newType = e.target.value as AccountType;
+                      setUpdatingAccountType(true);
+                      try {
+                        const { error } = await supabase
+                          .from('customers')
+                          .update({ account_type: newType })
+                          .eq('id', customerId);
+                        if (error) throw error;
+
+                        setCustomer(prev => prev ? { ...prev, account_type: newType } : null);
+
+                        // Auto-assign School Partner tag for school/title1 accounts
+                        if (newType === 'school_partner' || newType === 'title1_partner') {
+                          const schoolTagId = '370d4361-eef4-4f82-b63b-191d9a2c64ce';
+                          const alreadyAssigned = assignedTags.some(t => t.id === schoolTagId);
+                          if (!alreadyAssigned) {
+                            await assignTag(schoolTagId);
+                          }
+                        }
+
+                        setToast({ message: 'Account type updated', type: 'success' });
+                      } catch (err: any) {
+                        setToast({ message: err.message || 'Failed to update account type', type: 'error' });
+                      } finally {
+                        setUpdatingAccountType(false);
+                      }
+                    }}
+                    disabled={updatingAccountType}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-50"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="school_partner">School Partner</option>
+                    <option value="title1_partner">Title I Partner</option>
+                    <option value="wholesale">Wholesale</option>
                   </select>
                 </div>
 

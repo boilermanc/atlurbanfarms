@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -6,14 +6,15 @@ import { useBrandingSettings, useCustomerProfile } from '../../hooks/useSupabase
 import OrderHistory from './OrderHistory';
 import AddressBook from './AddressBook';
 import ProfileSettings from './ProfileSettings';
+import SchoolPortal from './SchoolPortal';
 
 interface AccountPageProps {
   onNavigate: (view: string) => void;
 }
 
-type AccountTab = 'profile' | 'orders' | 'addresses' | 'settings';
+type AccountTab = 'profile' | 'orders' | 'addresses' | 'settings' | 'school-portal' | 'wholesale-portal';
 
-const VALID_TABS: AccountTab[] = ['profile', 'orders', 'addresses', 'settings'];
+const VALID_TABS: AccountTab[] = ['profile', 'orders', 'addresses', 'settings', 'school-portal', 'wholesale-portal'];
 
 // Parse initial tab from URL path (e.g. /account/orders → 'orders')
 const getTabFromPath = (): AccountTab => {
@@ -75,49 +76,81 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
     .filter(Boolean)
     .join(' ') || 'Welcome!';
 
-  const tabs: { id: AccountTab; label: string; icon: React.ReactNode }[] = [
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'orders',
-      label: 'Order History',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <path d="M16 10a4 4 0 0 1-8 0" />
-        </svg>
-      ),
-    },
-    {
-      id: 'addresses',
-      label: 'Addresses',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-          <circle cx="12" cy="10" r="3" />
-        </svg>
-      ),
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-        </svg>
-      ),
-    },
-  ];
+  const accountType = customerProfile?.account_type as string | undefined;
+
+  const tabs = useMemo(() => {
+    const baseTabs: { id: AccountTab; label: string; icon: React.ReactNode }[] = [
+      {
+        id: 'profile',
+        label: 'Profile',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        ),
+      },
+      {
+        id: 'orders',
+        label: 'Order History',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 0 1-8 0" />
+          </svg>
+        ),
+      },
+      {
+        id: 'addresses',
+        label: 'Addresses',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+        ),
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+        ),
+      },
+    ];
+
+    if (accountType === 'school_partner' || accountType === 'title1_partner') {
+      baseTabs.push({
+        id: 'school-portal',
+        label: 'School Portal',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+          </svg>
+        ),
+      });
+    }
+
+    if (accountType === 'wholesale') {
+      baseTabs.push({
+        id: 'wholesale-portal',
+        label: 'Wholesale Portal',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+        ),
+      });
+    }
+
+    return baseTabs;
+  }, [accountType]);
 
   if (authLoading) {
     return (
@@ -139,6 +172,29 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
         return <AddressBook userId={user.id} />;
       case 'settings':
         return <SettingsTab userId={user.id} userEmail={user.email || ''} onNavigate={onNavigate} />;
+      case 'school-portal':
+        return <SchoolPortal userId={user.id} isTitle1={accountType === 'title1_partner'} />;
+      case 'wholesale-portal':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-heading font-extrabold text-gray-900 mb-2">Wholesale Portal</h1>
+              <p className="text-gray-500">Access wholesale pricing and bulk ordering tools.</p>
+            </div>
+            <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600" viewBox="0 0 24 24">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+              <h2 className="font-heading font-bold text-xl text-gray-900 mb-2">Coming Soon</h2>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Your wholesale portal is being prepared. You'll be able to access wholesale pricing, place bulk orders, and manage your account here.
+              </p>
+            </div>
+          </div>
+        );
       case 'profile':
       default:
         return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => handleTabChange('settings')} />;
