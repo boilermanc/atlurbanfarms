@@ -29,6 +29,7 @@ import {
   Heart,
   FileSpreadsheet,
   CreditCard,
+  ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
+  externalUrl?: string;
 }
 
 interface NavSection {
@@ -62,7 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'customers', label: 'Customers', icon: Users },
       { id: 'alerts', label: 'Alerts', icon: Bell },
       { id: 'promotions', label: 'Promotions', icon: Tag },
-      { id: 'gift-cards', label: 'Gift Cards', icon: Gift },
+      { id: 'gift-cards', label: 'Gift Cards', icon: Gift, externalUrl: 'https://giftup.app/Account/Login?ReturnUrl=%2F' },
       { id: 'sproutify-credits', label: 'Sproutify Credits', icon: Leaf },
     ],
   },
@@ -156,7 +158,13 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate, is
                 return (
                   <li key={item.id}>
                     <motion.button
-                      onClick={() => onNavigate(item.id)}
+                      onClick={() => {
+                        if (item.externalUrl) {
+                          window.open(item.externalUrl, '_blank', 'noopener,noreferrer');
+                        } else {
+                          onNavigate(item.id);
+                        }
+                      }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${
                         isActive
                           ? 'brand-bg-subtle brand-secondary-text'
@@ -167,7 +175,10 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ currentPage, onNavigate, is
                     >
                       <Icon size={20} className={isActive ? 'brand-text' : ''} />
                       <span className="font-medium text-sm">{item.label}</span>
-                      {isActive && (
+                      {item.externalUrl && (
+                        <ExternalLink size={14} className="ml-auto text-slate-400" />
+                      )}
+                      {isActive && !item.externalUrl && (
                         <motion.div
                           layoutId="activeIndicator"
                           className="ml-auto w-1.5 h-1.5 rounded-full brand-bg"
