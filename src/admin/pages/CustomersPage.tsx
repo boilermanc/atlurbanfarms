@@ -63,7 +63,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
 
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [allSubscribers, setAllSubscribers] = useState<NewsletterSubscriber[]>([]);
-  const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'pending' | 'all'>('all');
+  const [subscriberFilter, setSubscriberFilter] = useState<SubscriberStatus | 'all'>('all');
   const [subscriberSourceFilter, setSubscriberSourceFilter] = useState<string | null>(null);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [subscriberSearchInput, setSubscriberSearchInput] = useState('');
@@ -481,10 +481,31 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     }
   };
 
+  const [resendingConfirmation, setResendingConfirmation] = useState<string | null>(null);
+
+  const handleResendConfirmation = async (subscriber: NewsletterSubscriber) => {
+    setResendingConfirmation(subscriber.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('newsletter-subscribe', {
+        body: {
+          email: subscriber.email,
+          first_name: subscriber.first_name,
+          source: subscriber.source || 'footer',
+        },
+      });
+      if (error) throw error;
+      alert('Confirmation email sent to ' + subscriber.email);
+    } catch (err: any) {
+      alert('Failed to send confirmation email: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setResendingConfirmation(null);
+    }
+  };
+
   // Newsletter summary stats computed from unfiltered subscriber data
   const newsletterStats = useMemo(() => {
     const total = allSubscribers.length;
-    const pending = allSubscribers.filter(s => s.status === 'pending' as any).length;
+    const pending = allSubscribers.filter(s => s.status === 'pending').length;
     const active = allSubscribers.filter(s => s.status === 'active').length;
     const sourceCounts: Record<string, number> = {};
     allSubscribers.forEach(s => {
@@ -941,7 +962,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                   </div>
                   <select
                     value={subscriberFilter}
-                    onChange={(e) => { setSubscriberFilter(e.target.value as SubscriberStatus | 'pending' | 'all'); setSubscriberSourceFilter(null); }}
+                    onChange={(e) => { setSubscriberFilter(e.target.value as SubscriberStatus | 'all'); setSubscriberSourceFilter(null); }}
                     className="px-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                   >
                     <option value="all">All Statuses</option>
@@ -1016,6 +1037,14 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                                   className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
                                 >
                                   Reactivate
+                                </button>
+                              ) : subscriber.status === 'pending' ? (
+                                <button
+                                  onClick={() => handleResendConfirmation(subscriber)}
+                                  disabled={resendingConfirmation === subscriber.id}
+                                  className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {resendingConfirmation === subscriber.id ? 'Sending...' : 'Resend Confirmation'}
                                 </button>
                               ) : null}
                             </td>

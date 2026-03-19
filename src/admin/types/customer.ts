@@ -1,6 +1,6 @@
 // Customer Types for Admin Panel
 
-export type SubscriberStatus = 'active' | 'unsubscribed' | 'bounced';
+export type SubscriberStatus = 'active' | 'unsubscribed' | 'bounced' | 'pending';
 
 export type GrowingEnvironment = 'indoor' | 'outdoor' | 'both' | 'none';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
@@ -134,6 +134,7 @@ export interface CustomerWithTags extends Customer {
 // Status badge configurations
 export const SUBSCRIBER_STATUS_CONFIG: Record<SubscriberStatus, { label: string; color: string }> = {
   active: { label: 'Active', color: 'bg-emerald-500' },
+  pending: { label: 'Pending', color: 'bg-amber-500' },
   unsubscribed: { label: 'Unsubscribed', color: 'bg-slate-500' },
   bounced: { label: 'Bounced', color: 'bg-red-500' },
 };
