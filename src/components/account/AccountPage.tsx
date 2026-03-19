@@ -7,14 +7,15 @@ import OrderHistory from './OrderHistory';
 import AddressBook from './AddressBook';
 import ProfileSettings from './ProfileSettings';
 import SchoolPortal from './SchoolPortal';
+import DashboardHome from './DashboardHome';
 
 interface AccountPageProps {
   onNavigate: (view: string) => void;
 }
 
-type AccountTab = 'profile' | 'orders' | 'addresses' | 'settings' | 'school-portal' | 'wholesale-portal';
+type AccountTab = 'dashboard' | 'profile' | 'orders' | 'addresses' | 'settings' | 'school-portal' | 'wholesale-portal';
 
-const VALID_TABS: AccountTab[] = ['profile', 'orders', 'addresses', 'settings', 'school-portal', 'wholesale-portal'];
+const VALID_TABS: AccountTab[] = ['dashboard', 'profile', 'orders', 'addresses', 'settings', 'school-portal', 'wholesale-portal'];
 
 // Parse initial tab from URL path (e.g. /account/orders → 'orders')
 const getTabFromPath = (): AccountTab => {
@@ -24,7 +25,7 @@ const getTabFromPath = (): AccountTab => {
     const tab = segments[1] as AccountTab;
     if (VALID_TABS.includes(tab)) return tab;
   }
-  return 'profile';
+  return 'dashboard';
 };
 
 const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
@@ -53,7 +54,7 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
   // Set URL to /account/profile on first load if on bare /account
   useEffect(() => {
     if (window.location.pathname === '/account') {
-      window.history.replaceState({ view: 'account', tab: 'profile' }, '', '/account/profile');
+      window.history.replaceState({ view: 'account', tab: 'dashboard' }, '', '/account/dashboard');
     }
   }, []);
 
@@ -80,6 +81,18 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
 
   const tabs = useMemo(() => {
     const baseTabs: { id: AccountTab; label: string; icon: React.ReactNode }[] = [
+      {
+        id: 'dashboard',
+        label: 'Dashboard',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+        ),
+      },
       {
         id: 'profile',
         label: 'Profile',
@@ -166,6 +179,8 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'dashboard':
+        return <DashboardHome userId={user.id} customerProfile={customerProfile} onNavigate={onNavigate} onTabChange={handleTabChange} />;
       case 'orders':
         return <OrderHistory userId={user.id} onNavigate={onNavigate} />;
       case 'addresses':
@@ -196,8 +211,9 @@ const AccountPage: React.FC<AccountPageProps> = ({ onNavigate }) => {
           </div>
         );
       case 'profile':
-      default:
         return <ProfileSettings userId={user.id} userEmail={user.email || ''} onNavigateToSettings={() => handleTabChange('settings')} />;
+      default:
+        return <DashboardHome userId={user.id} customerProfile={customerProfile} onNavigate={onNavigate} onTabChange={handleTabChange} />;
     }
   };
 
