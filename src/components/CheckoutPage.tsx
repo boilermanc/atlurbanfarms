@@ -534,15 +534,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     ? (selectedPickupLocation?.state || 'GA')
     : formData.state;
 
+  const taxableSubtotal = Math.max(0, subtotal - bestDiscount);
   const taxResult = calculateTax({
-    subtotal,
+    subtotal: taxableSubtotal,
     shippingState: taxState,
-    isTaxExempt: profile?.is_tax_exempt || false,
+    isTaxExempt: profile?.is_tax_exempt || ['school_partner', 'title1_partner'].includes(accountType || ''),
     taxExemptReason: profile?.tax_exempt_reason || undefined,
     config: taxConfig,
   });
   const tax = taxResult.taxAmount;
-  const totalBeforeCredit = subtotal - bestDiscount + shippingCost + tax;
+  const totalBeforeCredit = taxableSubtotal + shippingCost + tax;
   const appliedCredit = hasCredit ? Math.min(creditAmount, totalBeforeCredit) : 0;
   const total = totalBeforeCredit - appliedCredit;
   const finalTotal = Math.max(0, total - giftCardDiscount);
