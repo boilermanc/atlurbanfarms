@@ -22,6 +22,7 @@ interface BlogFormData {
   published_at: string | null;
   featured_image_url: string | null;
   visibility: PostVisibility;
+  is_featured: boolean;
 }
 
 interface BlogEditPageProps {
@@ -121,6 +122,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
     published_at: null,
     featured_image_url: null,
     visibility: 'public',
+    is_featured: false,
   });
 
   const fetchPost = useCallback(async () => {
@@ -146,6 +148,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
           published_at: data.published_at || null,
           featured_image_url: data.featured_image_url || null,
           visibility: data.visibility || 'public',
+          is_featured: data.is_featured || false,
         });
       }
     } catch (err) {
@@ -377,6 +380,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
         is_published: formData.is_published,
         published_at: formData.is_published ? (formData.published_at || new Date().toISOString()) : null,
         visibility: formData.visibility,
+        is_featured: formData.is_featured,
       };
 
       if (isEditMode && postId) {
@@ -740,6 +744,34 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                       formData.is_published ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Featured on Home Page */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+              <h3 className="text-sm font-semibold text-slate-800 mb-4">Featured</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">
+                    {formData.is_featured ? 'Featured on Home' : 'Not Featured'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Show this post on the home page
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, is_featured: !prev.is_featured }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.is_featured ? 'bg-amber-500' : 'bg-slate-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.is_featured ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>

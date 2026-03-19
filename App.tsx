@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import CategorySection from './components/CategorySection';
-import FeaturedSection from './components/FeaturedSection';
+import FeaturedBlogSection from './components/FeaturedBlogSection';
 import SageAssistant from './components/SageAssistant';
 import CartDrawer from './components/CartDrawer';
 import Footer from './components/Footer';
@@ -715,7 +715,15 @@ const App: React.FC = () => {
             <main>
               <Hero onShopClick={() => handleNavigate('shop')} onAboutClick={() => handleNavigate('about')} />
               
-              <FeaturedSection onAddToCart={handleAddToCart} onNavigate={handleNavigate} />
+              <FeaturedBlogSection
+                onNavigate={handleNavigate}
+                onViewPost={(slug: string) => {
+                  setBlogSlug(slug);
+                  setView('blog');
+                  window.history.pushState({ view: 'blog', slug }, '', `/blog/${slug}`);
+                  window.scrollTo(0, 0);
+                }}
+              />
               
               <CategorySection onCategoryClick={(cat) => handleNavigate('shop', cat)} />
 

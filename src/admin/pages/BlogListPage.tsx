@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Edit2, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, FileText, Star } from 'lucide-react';
 
 interface BlogTag {
   id: string;
@@ -21,6 +21,7 @@ interface BlogPost {
   created_at: string;
   updated_at: string;
   featured_image_url: string | null;
+  is_featured: boolean;
   tags?: BlogTag[];
 }
 
@@ -217,7 +218,12 @@ const BlogListPage: React.FC<BlogListPageProps> = ({ onEditPost, onCreatePost })
                         </div>
                       )}
                       <div>
-                        <p className="font-medium text-slate-800 text-sm">{post.title}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-slate-800 text-sm">{post.title}</p>
+                          {post.is_featured && (
+                            <Star size={14} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                          )}
+                        </div>
                         {post.excerpt && (
                           <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{post.excerpt}</p>
                         )}
