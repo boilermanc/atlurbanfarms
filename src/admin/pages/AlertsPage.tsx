@@ -49,7 +49,7 @@ const AlertsPage: React.FC = () => {
 
     const result = await notifySubscribers(confirmNotify.product_id);
     if (result.success) {
-      setSuccessMessage(`Successfully marked ${result.count} subscriber${result.count !== 1 ? 's' : ''} as notified for "${confirmNotify.product_name}"`);
+      setSuccessMessage(`Successfully emailed ${result.count} subscriber${result.count !== 1 ? 's' : ''} for "${confirmNotify.product_name}"`);
       setConfirmNotify(null);
       refetchAlerts();
       refetchProducts();
@@ -483,8 +483,7 @@ const AlertsPage: React.FC = () => {
                   </div>
 
                   <p className="text-slate-600 mb-6">
-                    This will mark all pending alerts for this product as "notified". You should send the actual
-                    notification emails separately (e.g., via your email service).
+                    This will send a back-in-stock email to all pending subscribers and mark their alerts as notified.
                   </p>
 
                   <div className="flex gap-3">
@@ -507,7 +506,7 @@ const AlertsPage: React.FC = () => {
                       ) : (
                         <>
                           <Send size={18} />
-                          Mark as Notified
+                          Send Notifications
                         </>
                       )}
                     </button>

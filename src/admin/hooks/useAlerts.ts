@@ -161,14 +161,15 @@ export function useNotifyBackInStock() {
       setError(null);
 
       try {
-        // Call the RPC function to mark alerts as notified
-        const { data, error: rpcError } = await supabase.rpc('notify_back_in_stock_alerts', {
-          p_product_id: productId,
+        // Call the edge function to send emails and mark alerts as notified
+        const { data, error: fnError } = await supabase.functions.invoke('back-in-stock-notify', {
+          body: { product_id: productId },
         });
 
-        if (rpcError) throw rpcError;
+        if (fnError) throw fnError;
+        if (!data?.success) throw new Error(data?.error || 'Failed to notify subscribers');
 
-        return { success: true, count: data };
+        return { success: true, count: data.notified };
       } catch (err: any) {
         console.error('Error notifying subscribers:', err);
         const errorMsg = err.message || 'Failed to notify subscribers';
