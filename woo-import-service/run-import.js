@@ -5,18 +5,23 @@
  * Run this script on the server where the MySQL database is located.
  *
  * Usage:
- *   node run-import.js stats                    - Show current counts
- *   node run-import.js customers [since-date]   - Import customers
- *   node run-import.js orders [since-date]      - Import orders
- *   node run-import.js lineitems                - Import line items for existing orders
- *   node run-import.js full                     - Full sync (all data)
+ *   node run-import.js stats                              - Show current counts
+ *   node run-import.js customers [since-date]             - Import customers
+ *   node run-import.js orders [since-date] [until-date]   - Import orders (completed + processing)
+ *   node run-import.js lineitems                          - Import line items for existing orders
+ *   node run-import.js full                               - Full sync (all data)
  *
  * Examples:
  *   node run-import.js stats
  *   node run-import.js customers 2026-01-01
+ *   node run-import.js orders 2026-02-03 2026-03-04       - Import orders in date range
  *   node run-import.js orders 2026-01-15
  *   node run-import.js lineitems
  *   node run-import.js full
+ *
+ * Notes:
+ *   - Orders imports both 'wc-completed' and 'wc-processing' statuses
+ *   - Billing/shipping addresses are imported from WooCommerce post meta
  */
 
 require('dotenv').config();
@@ -154,14 +159,66 @@ async function importCustomers(since = null) {
 }
 
 /**
- * Import orders from WooCommerce
+ * Fetch billing/shipping address from WooCommerce post meta
  */
-async function importOrders(since = null) {
+async function fetchOrderAddresses(wooOrderId) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT meta_key, meta_value
+       FROM ${PREFIX}postmeta
+       WHERE post_id = ?
+         AND meta_key IN (
+           '_billing_email', '_billing_first_name', '_billing_last_name',
+           '_billing_address_1', '_billing_city', '_billing_state', '_billing_postcode',
+           '_shipping_first_name', '_shipping_last_name',
+           '_shipping_address_1', '_shipping_city', '_shipping_state', '_shipping_postcode',
+           '_payment_method'
+         )`,
+      [wooOrderId]
+    );
+
+    const meta = {};
+    for (const row of rows) {
+      meta[row.meta_key] = row.meta_value;
+    }
+
+    return {
+      billing_email: meta['_billing_email'] || null,
+      billing_first_name: meta['_billing_first_name'] || null,
+      billing_last_name: meta['_billing_last_name'] || null,
+      billing_address: meta['_billing_address_1'] || null,
+      billing_city: meta['_billing_city'] || null,
+      billing_state: meta['_billing_state'] || null,
+      billing_zip: meta['_billing_postcode'] || null,
+      shipping_first_name: meta['_shipping_first_name'] || null,
+      shipping_last_name: meta['_shipping_last_name'] || null,
+      shipping_address: meta['_shipping_address_1'] || null,
+      shipping_city: meta['_shipping_city'] || null,
+      shipping_state: meta['_shipping_state'] || null,
+      shipping_zip: meta['_shipping_postcode'] || null,
+      payment_method: meta['_payment_method'] || null,
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Import orders from WooCommerce
+ * Imports both wc-completed and wc-processing orders
+ */
+async function importOrders(since = null, until = null) {
   console.log('\n📥 Starting order import...');
   const stats = { imported: 0, skipped: 0, errors: [] };
 
+  // Import completed and processing orders (processing = paid, awaiting fulfillment)
+  const IMPORT_STATUSES = ['wc-completed', 'wc-processing'];
+
   try {
-    // Build query for completed orders
+    // Build query for completed + processing orders
+    const statusPlaceholders = IMPORT_STATUSES.map(() => '?').join(', ');
+    const queryParams = [...IMPORT_STATUSES];
+
     let query = `
       SELECT
         o.order_id as woo_order_id,
@@ -173,17 +230,26 @@ async function importOrders(since = null) {
         o.shipping_total as shipping,
         o.net_total as subtotal
       FROM ${PREFIX}wc_order_stats o
-      WHERE o.status = 'wc-completed'
+      WHERE o.status IN (${statusPlaceholders})
     `;
 
     if (since) {
-      query += ` AND o.date_created > '${since}'`;
+      query += ` AND o.date_created >= ?`;
+      queryParams.push(since);
+    }
+
+    if (until) {
+      query += ` AND o.date_created <= ?`;
+      queryParams.push(until + ' 23:59:59');
     }
 
     query += ' ORDER BY o.order_id';
 
-    const [orders] = await pool.query(query);
-    console.log(`   Found ${orders.length} orders to process`);
+    const [orders] = await pool.query(query, queryParams);
+    console.log(`   Found ${orders.length} orders to process (statuses: ${IMPORT_STATUSES.join(', ')})`);
+    if (since || until) {
+      console.log(`   Date range: ${since || 'beginning'} to ${until || 'now'}`);
+    }
 
     for (const order of orders) {
       try {
@@ -210,6 +276,9 @@ async function importOrders(since = null) {
           customerId = customer?.id || null;
         }
 
+        // Fetch billing/shipping addresses from post meta
+        const addresses = await fetchOrderAddresses(order.woo_order_id);
+
         // Insert legacy order
         const { error: insertError } = await supabase.from('legacy_orders').insert({
           woo_order_id: order.woo_order_id,
@@ -220,7 +289,8 @@ async function importOrders(since = null) {
           subtotal: order.subtotal || 0,
           tax: order.tax || 0,
           shipping: order.shipping || 0,
-          total: order.total || 0
+          total: order.total || 0,
+          ...addresses,
         });
 
         if (insertError) {
@@ -286,7 +356,7 @@ async function importLineItems() {
       JOIN ${PREFIX}woocommerce_order_itemmeta oim ON oi.order_item_id = oim.order_item_id
       JOIN ${PREFIX}wc_order_stats os ON oi.order_id = os.order_id
       WHERE oi.order_item_type = 'line_item'
-        AND os.status = 'wc-completed'
+        AND os.status IN ('wc-completed', 'wc-processing')
       GROUP BY oi.order_item_id, oi.order_id, oi.order_item_name
       ORDER BY oi.order_id
     `;
@@ -393,13 +463,13 @@ async function showStats() {
       `SELECT COUNT(*) as count FROM ${PREFIX}wc_customer_lookup`
     );
     const [wooOrders] = await pool.query(
-      `SELECT COUNT(*) as count FROM ${PREFIX}wc_order_stats WHERE status = 'wc-completed'`
+      `SELECT COUNT(*) as count FROM ${PREFIX}wc_order_stats WHERE status IN ('wc-completed', 'wc-processing')`
     );
     const [wooLineItems] = await pool.query(
       `SELECT COUNT(DISTINCT oi.order_item_id) as count
        FROM ${PREFIX}woocommerce_order_items oi
        JOIN ${PREFIX}wc_order_stats os ON oi.order_id = os.order_id
-       WHERE oi.order_item_type = 'line_item' AND os.status = 'wc-completed'`
+       WHERE oi.order_item_type = 'line_item' AND os.status IN ('wc-completed', 'wc-processing')`
     );
 
     // Supabase counts
@@ -474,6 +544,7 @@ async function logImport(type, customerStats, orderStats, lineItemStats) {
 async function main() {
   const command = process.argv[2] || 'help';
   const since = process.argv[3] || null;
+  const until = process.argv[4] || null;
 
   console.log('\n╔══════════════════════════════════════════════════╗');
   console.log('║        WooCommerce Import Tool v1.1              ║');
@@ -492,8 +563,14 @@ async function main() {
       break;
 
     case 'orders':
-      console.log(since ? `\n🗓️  Importing orders since ${since}` : '\n🗓️  Importing ALL orders');
-      orderStats = await importOrders(since);
+      if (since && until) {
+        console.log(`\n🗓️  Importing orders from ${since} to ${until}`);
+      } else if (since) {
+        console.log(`\n🗓️  Importing orders since ${since}`);
+      } else {
+        console.log('\n🗓️  Importing ALL orders');
+      }
+      orderStats = await importOrders(since, until);
       await logImport('orders', null, orderStats, null);
       break;
 
@@ -519,16 +596,17 @@ async function main() {
     default:
       console.log(`
 Usage:
-  node run-import.js stats                    - Show current counts
-  node run-import.js customers [since-date]   - Import customers
-  node run-import.js orders [since-date]      - Import orders
-  node run-import.js lineitems                - Import line items for existing orders
-  node run-import.js full                     - Full sync (customers + orders + line items)
+  node run-import.js stats                              - Show current counts
+  node run-import.js customers [since-date]             - Import customers
+  node run-import.js orders [since-date] [until-date]   - Import orders (completed + processing)
+  node run-import.js lineitems                          - Import line items for existing orders
+  node run-import.js full                               - Full sync (customers + orders + line items)
 
 Examples:
   node run-import.js stats
   node run-import.js customers 2026-01-01
-  node run-import.js orders 2026-01-15
+  node run-import.js orders 2026-02-03 2026-03-04       - Import orders in date range
+  node run-import.js orders 2026-01-15                  - Import orders since date
   node run-import.js lineitems
   node run-import.js full
 `);
