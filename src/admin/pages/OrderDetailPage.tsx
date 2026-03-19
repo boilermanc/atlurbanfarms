@@ -1364,7 +1364,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           </div>
           <div className="p-6">
             {!editingStatus ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <p className="text-slate-400 text-sm mb-1">Order Status</p>
                   {getStatusBadge(order.status)}
@@ -1372,10 +1372,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 <div>
                   <p className="text-slate-400 text-sm mb-1">Payment Status</p>
                   {getPaymentStatusBadge(order.payment_status)}
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm mb-1">Internal Notes</p>
-                  <p className="text-slate-600 text-sm whitespace-pre-wrap">{order.internal_notes || <span className="text-slate-300 italic">None</span>}</p>
                 </div>
                 <div>
                   <p className="text-slate-400 text-sm mb-1">Customer Notes</p>
@@ -1401,10 +1397,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     <option value="failed">Failed</option>
                     <option value="refunded">Refunded</option>
                   </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-600">Internal Notes</label>
-                  <textarea value={statusForm.internal_notes} onChange={(e) => setStatusForm(f => ({ ...f, internal_notes: e.target.value }))} rows={3} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none" placeholder="Internal notes..." />
                 </div>
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-slate-600">Customer Notes</label>
