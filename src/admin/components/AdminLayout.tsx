@@ -31,6 +31,7 @@ const CustomersPage = lazy(() => import('../pages/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('../pages/CustomerDetailPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
+const PurchaseOrdersPage = lazy(() => import('../pages/PurchaseOrdersPage'));
 const OrderCreatePage = lazy(() => import('../pages/OrderCreatePage'));
 const FAQPage = lazy(() => import('../pages/FAQPage'));
 const ContentPagesPage = lazy(() => import('../pages/ContentPagesPage'));
@@ -67,6 +68,7 @@ const GrowingInterestsPage = lazy(() => import('../pages/GrowingInterestsPage'))
 const WeeklySalesReportPage = lazy(() => import('../pages/WeeklySalesReportPage'));
 const EmailReportsPage = lazy(() => import('../pages/EmailReportsPage'));
 const StripeReconciliationPage = lazy(() => import('../pages/StripeReconciliationPage'));
+const SchoolPartnersPage = lazy(() => import('../pages/SchoolPartnersPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -83,6 +85,7 @@ interface AdminLayoutProps {
 const PAGE_TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
   orders: 'Orders',
+  'purchase-orders': 'Purchase Orders',
   'order-detail': 'Order Details',
   'legacy-order-detail': 'Legacy Order Details',
   'order-create': 'Create Order',
@@ -126,6 +129,7 @@ const PAGE_TITLES: Record<string, string> = {
   'weekly-sales-report': 'Weekly Sales Report',
   'email-reports': 'Email Reports',
   'stripe-reconciliation': 'Stripe Reconciliation',
+  'school-partners': 'School Partners',
 };
 
 // Dashboard Stats Interface
@@ -759,6 +763,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     switch (currentPage) {
       case 'orders':
         return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} />;
+      case 'purchase-orders':
+        return <PurchaseOrdersPage onViewOrder={handleViewOrder} />;
       case 'order-detail':
         return selectedOrderId ? (
           <OrderDetailPage
@@ -892,6 +898,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <GrowingSystemsPage />;
       case 'growing-interests':
         return <GrowingInterestsPage />;
+      case 'school-partners':
+        return <SchoolPartnersPage />;
       case 'blog-edit':
         return (
           <BlogEditPage

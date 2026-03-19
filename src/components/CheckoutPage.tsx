@@ -77,6 +77,8 @@ interface OrderData {
     packages: Array<{ name: string; item_count: number }>;
     summary: string;
   } | null;
+  paymentMethod?: string;
+  poNumber?: string;
 }
 
 interface CheckoutPageProps {
@@ -317,6 +319,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [growingSystemSheetOpen, setGrowingSystemSheetOpen] = useState(false);
   const [stateSheetOpen, setStateSheetOpen] = useState(false);
 
+  // Purchase Order payment state
+  const [payWithPO, setPayWithPO] = useState(false);
+  const [poNumber, setPONumber] = useState('');
+
   // Stock validation state
   const [stockIssues, setStockIssues] = useState<StockIssue[]>([]);
   const [showStockModal, setShowStockModal] = useState(false);
@@ -503,6 +509,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     title1_partner: { pct: 0.20, label: 'Title I Partner 20% Off' },
   };
   const accountType = (profile as any)?.account_type as string | undefined;
+  const isPOEligible = ['school_partner', 'title1_partner'].includes(accountType || '');
   const accountTypeEntry = accountType ? ACCOUNT_TYPE_DISCOUNTS[accountType] : undefined;
   const accountDiscount = accountTypeEntry
     ? Math.round(subtotal * accountTypeEntry.pct * 100) / 100
@@ -1256,6 +1263,21 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       pickupScheduleId: selectedPickupSlot.schedule_id
     } : { isPickup: false };
 
+    // PO orders bypass Stripe entirely — create order directly
+    if (payWithPO && isPOEligible && !poNumber.trim()) {
+      setOrderError('Please enter a Purchase Order number.');
+      return;
+    }
+    if (payWithPO && isPOEligible && poNumber.trim()) {
+      await completeOrder({
+        paymentStatus: 'pending',
+        paymentMethod: 'purchase_order',
+        poNumber: poNumber.trim(),
+        poStatus: 'pending_verification',
+      });
+      return;
+    }
+
     // If Stripe is enabled, create payment intent and show payment form
     // Order is NOT created yet — it will be created after payment succeeds
     if (stripeEnabled) {
@@ -1390,7 +1412,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   };
 
-  const completeOrder = async () => {
+  const completeOrder = async (overrides?: {
+    paymentStatus?: string;
+    paymentMethod?: string;
+    poNumber?: string;
+    poStatus?: string;
+  }) => {
     // Build shipping details for order (only for shipping orders)
     const shippingDetails = (deliveryMethod === 'shipping' && selectedShippingRate) ? {
       shippingRateId: selectedShippingRate.rate_id,
@@ -1470,6 +1497,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       ...(finalTotal === 0 && giftCardApplied
         ? { paymentStatus: 'paid', paymentMethod: 'gift_card' }
         : {}),
+      // PO or other overrides
+      ...(overrides?.paymentStatus ? { paymentStatus: overrides.paymentStatus } : {}),
+      ...(overrides?.paymentMethod ? { paymentMethod: overrides.paymentMethod } : {}),
+      ...(overrides?.poNumber ? { poNumber: overrides.poNumber } : {}),
+      ...(overrides?.poStatus ? { poStatus: overrides.poStatus } : {}),
       ...shippingDetails,
       ...pickupDetails
     });
@@ -1578,7 +1610,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         ? `${selectedShippingRate.carrier_friendly_name} ${selectedShippingRate.service_type}`
         : undefined,
       estimatedDeliveryDate: selectedShippingRate?.estimated_delivery_date || null,
-      packageBreakdown: packageBreakdown || null
+      packageBreakdown: packageBreakdown || null,
+      paymentMethod: order.payment_method || (payWithPO ? 'purchase_order' : undefined),
+      poNumber: order.po_number || (payWithPO ? poNumber.trim() : undefined)
     };
 
     // Send order confirmation email
@@ -3251,6 +3285,69 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                   )}
                 </div>
 
+                {/* Purchase Order Payment Option (for school/title1 partners) */}
+                {isPOEligible && paymentStep !== 'payment' && (
+                  <div className="mt-6 p-5 rounded-2xl border border-gray-100 bg-gray-50">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
+                      Payment Method
+                    </h3>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all has-[:checked]:bg-white has-[:checked]:border-emerald-300 has-[:checked]:shadow-sm border-transparent">
+                        <input
+                          type="radio"
+                          name="paymentMethodChoice"
+                          checked={!payWithPO}
+                          onChange={() => setPayWithPO(false)}
+                          className="w-4 h-4 text-emerald-600 focus:ring-emerald-500/20"
+                        />
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                            <line x1="1" y1="10" x2="23" y2="10" />
+                          </svg>
+                          <span className="text-sm font-medium text-gray-900">Pay with Credit Card</span>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border transition-all has-[:checked]:bg-white has-[:checked]:border-emerald-300 has-[:checked]:shadow-sm border-transparent">
+                        <input
+                          type="radio"
+                          name="paymentMethodChoice"
+                          checked={payWithPO}
+                          onChange={() => setPayWithPO(true)}
+                          className="w-4 h-4 text-emerald-600 focus:ring-emerald-500/20"
+                        />
+                        <div className="flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                          </svg>
+                          <span className="text-sm font-medium text-gray-900">Pay with Purchase Order</span>
+                        </div>
+                      </label>
+                    </div>
+                    {payWithPO && (
+                      <div className="mt-4 space-y-2">
+                        <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                          PO Number
+                        </label>
+                        <input
+                          type="text"
+                          value={poNumber}
+                          onChange={(e) => setPONumber(e.target.value)}
+                          placeholder="Enter your purchase order number"
+                          required
+                          className="w-full px-6 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                        />
+                        <p className="text-xs text-gray-400">
+                          Your order will be submitted for verification. We'll email you an invoice for payment.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Show Stripe payment form if we have a client secret */}
                 {paymentStep === 'payment' && clientSecret ? (
                   <div className="p-6 rounded-[2rem] border-2 border-emerald-200 bg-emerald-50/30">
@@ -3343,7 +3440,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
                         </svg>
-                        {stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                        {payWithPO && isPOEligible ? 'Submit PO Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
                       </>
                     )}
                   </button>
@@ -3551,7 +3648,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
                           </svg>
-                          {stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                          {payWithPO && isPOEligible ? 'Submit PO Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
                         </>
                       )}
                     </button>

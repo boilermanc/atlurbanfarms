@@ -128,7 +128,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
         minimum_quantity: promotion.minimum_quantity?.toString() || '',
         maximum_discount_amount: '',
         usage_limit_total: promotion.max_uses?.toString() || '',
-        usage_limit_per_customer: promotion.max_uses_per_customer?.toString() || '1',
+        usage_limit_per_customer: promotion.max_uses_per_customer?.toString() || '',
         stackable: promotion.stackable,
         priority: promotion.priority.toString(),
         activation_type: promotion.activation_type === 'coupon' ? 'code' : promotion.activation_type as ActivationType,
@@ -1164,7 +1164,7 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
                 name="usage_limit_per_customer"
                 value={formData.usage_limit_per_customer}
                 onChange={handleChange}
-                placeholder="1"
+                placeholder="Unlimited"
                 min="1"
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />

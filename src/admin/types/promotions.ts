@@ -355,7 +355,7 @@ export const DEFAULT_PROMOTION_FORM: PromotionFormData = {
   minimum_quantity: '',
   maximum_discount_amount: '',
   usage_limit_total: '',
-  usage_limit_per_customer: '1',
+  usage_limit_per_customer: '',
   stackable: false,
   priority: '0',
   activation_type: 'code',

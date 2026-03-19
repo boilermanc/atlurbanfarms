@@ -1179,7 +1179,10 @@ export function useCreateOrder() {
     // Tax (pre-calculated by caller via calculateTax utility)
     tax: preCalculatedTax = null,
     taxRateApplied = null,
-    taxNote = null
+    taxNote = null,
+    // Purchase Order fields
+    poNumber = null,
+    poStatus = null
   }) => {
     setLoading(true)
     setError(null)
@@ -1257,7 +1260,10 @@ export function useCreateOrder() {
         billing_address_line2: shippingInfo?.address2 || null,
         billing_city: shippingInfo?.city || null,
         billing_state: shippingInfo?.state || null,
-        billing_zip: shippingInfo?.zip || null
+        billing_zip: shippingInfo?.zip || null,
+        // Purchase Order fields
+        po_number: poNumber,
+        po_status: poStatus
       }
 
       // Re-validate promotion at order creation time to enforce per-customer limits

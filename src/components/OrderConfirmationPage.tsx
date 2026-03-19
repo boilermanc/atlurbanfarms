@@ -58,6 +58,8 @@ interface OrderConfirmationPageProps {
   shippingMethodName?: string;
   estimatedDeliveryDate?: string | null;
   packageBreakdown?: PackageBreakdown | null;
+  paymentMethod?: string;
+  poNumber?: string;
   onContinueShopping: () => void;
   onCreateAccount?: () => void;
   onViewOrders?: () => void;
@@ -77,6 +79,8 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
   shippingMethodName,
   estimatedDeliveryDate,
   packageBreakdown,
+  paymentMethod,
+  poNumber,
   onContinueShopping,
   onCreateAccount,
   onViewOrders
@@ -290,11 +294,19 @@ const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             {/* Heading */}
             <div className="space-y-3">
               <h1 className="text-4xl md:text-5xl font-heading font-black text-gray-900">
-                Order Confirmed!
+                {paymentMethod === 'purchase_order' ? 'PO Order Submitted' : 'Order Confirmed!'}
               </h1>
               <p className="text-xl text-gray-500 font-medium">
-                Thank you, {customerFirstName || 'Urban Farmer'}!
+                {paymentMethod === 'purchase_order'
+                  ? 'Your purchase order has been submitted for verification. Our team will review your order and email you an invoice.'
+                  : `Thank you, ${customerFirstName || 'Urban Farmer'}!`}
               </p>
+              {paymentMethod === 'purchase_order' && poNumber && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                  <span className="text-xs font-black text-amber-600 uppercase tracking-widest">PO #</span>
+                  <span className="text-sm font-bold text-amber-800">{poNumber}</span>
+                </div>
+              )}
             </div>
 
             {/* Order Number Badge */}

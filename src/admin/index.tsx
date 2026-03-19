@@ -22,6 +22,7 @@ export { default as ShippingCalendarPage } from './pages/ShippingCalendarPage';
 export { default as CustomersPage } from './pages/CustomersPage';
 export { default as CustomerDetailPage } from './pages/CustomerDetailPage';
 export { default as OrdersPage } from './pages/OrdersPage';
+export { default as PurchaseOrdersPage } from './pages/PurchaseOrdersPage';
 export { default as OrderDetailPage } from './pages/OrderDetailPage';
 export { default as LegacyOrderDetailPage } from './pages/LegacyOrderDetailPage';
 export { default as FAQPage } from './pages/FAQPage';
@@ -46,6 +47,7 @@ export { default as BlogListPage } from './pages/BlogListPage';
 export { default as BlogEditPage } from './pages/BlogEditPage';
 export { default as GrowingSystemsPage } from './pages/GrowingSystemsPage';
 export { default as GrowingInterestsPage } from './pages/GrowingInterestsPage';
+export { default as SchoolPartnersPage } from './pages/SchoolPartnersPage';
 
 // Admin User Components
 export { default as InviteAdminModal } from './components/InviteAdminModal';

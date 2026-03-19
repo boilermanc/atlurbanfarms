@@ -32,6 +32,7 @@ import ResetPasswordPage from './src/pages/auth/ResetPasswordPage';
 import { AccountPage } from './src/components/account';
 import { WelcomePage } from './src/pages';
 import GiftCardsPage from './src/pages/GiftCardsPage';
+import SchoolPartnerPage from './src/pages/SchoolPartnerPage';
 import { AuthProvider } from './src/context/AuthContext';
 import { SiteContentProvider, usePageContent } from './src/hooks/useSiteContent';
 import { AdminLayout } from './src/admin';
@@ -98,9 +99,11 @@ interface OrderData {
     packages: Array<{ name: string; item_count: number }>;
     summary: string;
   } | null;
+  paymentMethod?: string;
+  poNumber?: string;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'school-partner' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -112,6 +115,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (path === '/tracking' || path.startsWith('/tracking/')) return 'tracking';
   if (path === '/privacy') return 'privacy';
   if (path === '/terms') return 'terms';
+  if (path === '/school-partner') return 'school-partner';
   if (path === '/schools') return 'schools';
   if (path === '/calendar') return 'calendar';
   if (path === '/blog' || path.startsWith('/blog/')) return 'blog';
@@ -139,6 +143,7 @@ const getPathForView = (view: ViewType): string => {
     case 'tracking': return '/tracking';
     case 'privacy': return '/privacy';
     case 'terms': return '/terms';
+    case 'school-partner': return '/school-partner';
     case 'schools': return '/schools';
     case 'calendar': return '/calendar';
     case 'blog': return '/blog';
@@ -532,6 +537,8 @@ const App: React.FC = () => {
             shippingMethodName={completedOrder.shippingMethodName}
             estimatedDeliveryDate={completedOrder.estimatedDeliveryDate}
             packageBreakdown={completedOrder.packageBreakdown}
+            paymentMethod={completedOrder.paymentMethod}
+            poNumber={completedOrder.poNumber}
             onContinueShopping={() => handleNavigate('shop')}
             onCreateAccount={() => handleNavigate('register')}
             onViewOrders={!completedOrder.isGuest ? () => handleNavigate('account') : undefined}
@@ -580,6 +587,15 @@ const App: React.FC = () => {
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <SchoolsPage onBack={() => setView('home')} onNavigate={(newView: string) => handleNavigate(newView as ViewType)} />
+            <Footer onNavigate={handleNavigate} />
+          </>
+        );
+      case 'school-partner':
+        return (
+          <>
+            <PromotionalBanner />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            <SchoolPartnerPage onNavigate={(newView: string) => handleNavigate(newView as ViewType)} />
             <Footer onNavigate={handleNavigate} />
           </>
         );

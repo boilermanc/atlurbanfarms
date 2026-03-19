@@ -30,6 +30,7 @@ import {
   FileSpreadsheet,
   CreditCard,
   ExternalLink,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -58,10 +59,12 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { id: 'orders', label: 'Orders', icon: Package },
+      { id: 'purchase-orders', label: 'Purchase Orders', icon: FileText },
       { id: 'products', label: 'Products', icon: Leaf },
       { id: 'categories', label: 'Categories', icon: FolderTree },
       { id: 'inventory', label: 'Inventory', icon: ClipboardList },
       { id: 'customers', label: 'Customers', icon: Users },
+      { id: 'school-partners', label: 'School Partners', icon: GraduationCap },
       { id: 'alerts', label: 'Alerts', icon: Bell },
       { id: 'promotions', label: 'Promotions', icon: Tag },
       { id: 'gift-cards', label: 'Gift Cards', icon: Gift, externalUrl: 'https://giftup.app/Account/Login?ReturnUrl=%2F' },

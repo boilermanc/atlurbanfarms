@@ -828,7 +828,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
     // Payment info
     const payMethod = (order as any).payment_method || 'stripe';
-    const payLabel = payMethod === 'stripe' ? 'Credit Card (Stripe)' : payMethod.charAt(0).toUpperCase() + payMethod.slice(1);
+    const payLabel = payMethod === 'stripe' ? 'Credit Card (Stripe)' : payMethod === 'purchase_order' ? `Purchase Order (${(order as any).po_number || 'N/A'})` : payMethod.charAt(0).toUpperCase() + payMethod.slice(1);
     const paymentHtml = `
       <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
         <strong style="color: #111827;">Payment:</strong> ${payLabel}
@@ -1406,6 +1406,64 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
             )}
           </div>
         </div>
+
+        {/* Purchase Order Info (only for PO orders) */}
+        {(order as any).payment_method === 'purchase_order' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Purchase Order</h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">PO Number</p>
+                  <p className="text-slate-900 font-bold">{(order as any).po_number || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">PO Status</p>
+                  {(() => {
+                    const poStatus = (order as any).po_status || 'pending_verification';
+                    const statusColors: Record<string, string> = {
+                      pending_verification: 'bg-amber-100 text-amber-700 border-amber-200',
+                      verified: 'bg-blue-100 text-blue-700 border-blue-200',
+                      invoiced: 'bg-purple-100 text-purple-700 border-purple-200',
+                      paid: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                      cancelled: 'bg-red-100 text-red-700 border-red-200',
+                    };
+                    const statusLabels: Record<string, string> = {
+                      pending_verification: 'Pending Verification',
+                      verified: 'Verified',
+                      invoiced: 'Invoiced',
+                      paid: 'Paid',
+                      cancelled: 'Cancelled',
+                    };
+                    return (
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${statusColors[poStatus] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                        {statusLabels[poStatus] || poStatus}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Verified</p>
+                  <p className="text-slate-600 text-sm">
+                    {(order as any).po_verified_at
+                      ? new Date((order as any).po_verified_at).toLocaleDateString()
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm mb-1">Paid</p>
+                  <p className="text-slate-600 text-sm">
+                    {(order as any).po_paid_at
+                      ? new Date((order as any).po_paid_at).toLocaleDateString()
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Customer and Shipping Info - Two Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
