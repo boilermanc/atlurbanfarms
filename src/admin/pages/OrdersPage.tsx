@@ -439,7 +439,7 @@ ${ordersToprint.map(order => `<div class="order">
     try {
       const { data, error } = await supabase
         .from('orders')
-        .select(`*, customers (id, first_name, last_name, email, phone), order_items_with_product (id, product_id, product_name, product_price, quantity, line_total, product_type, bundle_item_count, products (name))`)
+        .select(`*, customers!customer_id (id, first_name, last_name, email, phone), order_items_with_product (id, product_id, product_name, product_price, quantity, line_total, product_type, bundle_item_count, products (name))`)
         .eq('status', 'processing')
         .order('created_at', { ascending: false });
 

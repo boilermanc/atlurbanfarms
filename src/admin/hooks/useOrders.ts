@@ -304,7 +304,7 @@ export function useOrders(filters: OrderFilters = {}) {
         .from('orders')
         .select(`
           *,
-          customers (
+          customers!customer_id (
             id,
             first_name,
             last_name,
@@ -729,7 +729,7 @@ export function useOrder(orderId: string | null) {
         .from('orders')
         .select(`
           *,
-          customers (
+          customers!customer_id (
             id,
             first_name,
             last_name,
