@@ -353,7 +353,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
       }
     }
 
-    const html = `<!DOCTYPE html><html><head><title>Pick Lists - ATL Urban Farms</title><style>
+    const html = `<!DOCTYPE html><html><head><title>Invoices - ATL Urban Farms</title><style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; }
 .order { page-break-after: always; padding: 20px; }
@@ -394,7 +394,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </style></head><body>
 ${ordersToprint.map(order => `<div class="order">
   <div class="header"><div style="display: flex; justify-content: space-between; align-items: flex-start;">
-    <div><h1>Pick List</h1><div class="order-number">${order.order_number}</div><div class="date">${formatDateForPrint(order.created_at)}</div></div>
+    <div><h1>Invoice</h1><div class="order-number">${order.order_number}</div><div class="date">${formatDateForPrint(order.created_at)}</div></div>
     <div><span class="status-badge status-${order.status}">${formatStatusLabel(order.status)}</span></div>
   </div></div>
   <div class="section"><div class="section-title">Customer & Shipping</div><div class="customer-info">
@@ -570,33 +570,41 @@ ${ordersToprint.map(order => `<div class="order">
             <div className="flex-1 min-w-[150px] relative" ref={statusDropdownRef}>
               <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
               <button type="button" onClick={() => setStatusDropdownOpen(prev => !prev)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all text-left flex items-center justify-between"
-                disabled={showTrash}>
+                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all text-left flex items-center justify-between">
                 <span className="truncate">
                   {showTrash ? 'Trash' : statusFilter.length === 0 ? 'All Statuses' : statusFilter.length === 1 ? ORDER_STATUS_CONFIG[statusFilter[0] as OrderStatus]?.label : `${statusFilter.length} statuses`}
                 </span>
                 <ChevronDown size={16} className={`text-slate-400 transition-transform ${statusDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
-              {statusDropdownOpen && !showTrash && (
+              {statusDropdownOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
-                  <button type="button" onClick={() => { setStatusFilter([]); setCurrentPage(1); }}
+                  <button type="button" onClick={() => { setStatusFilter([]); setShowTrash(false); setCurrentPage(1); }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-600">
-                    <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${statusFilter.length === 0 ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
-                      {statusFilter.length === 0 && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${statusFilter.length === 0 && !showTrash ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                      {statusFilter.length === 0 && !showTrash && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                     </span>
                     All Statuses
                   </button>
                   <div className="border-t border-slate-100 my-1" />
                   {ORDER_STATUSES.map((status) => (
-                    <button key={status} type="button" onClick={() => toggleStatusFilter(status)}
+                    <button key={status} type="button" onClick={() => { if (showTrash) setShowTrash(false); toggleStatusFilter(status); }}
                       className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-slate-700">
-                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${statusFilter.includes(status) ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
-                        {statusFilter.includes(status) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${!showTrash && statusFilter.includes(status) ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                        {!showTrash && statusFilter.includes(status) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                       </span>
                       <span className={`w-2 h-2 rounded-full ${ORDER_STATUS_CONFIG[status].color}`} />
                       {ORDER_STATUS_CONFIG[status].label}
                     </button>
                   ))}
+                  <div className="border-t border-slate-100 my-1" />
+                  <button type="button" onClick={() => { setShowTrash(true); setStatusFilter([]); setCurrentPage(1); setStatusDropdownOpen(false); }}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2 text-red-600">
+                    <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${showTrash ? 'bg-red-500 border-red-500' : 'border-slate-300'}`}>
+                      {showTrash && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    </span>
+                    <Trash2 size={14} />
+                    Trash
+                  </button>
                 </div>
               )}
             </div>
@@ -615,17 +623,12 @@ ${ordersToprint.map(order => `<div class="order">
               <form onSubmit={handleSearch} className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Order # or customer email..."
+                  <input type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Order #, name, or email..."
                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all" />
                 </div>
                 <button type="submit" className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors font-medium">Search</button>
               </form>
             </div>
-            <button onClick={() => { setShowTrash(prev => !prev); setCurrentPage(1); }}
-              className={`px-4 py-2.5 border rounded-xl transition-colors whitespace-nowrap font-medium flex items-center gap-2 ${showTrash ? 'bg-red-50 border-red-200 text-red-700' : 'border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
-              <Trash2 size={16} />
-              {showTrash ? 'Exit Trash' : 'Trash'}
-            </button>
             {hasActiveFilters && (
               <button onClick={clearFilters} className="px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors whitespace-nowrap font-medium">Clear Filters</button>
             )}
@@ -695,10 +698,19 @@ ${ordersToprint.map(order => `<div class="order">
                   </div>
                   <div className="h-8 w-px bg-white/30"></div>
                   <div className="flex items-center gap-2">
-                    <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as OrderStatus)}
+                    <select value={bulkStatus} onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__trash__') {
+                          setBulkActionType('archive');
+                          setShowBulkConfirm(true);
+                        } else {
+                          setBulkStatus(val as OrderStatus);
+                        }
+                      }}
                       className="bg-white border-2 border-white/30 rounded-xl px-4 py-2 text-slate-800 font-medium focus:outline-none focus:border-white transition-all">
                       <option value="">Change Status...</option>
                       {ORDER_STATUSES.map((status) => (<option key={status} value={status}>{ORDER_STATUS_CONFIG[status].label}</option>))}
+                      <option value="__trash__">Move to Trash</option>
                     </select>
                     <button onClick={handleBulkStatusChange} disabled={!bulkStatus || bulkLoading}
                       className="px-4 py-2 bg-white text-emerald-600 rounded-xl hover:bg-emerald-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed">Apply</button>
@@ -713,10 +725,10 @@ ${ordersToprint.map(order => `<div class="order">
                         <span>Create Labels ({eligibleSelectedOrders.length})</span>
                       </button>
                     )}
-                    <button onClick={handlePrintSelected} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30" title="Print packing lists">
+                    <button onClick={() => onNavigate?.('fulfillment')} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30" title="Go to Packing Lists in Fulfillment">
                       <Printer size={18} /><span className="hidden sm:inline">Packing Lists</span>
                     </button>
-                    <button onClick={handleBulkPrintInvoices} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30" title="Print invoices (coming soon)">
+                    <button onClick={handlePrintSelected} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30" title="Print invoices">
                       <FileText size={18} /><span className="hidden sm:inline">Invoices</span>
                     </button>
                     <button onClick={handleBulkEmailInvoices} className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors font-medium border border-white/30" title="Email invoices (coming soon)">
@@ -764,7 +776,7 @@ ${ordersToprint.map(order => `<div class="order">
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Items</th>
                     <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Total</th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">Status</th>
-                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Shipping</th>
+                    <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">Delivery</th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-12"></th>
                   </tr>
                 </thead>
@@ -798,7 +810,7 @@ ${ordersToprint.map(order => `<div class="order">
                             <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 font-medium" title={labelCreation.results.find(r => r.orderId === order.id)!.error}><XCircle size={12} />Failed</span>
                           )
                         ) : isLabelEligible(order) ? (
-                          <span className="text-xs px-2 py-1 rounded-full bg-slate-50 text-slate-400 border border-slate-200">No Label</span>
+                          <span className="text-xs px-2 py-1 rounded-full bg-slate-50 text-slate-400 border border-slate-200">Ship</span>
                         ) : (
                           <span className="text-xs text-slate-300">&mdash;</span>
                         )}
