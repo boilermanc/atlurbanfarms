@@ -89,11 +89,16 @@ INSERT INTO email_templates (template_key, name, description, category, subject_
 -- Enable pg_net extension (usually already enabled on Supabase)
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 
+-- Store the service role key in Supabase Vault for secure access from triggers.
+-- Run this manually in the SQL Editor after applying this migration:
+--
+--   SELECT vault.create_secret('service_role_key', 'YOUR_SERVICE_ROLE_KEY_HERE');
+--
+
 CREATE OR REPLACE FUNCTION public.trigger_back_in_stock_notify()
 RETURNS TRIGGER AS $$
 DECLARE
   pending_count INTEGER;
-  supabase_url TEXT;
   service_key TEXT;
 BEGIN
   -- Only fire when quantity goes from 0 (or NULL) to > 0
@@ -104,14 +109,16 @@ BEGIN
     WHERE product_id = NEW.id AND status = 'pending';
 
     IF pending_count > 0 THEN
-      -- Read Supabase URL and service key from vault or env
-      supabase_url := current_setting('app.settings.supabase_url', true);
-      service_key := current_setting('app.settings.service_role_key', true);
+      -- Read service role key from Supabase Vault
+      SELECT decrypted_secret INTO service_key
+      FROM vault.decrypted_secrets
+      WHERE name = 'service_role_key'
+      LIMIT 1;
 
-      -- If settings are available, call the edge function via pg_net
-      IF supabase_url IS NOT NULL AND service_key IS NOT NULL THEN
+      -- Call the edge function via pg_net
+      IF service_key IS NOT NULL THEN
         PERFORM extensions.http_post(
-          url := supabase_url || '/functions/v1/back-in-stock-notify',
+          url := 'https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/back-in-stock-notify',
           body := json_build_object('product_id', NEW.id)::text,
           headers := json_build_object(
             'Content-Type', 'application/json',
