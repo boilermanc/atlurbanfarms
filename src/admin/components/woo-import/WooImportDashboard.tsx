@@ -211,9 +211,15 @@ const WooImportDashboard: React.FC<WooImportDashboardProps> = ({ onViewHistory }
                 </code>
               </div>
               <div>
-                <p className="text-xs text-slate-500 mb-1">Import orders:</p>
+                <p className="text-xs text-slate-500 mb-1">Import orders (since date):</p>
                 <code className="text-sm text-slate-300 font-mono">
                   node run-import.js orders 2026-01-01
+                </code>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Import orders (date range):</p>
+                <code className="text-sm text-slate-300 font-mono">
+                  node run-import.js orders 2026-02-03 2026-03-04
                 </code>
               </div>
               <div>
