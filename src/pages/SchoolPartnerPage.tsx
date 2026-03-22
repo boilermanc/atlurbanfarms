@@ -7,11 +7,12 @@ interface SchoolPartnerPageProps {
 }
 
 const GRADE_LEVEL_OPTIONS = [
-  'STEM', 'STEAM', 'Agriculture', 'Culinary Arts', 'Special Education', 'Other',
+  'Pre-K', 'K', '1st', '2nd', '3rd', '4th', '5th',
+  '6th', '7th', '8th', '9th', '10th', '11th', '12th',
 ];
 
 const AEROPONIC_SYSTEM_OPTIONS = [
-  'Tower Garden', 'Lettuce Grow', 'Gardyn', 'Aerospring', 'Other', 'Not sure yet',
+  'Tower Garden', 'Lettuce Grow', 'Aerospring', 'Other', 'Not sure yet',
 ];
 
 const GROWING_JOURNEY_OPTIONS = [
@@ -21,14 +22,7 @@ const GROWING_JOURNEY_OPTIONS = [
   { value: 'experienced', label: "We're experienced growers — here for the community and the discount" },
 ];
 
-const REFERRAL_OPTIONS = [
-  'Google search',
-  'Tower Garden website',
-  'Word of mouth',
-  'Social media',
-  'Forsyth County Schools',
-  'Other',
-];
+// Fetched dynamically from attribution_options table
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -51,7 +45,8 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
     email: '',
     password: '',
     schoolName: '',
-    cityState: '',
+    city: '',
+    state: '',
     partnershipLevel: 'school_partner' as 'school_partner' | 'title1_partner',
     gradeLevels: [] as string[],
     aeroponicSystems: [] as string[],
@@ -65,10 +60,22 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
   const [existingAccount, setExistingAccount] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [attributionOptions, setAttributionOptions] = useState<{ label: string; value: string }[]>([]);
 
   // Check if user is already logged in
   useEffect(() => {
     window.scrollTo(0, 0);
+
+    // Fetch attribution options
+    const loadAttributionOptions = async () => {
+      const { data } = await supabase
+        .from('attribution_options')
+        .select('label, value')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (data) setAttributionOptions(data);
+    };
+    loadAttributionOptions();
 
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -127,8 +134,12 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
       setError('School or organization name is required.');
       return;
     }
-    if (!formData.cityState.trim()) {
-      setError('City and state are required.');
+    if (!formData.city.trim()) {
+      setError('City is required.');
+      return;
+    }
+    if (!formData.state.trim()) {
+      setError('State is required.');
       return;
     }
     if (!currentUser) {
@@ -202,7 +213,8 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
         .upsert({
           customer_id: userId,
           school_name: formData.schoolName.trim(),
-          school_district: formData.cityState.trim(),
+          city: formData.city.trim(),
+          state: formData.state.trim(),
           grade_levels: formData.gradeLevels,
           growing_system: formData.aeroponicSystems.join(', '),
           experience_level: formData.growingJourney || null,
@@ -642,19 +654,35 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                 </div>
 
                 {/* 6. City and State */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-gray-400">
-                    City and State
-                  </label>
-                  <input
-                    type="text"
-                    name="cityState"
-                    value={formData.cityState}
-                    onChange={handleInputChange}
-                    placeholder="e.g., Atlanta, GA"
-                    required
-                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Atlanta"
+                      required
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      placeholder="e.g., GA"
+                      required
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
+                    />
+                  </div>
                 </div>
 
                 {/* 7. Partnership Level */}
@@ -694,10 +722,10 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                   </div>
                 </div>
 
-                {/* 8. Grade Levels / Program Type (multi-select chips) */}
+                {/* 8. Grade Levels (multi-select chips) */}
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400">
-                    Grade Levels or Program Type
+                    Grade Levels
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {GRADE_LEVEL_OPTIONS.map(option => (
@@ -777,8 +805,8 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
                   >
                     <option value="">Select one</option>
-                    {REFERRAL_OPTIONS.map(option => (
-                      <option key={option} value={option}>{option}</option>
+                    {attributionOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
                 </div>

@@ -15,6 +15,8 @@ interface SchoolProfile {
   customer_id: string;
   school_name: string;
   school_district: string | null;
+  city: string | null;
+  state: string | null;
   grade_levels: string[] | null;
   growing_system: string | null;
   experience_level: string | null;
@@ -251,8 +253,12 @@ const SchoolPartnersPage: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        {profile.school_district && (
-                          <p className="text-xs text-slate-400 mt-0.5">{profile.school_district}</p>
+                        {(profile.city || profile.state || profile.school_district) && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {profile.city && profile.state
+                              ? `${profile.city}, ${profile.state}`
+                              : profile.school_district}
+                          </p>
                         )}
                       </td>
                       <td className="py-4 px-4 text-sm text-slate-700">{getContactName(profile)}</td>
