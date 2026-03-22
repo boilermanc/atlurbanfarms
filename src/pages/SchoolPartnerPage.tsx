@@ -289,35 +289,91 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             variants={fadeIn}
             className="text-4xl md:text-6xl font-heading font-extrabold text-gray-900 tracking-tight mb-4"
           >
-            School Partner Program
+            Aeroponics Doesn't Have to Feel Overwhelming. That's What We're Here For!
           </motion.h1>
           <motion.p
             variants={fadeIn}
             className="text-xl md:text-2xl text-emerald-600 font-heading font-bold mb-8"
           >
-            Real Support for Real School Gardens
+            For the teacher who wants to grow curious minds — not just plants.
           </motion.p>
-          <motion.p
+          <motion.div
             variants={fadeIn}
-            className="text-lg text-gray-600 leading-relaxed mb-8 max-w-3xl mx-auto"
+            className="text-lg text-gray-600 leading-relaxed mb-8 max-w-3xl mx-auto text-left space-y-4"
           >
-            ATL Urban Farms has been growing premium aeroponic seedlings since 2013. We know what it takes to keep a school garden thriving — because we've been doing it ourselves. Our School Partner Program gives educators access to healthy, ready-to-grow seedlings, exclusive resources, and real support from people who actually grow.
-          </motion.p>
+            <p>
+              Maybe you inherited an aeroponics system that's been sitting in the corner. Maybe you just got a grant and have no idea where to start. Maybe you've been growing with your students for years, and you're still learning as you go — because honestly, we all are 🙌
+            </p>
+            <p>
+              Whatever brought you here, you're not alone in this. And you don't have to figure it out alone either.
+            </p>
+            <p>
+              We've been growing aeroponic seedlings since 2013. We've worked with teachers, schools, and co-ops across the country — and we know that the teachers who show up for their students' gardens aren't experts. They are educators who care enough to try.
+            </p>
+            <p className="font-bold text-gray-900">
+              You are exactly who our School Partner Program is made for!
+            </p>
+          </motion.div>
           <motion.div
             variants={fadeIn}
             className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 md:p-8 max-w-2xl mx-auto"
           >
             <p className="text-emerald-800 text-lg italic leading-relaxed">
-              "Whether you're setting up your first aeroponic garden or you've been growing with your students for years, you're in the right place!"
+              "You don't need a degree in horticulture. You need to care about your kids and be willing to try. That's enough — we'll help with the rest."
             </p>
             <p className="text-emerald-600 font-bold mt-3">— Sheree, ATL Urban Farms</p>
           </motion.div>
         </motion.div>
       </section>
 
+      {/* ─── SOMETHING HAPPENS ─── */}
+      <section className="py-16 px-4 md:px-12 bg-emerald-50/50">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={staggerContainer}
+          className="max-w-3xl mx-auto text-center"
+        >
+          <motion.h2
+            variants={fadeIn}
+            className="text-3xl font-heading font-extrabold text-gray-900 mb-8"
+          >
+            Something Happens When Kids Grow Their Own Food.
+          </motion.h2>
+          <div className="space-y-6 text-lg text-gray-600 leading-relaxed">
+            <motion.p variants={fadeIn} className="italic">
+              The kid who never raises their hand? They're suddenly the class expert on why the lettuce is wilting.
+            </motion.p>
+            <motion.p variants={fadeIn} className="italic">
+              The student who struggles to sit still? They're at the tower first thing every morning, checking on their plants like they're checking on a friend.
+            </motion.p>
+            <motion.p variants={fadeIn} className="italic">
+              The class that can't agree on anything? They're celebrating together when the first harvest comes in.
+            </motion.p>
+            <motion.p variants={fadeIn}>
+              We've heard these stories from teachers across the country. Our friend <strong>Stephen Ritz</strong> has built an entire movement around them at{' '}
+              <a href="https://greenbronxmachine.org/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline">
+                Green Bronx Machine
+              </a>
+              {' '}— transforming students' lives in the South Bronx one garden at a time.
+            </motion.p>
+            <motion.p variants={fadeIn}>
+              It's not magic. It's just what happens when you put living, growing things in a classroom and let students take care of them.
+            </motion.p>
+            <motion.p variants={fadeIn} className="font-bold text-gray-900 text-xl">
+              You can do this. And we'll help.
+            </motion.p>
+          </div>
+        </motion.div>
+      </section>
+
       {/* ─── TWO TIER CARDS ─── */}
       <section className="py-12 px-4 md:px-12 bg-site-secondary">
         <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl font-heading font-extrabold text-gray-900 text-center mb-8">
+            The School Partner Program — Providing Teachers with Real Support
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* School Partner Card */}
             <motion.div
@@ -332,7 +388,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                 School Partner
               </h3>
               <p className="text-emerald-600 font-bold text-lg mb-6">
-                15% off all orders, automatically applied at checkout
+                15% off every order — automatically. No codes, no hoops.
               </p>
               <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
                 Includes
@@ -363,7 +419,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                 Who Qualifies
               </h4>
               <p className="text-gray-500 text-sm">
-                K-12 schools, charter schools, homeschool co-ops, and educational nonprofits
+                K-12 schools, charter schools, homeschool co-ops, and educational nonprofits — if you're teaching with aeroponics, you qualify.
               </p>
             </motion.div>
 
@@ -383,7 +439,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                 Title I Partner
               </h3>
               <p className="text-emerald-600 font-bold text-lg mb-6">
-                20% off all orders, automatically applied at checkout
+                20% off every order — because equity in the garden matters too.
               </p>
               <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">
                 Everything in School Partner, plus
@@ -392,10 +448,6 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                 <li className="flex items-start gap-2">
                   <svg className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                   20% discount (instead of 15%)
-                </li>
-                <li className="flex items-start gap-2">
-                  <svg className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                  Additional grant and funding resources
                 </li>
                 <li className="flex items-start gap-2">
                   <svg className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
@@ -419,6 +471,9 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
               Sign Up Now
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
             </a>
+            <p className="text-gray-500 text-sm mt-4">
+              Your discount applies automatically every time you shop while logged in. No codes. No hassle. Just plants.
+            </p>
           </div>
         </div>
       </section>
@@ -436,56 +491,71 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             variants={fadeIn}
             className="text-3xl font-heading font-extrabold text-gray-900 mb-4"
           >
-            What's in the Resource Library
+            You Get More Than Seedlings.
           </motion.h2>
           <motion.p
             variants={fadeIn}
             className="text-gray-600 leading-relaxed mb-6"
           >
-            When your account is approved, you'll get instant access to our growing library of resources designed specifically for school garden programs. Everything is practical, classroom-tested, and built for aeroponic growing.
+            When your School Partner account is approved, you'll get instant access to our School Resource Library — practical, classroom-tested tools built for real aeroponic gardens. Not busy work. Actually useful.
           </motion.p>
           <motion.ul variants={fadeIn} className="space-y-3 text-gray-600 mb-6">
-            {[
-              'Planting guides and seed-to-harvest timelines for Tower Garden and other aeroponic systems',
-              'Printable classroom activities tied to STEM and agricultural standards',
-              'Garden planning templates and seasonal planting calendars',
-              'Tips for maintaining aeroponic systems in a school setting',
-              'Grant writing resources and funding ideas for school garden programs',
-            ].map((item, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                {item}
-              </li>
-            ))}
+            <li className="flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">🌿</span>
+              <span><strong>Planting & harvest guides</strong> — variety-by-variety timelines so you always know what to plant and when</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">📋</span>
+              <span><strong>Printable classroom activities</strong> — tied to STEM, science, and agricultural standards</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">📅</span>
+              <span><strong>Seasonal planting calendars</strong> — so you're never guessing what should go in the tower this month</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">🔧</span>
+              <span><strong>Specific system guides and resources</strong> — for Tower Garden and Lettuce Grow.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="flex-shrink-0 mt-0.5">💬</span>
+              <span><strong>Real support from real growers</strong> — questions answered by humans, not chatbots</span>
+            </li>
           </motion.ul>
           <motion.p variants={fadeIn} className="text-gray-500 text-sm italic">
-            Resources are added regularly based on what our partner schools tell us they need.
+            Resources are added regularly based on what our partner teachers tell us they need. You're not just a customer — you're shaping what we build next.
           </motion.p>
         </motion.div>
       </section>
 
-      {/* ─── TOWER GARDEN NOTE ─── */}
-      <section className="py-12 px-4 md:px-12 bg-site-secondary">
+      {/* ─── YOU DON'T NEED TO BE A HORTICULTURALIST ─── */}
+      <section className="py-16 px-4 md:px-12 bg-site-secondary">
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          variants={fadeIn}
-          className="max-w-3xl mx-auto bg-white rounded-2xl p-8 border border-gray-100 shadow-sm"
+          variants={staggerContainer}
+          className="max-w-3xl mx-auto"
         >
-          <h3 className="text-xl font-heading font-extrabold text-gray-900 mb-4">
-            A Note for Schools with Tower Garden Systems
-          </h3>
-          <p className="text-gray-600 leading-relaxed mb-4">
-            If your school uses Tower Garden by Juice Plus+, you already know how powerful aeroponic growing can be in the classroom. Our seedlings are specifically grown to thrive in Tower Garden systems — we've been growing in them since 2013.
-          </p>
-          <p className="text-gray-600 leading-relaxed">
-            If you're not sure what system you have, or if you'd like recommendations for getting started, reach out to{' '}
-            <a href="mailto:sheree@atlurbanfarms.com" className="text-emerald-600 font-medium hover:underline">
-              sheree@atlurbanfarms.com
-            </a>
-            . We're happy to help.
-          </p>
+          <motion.h2
+            variants={fadeIn}
+            className="text-3xl font-heading font-extrabold text-gray-900 mb-6"
+          >
+            You Don't Need to Be a Horticulturalist. (You Just Need to Be Curious.)
+          </motion.h2>
+          <div className="space-y-4 text-lg text-gray-600 leading-relaxed">
+            <motion.p variants={fadeIn}>
+              Most of the teachers in our program started exactly where you are — excited about the idea but a little unsure about the plants. That's completely normal. Aeroponic growing has a learning curve, and no one hands you a manual when they drop a Tower Garden in your classroom.
+            </motion.p>
+            <motion.p variants={fadeIn} className="font-bold text-gray-900">
+              That's where we come in.
+            </motion.p>
+            <motion.p variants={fadeIn}>
+              We'll tell you what to plant and when. We'll help you troubleshoot when something looks wrong. We'll send you seedlings that are already past the hardest part — the germination stage — so your students get to experience the good stuff: roots, growth, and harvest.
+            </motion.p>
+            <motion.p variants={fadeIn} className="font-bold text-gray-900">
+              You handle the curious minds. We'll handle the growing know-how.
+            </motion.p>
+          </div>
         </motion.div>
       </section>
 
@@ -499,11 +569,16 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             variants={fadeIn}
           >
             <h2 className="text-3xl font-heading font-extrabold text-gray-900 mb-2">
-              Sign Up
+              Ready to Grow With Us?
             </h2>
-            <p className="text-gray-500 mb-8">
-              Create your free School Partner account below. Your discount will be active and your resource library will be ready the next time you log in.
-            </p>
+            <div className="text-gray-500 mb-8 space-y-3">
+              <p>
+                Sign up below — it's free, it takes 2 minutes, and your discount is active the moment you're approved. We review every application personally, so you'll hear from a real human (usually the same day).
+              </p>
+              <p>
+                <strong>Already past spring planting season?</strong> Sign up now anyway. Fall semester gardens that are planned in spring are always the best ones. 🌱
+              </p>
+            </div>
 
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
               {/* Error / Existing Account */}
@@ -842,13 +917,13 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
                       Creating account...
                     </>
                   ) : (
-                    <>Create My School Partner Account →</>
+                    <>Start Growing With Us →</>
                   )}
                 </button>
 
                 {/* Fine Print */}
                 <p className="text-xs text-gray-400 text-center leading-relaxed">
-                  Your School Partner discount applies automatically every time you shop while logged in. By signing up, you agree to use your discount for educational purposes. We'll never sell your information or fill your inbox with things you don't need.
+                  Your discount applies automatically every time you shop while logged in. By signing up, you agree to use your discount for educational purposes. We'll never sell your information or fill your inbox with stuff you don't need. Promise.
                 </p>
               </form>
             </div>
@@ -869,7 +944,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             We're Real People. Reach Out Anytime.
           </h3>
           <p className="text-gray-600 leading-relaxed mb-4">
-            Whether you have questions about the program, need help choosing plants for your classroom, or want to talk through your garden setup — we're here. No chatbots, no runaround.
+            Seriously — no chatbots, no ticket system, no runaround. Whether you need help picking varieties for your grade level, want to troubleshoot something in your system, or just want to talk through whether aeroponics is the right fit for your classroom — I'm here. Reply to any email. Call or text. I actually respond.
           </p>
           <a
             href="mailto:sheree@atlurbanfarms.com"
@@ -877,7 +952,8 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
           >
             sheree@atlurbanfarms.com
           </a>
-          <p className="text-gray-400 mt-6 text-sm">
+          <p className="text-gray-600 font-bold mt-4">— Sheree</p>
+          <p className="text-gray-400 mt-4 text-sm">
             Plant People Helping Plant People 🌱
           </p>
         </motion.div>
