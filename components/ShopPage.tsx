@@ -287,6 +287,11 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
 
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || '');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  // Track the product slug/id from URL for deep-linking
+  const [initialProductParam] = useState<string | null>(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('product') || null;
+  });
   // Track active parent category (null = "All Products")
   const [activeParentId, setActiveParentId] = useState<string | null>(null);
   // Track active subcategory within the parent (null = show all in parent)
@@ -303,6 +308,36 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   // Search input ref for refocus after clear
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Open product modal from URL ?product= param (deep-link)
+  useEffect(() => {
+    if (!initialProductParam || productsLoading || !rawProducts?.length) return;
+    const match = rawProducts.find((p: any) =>
+      p.slug === initialProductParam || p.id === initialProductParam
+    );
+    if (match) {
+      setSelectedProduct(match);
+    }
+  }, [initialProductParam, productsLoading, rawProducts]);
+
+  // Update URL when product modal opens/closes
+  const handleProductSelect = (product: any) => {
+    setSelectedProduct(product);
+    const url = new URL(window.location.href);
+    if (product?.slug) {
+      url.searchParams.set('product', product.slug);
+    } else if (product?.id) {
+      url.searchParams.set('product', product.id);
+    }
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  const handleProductClose = () => {
+    setSelectedProduct(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('product');
+    window.history.replaceState({}, '', url.toString());
+  };
 
   // Sync localStorage favorites when user logs in
   useEffect(() => {
@@ -974,7 +1009,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                           category={product.category}
                           inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                           onAddToCart={(qty) => onAddToCart(product, qty)}
-                          onClick={() => setSelectedProduct(rawProduct)}
+                          onClick={() => handleProductSelect(rawProduct)}
                           compareAtPrice={product.compareAtPrice ?? null}
                           shortDescription={product.shortDescription}
                           description={product.description}
@@ -1057,7 +1092,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                           category={product.category}
                           inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                           onAddToCart={(qty) => onAddToCart(product, qty)}
-                          onClick={() => setSelectedProduct(rawProduct)}
+                          onClick={() => handleProductSelect(rawProduct)}
                           compareAtPrice={product.compareAtPrice ?? null}
                           shortDescription={product.shortDescription}
                           description={product.description}
@@ -1098,7 +1133,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 products={onSaleSeedlings}
                 rawProducts={rawProducts}
                 onAddToCart={onAddToCart}
-                onProductClick={setSelectedProduct}
+                onProductClick={handleProductSelect}
                 showViewAll
                 accentColor="red"
                 isFavorite={isFavorite}
@@ -1174,7 +1209,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                         products={groupedBySubcat[subcatName]}
                         rawProducts={rawProducts}
                         onAddToCart={onAddToCart}
-                        onProductClick={setSelectedProduct}
+                        onProductClick={handleProductSelect}
                         isFavorite={isFavorite}
                         onToggleFavorite={toggleFavorite}
                         requireLoginToFavorite={true}
@@ -1193,7 +1228,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                   products={parentProducts}
                   rawProducts={rawProducts}
                   onAddToCart={onAddToCart}
-                  onProductClick={setSelectedProduct}
+                  onProductClick={handleProductSelect}
                   showViewAll
                   accentColor={accentColor}
                   isFavorite={isFavorite}
@@ -1219,7 +1254,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                 products={subcatProducts}
                 rawProducts={rawProducts}
                 onAddToCart={onAddToCart}
-                onProductClick={setSelectedProduct}
+                onProductClick={handleProductSelect}
                 isFavorite={isFavorite}
                 onToggleFavorite={toggleFavorite}
                 requireLoginToFavorite={true}
@@ -1253,7 +1288,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
                       category={product.category}
                       inStock={rawProduct ? isProductInStock(rawProduct) : product.stock > 0}
                       onAddToCart={(qty) => onAddToCart(product, qty)}
-                      onClick={() => setSelectedProduct(rawProduct)}
+                      onClick={() => handleProductSelect(rawProduct)}
                       compareAtPrice={product.compareAtPrice ?? null}
                       shortDescription={product.shortDescription}
                       description={product.description}
@@ -1293,7 +1328,7 @@ const ShopPage: React.FC<ShopPageProps> = ({ onAddToCart, initialCategory = 'All
       <ProductDetailModal
         product={selectedProduct}
         isOpen={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
+        onClose={handleProductClose}
         onAddToCart={(qty) => {
           if (selectedProduct) {
             const mappedProduct = mapProduct(selectedProduct);

@@ -204,12 +204,17 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleShare = async () => {
+    // Build a product-specific deep link URL
+    const url = new URL(window.location.origin + '/shop');
+    url.searchParams.set('product', product.slug || product.id);
+    const productUrl = url.toString();
+
     const shareData = {
       title: product.name,
       text: product.description
         ? product.name + ' - ' + product.description.replace(/<[^>]*>/g, '').slice(0, 120)
         : product.name,
-      url: window.location.href,
+      url: productUrl,
     };
 
     if (navigator.share) {
@@ -220,7 +225,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       }
     } else {
       try {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(productUrl);
         setShareCopied(true);
         setTimeout(() => setShareCopied(false), 2000);
       } catch {
