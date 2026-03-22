@@ -1076,6 +1076,20 @@ const ShippingCalendarPage: React.FC = () => {
                 <span className="text-sm text-slate-500">{type.label}</span>
               </div>
             ))}
+            <div className="border-l border-slate-300 pl-4 flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Truck size={12} className="text-emerald-500" />
+                <span className="text-sm text-slate-500">Shipping Day</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-red-400"></div>
+                <span className="text-sm text-slate-500">Blackout</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-blue-400"></div>
+                <span className="text-sm text-slate-500">Override</span>
+              </div>
+            </div>
           </div>
 
           {/* Calendar Grid */}
@@ -1095,7 +1109,10 @@ const ShippingCalendarPage: React.FC = () => {
 
               const dayEvents = getEventsForDate(day.dateStr);
               const isToday = day.dateStr === new Date().toISOString().split('T')[0];
-              const hasEvents = dayEvents.length > 0;
+              const dayOfWeek = day.date.getDay();
+              const shippingStatus = getDateStatus(day.dateStr, dayOfWeek);
+              const blackout = blackoutDates.find(b => b.blackout_date === day.dateStr);
+              const override = overrideDates.find(o => o.override_date === day.dateStr);
 
               return (
                 <button
@@ -1105,14 +1122,40 @@ const ShippingCalendarPage: React.FC = () => {
                     setDayEventsPopupOpen(true);
                   }}
                   className={`min-h-[100px] p-1 text-left transition-all hover:bg-slate-100 border border-transparent hover:border-slate-300 rounded-lg ${
-                    isToday ? 'bg-emerald-50 ring-2 ring-emerald-400' : 'bg-white'
+                    isToday ? 'bg-emerald-50 ring-2 ring-emerald-400'
+                    : shippingStatus === 'blackout' ? 'bg-red-50/50'
+                    : shippingStatus === 'override' ? 'bg-blue-50/50'
+                    : 'bg-white'
                   }`}
                 >
-                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>
-                    {day.date.getDate()}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-sm font-medium ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>
+                      {day.date.getDate()}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      {shippingStatus === 'shipping' && (
+                        <Truck size={12} className="text-emerald-500" title="Shipping Day" />
+                      )}
+                      {shippingStatus === 'blackout' && (
+                        <X size={12} className="text-red-500" title={blackout?.reason || 'Blackout'} />
+                      )}
+                      {shippingStatus === 'override' && (
+                        <Truck size={12} className="text-blue-500" title={override?.reason || 'Override'} />
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-0.5 overflow-hidden">
-                    {dayEvents.slice(0, 3).map(event => (
+                    {shippingStatus === 'blackout' && (
+                      <div className="text-xs px-1.5 py-0.5 rounded truncate bg-red-100 text-red-700" title={blackout?.reason || 'Blackout'}>
+                        Blackout
+                      </div>
+                    )}
+                    {shippingStatus === 'override' && (
+                      <div className="text-xs px-1.5 py-0.5 rounded truncate bg-blue-100 text-blue-700" title={override?.reason || 'Override'}>
+                        Override{override?.cutoff_time ? ` (${formatTime(override.cutoff_time)})` : ''}
+                      </div>
+                    )}
+                    {dayEvents.slice(0, shippingStatus !== 'none' && shippingStatus !== 'shipping' ? 2 : 3).map(event => (
                       <div
                         key={event.id}
                         className={`text-xs px-1.5 py-0.5 rounded truncate ${
@@ -1128,9 +1171,9 @@ const ShippingCalendarPage: React.FC = () => {
                         {event.title}
                       </div>
                     ))}
-                    {dayEvents.length > 3 && (
+                    {dayEvents.length > (shippingStatus !== 'none' && shippingStatus !== 'shipping' ? 2 : 3) && (
                       <div className="text-xs text-slate-500 px-1.5">
-                        +{dayEvents.length - 3} more
+                        +{dayEvents.length - (shippingStatus !== 'none' && shippingStatus !== 'shipping' ? 2 : 3)} more
                       </div>
                     )}
                   </div>
@@ -1908,6 +1951,14 @@ const ShippingCalendarPage: React.FC = () => {
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">
                       {selectedDayEvents.length} event{selectedDayEvents.length !== 1 ? 's' : ''}
+                      {(() => {
+                        const d = new Date(selectedCalendarDate + 'T00:00:00');
+                        const status = getDateStatus(selectedCalendarDate, d.getDay());
+                        if (status === 'shipping') return ' · Shipping Day';
+                        if (status === 'blackout') return ' · Blackout';
+                        if (status === 'override') return ' · Override';
+                        return '';
+                      })()}
                     </p>
                   </div>
                   <button
@@ -1922,6 +1973,41 @@ const ShippingCalendarPage: React.FC = () => {
                 </div>
 
                 <div className="p-4 overflow-y-auto max-h-[60vh]">
+                  {/* Shipping schedule info */}
+                  {(() => {
+                    const d = new Date(selectedCalendarDate + 'T00:00:00');
+                    const status = getDateStatus(selectedCalendarDate, d.getDay());
+                    const blackout = blackoutDates.find(b => b.blackout_date === selectedCalendarDate);
+                    const override = overrideDates.find(o => o.override_date === selectedCalendarDate);
+                    if (status === 'none') return null;
+                    return (
+                      <div className={`mb-3 p-3 rounded-xl flex items-center gap-3 ${
+                        status === 'shipping' ? 'bg-emerald-50 border border-emerald-200' :
+                        status === 'blackout' ? 'bg-red-50 border border-red-200' :
+                        'bg-blue-50 border border-blue-200'
+                      }`}>
+                        <Truck size={16} className={
+                          status === 'shipping' ? 'text-emerald-600' :
+                          status === 'blackout' ? 'text-red-600' :
+                          'text-blue-600'
+                        } />
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            status === 'shipping' ? 'text-emerald-700' :
+                            status === 'blackout' ? 'text-red-700' :
+                            'text-blue-700'
+                          }`}>
+                            {status === 'shipping' && `Shipping Day · Cutoff ${formatTime(config.default_cutoff_time)}`}
+                            {status === 'blackout' && `Shipping Blackout${blackout?.reason ? `: ${blackout.reason}` : ''}`}
+                            {status === 'override' && `Shipping Override${override?.reason ? `: ${override.reason}` : ''}`}
+                          </p>
+                          {status === 'override' && override?.cutoff_time && (
+                            <p className="text-xs text-blue-600 mt-0.5">Custom cutoff: {formatTime(override.cutoff_time)}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {selectedDayEvents.length === 0 ? (
                     <div className="text-center py-8">
                       <Calendar className="mx-auto h-12 w-12 text-slate-300 mb-3" />
