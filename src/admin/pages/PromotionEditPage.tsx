@@ -1144,30 +1144,54 @@ const PromotionEditPage: React.FC<PromotionEditPageProps> = ({
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Total Uses Allowed
               </label>
-              <input
-                type="number"
-                name="usage_limit_total"
-                value={formData.usage_limit_total}
-                onChange={handleChange}
-                placeholder="Unlimited"
-                min="1"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  name="usage_limit_total"
+                  value={formData.usage_limit_total}
+                  onChange={handleChange}
+                  placeholder="Unlimited"
+                  min="1"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                {formData.usage_limit_total && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, usage_limit_total: '' }))}
+                    className="absolute right-10 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title="Reset to unlimited"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-slate-400 mt-1">Leave empty for unlimited</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Uses Per Customer
               </label>
-              <input
-                type="number"
-                name="usage_limit_per_customer"
-                value={formData.usage_limit_per_customer}
-                onChange={handleChange}
-                placeholder="Unlimited"
-                min="1"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-              />
+              <div className="relative">
+                <input
+                  type="number"
+                  name="usage_limit_per_customer"
+                  value={formData.usage_limit_per_customer}
+                  onChange={handleChange}
+                  placeholder="Unlimited"
+                  min="1"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                {formData.usage_limit_per_customer && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, usage_limit_per_customer: '' }))}
+                    className="absolute right-10 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    title="Reset to unlimited"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
               <p className="text-xs text-slate-400 mt-1">Leave empty for unlimited</p>
             </div>
           </div>
