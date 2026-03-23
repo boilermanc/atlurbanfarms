@@ -194,18 +194,11 @@ const BlogPage: React.FC<BlogPageProps> = ({ onViewPost }) => {
                 {/* Content */}
                 <div className="p-6">
                   {/* Category & Tags */}
-                  {(post.category || (post.tags && post.tags.length > 0)) && (
+                  {post.category && (
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      {post.category && (
-                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                          {post.category}
-                        </span>
-                      )}
-                      {post.tags?.map(tag => (
-                        <span key={tag.id} className="text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
-                          {tag.name}
-                        </span>
-                      ))}
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                        {post.category}
+                      </span>
                     </div>
                   )}
 

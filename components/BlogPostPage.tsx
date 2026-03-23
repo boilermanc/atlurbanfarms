@@ -195,18 +195,11 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack, onNavigate })
           className="mb-8"
         >
           {/* Category & Tags */}
-          {(post.category || (post.tags && post.tags.length > 0)) && (
+          {post.category && (
             <div className="flex flex-wrap gap-2 mb-4">
-              {post.category && (
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                  {post.category}
-                </span>
-              )}
-              {post.tags?.map(tag => (
-                <span key={tag.id} className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                  {tag.name}
-                </span>
-              ))}
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                {post.category}
+              </span>
             </div>
           )}
 
