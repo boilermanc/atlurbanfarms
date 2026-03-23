@@ -837,7 +837,8 @@ serve(async (req) => {
           city_locality: ship_to.city_locality,
           state_province: ship_to.state_province,
           postal_code: ship_to.postal_code,
-          country_code: ship_to.country_code || 'US'
+          country_code: ship_to.country_code || 'US',
+          address_residential_indicator: 'yes'
         },
         packages: packageList.map(pkg => ({
           weight: pkg.weight,

@@ -353,6 +353,7 @@ serve(async (req) => {
             state_province: shipTo.state_province,
             postal_code: shipTo.postal_code,
             country_code: shipTo.country_code,
+            address_residential_indicator: 'yes',
           },
           packages: finalPackages,
         },
