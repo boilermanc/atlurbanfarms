@@ -89,6 +89,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
   const colorButtonRef = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const { settings: brandingSettings } = useBrandingSettings();
+  // Track whether user has actually interacted with the editor
+  const userHasEdited = useRef(false);
+  const isInitializing = useRef(true);
 
   const editor = useEditor({
     extensions: [
@@ -134,15 +137,30 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
       },
     },
+    onCreate: () => {
+      // Mark initialization complete after first render cycle
+      requestAnimationFrame(() => {
+        isInitializing.current = false;
+      });
+    },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      // Only propagate changes from actual user edits, not from initial content parsing
+      if (!isInitializing.current) {
+        userHasEdited.current = true;
+        onChange(editor.getHTML());
+      }
     },
   });
 
-  // Sync external value changes into the editor (e.g., when editing an existing FAQ)
+  // Sync external value changes into the editor, but only if the user
+  // hasn't started editing (avoids fighting with the user's input)
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    if (editor && !userHasEdited.current && value !== editor.getHTML()) {
+      isInitializing.current = true;
       editor.commands.setContent(value);
+      requestAnimationFrame(() => {
+        isInitializing.current = false;
+      });
     }
   }, [editor, value]);
 

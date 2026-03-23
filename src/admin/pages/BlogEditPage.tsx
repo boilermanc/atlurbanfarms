@@ -9,6 +9,20 @@ import { useBlogTags, useBlogPostTags, BlogTag } from '../hooks/useBlogTags';
 
 type EditorMode = 'visual' | 'html' | 'preview';
 
+// Detects HTML features that TipTap's visual editor will strip on round-trip
+function hasRichHtml(html: string): boolean {
+  if (!html) return false;
+  // Check for inline styles, custom classes, divs, spans with attributes,
+  // tables, iframes, or any element with a style attribute
+  return /\sstyle\s*=/i.test(html) ||
+    /\sclass\s*=/i.test(html) ||
+    /<\s*(div|table|thead|tbody|tr|td|th|section|article|header|footer|nav|aside|figure|figcaption|details|summary)\b/i.test(html) ||
+    /<\s*span\b[^>]+>/i.test(html) ||
+    /<\s*iframe\b/i.test(html) ||
+    /<!--[\s\S]*?-->/i.test(html) ||
+    /<\s*br\s*\/?>/i.test(html) && /<\s*p\b/i.test(html); // mixed br + p can get mangled
+}
+
 type PostVisibility = 'public' | 'portal_school' | 'portal_wholesale' | 'members_only';
 
 interface BlogFormData {
@@ -44,7 +58,9 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const [uploading, setUploading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [editorMode, setEditorMode] = useState<EditorMode>('visual');
+  const [editorMode, setEditorMode] = useState<EditorMode>(isEditMode ? 'html' : 'visual');
+  const [visualModeUsed, setVisualModeUsed] = useState(!isEditMode); // new posts start in visual, so mark as already used
+  const [showVisualWarning, setShowVisualWarning] = useState(false);
   const [uploadingHtmlImage, setUploadingHtmlImage] = useState(false);
   const [uploadingForUrl, setUploadingForUrl] = useState(false);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
@@ -176,6 +192,24 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
       }
       return newData;
     });
+  };
+
+  // Gate switching to visual mode — warn if HTML has features TipTap will strip
+  const handleEditorModeSwitch = (mode: EditorMode) => {
+    if (mode === 'visual' && !visualModeUsed && formData.content && hasRichHtml(formData.content)) {
+      setShowVisualWarning(true);
+      return;
+    }
+    if (mode === 'visual') {
+      setVisualModeUsed(true);
+    }
+    setEditorMode(mode);
+  };
+
+  const confirmSwitchToVisual = () => {
+    setShowVisualWarning(false);
+    setVisualModeUsed(true);
+    setEditorMode('visual');
   };
 
   const handlePublishToggle = () => {
@@ -544,7 +578,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                 <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
                   <button
                     type="button"
-                    onClick={() => setEditorMode('visual')}
+                    onClick={() => handleEditorModeSwitch('visual')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                       editorMode === 'visual'
                         ? 'bg-white text-slate-800 shadow-sm'
@@ -556,7 +590,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditorMode('html')}
+                    onClick={() => handleEditorModeSwitch('html')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                       editorMode === 'html'
                         ? 'bg-white text-slate-800 shadow-sm'
@@ -568,7 +602,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditorMode('preview')}
+                    onClick={() => handleEditorModeSwitch('preview')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                       editorMode === 'preview'
                         ? 'bg-white text-slate-800 shadow-sm'
@@ -954,6 +988,43 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
           </div>
         </div>
       </form>
+
+      {/* Visual Mode Warning Modal */}
+      {showVisualWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                  <path d="M12 9v4"/><path d="M12 17h.01"/>
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-slate-800">Switch to Visual Editor?</h3>
+            </div>
+            <p className="text-slate-600 text-sm mb-2">
+              Your content contains custom HTML formatting (inline styles, classes, or layout elements) that the visual editor <strong>cannot preserve</strong>.
+            </p>
+            <p className="text-slate-600 text-sm mb-5">
+              Switching will <strong>permanently strip</strong> this formatting. Use the HTML tab to edit safely, or Preview to see how it looks.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowVisualWarning(false)}
+                className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium transition-colors"
+              >
+                Stay in HTML
+              </button>
+              <button
+                onClick={confirmSwitchToVisual}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors"
+              >
+                Switch Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (
