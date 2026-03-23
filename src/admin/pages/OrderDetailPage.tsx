@@ -2029,7 +2029,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                           dimensions: { length: pkg.length, width: pkg.width, height: pkg.height, unit: 'inch' as const },
                         }));
                         const { data, error: fnError } = await supabase.functions.invoke('shipengine-get-rates', {
-                          body: { ship_to: shipTo, packages },
+                          body: { ship_to: shipTo, packages, is_admin: true },
                         });
                         if (fnError) throw new Error(fnError.message || 'Failed to fetch rates');
                         if (!data.success) throw new Error(data.error?.message || 'Failed to fetch rates');
@@ -2074,7 +2074,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                               try {
                                 const { error: updateErr } = await supabase.from('orders').update({
                                   shipping_rate_id: rate.rate_id,
-                                  shipping_cost: rate.shipping_amount,
                                   shipping_method_name: `${rate.carrier_friendly_name} ${rate.service_type}`,
                                   shipping_carrier_id: rate.carrier_id,
                                   shipping_service_code: rate.service_code,
@@ -2098,9 +2097,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                             </div>
                             <div className="flex items-center justify-between mt-0.5">
                               <span className="text-xs text-slate-500">{rate.service_type}</span>
-                              {rate.delivery_days != null && (
-                                <span className="text-xs text-slate-500">{rate.delivery_days} day{rate.delivery_days !== 1 ? 's' : ''}</span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {rate.customer_amount != null && rate.customer_amount !== rate.shipping_amount && (
+                                  <span className="text-xs text-amber-600">cust. paid ${rate.customer_amount.toFixed(2)}</span>
+                                )}
+                                {rate.delivery_days != null && (
+                                  <span className="text-xs text-slate-500">{rate.delivery_days} day{rate.delivery_days !== 1 ? 's' : ''}</span>
+                                )}
+                              </div>
                             </div>
                           </button>
                         ))}

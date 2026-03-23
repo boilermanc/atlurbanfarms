@@ -38,6 +38,7 @@ interface RateRequest {
   order_items?: Array<{
     quantity: number
   }>
+  is_admin?: boolean
 }
 
 interface ShippingRate {
@@ -48,6 +49,7 @@ interface ShippingRate {
   service_code: string
   service_type: string
   shipping_amount: number
+  customer_amount?: number
   currency: string
   delivery_days: number | null
   estimated_delivery_date: string | null
@@ -709,7 +711,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { ship_to, packages, order_items }: RateRequest = await req.json()
+    const { ship_to, packages, order_items, is_admin }: RateRequest = await req.json()
 
     if (!ship_to || !ship_to.address_line1 || !ship_to.city_locality ||
         !ship_to.state_province || !ship_to.postal_code) {
@@ -913,14 +915,18 @@ serve(async (req) => {
         return true
       })
       .map((rate: any) => {
-        // Apply markup based on configured type
-        let amount = rate.shipping_amount.amount
-        if (markupType === 'fixed' && markupDollars > 0) {
-          // Fixed dollar amount markup
-          amount = amount + markupDollars
-        } else if (markupType === 'percentage' && markupPercent > 0) {
-          // Percentage markup
-          amount = amount * (1 + markupPercent / 100)
+        const rawAmount = rate.shipping_amount.amount
+
+        // Apply markup based on configured type (skip for admin requests)
+        let amount = rawAmount
+        if (!is_admin) {
+          if (markupType === 'fixed' && markupDollars > 0) {
+            // Fixed dollar amount markup
+            amount = amount + markupDollars
+          } else if (markupType === 'percentage' && markupPercent > 0) {
+            // Percentage markup
+            amount = amount * (1 + markupPercent / 100)
+          }
         }
 
         // Apply zone surcharges
@@ -933,6 +939,24 @@ serve(async (req) => {
 
         amount = Math.round(amount * 100) / 100 // Round to 2 decimal places
 
+        // For admin requests, compute the marked-up amount so UI can show "customer paid"
+        let customerAmount: number | undefined
+        if (is_admin) {
+          let marked = rawAmount
+          if (markupType === 'fixed' && markupDollars > 0) {
+            marked = marked + markupDollars
+          } else if (markupType === 'percentage' && markupPercent > 0) {
+            marked = marked * (1 + markupPercent / 100)
+          }
+          if (zoneCheck.surcharge_amount) {
+            marked = marked + zoneCheck.surcharge_amount
+          }
+          if (zoneCheck.surcharge_percent) {
+            marked = marked * (1 + zoneCheck.surcharge_percent / 100)
+          }
+          customerAmount = Math.round(marked * 100) / 100
+        }
+
         return {
           rate_id: rate.rate_id,
           carrier_id: rate.carrier_id,
@@ -941,6 +965,7 @@ serve(async (req) => {
           service_code: rate.service_code,
           service_type: rate.service_type,
           shipping_amount: amount,
+          customer_amount: customerAmount,
           currency: rate.shipping_amount.currency || 'USD',
           delivery_days: rate.delivery_days || null,
           estimated_delivery_date: rate.estimated_delivery_date || null,
