@@ -183,7 +183,7 @@ const WeeklySalesReportPage: React.FC = () => {
           `)
           .gte('created_at', startISO)
           .lt('created_at', endISO)
-          .not('status', 'in', '("cancelled","pending")')
+          .not('status', 'in', '(cancelled,pending)')
           .order('created_at', { ascending: true }),
       ]);
 
