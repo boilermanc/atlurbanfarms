@@ -157,6 +157,8 @@ const WeeklySalesReportPage: React.FC = () => {
       endExclusive.setDate(endExclusive.getDate() + 1);
       const endISO = new Date(endExclusive.toISOString().split('T')[0] + 'T00:00:00').toISOString();
 
+      console.log('Fetching orders with params:', { startDate: startISO, endDate: endISO, weekStart, weekEnd });
+
       const [legacyResult, newResult] = await Promise.all([
         supabase
           .from('legacy_orders')
@@ -186,6 +188,9 @@ const WeeklySalesReportPage: React.FC = () => {
           .not('status', 'in', '(cancelled,pending)')
           .order('created_at', { ascending: true }),
       ]);
+
+      console.log('Legacy orders result:', { error: legacyResult.error, count: legacyResult.data?.length });
+      console.log('New orders result:', { error: newResult.error, count: newResult.data?.length });
 
       if (legacyResult.error) throw legacyResult.error;
       if (newResult.error) throw newResult.error;
@@ -258,6 +263,7 @@ const WeeklySalesReportPage: React.FC = () => {
       }
       setOrders(normalized);
     } catch (err: unknown) {
+      console.error('WeeklySalesReport error:', err);
       const message = err instanceof Error ? err.message : 'Failed to load orders.';
       setError(message);
     } finally {
