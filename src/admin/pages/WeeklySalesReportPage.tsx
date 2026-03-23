@@ -178,7 +178,7 @@ const WeeklySalesReportPage: React.FC = () => {
             id, order_number, created_at, shipping_cost, subtotal, tax, total,
             shipping_first_name, shipping_last_name, shipping_state, shipping_city, shipping_zip,
             shipping_phone, guest_email,
-            customers ( email, phone ),
+            customers!orders_customer_id_fkey ( email, phone ),
             shipping_method_name, discount_amount, promotion_code, is_pickup, status,
             customer_notes, gift_card_amount, billing_first_name, billing_last_name,
             order_items ( quantity, product_name, line_total )
