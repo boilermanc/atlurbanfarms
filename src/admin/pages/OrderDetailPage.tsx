@@ -16,6 +16,7 @@ import {
   OrderRefund,
   OrderRefundItem,
   ManualRefundMethod,
+  getOrderSeedlingTotal,
 } from '../hooks/useOrders';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -145,7 +146,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   // Pre-fill label package weight/dimensions from order seedling count
   useEffect(() => {
     if (!order?.items || order.items.length === 0) return;
-    const totalQty = order.items.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
+    // Use bundle-aware seedling count (e.g., "20 Seedling Variety Pack" = 20 seedlings, not 1)
+    const totalQty = getOrderSeedlingTotal(order.items);
     if (totalQty <= 0) return;
 
     const SEEDLING_WEIGHT_LBS = 0.12;

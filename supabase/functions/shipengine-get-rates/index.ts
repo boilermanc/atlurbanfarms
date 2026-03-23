@@ -37,6 +37,7 @@ interface RateRequest {
   packages?: PackageDetails[]
   order_items?: Array<{
     quantity: number
+    bundle_item_count?: number
   }>
   is_admin?: boolean
 }
@@ -783,7 +784,13 @@ serve(async (req) => {
     } else if (order_items && order_items.length > 0) {
       // Calculate packages based on order items using shipping_packages config
       const packageConfigs = await getShippingPackageConfigs(supabaseClient)
-      const totalQuantity = order_items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+      // Account for bundles: a "20 Seedling Variety Pack" (bundle_item_count=20) × qty=1 = 20 seedlings
+      const totalQuantity = order_items.reduce((sum, item) => {
+        const seedlings = item.bundle_item_count
+          ? item.bundle_item_count * (Number(item.quantity) || 0)
+          : (Number(item.quantity) || 0)
+        return sum + seedlings
+      }, 0)
 
       console.log('[shipengine-get-rates] Package calculation input:', JSON.stringify({
         order_items_count: order_items.length,
