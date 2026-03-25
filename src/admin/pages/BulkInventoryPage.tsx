@@ -239,11 +239,37 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         throw new Error(errors.join('; '));
       }
 
+      // Trigger back-in-stock notifications for products that went from 0 → >0
+      const restockedWithAlerts = products.filter(p =>
+        p.quantity_available === 0 &&
+        changes.has(p.id) &&
+        (changes.get(p.id) ?? 0) > 0 &&
+        p.alert_count > 0
+      );
+
+      if (restockedWithAlerts.length > 0) {
+        console.log(`Sending back-in-stock notifications for ${restockedWithAlerts.length} product(s)`);
+        const notifyResults = await Promise.allSettled(
+          restockedWithAlerts.map(p =>
+            supabase.functions.invoke('back-in-stock-notify', {
+              body: { product_id: p.id },
+            })
+          )
+        );
+        const notifiedCount = notifyResults.filter(r => r.status === 'fulfilled').length;
+        if (notifiedCount > 0) {
+          console.log(`Back-in-stock notifications sent for ${notifiedCount} product(s)`);
+        }
+      }
+
       // Show success message
+      const notifyMsg = restockedWithAlerts.length > 0
+        ? ` Notified ${restockedWithAlerts.reduce((sum, p) => sum + p.alert_count, 0)} subscriber(s).`
+        : '';
       if (errors.length > 0) {
-        setSuccessMessage(`Updated ${updatedCount} product(s). Some failed: ${errors.join('; ')}`);
+        setSuccessMessage(`Updated ${updatedCount} product(s). Some failed: ${errors.join('; ')}${notifyMsg}`);
       } else {
-        setSuccessMessage(`Successfully updated ${updatedCount} product(s)`);
+        setSuccessMessage(`Successfully updated ${updatedCount} product(s).${notifyMsg}`);
       }
 
       // Clear changes
