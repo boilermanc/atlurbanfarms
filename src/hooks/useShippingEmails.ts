@@ -2,9 +2,7 @@ import { useCallback, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export type ShippingEmailTemplate =
-  | 'shipping_label_created'
-  | 'shipping_in_transit'
-  | 'shipping_out_for_delivery'
+  | 'shipping_notification'
   | 'shipping_delivered'
   | 'pickup_ready'
   | 'pickup_reminder'
@@ -242,66 +240,6 @@ export function useShippingEmails() {
   }, [])
 
   /**
-   * Convenience method: Send "label created" email
-   */
-  const sendLabelCreatedEmail = useCallback(async (
-    orderId: string,
-    data: {
-      tracking_number: string
-      carrier_code: string
-      estimated_delivery?: string
-    }
-  ) => {
-    return sendShippingEmail('shipping_label_created', orderId, {
-      tracking_number: data.tracking_number,
-      carrier_code: data.carrier_code,
-      carrier: getCarrierDisplayName(data.carrier_code),
-      tracking_url: generateTrackingUrl(data.tracking_number, data.carrier_code),
-      estimated_delivery: data.estimated_delivery,
-    })
-  }, [sendShippingEmail])
-
-  /**
-   * Convenience method: Send "in transit" email
-   */
-  const sendInTransitEmail = useCallback(async (
-    orderId: string,
-    data: {
-      tracking_number: string
-      carrier_code: string
-      current_location?: string
-      estimated_delivery?: string
-    }
-  ) => {
-    return sendShippingEmail('shipping_in_transit', orderId, {
-      tracking_number: data.tracking_number,
-      carrier_code: data.carrier_code,
-      carrier: getCarrierDisplayName(data.carrier_code),
-      tracking_url: generateTrackingUrl(data.tracking_number, data.carrier_code),
-      current_location: data.current_location,
-      estimated_delivery: data.estimated_delivery,
-    })
-  }, [sendShippingEmail])
-
-  /**
-   * Convenience method: Send "out for delivery" email
-   */
-  const sendOutForDeliveryEmail = useCallback(async (
-    orderId: string,
-    data: {
-      tracking_number: string
-      carrier_code: string
-    }
-  ) => {
-    return sendShippingEmail('shipping_out_for_delivery', orderId, {
-      tracking_number: data.tracking_number,
-      carrier_code: data.carrier_code,
-      carrier: getCarrierDisplayName(data.carrier_code),
-      tracking_url: generateTrackingUrl(data.tracking_number, data.carrier_code),
-    })
-  }, [sendShippingEmail])
-
-  /**
    * Convenience method: Send "delivered" email
    */
   const sendDeliveredEmail = useCallback(async (
@@ -361,9 +299,6 @@ export function useShippingEmails() {
 
   return {
     sendShippingEmail,
-    sendLabelCreatedEmail,
-    sendInTransitEmail,
-    sendOutForDeliveryEmail,
     sendDeliveredEmail,
     sendPickupReadyEmail,
     sendPickupReminderEmail,

@@ -8,9 +8,7 @@
 import { getBrandingSettings } from './settings.ts'
 
 export type ShippingEmailTemplate =
-  | 'shipping_label_created'
-  | 'shipping_in_transit'
-  | 'shipping_out_for_delivery'
+  | 'shipping_notification'
   | 'shipping_delivered'
   | 'pickup_ready'
   | 'pickup_reminder'
@@ -104,9 +102,6 @@ export function generateTrackingUrl(trackingNumber: string, carrierCode: string)
 export function getStatusTextForTemplate(templateSlug: string): string {
   const statusMap: Record<string, string> = {
     'shipping_notification': 'Shipped',
-    'shipping_label_created': 'Label Created',
-    'shipping_in_transit': 'In Transit',
-    'shipping_out_for_delivery': 'Out for Delivery',
     'shipping_delivered': 'Delivered',
   }
   return statusMap[templateSlug] || 'Processing'
@@ -118,9 +113,6 @@ export function getStatusTextForTemplate(templateSlug: string): string {
 export function getProgressStepForTemplate(templateSlug: string): number {
   const stepMap: Record<string, number> = {
     'shipping_notification': 2,
-    'shipping_label_created': 2,
-    'shipping_in_transit': 3,
-    'shipping_out_for_delivery': 3,
     'shipping_delivered': 4,
   }
   return stepMap[templateSlug] || 1
@@ -389,10 +381,7 @@ export async function sendShippingEmail(
  */
 export function getEmailTemplateForTrackingStatus(statusCode: string): ShippingEmailTemplate | null {
   const statusMap: Record<string, ShippingEmailTemplate> = {
-    'IT': 'shipping_in_transit',    // In Transit
-    'OT': 'shipping_out_for_delivery', // Out for Delivery (some carriers use OT)
     'DE': 'shipping_delivered',     // Delivered
-    // Note: Label creation is handled separately when label is created
   }
 
   return statusMap[statusCode] || null
@@ -410,7 +399,6 @@ export function shouldSendTrackingEmail(
     return false
   }
 
-  // Only send for specific statuses
-  const emailStatuses = ['IT', 'OT', 'DE']
-  return emailStatuses.includes(newStatus)
+  // Only send for delivered status
+  return newStatus === 'DE'
 }

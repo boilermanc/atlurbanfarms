@@ -1,0 +1,102 @@
+{
+  "name": "Shipping Notification — 24h After Label Creation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "notes": "Runs every hour on the hour.\n\nThe edge function handles finding shipments where the 24-hour delay has elapsed and sends the shipping_notification email with tracking info."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://povudgtvzggnxwgtjexa.supabase.co/functions/v1/send-scheduled-shipping-emails",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "send-emails",
+      "name": "Send Scheduled Shipping Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "notes": "Calls the send-scheduled-shipping-emails edge function.\n\nThe function queries shipments where shipping_email_send_at <= now() and shipping_email_sent_at IS NULL, sends the shipping_notification email for each, and marks them as sent.\n\nReturns { success, sent, failed, total }."
+    },
+    {
+      "parameters": {
+        "content": "## Shipping Notification Workflow\n\n**Trigger:** Every hour.\n\n**Action:** Calls the `send-scheduled-shipping-emails` edge function which finds shipments where 24 hours have elapsed since label creation and sends the `shipping_notification` email with tracking info.\n\n### Setup Checklist\n1. ☐ Deploy `send-scheduled-shipping-emails` edge function with `--no-verify-jwt`\n2. ☐ Run migration `20260325100000_fix_shipping_emails.sql`\n3. ☐ Select 'Supabase Farm Core' credential after importing\n4. ☐ Test by manually triggering the workflow\n5. ☐ Activate the workflow",
+        "height": 280,
+        "width": 360
+      },
+      "id": "sticky-note",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [180, -40]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Send Scheduled Shipping Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/New_York"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "operations"
+    },
+    {
+      "name": "email"
+    },
+    {
+      "name": "shipping"
+    }
+  ],
+  "triggerCount": 1
+}

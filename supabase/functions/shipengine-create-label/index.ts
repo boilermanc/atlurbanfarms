@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
-import { sendShippingEmail, getCarrierDisplayName, generateTrackingUrl } from '../_shared/shipping-emails.ts'
+import { generateTrackingUrl } from '../_shared/shipping-emails.ts'
 
 // Standard weight per seedling based on WooCommerce historical data
 const SEEDLING_WEIGHT_OZ = 1.92
@@ -414,6 +414,9 @@ serve(async (req) => {
         status: 'label_created',
         voided: false,
         voided_at: null,
+        // Schedule shipping notification email for 24 hours from now
+        shipping_email_send_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        shipping_email_sent_at: null,
       }, { onConflict: 'order_id' })
 
     if (shipmentError) {
@@ -436,28 +439,7 @@ serve(async (req) => {
       console.error('[create-label] Error updating order:', orderUpdateError)
     }
 
-    // --- Send shipping notification email ---
-    try {
-      const emailResult = await sendShippingEmail(
-        supabaseClient,
-        'shipping_label_created',
-        order_id,
-        {
-          tracking_number: labelData.tracking_number,
-          carrier_code: 'ups',
-          carrier: getCarrierDisplayName('ups'),
-          tracking_url: trackingUrl,
-        }
-      )
-
-      if (emailResult.success) {
-        console.log('[create-label] Shipping notification email sent')
-      } else {
-        console.warn('[create-label] Email send failed:', emailResult.error)
-      }
-    } catch (emailError) {
-      console.error('[create-label] Email error (non-fatal):', emailError)
-    }
+    console.log(`[create-label] Shipping notification email scheduled for ~24h from now`)
 
     // --- Return result ---
     return new Response(

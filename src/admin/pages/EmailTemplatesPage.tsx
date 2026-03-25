@@ -14,15 +14,12 @@ import {
   VariableSchema
 } from '../hooks/useEmailTemplates'
 import { useEmailService } from '../../hooks/useIntegrations'
-import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, Tag, Truck, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Plus, ShoppingCart } from 'lucide-react'
+import { Save, Send, Monitor, Smartphone, History, X, Mail, Package, MapPin, Clock, CheckCircle, Key, UserPlus, AlertTriangle, Plus, ShoppingCart } from 'lucide-react'
 
 // Template icons mapping
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   order_confirmation: <Mail size={20} />,
   shipping_notification: <Package size={20} />,
-  shipping_label_created: <Tag size={20} />,
-  shipping_in_transit: <Truck size={20} />,
-  shipping_out_for_delivery: <Truck size={20} />,
   shipping_delivered: <CheckCircle size={20} />,
   pickup_ready: <MapPin size={20} />,
   pickup_reminder: <Clock size={20} />,
