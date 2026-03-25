@@ -60,8 +60,8 @@ const TemplateCard: React.FC<{
         {TEMPLATE_ICONS[template.template_key] || <Mail size={20} />}
       </span>
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold truncate">{template.name}</h3>
-        <p className={`text-sm truncate ${selected ? 'text-emerald-100' : 'text-slate-500'}`}>
+        <h3 className="font-semibold break-words">{template.name}</h3>
+        <p className={`text-sm break-words ${selected ? 'text-emerald-100' : 'text-slate-500'}`}>
           {template.description || 'No description'}
         </p>
         <div className="flex items-center gap-2 mt-2">
@@ -407,7 +407,7 @@ const EmailTemplatesPage: React.FC = () => {
 
   return (
     <AdminPageWrapper>
-      <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="flex flex-col h-[calc(100vh-120px)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -456,7 +456,7 @@ const EmailTemplatesPage: React.FC = () => {
         {/* Main content */}
         <div className="flex gap-6 flex-1 min-h-0">
           {/* Template list sidebar */}
-          <div className="w-64 flex-shrink-0 overflow-y-auto">
+          <div className="w-72 flex-shrink-0 overflow-y-auto overflow-x-hidden">
             {/* Add new template button */}
             <button
               onClick={() => setShowCreateModal(true)}

@@ -876,7 +876,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
           <AdminHeader onLogout={handleLogout} onMenuClick={() => setSidebarOpen(prev => !prev)} />
 
           {/* Main content */}
-          <main className="flex-1 p-4 md:p-8 overflow-auto max-w-[1600px]">
+          <main className="flex-1 p-4 md:p-8 overflow-y-auto overflow-x-hidden max-w-[1600px]">
             <ErrorBoundary>
               <Suspense fallback={<PageLoader />}>
                 {renderPage()}
