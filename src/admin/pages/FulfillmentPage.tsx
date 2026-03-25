@@ -5,7 +5,7 @@ import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, use
 import { useEmailService } from '../../hooks/useIntegrations';
 import { useEmailTemplates, EmailTemplate } from '../hooks/useEmailTemplates';
 import { supabase } from '../../lib/supabase';
-import { Printer, X, RefreshCw, Search, ChevronDown, Check, Mail, Trash2, FileText, Send, AlertCircle, CheckCircle } from 'lucide-react';
+import { Printer, X, RefreshCw, Search, ChevronDown, ChevronUp, Check, Mail, Trash2, FileText, Send, AlertCircle, CheckCircle } from 'lucide-react';
 
 const formatStatusLabel = (status: string) =>
   ORDER_STATUS_CONFIG[status as OrderStatus]?.label || status.replace(/_/g, ' ');
@@ -19,6 +19,12 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set(['processing']));
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sort state
+  type SortField = 'order_number' | 'created_at' | 'total';
+  type SortDirection = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Other filter state
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -74,7 +80,41 @@ const FulfillmentPage: React.FC<FulfillmentPageProps> = ({ onViewOrder }) => {
   }), [selectedStatuses, dateFrom, dateTo, searchTerm, currentPage]);
 
   // Fetch orders
-  const { orders, totalCount, totalPages, loading, error, refetch } = useOrders(filters);
+  const { orders: rawOrders, totalCount, totalPages, loading, error, refetch } = useOrders(filters);
+
+  // Sort orders
+  const handleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'order_number' ? 'asc' : 'desc');
+    }
+  }, [sortField]);
+
+  const orders = useMemo(() => {
+    if (!rawOrders) return rawOrders;
+    const sorted = [...rawOrders];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'order_number': {
+          const numA = parseInt(String(a.order_number).replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt(String(b.order_number).replace(/\D/g, ''), 10) || 0;
+          cmp = numA - numB;
+          break;
+        }
+        case 'created_at':
+          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'total':
+          cmp = (a.total || 0) - (b.total || 0);
+          break;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [rawOrders, sortField, sortDirection]);
 
   // Handle status toggle
   const toggleStatus = (status: string) => {
@@ -1278,13 +1318,27 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                       </button>
                     </th>
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
-                      Order #
+                      <button onClick={() => handleSort('order_number')} className="inline-flex items-center gap-1 hover:text-slate-700 transition-colors">
+                        Order #
+                        {sortField === 'order_number' ? (
+                          sortDirection === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-30" />
+                        )}
+                      </button>
                     </th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">
                       Type
                     </th>
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
-                      Date
+                      <button onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-slate-700 transition-colors">
+                        Date
+                        {sortField === 'created_at' ? (
+                          sortDirection === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-30" />
+                        )}
+                      </button>
                     </th>
                     <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Customer
@@ -1296,7 +1350,14 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                       Items
                     </th>
                     <th className="text-right text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
-                      Total
+                      <button onClick={() => handleSort('total')} className="inline-flex items-center gap-1 hover:text-slate-700 transition-colors ml-auto">
+                        Total
+                        {sortField === 'total' ? (
+                          sortDirection === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-30" />
+                        )}
+                      </button>
                     </th>
                     <th className="text-center text-xs font-semibold text-slate-500 uppercase tracking-wider px-6 py-3">
                       Status
