@@ -100,8 +100,7 @@ export function useCustomerProfile(userId) {
 
     try {
       // Update core customer fields in customers table
-      const customerFields = {
-        id: userId,
+      const customerUpdates = {
         first_name: updates.first_name,
         last_name: updates.last_name,
         phone: updates.phone,
@@ -111,18 +110,64 @@ export function useCustomerProfile(userId) {
         updated_at: new Date().toISOString()
       }
 
-      // Include email if provided (required for upsert when customer row doesn't exist yet)
-      if (updates.email) {
-        customerFields.email = updates.email
-      }
-
-      const { data: customerData, error: customerError } = await supabase
+      // Check if a customer row exists for this auth user
+      const { data: existingById } = await supabase
         .from('customers')
-        .upsert(customerFields)
-        .select()
-        .single()
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle()
 
-      if (customerError) throw customerError
+      let customerData
+
+      if (existingById) {
+        // Customer row linked to auth account — update it
+        const { data, error } = await supabase
+          .from('customers')
+          .update(customerUpdates)
+          .eq('id', userId)
+          .select()
+          .single()
+        if (error) throw error
+        customerData = data
+      } else if (updates.email) {
+        // No customer with auth ID — check for pre-existing record by email
+        // (e.g., from WooCommerce import or guest checkout)
+        const { data: existingByEmail } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('email', updates.email)
+          .maybeSingle()
+
+        if (existingByEmail) {
+          // Claim the existing customer record for this auth account
+          const { data, error } = await supabase
+            .from('customers')
+            .update({ ...customerUpdates, id: userId })
+            .eq('id', existingByEmail.id)
+            .select()
+            .single()
+          if (error) throw error
+          customerData = data
+        } else {
+          // No customer record at all — insert new
+          const { data, error } = await supabase
+            .from('customers')
+            .insert({ id: userId, email: updates.email, ...customerUpdates })
+            .select()
+            .single()
+          if (error) throw error
+          customerData = data
+        }
+      } else {
+        // No email available, insert with just the ID
+        const { data, error } = await supabase
+          .from('customers')
+          .insert({ id: userId, ...customerUpdates })
+          .select()
+          .single()
+        if (error) throw error
+        customerData = data
+      }
 
       // Update profile fields in customer_profiles table (separate table)
       const hasProfileFields = updates.growing_environment !== undefined ||
