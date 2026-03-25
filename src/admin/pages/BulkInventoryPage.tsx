@@ -687,6 +687,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                                 onBlur={() => handleSalePriceCommit(product)}
                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                                 placeholder="none"
+                                style={{ scrollMarginBottom: '6rem' }}
                                 className={`w-28 px-3 py-2 text-right border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                                   salePriceErrors.has(product.id)
                                     ? 'border-red-300 bg-red-50 focus:ring-red-500/20 focus:border-red-500'
@@ -737,6 +738,7 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
                             min="0"
                             value={newQty}
                             onChange={(e) => handleQuantityChange(product.id, e.target.value)}
+                            style={{ scrollMarginBottom: '6rem' }}
                             className={`w-24 px-3 py-2 text-center border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                               hasQtyChange
                                 ? 'border-amber-300 bg-amber-50 focus:ring-amber-500/20 focus:border-amber-500 font-semibold'
