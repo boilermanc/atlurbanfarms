@@ -82,56 +82,6 @@ interface AdminLayoutProps {
   initialPage?: string;
 }
 
-const PAGE_TITLES: Record<string, string> = {
-  dashboard: 'Dashboard',
-  orders: 'Orders',
-  'purchase-orders': 'Purchase Orders',
-  'order-detail': 'Order Details',
-  'legacy-order-detail': 'Legacy Order Details',
-  'order-create': 'Create Order',
-  products: 'Products',
-  'product-edit': 'Edit Product',
-  categories: 'Categories',
-  inventory: 'Inventory',
-  'batch-edit': 'Batch Edit',
-  customers: 'Customers',
-  'customer-detail': 'Customer Details',
-  shipping: 'Shipping',
-  fulfillment: 'Fulfillment',
-  zones: 'Shipping Zones & Rules',
-  calendar: 'Events Calendar',
-  services: 'Shipping Services',
-  faqs: 'FAQs',
-  'content-pages': 'Content Pages',
-  'content-edit': 'Edit Content',
-  attribution: 'Attribution',
-  settings: 'Settings',
-  integrations: 'Integrations',
-  'email-templates': 'Email Templates',
-  reports: 'Reports',
-  'users-roles': 'Admin Users & Roles',
-  'audit-log': 'Audit Log',
-  promotions: 'Promotions',
-  'promotion-edit': 'Edit Promotion',
-  alerts: 'Alerts',
-  'gift-cards': 'Gift Cards',
-  'gift-card-detail': 'Gift Card Details',
-  'woo-import': 'WooCommerce Import',
-  'product-tags': 'Product Tags',
-  'customer-tags': 'Customer Tags',
-  'site-content': 'Site Content',
-  'growers': 'Team Members',
-  'sproutify-credits': 'Sproutify Credits',
-  'blog': 'Blog',
-  'blog-edit': 'Edit Blog Post',
-  'growing-systems': 'Growing Systems',
-  'growing-interests': 'Growing Interests',
-  'weekly-sales-report': 'Weekly Sales Report',
-  'email-reports': 'Email Reports',
-  'stripe-reconciliation': 'Stripe Reconciliation',
-  'school-partners': 'School Partners',
-};
-
 // Dashboard Stats Interface
 interface DashboardStats {
   todayOrders: number;
@@ -914,8 +864,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     }
   };
 
-  const pageTitle = PAGE_TITLES[currentPage] || 'Dashboard';
-
   return (
     <AdminProvider currentPage={currentPage} navigate={handleNavigate}>
       <div className="min-h-screen brand-gradient-subtle flex font-admin-body">
@@ -925,7 +873,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0 md:ml-64">
           {/* Header */}
-          <AdminHeader title={pageTitle} onLogout={handleLogout} onMenuClick={() => setSidebarOpen(prev => !prev)} />
+          <AdminHeader onLogout={handleLogout} onMenuClick={() => setSidebarOpen(prev => !prev)} />
 
           {/* Main content */}
           <main className="flex-1 p-4 md:p-8 overflow-auto max-w-[1600px]">
