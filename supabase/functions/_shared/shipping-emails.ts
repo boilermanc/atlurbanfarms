@@ -269,6 +269,11 @@ export async function sendShippingEmail(
       customerName = `${order.shipping_first_name} ${order.shipping_last_name || ''}`.trim()
     }
 
+    // Fall back to guest_email for guest checkout orders
+    if (!customerEmail && order.guest_email) {
+      customerEmail = order.guest_email
+    }
+
     if (!customerEmail) {
       console.error('Customer email not found for order:', orderId)
       return { success: false, error: 'Customer email not found' }
