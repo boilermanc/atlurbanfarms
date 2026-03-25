@@ -1,15 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useGrowingSystems, GrowingSystem } from '../hooks/useGrowingSystems';
-import { Plus, Edit2, Trash2, Sprout, X, Check, Search, ExternalLink } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Plus, Edit2, Trash2, Sprout, X, Check, Search, ExternalLink, ShoppingCart } from 'lucide-react';
 
-const GrowingSystemsPage: React.FC = () => {
+interface GrowingSystemsPageProps {
+  onNavigate?: (page: string) => void;
+  onFilterOrders?: (growingSystem: string) => void;
+}
+
+const GrowingSystemsPage: React.FC<GrowingSystemsPageProps> = ({ onNavigate, onFilterOrders }) => {
   const { systems, loading, error, createSystem, updateSystem, deleteSystem } = useGrowingSystems();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSystem, setEditingSystem] = useState<GrowingSystem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+
+  // Order counts per growing system name
+  const [orderCounts, setOrderCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState(true);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -26,6 +36,35 @@ const GrowingSystemsPage: React.FC = () => {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
   };
+
+  // Fetch order counts grouped by growing_system
+  const fetchOrderCounts = useCallback(async () => {
+    try {
+      setCountsLoading(true);
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select('growing_system')
+        .not('growing_system', 'is', null)
+        .is('deleted_at', null);
+
+      if (fetchError) throw fetchError;
+
+      const counts: Record<string, number> = {};
+      (data || []).forEach((row: { growing_system: string }) => {
+        const gs = row.growing_system;
+        counts[gs] = (counts[gs] || 0) + 1;
+      });
+      setOrderCounts(counts);
+    } catch (err) {
+      console.error('Error fetching order counts:', err);
+    } finally {
+      setCountsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrderCounts();
+  }, [fetchOrderCounts]);
 
   useEffect(() => {
     if (editingSystem && showAddForm && formRef.current) {
@@ -119,6 +158,33 @@ const GrowingSystemsPage: React.FC = () => {
       alert(result.error || 'Failed to toggle status');
     }
   };
+
+  const handleViewOrders = (systemName: string) => {
+    if (onFilterOrders) {
+      onFilterOrders(systemName);
+    }
+    if (onNavigate) {
+      onNavigate('orders');
+    }
+  };
+
+  // Get order count for a system name, including custom "Other" entries
+  const getOrderCount = (systemName: string): number => {
+    if (systemName === 'Other') {
+      // "Other" includes exact match plus any custom values not matching known system names
+      const knownNames = new Set(systems.map(s => s.name).filter(n => n !== 'Other'));
+      let count = 0;
+      for (const [gs, c] of Object.entries(orderCounts)) {
+        if (gs === 'Other' || !knownNames.has(gs)) {
+          count += c;
+        }
+      }
+      return count;
+    }
+    return orderCounts[systemName] || 0;
+  };
+
+  const totalOrders = Object.values(orderCounts).reduce((sum, c) => sum + c, 0);
 
   const filteredSystems = systems.filter(s => {
     if (!searchQuery) return true;
@@ -247,7 +313,7 @@ const GrowingSystemsPage: React.FC = () => {
                   onChange={(e) => setFormSortOrder(parseInt(e.target.value) || 0)}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
                 />
-                <p className="text-xs text-slate-400 mt-1">Lower numbers appear first</p>
+                <p className="text-xs text-slate-400 mt-1">Lower numbers appear first in checkout</p>
               </div>
 
               <div className="flex items-center gap-3 pt-7">
@@ -352,11 +418,11 @@ const GrowingSystemsPage: React.FC = () => {
                     <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       System Name
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Slug
+                    <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Orders
                     </th>
                     <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Order
+                      Sort
                     </th>
                     <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       Status
@@ -367,70 +433,84 @@ const GrowingSystemsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSystems.map((system) => (
-                    <tr key={system.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${system.is_active ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-                          <span className="font-medium text-slate-800">{system.name}</span>
-                          {system.website_url && (
-                            <a
-                              href={system.website_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-emerald-500 transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLink size={14} />
-                            </a>
+                  {filteredSystems.map((system) => {
+                    const count = getOrderCount(system.name);
+                    return (
+                      <tr key={system.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${system.is_active ? 'bg-emerald-400' : 'bg-slate-300'}`} />
+                            <span className="font-medium text-slate-800">{system.name}</span>
+                            {system.website_url && (
+                              <a
+                                href={system.website_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-slate-400 hover:text-emerald-500 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            )}
+                          </div>
+                          {system.description && (
+                            <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">
+                              {system.description}
+                            </p>
                           )}
-                        </div>
-                        {system.description && (
-                          <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">
-                            {system.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-4 px-4">
-                        <code className="text-sm text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                          {system.slug}
-                        </code>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <span className="text-sm text-slate-600">{system.sort_order}</span>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <button
-                          onClick={() => handleToggleActive(system)}
-                          className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border cursor-pointer transition-colors ${
-                            system.is_active
-                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                          }`}
-                        >
-                          {system.is_active ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center justify-end gap-2">
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          {countsLoading ? (
+                            <span className="text-sm text-slate-400">...</span>
+                          ) : count > 0 ? (
+                            <button
+                              onClick={() => handleViewOrders(system.name)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full transition-colors"
+                              title={`View ${count} orders using ${system.name}`}
+                            >
+                              <ShoppingCart size={14} />
+                              {count}
+                            </button>
+                          ) : (
+                            <span className="text-sm text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-4 text-center">
+                          <span className="text-sm text-slate-600">{system.sort_order}</span>
+                        </td>
+                        <td className="py-4 px-4 text-center">
                           <button
-                            onClick={() => handleEdit(system)}
-                            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
-                            title="Edit"
+                            onClick={() => handleToggleActive(system)}
+                            className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border cursor-pointer transition-colors ${
+                              system.is_active
+                                ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                            }`}
                           >
-                            <Edit2 size={18} />
+                            {system.is_active ? 'Active' : 'Inactive'}
                           </button>
-                          <button
-                            onClick={() => handleDelete(system)}
-                            className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(system)}
+                              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                              title="Edit"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(system)}
+                              className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -442,6 +522,7 @@ const GrowingSystemsPage: React.FC = () => {
           <div className="flex items-center gap-6 text-sm text-slate-500">
             <span>{systems.length} total systems</span>
             <span>{systems.filter(s => s.is_active).length} active</span>
+            {!countsLoading && <span>{totalOrders} total orders</span>}
           </div>
         )}
       </div>

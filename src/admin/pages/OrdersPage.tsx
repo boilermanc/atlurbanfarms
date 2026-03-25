@@ -13,9 +13,11 @@ interface OrdersPageProps {
   onNavigate?: (page: string) => void;
   initialDateFilter?: { from: string; to: string } | null;
   onDateFilterConsumed?: () => void;
+  initialGrowingSystem?: string | null;
+  onGrowingSystemFilterConsumed?: () => void;
 }
 
-const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initialDateFilter, onDateFilterConsumed }) => {
+const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initialDateFilter, onDateFilterConsumed, initialGrowingSystem, onGrowingSystemFilterConsumed }) => {
 
   // Filter state
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -24,6 +26,7 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
   const [showTrash, setShowTrash] = useState(false);
   const [dateFrom, setDateFrom] = useState<string>(initialDateFilter?.from || '');
   const [dateTo, setDateTo] = useState<string>(initialDateFilter?.to || '');
+  const [growingSystemFilter, setGrowingSystemFilter] = useState<string>(initialGrowingSystem || '');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -59,14 +62,18 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     search: searchTerm || undefined,
+    growingSystem: growingSystemFilter || undefined,
     page: currentPage,
     perPage: 20,
-  }), [statusFilter, showTrash, dateFrom, dateTo, searchTerm, currentPage]);
+  }), [statusFilter, showTrash, dateFrom, dateTo, searchTerm, growingSystemFilter, currentPage]);
 
-  // Consume the initial date filter so it doesn't re-apply on subsequent navigations
+  // Consume initial filters so they don't re-apply on subsequent navigations
   useEffect(() => {
     if (initialDateFilter) {
       onDateFilterConsumed?.();
+    }
+    if (initialGrowingSystem) {
+      onGrowingSystemFilterConsumed?.();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -122,11 +129,12 @@ const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initia
     setDateTo('');
     setSearchTerm('');
     setSearchInput('');
+    setGrowingSystemFilter('');
     setCurrentPage(1);
   };
 
   // Check if any filters are active (default is all statuses / empty array)
-  const hasActiveFilters = statusFilter.length > 0 || showTrash || dateFrom || dateTo || searchTerm;
+  const hasActiveFilters = statusFilter.length > 0 || showTrash || dateFrom || dateTo || searchTerm || growingSystemFilter;
 
   // Move order to trash (soft delete)
   const moveToTrash = useCallback(async (orderId: string) => {
@@ -666,6 +674,12 @@ ${ordersToprint.map(order => `<div class="order">
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
                     Search: &quot;{searchTerm}&quot;
                     <button onClick={() => { setSearchTerm(''); setSearchInput(''); }} className="hover:text-emerald-900"><X size={14} /></button>
+                  </span>
+                )}
+                {growingSystemFilter && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
+                    Growing System: {growingSystemFilter}
+                    <button onClick={() => setGrowingSystemFilter('')} className="hover:text-emerald-900"><X size={14} /></button>
                   </span>
                 )}
               </motion.div>

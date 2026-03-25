@@ -536,6 +536,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [showGiftCardCreateModal, setShowGiftCardCreateModal] = useState(false);
   const [selectedBlogPostId, setSelectedBlogPostId] = useState<string | null>(null);
   const [ordersInitialDateFilter, setOrdersInitialDateFilter] = useState<{ from: string; to: string } | null>(null);
+  const [ordersInitialGrowingSystem, setOrdersInitialGrowingSystem] = useState<string | null>(null);
   const [orderContext, setOrderContext] = useState<{ customerId: string; customerName?: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -712,7 +713,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
     switch (currentPage) {
       case 'orders':
-        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} />;
+        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} initialGrowingSystem={ordersInitialGrowingSystem} onGrowingSystemFilterConsumed={() => setOrdersInitialGrowingSystem(null)} />;
       case 'purchase-orders':
         return <PurchaseOrdersPage onViewOrder={handleViewOrder} />;
       case 'order-detail':
@@ -845,7 +846,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'blog':
         return <BlogListPage onEditPost={handleEditBlogPost} onCreatePost={handleCreateBlogPost} />;
       case 'growing-systems':
-        return <GrowingSystemsPage />;
+        return <GrowingSystemsPage onNavigate={handleNavigate} onFilterOrders={(gs) => setOrdersInitialGrowingSystem(gs)} />;
       case 'growing-interests':
         return <GrowingInterestsPage />;
       case 'school-partners':

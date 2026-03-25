@@ -31,6 +31,7 @@ export interface OrderFilters {
   perPage?: number;
   deliveryMethod?: 'all' | 'shipping' | 'pickup';
   showTrashed?: boolean;  // Show only soft-deleted orders
+  growingSystem?: string;  // Filter by growing system name
 }
 
 export interface OrderItem {
@@ -500,6 +501,15 @@ export function useOrders(filters: OrderFilters = {}) {
           legacyQuery = legacyQuery.or(legacySearch);
           countLegacyQuery = countLegacyQuery.or(legacySearch);
         }
+      }
+
+      // Apply growing system filter (only applies to new orders, legacy orders don't have this field)
+      if (filters.growingSystem) {
+        dataQuery = dataQuery.eq('growing_system', filters.growingSystem);
+        countNewQuery = countNewQuery.eq('growing_system', filters.growingSystem);
+        // Legacy orders don't have growing_system — exclude them
+        legacyQuery = legacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        countLegacyQuery = countLegacyQuery.eq('id', '00000000-0000-0000-0000-000000000000');
       }
 
       // Execute all queries in parallel (data + count)
