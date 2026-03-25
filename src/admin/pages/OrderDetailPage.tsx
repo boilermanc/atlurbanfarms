@@ -22,6 +22,7 @@ import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import useShipmentManagement from '../hooks/useShipmentManagement';
 import { supabase } from '../../lib/supabase';
+import { useBrandingSettings } from '../../hooks/useSupabase';
 import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle, Trash2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Helper to format pickup time
@@ -44,6 +45,7 @@ interface OrderDetailPageProps {
 
 const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName, onNavigateOrder }) => {
   const { adminUser } = useAdminAuth();
+  const { settings: brandingSettings } = useBrandingSettings();
 
   // Fetch order data
   const { order, loading, error, refetch } = useOrder(orderId);
@@ -763,36 +765,44 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     const orderDate = formatDate(order.created_at);
     const paidDate = formatDate((order as any).paid_at);
 
-    // Line items
+    // Line items — compressed rows
     let itemsHtml = '';
     orderItems.forEach((item) => {
       itemsHtml += `
         <tr>
-          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb;">${item.product_name || 'Product'}</td>
-          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
-          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.unit_price)}</td>
-          <td style="padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">${formatCurrency(item.line_total)}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${item.product_name || 'Product'}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 13px;">${item.quantity}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">${formatCurrency(item.unit_price)}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">${formatCurrency(item.line_total)}</td>
         </tr>`;
     });
 
+    // Customer info
+    const customerName = order.customer_name || `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim();
+    const customerEmail = order.customer_email || '';
+    const customerPhone = order.customer_phone || '';
+    const customerHtml = `
+      <div style="flex: 1;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Customer</h3>
+        ${customerName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${customerName}</p>` : ''}
+        ${customerEmail ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${customerEmail}</p>` : ''}
+        ${customerPhone ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${customerPhone}</p>` : ''}
+      </div>`;
+
     // Bill To
-    const billName = `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || order.customer_name || '';
-    const billEmail = order.customer_email || '';
-    const billPhone = order.customer_phone || '';
+    const billName = `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim();
     const billStreet = order.billing_address_line1;
     const billStreet2 = order.billing_address_line2;
     const billCity = order.billing_city;
     const billState = order.billing_state;
     const billZip = order.billing_zip;
     const billToHtml = `
-      <div>
-        <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Bill To</h3>
-        ${billName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${billName}</p>` : ''}
-        ${billEmail ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billEmail}</p>` : ''}
-        ${billPhone ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billPhone}</p>` : ''}
-        ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet}</p>` : ''}
-        ${billStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billStreet2}</p>` : ''}
-        ${billStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${billCity || ''}${billCity && billState ? ', ' : ''}${billState || ''} ${billZip || ''}</p>` : ''}
+      <div style="flex: 1;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Bill To</h3>
+        ${billName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${billName}</p>` : ''}
+        ${billStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billStreet}</p>` : ''}
+        ${billStreet2 ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billStreet2}</p>` : ''}
+        ${billStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billCity || ''}${billCity && billState ? ', ' : ''}${billState || ''} ${billZip || ''}</p>` : ''}
       </div>`;
 
     // Ship To / Pickup
@@ -803,11 +813,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       const pickupEnd = order.pickup_time_end ? formatPickupTime(order.pickup_time_end) : '';
       const timeRange = pickupStart && pickupEnd ? `${pickupStart} - ${pickupEnd}` : pickupStart || '';
       deliveryHtml = `
-        <div>
-          <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Pickup</h3>
-          <p style="margin: 0; font-size: 13px; line-height: 1.5;">Local Pickup</p>
-          ${pickupDate ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${pickupDate}</p>` : ''}
-          ${timeRange ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${timeRange}</p>` : ''}
+        <div style="flex: 1;">
+          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Pickup</h3>
+          <p style="margin: 0; font-size: 12px; line-height: 1.4;">Local Pickup</p>
+          ${pickupDate ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${pickupDate}</p>` : ''}
+          ${timeRange ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${timeRange}</p>` : ''}
         </div>`;
     } else {
       const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
@@ -816,32 +826,44 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       const shipCity = order.shipping_city;
       const shipState = order.shipping_state;
       const shipZip = order.shipping_zip;
-      if (shipStreet) {
-        deliveryHtml = `
-          <div>
-            <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
-            ${shipName ? `<p style="margin: 0; font-size: 13px; line-height: 1.5; font-weight: 600;">${shipName}</p>` : ''}
-            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet}</p>
-            ${shipStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet2}</p>` : ''}
-            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>
-          </div>`;
-      }
+      deliveryHtml = `
+        <div style="flex: 1;">
+          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Ship To</h3>
+          ${shipName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${shipName}</p>` : ''}
+          ${shipStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipStreet}</p>` : ''}
+          ${shipStreet2 ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipStreet2}</p>` : ''}
+          ${shipStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>` : ''}
+        </div>`;
     }
 
-    // Payment info
+    // Payment info — reflect actual payment status
+    const paymentStatus = (order.payment_status || '').toLowerCase();
     const payMethod = (order as any).payment_method || 'stripe';
-    const payLabel = payMethod === 'stripe' ? 'Credit Card (Stripe)' : payMethod === 'purchase_order' ? `Purchase Order (${(order as any).po_number || 'N/A'})` : payMethod.charAt(0).toUpperCase() + payMethod.slice(1);
-    const paymentHtml = `
-      <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
-        <strong style="color: #111827;">Payment:</strong> ${payLabel}
-        ${paidDate && paidDate !== 'N/A' ? ` &mdash; Paid ${paidDate}` : ''}
-      </div>`;
+    const payMethodLabel = payMethod === 'stripe' ? 'Credit Card (Stripe)' : payMethod === 'purchase_order' ? `Purchase Order (${(order as any).po_number || 'N/A'})` : payMethod.charAt(0).toUpperCase() + payMethod.slice(1);
+    const isPaid = ['paid', 'completed', 'refunded'].includes(paymentStatus);
+    let paymentDisplayHtml: string;
+    if (isPaid) {
+      paymentDisplayHtml = `<strong style="color: #111827;">Payment:</strong> ${payMethodLabel}${paidDate && paidDate !== 'N/A' ? ` &mdash; Paid ${paidDate}` : ''}`;
+    } else if (paymentStatus === 'pending' || paymentStatus === 'pending_payment') {
+      paymentDisplayHtml = `<strong style="color: #111827;">Payment:</strong> <span style="color: #f59e0b; font-weight: 600;">Pending Payment</span>`;
+    } else if (paymentStatus === 'failed') {
+      paymentDisplayHtml = `<strong style="color: #111827;">Payment:</strong> <span style="color: #ef4444; font-weight: 600;">Payment Failed</span>`;
+    } else {
+      paymentDisplayHtml = `<strong style="color: #111827;">Payment:</strong> ${paymentStatus || 'Unknown'}`;
+    }
+    const paymentHtml = `<div style="font-size: 12px; color: #4b5563; line-height: 1.5;">${paymentDisplayHtml}</div>`;
 
     // Customer notes
     const notesHtml = order.customer_notes ? `
-      <div style="font-size: 13px; color: #4b5563; line-height: 1.6; margin-top: 4px;">
+      <div style="font-size: 12px; color: #4b5563; line-height: 1.5; margin-top: 4px;">
         <strong style="color: #111827;">Customer Notes:</strong> ${order.customer_notes}
       </div>` : '';
+
+    // Logo
+    const logoUrl = brandingSettings.logo_url;
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="ATL Urban Farms" style="max-height: 48px; width: auto;" />`
+      : `<p style="margin: 0 0 4px; font-size: 18px; font-weight: 800; color: #10b981; letter-spacing: 0.5px;">ATL URBAN FARMS</p>`;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -852,43 +874,44 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       <head>
         <title>Invoice #${orderNum} - ATL Urban Farms</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; color: #111827; font-size: 14px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 30px; color: #111827; font-size: 13px; }
           @media print {
-            body { padding: 20px; }
-            @page { size: portrait; margin: 0.5in; }
+            body { padding: 15px; }
+            @page { size: portrait; margin: 0.4in; }
           }
         </style>
       </head>
       <body>
         <div style="max-width: 700px; margin: 0 auto;">
           <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; border-bottom: 3px solid #10b981; padding-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #10b981; padding-bottom: 14px;">
             <div>
-              <p style="margin: 0 0 4px; font-size: 18px; font-weight: 800; color: #10b981; letter-spacing: 0.5px;">ATL URBAN FARMS</p>
-              <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #111827;">INVOICE</h1>
+              ${logoHtml}
+              <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 800; color: #111827;">INVOICE</h1>
             </div>
             <div style="text-align: right;">
-              <p style="margin: 0; font-weight: 700; font-size: 15px;">Order #${orderNum}</p>
-              <p style="margin: 4px 0 0; color: #6b7280; font-size: 13px;">Ordered: ${orderDate}</p>
-              ${paidDate && paidDate !== 'N/A' ? `<p style="margin: 2px 0 0; color: #6b7280; font-size: 13px;">Paid: ${paidDate}</p>` : ''}
+              <p style="margin: 0; font-weight: 700; font-size: 14px;">Order #${orderNum}</p>
+              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Ordered: ${orderDate}</p>
+              ${paidDate && paidDate !== 'N/A' ? `<p style="margin: 2px 0 0; color: #6b7280; font-size: 12px;">Paid: ${paidDate}</p>` : ''}
             </div>
           </div>
 
-          <!-- Bill To / Ship To -->
-          <div style="display: flex; gap: 40px; margin-bottom: 28px;">
+          <!-- Customer / Bill To / Ship To — 3 columns -->
+          <div style="display: flex; gap: 24px; margin-bottom: 20px;">
+            ${customerHtml}
             ${billToHtml}
             ${deliveryHtml}
           </div>
 
           <!-- Line Items Table -->
           ${itemsHtml ? `
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
             <thead>
               <tr style="border-bottom: 2px solid #e5e7eb;">
-                <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Product</th>
-                <th style="padding: 8px; text-align: center; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
-                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Unit Price</th>
-                <th style="padding: 8px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Line Total</th>
+                <th style="padding: 5px 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Product</th>
+                <th style="padding: 5px 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
+                <th style="padding: 5px 6px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Unit Price</th>
+                <th style="padding: 5px 6px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Line Total</th>
               </tr>
             </thead>
             <tbody>${itemsHtml}</tbody>
@@ -896,40 +919,40 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           ` : '<p style="color: #6b7280; font-style: italic;">No line items.</p>'}
 
           <!-- Totals Block -->
-          <div style="margin-left: auto; width: 260px;">
-            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+          <div style="margin-left: auto; width: 240px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
               <span style="color: #6b7280;">Subtotal</span>
               <span>${formatCurrency(order.subtotal)}</span>
             </div>
             ${order.discount_amount && order.discount_amount > 0 ? `
-            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
               <span style="color: #16a34a;">${(order as any).promotion_code ? `Discount (${(order as any).promotion_code})` : 'Discount'}</span>
               <span style="color: #16a34a;">-${formatCurrency(order.discount_amount)}</span>
             </div>` : ''}
-            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
               <span style="color: #6b7280;">Shipping</span>
               <span>${order.shipping_cost > 0 ? formatCurrency(order.shipping_cost) : (order.is_pickup ? 'Pickup' : '$0.00')}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
               <span style="color: #6b7280;">Tax</span>
               <span>${formatCurrency(order.tax)}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 16px;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 15px;">
               <span>Total</span>
               <span>${formatCurrency(order.total)}</span>
             </div>
           </div>
 
           <!-- Payment & Notes -->
-          <div style="margin-top: 28px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+          <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
             ${paymentHtml}
             ${notesHtml}
           </div>
 
           <!-- Footer -->
-          <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
+          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 11px;">
             <p style="margin: 0;">Thank you for your order!</p>
-            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
+            <p style="margin: 3px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
           </div>
         </div>
         <script>window.onload = function() { window.print(); }</script>
