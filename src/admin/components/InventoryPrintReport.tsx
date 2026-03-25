@@ -113,7 +113,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
       <div className="inventory-print-surface print-surface">
         <div className="inventory-print-controls no-print">
           <div>
-            <h2 className="text-lg font-semibold text-slate-800">Inventory Print Report</h2>
+            <h2 className="text-lg font-semibold text-slate-800">Seedling Inventory Report</h2>
             <p className="text-sm text-slate-500">Live snapshot of active products</p>
           </div>
           <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
           <div className="inventory-print-header">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-slate-500">ATL Urban Farms</p>
-              <h1 className="text-2xl font-bold text-slate-900 mt-1">Inventory Report</h1>
+              <h1 className="text-2xl font-bold text-slate-900 mt-1">Seedling Inventory Report</h1>
               {rows.length > 0 && (
                 <p className="text-sm font-medium text-slate-700 mt-1">
                   Total Active Products: {rows.length}
@@ -179,6 +179,7 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
               <p className="text-slate-500 text-sm mt-1">Activate products to include them in this report.</p>
             </div>
           ) : (
+            <>
             <table className="inventory-print-table">
               <colgroup>
                 <col style={{ width: '15%' }} />
@@ -231,7 +232,17 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                   </React.Fragment>
                 ))}
               </tbody>
-              <tfoot>
+            </table>
+            <table className="inventory-print-table grand-total-table">
+              <colgroup>
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '30%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+              </colgroup>
+              <tbody>
                 <tr className="grand-total-row">
                   <td></td>
                   <td className="grand-total-label">GRAND TOTAL</td>
@@ -242,8 +253,9 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                     {grandTotalVarieties} varieties &middot; {grandTotalPending} pending
                   </td>
                 </tr>
-              </tfoot>
+              </tbody>
             </table>
+            </>
           )}
         </div>
       </div>

@@ -450,6 +450,12 @@ h4 { font-size: calc(var(--heading-font-size, 28px) * 0.6); }
     font-size: 8pt !important;
     font-weight: 700 !important;
   }
+
+  /* Grand total table: only on last page, never split */
+  .grand-total-table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 
 /* Inventory print report styles */
@@ -561,6 +567,12 @@ h4 { font-size: calc(var(--heading-font-size, 28px) * 0.6); }
 .subtotal-info {
   font-size: 0.75rem;
   color: #64748b;
+}
+
+/* Grand total table: collapse margin with main table */
+.grand-total-table {
+  margin-top: 0;
+  border-top: none;
 }
 
 /* Grand total row */
