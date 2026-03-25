@@ -298,7 +298,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       </span>
                       {isOnSale && (
                         <span className="px-4 py-2 bg-red-500 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg">
-                          {percentOff > 0 ? `${percentOff}% Off` : 'On Sale'}
+                          On Sale
                         </span>
                       )}
                     </div>
