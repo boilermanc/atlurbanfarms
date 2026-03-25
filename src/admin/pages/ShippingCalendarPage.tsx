@@ -126,7 +126,7 @@ const ShippingCalendarPage: React.FC = () => {
   // Events search/filter/sort state
   const [eventSearch, setEventSearch] = useState('');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
-  const [eventStatusFilter, setEventStatusFilter] = useState<string>('all');
+  const [eventStatusFilter, setEventStatusFilter] = useState<string>('active');
   const [sortColumn, setSortColumn] = useState<'title' | 'event_type' | 'start_date' | 'location' | 'is_active'>('start_date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -783,6 +783,15 @@ const ShippingCalendarPage: React.FC = () => {
       : <ArrowDown size={14} className="text-emerald-600" />;
   };
 
+  // Determine effective status: active events with past dates show as 'past'
+  const getEventStatus = (event: Event): 'active' | 'past' | 'inactive' => {
+    if (!event.is_active) return 'inactive';
+    const today = new Date().toISOString().split('T')[0];
+    const eventEndDate = event.end_date || event.start_date;
+    if (eventEndDate < today) return 'past';
+    return 'active';
+  };
+
   const filteredAndSortedEvents = useMemo(() => {
     let result = [...events];
 
@@ -803,8 +812,7 @@ const ShippingCalendarPage: React.FC = () => {
 
     // Status filter
     if (eventStatusFilter !== 'all') {
-      const isActive = eventStatusFilter === 'active';
-      result = result.filter(e => e.is_active === isActive);
+      result = result.filter(e => getEventStatus(e) === eventStatusFilter);
     }
 
     // Sort
@@ -885,6 +893,7 @@ const ShippingCalendarPage: React.FC = () => {
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
+            <option value="past">Past</option>
             <option value="inactive">Inactive</option>
           </select>
           {(eventSearch || eventTypeFilter !== 'all' || eventStatusFilter !== 'all') && (
@@ -985,12 +994,14 @@ const ShippingCalendarPage: React.FC = () => {
                       <button
                         onClick={() => toggleEventActive(event)}
                         className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                          event.is_active
+                          getEventStatus(event) === 'active'
                             ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : getEventStatus(event) === 'past'
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                             : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                         }`}
                       >
-                        {event.is_active ? 'Active' : 'Inactive'}
+                        {getEventStatus(event) === 'active' ? 'Active' : getEventStatus(event) === 'past' ? 'Past' : 'Inactive'}
                       </button>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -2033,7 +2044,7 @@ const ShippingCalendarPage: React.FC = () => {
                       {selectedDayEvents.map(event => (
                         <div
                           key={event.id}
-                          className={`p-4 rounded-xl border ${EVENT_COLORS[event.event_type]?.border || 'border-slate-200'} ${EVENT_COLORS[event.event_type]?.bg || 'bg-slate-50'} ${!event.is_active ? 'opacity-60' : ''}`}
+                          className={`p-4 rounded-xl border ${EVENT_COLORS[event.event_type]?.border || 'border-slate-200'} ${EVENT_COLORS[event.event_type]?.bg || 'bg-slate-50'} ${getEventStatus(event) !== 'active' ? 'opacity-60' : ''}`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
@@ -2041,7 +2052,12 @@ const ShippingCalendarPage: React.FC = () => {
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EVENT_COLORS[event.event_type]?.badge || 'bg-slate-100 text-slate-700'}`}>
                                   {EVENT_TYPES.find(t => t.value === event.event_type)?.label}
                                 </span>
-                                {!event.is_active && (
+                                {getEventStatus(event) === 'past' && (
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                    Past
+                                  </span>
+                                )}
+                                {getEventStatus(event) === 'inactive' && (
                                   <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
                                     Inactive
                                   </span>
@@ -2050,7 +2066,7 @@ const ShippingCalendarPage: React.FC = () => {
                                   <Repeat size={12} className="text-emerald-500" title="Recurring" />
                                 )}
                               </div>
-                              <h3 className={`font-medium ${EVENT_COLORS[event.event_type]?.text || 'text-slate-800'} ${!event.is_active ? 'line-through' : ''}`}>
+                              <h3 className={`font-medium ${EVENT_COLORS[event.event_type]?.text || 'text-slate-800'} ${getEventStatus(event) !== 'active' ? 'line-through' : ''}`}>
                                 {event.title}
                               </h3>
                               {event.start_time && (
