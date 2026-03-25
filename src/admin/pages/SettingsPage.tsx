@@ -611,6 +611,52 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ── Announcement Bar ── */}
+      <div className="border-t border-slate-200 pt-6">
+        <h3 className="text-lg font-medium text-slate-800 mb-4">Announcement Bar</h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200/60">
+            <div>
+              <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
+              <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
+            </div>
+            <button
+              onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                formData.branding?.announcement_bar_enabled ? 'bg-emerald-500' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                  formData.branding?.announcement_bar_enabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {formData.branding?.announcement_bar_enabled && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-2"
+              >
+                <label className="block text-sm font-medium text-slate-700">Announcement Message</label>
+                <input
+                  type="text"
+                  value={formData.branding?.announcement_bar_text || ''}
+                  onChange={(e) => updateField('branding', 'announcement_bar_text', e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  placeholder="Free shipping on orders over $50!"
+                />
+                <p className="text-xs text-slate-500">This text appears in the banner bar at the very top of your website</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 
@@ -620,7 +666,6 @@ const SettingsPage: React.FC = () => {
     colors: true,
     typography: true,
     components: false,
-    announcement: false,
   });
 
   const toggleSection = (section: string) => {
@@ -1004,54 +1049,6 @@ const SettingsPage: React.FC = () => {
         )}
       </div>
 
-      {/* ── Announcement Bar ── */}
-      <div className="border-b border-slate-200">
-        <SectionHeader title="Announcement Bar" description="Site-wide banner for promotions and notices" section="announcement" />
-        {expandedSections.announcement && (
-          <div className="pb-6 space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200/60">
-              <div>
-                <h4 className="text-slate-800 font-medium">Enable Announcement Bar</h4>
-                <p className="text-sm text-slate-500">Shows at the top of all pages (visitors can dismiss it)</p>
-              </div>
-              <button
-                onClick={() => updateField('branding', 'announcement_bar_enabled', !formData.branding?.announcement_bar_enabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  formData.branding?.announcement_bar_enabled ? 'bg-emerald-500' : 'bg-slate-300'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
-                    formData.branding?.announcement_bar_enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {formData.branding?.announcement_bar_enabled && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-2"
-                >
-                  <label className="block text-sm font-medium text-slate-700">Announcement Message</label>
-                  <input
-                    type="text"
-                    value={formData.branding?.announcement_bar_text || ''}
-                    onChange={(e) => updateField('branding', 'announcement_bar_text', e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                    placeholder="Free shipping on orders over $50!"
-                  />
-                  <p className="text-xs text-slate-500">This text appears in the banner bar at the very top of your website</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-
     </div>
   );
 
@@ -1237,7 +1234,13 @@ const SettingsPage: React.FC = () => {
               )}
             </AnimatePresence>
             <button
-              onClick={() => handleSave(activeTab)}
+              onClick={async () => {
+                await handleSave(activeTab);
+                // Announcement bar lives in branding category but is shown on notifications tab
+                if (activeTab === 'notifications') {
+                  await handleSave('branding');
+                }
+              }}
               disabled={saving}
               className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
