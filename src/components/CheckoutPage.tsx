@@ -1374,9 +1374,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         line_total: item.price * item.quantity
       }));
 
-      // If gift card covers the full total, skip Stripe and create order directly
-      if (finalTotal === 0 && giftCardApplied) {
-        await completeOrder();
+      // If total is $0 (gift card, promo code, etc.), skip Stripe and create order directly
+      if (finalTotal === 0) {
+        await completeOrder({
+          paymentStatus: 'paid',
+          paymentMethod: giftCardApplied ? 'gift_card' : 'promo_code',
+        });
         return;
       }
 
@@ -1493,11 +1496,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       tax,
       taxRateApplied: taxResult.taxRate,
       taxNote: taxResult.taxNote,
-      // Gift card fully covers order — mark as paid with no Stripe PI
-      ...(finalTotal === 0 && giftCardApplied
-        ? { paymentStatus: 'paid', paymentMethod: 'gift_card' }
-        : {}),
-      // PO or other overrides
+      // PO, $0-total, or other overrides
       ...(overrides?.paymentStatus ? { paymentStatus: overrides.paymentStatus } : {}),
       ...(overrides?.paymentMethod ? { paymentMethod: overrides.paymentMethod } : {}),
       ...(overrides?.poNumber ? { poNumber: overrides.poNumber } : {}),
@@ -3433,14 +3432,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        {stripeEnabled ? 'Preparing Payment...' : 'Processing Order...'}
+                        {stripeEnabled && finalTotal > 0 ? 'Preparing Payment...' : 'Processing Order...'}
                       </>
                     ) : (
                       <>
                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
+                          <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled && finalTotal > 0 ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
                         </svg>
-                        {payWithPO && isPOEligible ? 'Submit PO Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                        {payWithPO && isPOEligible ? 'Submit PO Order' : finalTotal === 0 ? 'Submit Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
                       </>
                     )}
                   </button>
@@ -3641,14 +3640,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          {stripeEnabled ? 'Preparing...' : 'Processing...'}
+                          {stripeEnabled && finalTotal > 0 ? 'Preparing...' : 'Processing...'}
                         </>
                       ) : (
                         <>
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
+                            <path strokeLinecap="round" strokeLinejoin="round" d={stripeEnabled && finalTotal > 0 ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M5 13l4 4L19 7"} />
                           </svg>
-                          {payWithPO && isPOEligible ? 'Submit PO Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
+                          {payWithPO && isPOEligible ? 'Submit PO Order' : finalTotal === 0 ? 'Submit Order' : stripeEnabled ? 'Continue to Payment' : 'Place Order'}
                         </>
                       )}
                     </button>
