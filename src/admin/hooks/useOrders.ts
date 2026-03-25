@@ -88,6 +88,31 @@ export interface OrderStatusHistory {
   created_at: string;
 }
 
+export type OrderActivityType =
+  | 'order_created'
+  | 'items_updated'
+  | 'shipping_address_updated'
+  | 'billing_address_updated'
+  | 'tracking_updated'
+  | 'note_added'
+  | 'payment_status_changed'
+  | 'converted_to_ship'
+  | 'refund_issued'
+  | 'order_cancelled'
+  | 'marked_picked_up'
+  | 'notes_updated';
+
+export interface OrderActivityLog {
+  id: string;
+  order_id: string;
+  activity_type: OrderActivityType;
+  description: string;
+  details: Record<string, any>;
+  created_by: string | null;
+  created_by_name: string | null;
+  created_at: string;
+}
+
 export interface PickupLocation {
   id: string;
   name: string;
@@ -143,6 +168,7 @@ export interface Order {
   updated_at: string;
   items?: OrderItem[];
   status_history?: OrderStatusHistory[];
+  activity_log?: OrderActivityLog[];
   refunds?: OrderRefund[];
   // Raw address fields for inline editing
   shipping_first_name?: string | null;
@@ -829,6 +855,23 @@ export function useOrder(orderId: string | null) {
         historyData = data;
       }
 
+      // Fetch activity log
+      let activityData: any[] | null = null;
+      try {
+        const { data, error: activityError } = await supabase
+          .from('order_activity_log')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+
+        if (activityError && activityError.code !== '42P01') {
+          console.warn('Could not fetch activity log:', activityError);
+        }
+        activityData = data;
+      } catch (actErr) {
+        console.warn('Activity log fetch failed:', actErr);
+      }
+
       // Transform to Order type
       const formattedOrder: Order = {
         id: orderData.id,
@@ -883,6 +926,16 @@ export function useOrder(orderId: string | null) {
           changed_by: h.changed_by,
           changed_by_name: h.customers?.email || 'System',
           created_at: h.created_at,
+        })),
+        activity_log: (activityData || []).map((a: any) => ({
+          id: a.id,
+          order_id: a.order_id,
+          activity_type: a.activity_type as OrderActivityType,
+          description: a.description,
+          details: a.details || {},
+          created_by: a.created_by,
+          created_by_name: a.created_by_name || 'System',
+          created_at: a.created_at,
         })),
         refunds: (orderData.order_refunds || []).map((refund: any) => ({
           id: refund.id,
@@ -1460,4 +1513,33 @@ export function useLegacyOrder(orderId: string | null) {
     error,
     refetch: fetchLegacyOrder,
   };
+}
+
+/**
+ * Log an activity entry to the order_activity_log table.
+ * Fire-and-forget — logs warning on failure but doesn't throw.
+ */
+export async function logOrderActivity(params: {
+  orderId: string;
+  activityType: OrderActivityType;
+  description: string;
+  details?: Record<string, any>;
+  createdBy?: string | null;
+  createdByName?: string | null;
+}): Promise<void> {
+  try {
+    const { error } = await supabase.from('order_activity_log').insert({
+      order_id: params.orderId,
+      activity_type: params.activityType,
+      description: params.description,
+      details: params.details || {},
+      created_by: params.createdBy || null,
+      created_by_name: params.createdByName || null,
+    });
+    if (error) {
+      console.warn('Could not log order activity:', error);
+    }
+  } catch (err) {
+    console.warn('Order activity log failed:', err);
+  }
 }

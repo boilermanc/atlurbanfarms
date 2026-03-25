@@ -17,6 +17,7 @@ import {
   OrderRefundItem,
   ManualRefundMethod,
   getOrderSeedlingTotal,
+  logOrderActivity,
 } from '../hooks/useOrders';
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
@@ -346,6 +347,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         })),
       });
       if (rpcError) throw rpcError;
+
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'items_updated',
+        description: 'Order items updated',
+        details: { item_count: editableItems.length },
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       setEditingItems(false);
       setEditableItems([]);
       await refetch();
@@ -387,6 +398,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     const result = await addNote(order.id, newNote.trim());
 
     if (result.success) {
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'note_added',
+        description: `Note added: ${newNote.trim().substring(0, 100)}${newNote.trim().length > 100 ? '...' : ''}`,
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
       setNewNote('');
       refetch();
     }
@@ -403,6 +421,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     );
 
     if (result.success) {
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'order_cancelled',
+        description: cancelReason ? `Order cancelled: ${cancelReason}` : 'Order cancelled',
+        details: { reason: cancelReason || null },
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       // Restore gift card balance if one was used
       if (order.gift_card_code && order.giftup_transaction_id) {
         try {
@@ -446,6 +473,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       // Also update the order status to completed
       await updateStatus(order.id, 'completed', 'Marked as picked up', adminUser?.id);
 
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'marked_picked_up',
+        description: 'Order marked as picked up',
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       refetch();
     } catch (err: any) {
       console.error('Error marking as picked up:', err);
@@ -486,6 +521,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
         if (reservationError) throw reservationError;
       }
+
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'converted_to_ship',
+        description: 'Order converted from pickup to shipping',
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
 
       setShowConvertToShipModal(false);
       setToast({ message: 'Order converted to ship order', type: 'success' });
@@ -612,6 +655,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     });
 
     if (result.success) {
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'refund_issued',
+        description: `Refund of $${(Math.round(clampedRefundAmount * 100) / 100).toFixed(2)} issued via Stripe`,
+        details: { amount: Math.round(clampedRefundAmount * 100) / 100, reason: refundReason.trim() || null },
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       // Restore gift card balance if one was used
       if (order.gift_card_code && order.giftup_transaction_id) {
         try {
@@ -670,15 +722,26 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
     setManualRefundError(null);
 
+    const roundedAmount = Math.round(amount * 100) / 100;
+
     const result = await processManualRefund({
       orderId: order.id,
-      amount: Math.round(amount * 100) / 100,
+      amount: roundedAmount,
       method: manualRefundMethod,
       reason: manualRefundNotes.trim() || undefined,
       adminUserId: adminUser?.id,
     });
 
     if (result.success) {
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'refund_issued',
+        description: `Manual refund of $${roundedAmount.toFixed(2)} issued (${manualRefundMethod})`,
+        details: { amount: roundedAmount, method: manualRefundMethod, reason: manualRefundNotes.trim() || null },
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       // Restore gift card balance if one was used
       if (order.gift_card_code && order.giftup_transaction_id) {
         try {
@@ -1049,6 +1112,29 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         }
       }
 
+      // Log payment status change
+      if (statusForm.payment_status !== order.payment_status) {
+        await logOrderActivity({
+          orderId: order.id,
+          activityType: 'payment_status_changed',
+          description: `Payment status changed from ${order.payment_status || 'none'} to ${statusForm.payment_status}`,
+          details: { from: order.payment_status, to: statusForm.payment_status },
+          createdBy: adminUser?.id,
+          createdByName: adminUser?.email || 'Admin',
+        });
+      }
+
+      // Log notes changes
+      if (statusForm.internal_notes !== (order.internal_notes || '') || statusForm.customer_notes !== (order.customer_notes || '')) {
+        await logOrderActivity({
+          orderId: order.id,
+          activityType: 'notes_updated',
+          description: 'Order notes updated',
+          createdBy: adminUser?.id,
+          createdByName: adminUser?.email || 'Admin',
+        });
+      }
+
       setToast({ message: 'Status & payment updated', type: 'success' });
       setEditingStatus(false);
       refetch();
@@ -1075,6 +1161,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         updated_at: new Date().toISOString(),
       }).eq('id', order.id);
       if (err) throw err;
+
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'shipping_address_updated',
+        description: 'Shipping address updated',
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       setToast({ message: 'Shipping address updated', type: 'success' });
       setEditingShipping(false);
       refetch();
@@ -1100,6 +1195,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         updated_at: new Date().toISOString(),
       }).eq('id', order.id);
       if (err) throw err;
+
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'billing_address_updated',
+        description: 'Billing address updated',
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       setToast({ message: 'Billing address updated', type: 'success' });
       setEditingBilling(false);
       refetch();
@@ -1126,6 +1230,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         updated_at: new Date().toISOString(),
       }).eq('id', order.id);
       if (err) throw err;
+
+      await logOrderActivity({
+        orderId: order.id,
+        activityType: 'tracking_updated',
+        description: trackingForm.tracking_number
+          ? `Tracking updated: ${trackingForm.tracking_number}`
+          : 'Shipping & tracking info updated',
+        details: {
+          tracking_number: trackingForm.tracking_number || null,
+          shipping_method: trackingForm.shipping_method_name || null,
+          shipping_cost: newShippingCost,
+        },
+        createdBy: adminUser?.id,
+        createdByName: adminUser?.email || 'Admin',
+      });
+
       setToast({ message: 'Shipping & tracking updated', type: 'success' });
       setEditingTracking(false);
       refetch();
@@ -2774,61 +2894,132 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
             </div>
 
             {/* Order Timeline */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
-              <div className="px-6 py-4 border-b border-slate-200">
-                <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Timeline</h2>
-              </div>
-              <div className="p-6">
-                {order.status_history && order.status_history.length > 0 ? (
-                  <div className="relative">
-                    {/* Timeline line */}
-                    <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200" />
+            {(() => {
+              // Build unified timeline from all event sources
+              type TimelineEvent = {
+                id: string;
+                type: 'status_change' | 'activity';
+                created_at: string;
+                description: React.ReactNode;
+                actor: string;
+                note?: string | null;
+                color: string;
+              };
 
-                    <div className="space-y-6">
-                      {(order.status_history || []).map((history, index) => (
-                        <div key={history.id} className="relative pl-10">
-                          {/* Timeline dot */}
-                          <div className={`absolute left-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                            index === (order.status_history?.length ?? 0) - 1
-                              ? 'bg-emerald-500'
-                              : 'bg-slate-300'
-                          }`}>
-                            <div className="w-2 h-2 rounded-full bg-white" />
-                          </div>
+              const activityColors: Record<string, string> = {
+                order_created: 'bg-blue-500',
+                items_updated: 'bg-amber-500',
+                shipping_address_updated: 'bg-indigo-500',
+                billing_address_updated: 'bg-indigo-500',
+                tracking_updated: 'bg-cyan-500',
+                note_added: 'bg-slate-400',
+                payment_status_changed: 'bg-violet-500',
+                converted_to_ship: 'bg-teal-500',
+                refund_issued: 'bg-red-500',
+                order_cancelled: 'bg-red-600',
+                marked_picked_up: 'bg-emerald-500',
+                notes_updated: 'bg-slate-400',
+              };
 
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {history.from_status ? (
-                                <p className="text-slate-800 text-sm font-medium">
-                                  Status changed from <span className="text-slate-500">{getOrderStatusLabel(history.from_status)}</span> to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
-                                </p>
-                              ) : (
-                                <p className="text-slate-800 text-sm font-medium">
-                                  Status set to <span className="text-emerald-600">{getOrderStatusLabel(history.status)}</span>
-                                </p>
-                              )}
-                            </div>
-                            <span className="text-slate-500 text-xs block mt-1">
-                              {formatDate(history.created_at, true)}
-                            </span>
-                            {history.note && (
-                              <p className="text-slate-600 text-sm mt-1">
-                                {history.note}
-                              </p>
-                            )}
-                            <p className="text-slate-400 text-xs mt-1">
-                              by {history.changed_by_name || 'System'}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+              const events: TimelineEvent[] = [];
+
+              // Add "order created" if not already in activity log
+              const hasCreatedActivity = (order.activity_log || []).some(a => a.activity_type === 'order_created');
+              if (!hasCreatedActivity && order.created_at) {
+                events.push({
+                  id: 'order-created',
+                  type: 'activity',
+                  created_at: order.created_at,
+                  description: <span className="text-sm font-medium text-slate-800">Order placed</span>,
+                  actor: 'System',
+                  color: 'bg-blue-500',
+                });
+              }
+
+              // Add status history entries
+              (order.status_history || []).forEach((h) => {
+                events.push({
+                  id: `status-${h.id}`,
+                  type: 'status_change',
+                  created_at: h.created_at,
+                  description: h.from_status ? (
+                    <span className="text-sm font-medium text-slate-800">
+                      Status changed from <span className="text-slate-500">{getOrderStatusLabel(h.from_status)}</span> to <span className="text-emerald-600">{getOrderStatusLabel(h.status)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-slate-800">
+                      Status set to <span className="text-emerald-600">{getOrderStatusLabel(h.status)}</span>
+                    </span>
+                  ),
+                  actor: h.changed_by_name || 'System',
+                  note: h.note,
+                  color: 'bg-emerald-500',
+                });
+              });
+
+              // Add activity log entries (skip order_created if already handled above)
+              (order.activity_log || []).forEach((a) => {
+                events.push({
+                  id: `activity-${a.id}`,
+                  type: 'activity',
+                  created_at: a.created_at,
+                  description: <span className="text-sm font-medium text-slate-800">{a.description}</span>,
+                  actor: a.created_by_name || 'System',
+                  color: activityColors[a.activity_type] || 'bg-slate-400',
+                });
+              });
+
+              // Sort chronologically (newest last)
+              events.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
+                  <div className="px-6 py-4 border-b border-slate-200">
+                    <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Order Timeline</h2>
                   </div>
-                ) : (
-                  <p className="text-slate-400 text-center py-4">No status history available</p>
-                )}
-              </div>
-            </div>
+                  <div className="p-6">
+                    {events.length > 0 ? (
+                      <div className="relative">
+                        {/* Timeline line */}
+                        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-200" />
+
+                        <div className="space-y-6">
+                          {events.map((event, index) => (
+                            <div key={event.id} className="relative pl-10">
+                              {/* Timeline dot */}
+                              <div className={`absolute left-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                                index === events.length - 1
+                                  ? event.color
+                                  : 'bg-slate-300'
+                              }`}>
+                                <div className="w-2 h-2 rounded-full bg-white" />
+                              </div>
+
+                              <div>
+                                {event.description}
+                                <span className="text-slate-500 text-xs block mt-1">
+                                  {formatDate(event.created_at, true)}
+                                </span>
+                                {event.note && (
+                                  <p className="text-slate-600 text-sm mt-1">
+                                    {event.note}
+                                  </p>
+                                )}
+                                <p className="text-slate-400 text-xs mt-1">
+                                  by {event.actor}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 text-center py-4">No timeline events available</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Refund History */}
             {refundHistory.length > 0 && (
