@@ -4,9 +4,12 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
 import { generateTrackingUrl } from '../_shared/shipping-emails.ts'
 
-// Standard weight per seedling based on WooCommerce historical data
-const SEEDLING_WEIGHT_OZ = 1.92
-const SEEDLING_WEIGHT_LBS = SEEDLING_WEIGHT_OZ / 16  // ~0.12 lbs
+import {
+  SEEDLING_WEIGHT_LBS,
+  calculateOrderPackages,
+  calculateTotalSeedlings,
+  getShippingPackageConfigs,
+} from '../_shared/packages.ts'
 
 interface CreateLabelRequest {
   order_id: string
@@ -247,60 +250,46 @@ serve(async (req) => {
     }
 
     // --- Dynamic package calculation from order items ---
+    // Uses the same shared multi-package logic as shipengine-get-rates
+    // so the label matches the rate quoted at checkout (fixes #23).
     let finalPackages: Array<{ weight: { value: number; unit: string }; dimensions?: { length: number; width: number; height: number; unit: string } }>
 
     if (hasPackagesArray) {
       finalPackages = body.packages!
     } else {
-      // Query order items for total seedling quantity
+      // Query order items with product join to get seedlings_per_unit for bundles
       const { data: orderItems } = await supabaseClient
         .from('order_items')
-        .select('quantity')
+        .select('quantity, product_id, products(seedlings_per_unit)')
         .eq('order_id', order_id)
 
-      const totalQuantity = (orderItems || []).reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0)
+      const mappedItems = (orderItems || []).map((item: any) => ({
+        quantity: Number(item.quantity) || 0,
+        seedlings_per_unit: Number(item.products?.seedlings_per_unit) || 1,
+      }))
+      const totalQuantity = calculateTotalSeedlings(mappedItems)
 
-      // Find the right package from shipping_packages by quantity range
-      const { data: packageConfigs } = await supabaseClient
-        .from('shipping_packages')
-        .select('name, length, width, height, empty_weight, min_quantity, max_quantity')
-        .eq('is_active', true)
-        .order('min_quantity', { ascending: true })
+      console.log(`[create-label] Order items: ${mappedItems.length} line(s), ` +
+        `seedlings: ${mappedItems.map((i: any) => `${i.quantity}×${i.seedlings_per_unit}`).join(', ')}, ` +
+        `total seedlings: ${totalQuantity}`)
 
-      let selectedPkg: any = null
-      if (packageConfigs && packageConfigs.length > 0) {
-        // Find best-fit package where quantity falls within [min, max]
-        const fits = packageConfigs.filter((p: any) =>
-          totalQuantity >= Number(p.min_quantity) && totalQuantity <= Number(p.max_quantity)
-        )
-        if (fits.length > 0) {
-          // Prefer smallest max_quantity that still fits
-          fits.sort((a: any, b: any) => Number(a.max_quantity) - Number(b.max_quantity))
-          selectedPkg = fits[0]
+      const packageConfigs = await getShippingPackageConfigs(supabaseClient)
+
+      if (packageConfigs.length > 0 && totalQuantity > 0) {
+        const result = calculateOrderPackages(totalQuantity, SEEDLING_WEIGHT_LBS, packageConfigs)
+        finalPackages = result.packages
+
+        // Allow manual weight override — scale proportionally across packages
+        if (package_weight_lbs && package_weight_lbs > 0) {
+          const calculatedTotal = finalPackages.reduce((s, p) => s + p.weight.value, 0)
+          const ratio = package_weight_lbs / calculatedTotal
+          finalPackages = finalPackages.map(p => ({
+            ...p,
+            weight: { ...p.weight, value: Math.round(p.weight.value * ratio * 100) / 100 }
+          }))
         }
-        // If quantity exceeds all packages, use the largest
-        if (!selectedPkg) {
-          selectedPkg = packageConfigs[packageConfigs.length - 1]
-        }
-      }
 
-      if (selectedPkg) {
-        const emptyWeight = Number(selectedPkg.empty_weight)
-        const calculatedWeight = emptyWeight + (totalQuantity * SEEDLING_WEIGHT_LBS)
-        // Allow manual override via package_weight_lbs
-        const finalWeight = (package_weight_lbs && package_weight_lbs > 0) ? package_weight_lbs : calculatedWeight
-
-        finalPackages = [{
-          weight: { value: Math.round(finalWeight * 100) / 100, unit: 'pound' },
-          dimensions: {
-            length: Number(selectedPkg.length),
-            width: Number(selectedPkg.width),
-            height: Number(selectedPkg.height),
-            unit: 'inch'
-          }
-        }]
-        console.log(`[create-label] Dynamic package: ${selectedPkg.name} for ${totalQuantity} seedlings, ` +
-          `calculated: ${Math.round(calculatedWeight * 100) / 100}lbs, final: ${Math.round(finalWeight * 100) / 100}lbs`)
+        console.log(`[create-label] Dynamic packages: ${result.summary}`)
       } else {
         // Fallback: use manual weight or error
         const fallbackWeight = package_weight_lbs || 1

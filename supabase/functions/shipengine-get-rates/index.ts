@@ -2,6 +2,15 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 import { corsHeaders, handleCors } from '../_shared/cors.ts'
 import { getIntegrationSettings } from '../_shared/settings.ts'
+import {
+  SEEDLING_WEIGHT_OZ,
+  SEEDLING_WEIGHT_LBS,
+  calculateOrderPackages,
+  getShippingPackageConfigs,
+  type PackageDetails,
+  type ShippingPackageConfig,
+  type CalculatedPackageInfo,
+} from '../_shared/packages.ts'
 
 interface Address {
   name?: string
@@ -15,22 +24,8 @@ interface Address {
   country_code?: string
 }
 
-interface PackageDetails {
-  weight: {
-    value: number
-    unit: 'pound' | 'ounce' | 'gram' | 'kilogram'
-  }
-  dimensions?: {
-    length: number
-    width: number
-    height: number
-    unit: 'inch' | 'centimeter'
-  }
-}
-
-// Standard weight per seedling based on WooCommerce historical data
-const SEEDLING_WEIGHT_OZ = 1.92
-const SEEDLING_WEIGHT_LBS = SEEDLING_WEIGHT_OZ / 16  // ~0.12 lbs
+// PackageDetails, SEEDLING_WEIGHT_*, ShippingPackageConfig, CalculatedPackageInfo,
+// getShippingPackageConfigs, and calculateOrderPackages are imported from _shared/packages.ts
 
 interface RateRequest {
   ship_to: Address
@@ -123,17 +118,7 @@ interface ShippingZoneRule {
   is_active: boolean
 }
 
-interface ShippingPackageConfig {
-  id: string
-  name: string
-  length: number
-  width: number
-  height: number
-  empty_weight: number
-  min_quantity: number
-  max_quantity: number
-  is_default: boolean
-}
+// ShippingPackageConfig imported from _shared/packages.ts
 
 /**
  * Get shipping config settings from config_settings table
@@ -419,151 +404,7 @@ async function getCarrierIds(supabaseClient: any, apiKey: string, mode?: string)
   return carriers.map((c: any) => c.carrier_id)
 }
 
-/**
- * Get shipping package configurations from database
- */
-async function getShippingPackageConfigs(supabaseClient: any): Promise<ShippingPackageConfig[]> {
-  const { data, error } = await supabaseClient
-    .from('shipping_packages')
-    .select('*')
-    .eq('is_active', true)
-    .order('min_quantity', { ascending: true })
-
-  if (error || !data) {
-    console.error('Error fetching shipping packages:', error)
-    return []
-  }
-
-  // Coerce DB values to numbers — Supabase decimal/numeric columns can return strings
-  return data.map((row: any) => ({
-    id: row.id,
-    name: row.name,
-    length: Number(row.length),
-    width: Number(row.width),
-    height: Number(row.height),
-    empty_weight: Number(row.empty_weight),
-    min_quantity: Number(row.min_quantity),
-    max_quantity: Number(row.max_quantity),
-    is_default: !!row.is_default,
-  }))
-}
-
-/**
- * Calculate packages needed for an order based on item quantities
- */
-interface CalculatedPackageInfo {
-  packages: PackageDetails[]
-  breakdown: Array<{
-    name: string
-    dimensions: PackageDetails['dimensions']
-    weight: PackageDetails['weight']
-    item_count: number
-  }>
-  summary: string
-}
-
-function calculateOrderPackages(
-  totalQuantity: number,
-  weightPerItem: number,
-  packageConfigs: ShippingPackageConfig[]
-): CalculatedPackageInfo {
-  if (packageConfigs.length === 0 || totalQuantity <= 0) {
-    return {
-      packages: [],
-      breakdown: [],
-      summary: 'No package configuration available'
-    }
-  }
-
-  const sortedConfigs = [...packageConfigs].sort((a, b) => b.max_quantity - a.max_quantity)
-  const largest = sortedConfigs[0]
-  const packages: PackageDetails[] = []
-  const breakdown: CalculatedPackageInfo['breakdown'] = []
-  let remaining = totalQuantity
-
-  const findPackage = (qty: number): ShippingPackageConfig => {
-    // Find ALL configs where qty falls within [min, max] range
-    const fits = packageConfigs.filter(p => qty >= p.min_quantity && qty <= p.max_quantity)
-    if (fits.length > 0) {
-      // Prefer the best fit: smallest max_quantity that still contains qty
-      // This prevents a Small Box (1-999) from matching when Large Box (13-24) is more appropriate
-      fits.sort((a, b) => a.max_quantity - b.max_quantity)
-      const bestFit = fits.find(p => p.max_quantity >= qty) || fits[fits.length - 1]
-      return bestFit
-    }
-
-    // If quantity is larger than any package, use largest
-    if (qty > largest.max_quantity) return largest
-
-    // Find smallest package that can fit
-    const fitting = [...sortedConfigs].reverse().find(p => qty <= p.max_quantity)
-    return fitting || packageConfigs.find(p => p.is_default) || largest
-  }
-
-  while (remaining > 0) {
-    const pkg = findPackage(remaining)
-    const itemsInPackage = Math.min(remaining, pkg.max_quantity)
-    const totalWeight = Number(pkg.empty_weight) + (itemsInPackage * weightPerItem)
-
-    packages.push({
-      weight: {
-        value: Math.round(totalWeight * 100) / 100,
-        unit: 'pound'
-      },
-      dimensions: {
-        length: pkg.length,
-        width: pkg.width,
-        height: pkg.height,
-        unit: 'inch'
-      }
-    })
-
-    breakdown.push({
-      name: pkg.name,
-      dimensions: {
-        length: pkg.length,
-        width: pkg.width,
-        height: pkg.height,
-        unit: 'inch'
-      },
-      weight: {
-        value: Math.round(totalWeight * 100) / 100,
-        unit: 'pound'
-      },
-      item_count: itemsInPackage
-    })
-
-    remaining -= itemsInPackage
-  }
-
-  // Generate summary (always include item count for transparency)
-  const totalItems = breakdown.reduce((sum, b) => sum + b.item_count, 0)
-  let summary: string
-  if (packages.length === 1) {
-    summary = `Ships in: 1 ${breakdown[0].name} (${totalItems} items)`
-  } else {
-    const counts = breakdown.reduce((acc, p) => {
-      acc[p.name] = (acc[p.name] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-
-    const parts = Object.entries(counts)
-      .map(([name, count]) => count > 1 ? `${count} ${name}` : name)
-
-    summary = `Ships in: ${packages.length} packages (${parts.join(' + ')}) — ${totalItems} items`
-  }
-
-  console.log('[calculateOrderPackages] Result:', JSON.stringify({
-    totalQuantity,
-    weightPerItem,
-    configCount: packageConfigs.length,
-    configs: packageConfigs.map(c => `${c.name}(${c.min_quantity}-${c.max_quantity})`),
-    result: breakdown.map(b => `${b.name}:${b.item_count}`),
-    summary
-  }))
-
-  return { packages, breakdown, summary }
-}
+// getShippingPackageConfigs and calculateOrderPackages imported from _shared/packages.ts
 
 serve(async (req) => {
   // Handle CORS preflight
