@@ -10,6 +10,8 @@ interface ProfileSettingsProps {
   userId: string;
   userEmail: string;
   onNavigateToSettings?: () => void;
+  profile?: any;
+  updateProfile?: (updates: any) => Promise<{ data?: any; error?: string }>;
 }
 
 const GROWING_ENVIRONMENTS = [
@@ -27,8 +29,10 @@ const EXPERIENCE_LEVELS = [
 ];
 
 
-const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, onNavigateToSettings }) => {
-  const { profile, loading, updateProfile } = useCustomerProfile(userId);
+const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, onNavigateToSettings, profile: externalProfile, updateProfile: externalUpdateProfile }) => {
+  const { profile: hookProfile, loading, updateProfile: hookUpdateProfile } = useCustomerProfile(userId);
+  const profile = externalProfile ?? hookProfile;
+  const updateProfile = externalUpdateProfile ?? hookUpdateProfile;
   const { systems: growingSystems } = useGrowingSystems();
   const activeGrowingSystems = growingSystems.filter(s => s.is_active);
   const { interests: growingInterestOptions } = useGrowingInterests();
@@ -388,7 +392,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                     }`}
                   >
                     {formData.growing_systems.includes(system.name) && (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
@@ -416,7 +420,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
                     }`}
                   >
                     {formData.growing_interests.includes(interest.value) && (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
