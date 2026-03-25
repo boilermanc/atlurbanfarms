@@ -481,7 +481,6 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           .internal-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #0369a1; margin-bottom: 4px; }
           .internal-note-text { font-size: 13px; line-height: 1.5; }
 
-          .order-separator { border: none; border-top: 2px dashed #94a3b8; margin: 24px 0 0 0; }
 
           @media print {
             body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -636,7 +635,6 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
               </div>
             ` : ''}
 
-            <hr class="order-separator" />
           </div>`;
         }).join('')}
       </body>
