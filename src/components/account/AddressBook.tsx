@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAddresses } from '../../hooks/useSupabase';
+import { supabase } from '../../lib/supabase';
 
 interface AddressBookProps {
   userId: string;
@@ -57,6 +58,20 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stateSheetOpen, setStateSheetOpen] = useState(false);
+  const [customerCompany, setCustomerCompany] = useState('');
+
+  // Fetch customer company for prepopulating new addresses
+  useEffect(() => {
+    const fetchCustomerCompany = async () => {
+      const { data } = await supabase
+        .from('customers')
+        .select('company')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data?.company) setCustomerCompany(data.company);
+    };
+    fetchCustomerCompany();
+  }, [userId]);
 
   const addressStates = [
     { abbr: 'GA', name: 'Georgia' },
@@ -181,7 +196,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
         </div>
         {!isAddingNew && (
           <button
-            onClick={() => setIsAddingNew(true)}
+            onClick={() => { setFormData({ ...initialFormData, company: customerCompany }); setIsAddingNew(true); }}
             className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -441,7 +456,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ userId }) => {
           <h3 className="font-heading font-bold text-gray-900 mb-2">No saved addresses</h3>
           <p className="text-gray-500 mb-6">Save an address during checkout to speed up future orders.</p>
           <button
-            onClick={() => setIsAddingNew(true)}
+            onClick={() => { setFormData({ ...initialFormData, company: customerCompany }); setIsAddingNew(true); }}
             className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
           >
             Add Your First Address

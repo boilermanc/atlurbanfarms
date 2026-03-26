@@ -111,6 +111,14 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ userId, userEmail, on
       const result = await updateProfile({ ...formData, email: userEmail });
       if (result.error) throw new Error(result.error);
 
+      // Sync company → school_profiles.school_name (if school profile exists)
+      if (formData.company) {
+        await supabase
+          .from('school_profiles')
+          .update({ school_name: formData.company })
+          .eq('customer_id', userId);
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {

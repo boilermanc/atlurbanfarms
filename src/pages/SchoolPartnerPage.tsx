@@ -84,7 +84,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
         // Fetch profile to pre-fill name
         const { data: customerData } = await supabase
           .from('customers')
-          .select('first_name, last_name')
+          .select('first_name, last_name, company')
           .eq('id', user.id)
           .maybeSingle();
         if (customerData) {
@@ -94,6 +94,7 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             firstName: customerData.first_name || '',
             lastName: customerData.last_name || '',
             email: user.email || '',
+            schoolName: prev.schoolName || customerData.company || '',
           }));
         }
       }
@@ -206,6 +207,12 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
             .eq('id', userId);
         }
       }
+
+      // Sync school name to customers.company
+      await supabase
+        .from('customers')
+        .update({ company: formData.schoolName.trim() })
+        .eq('id', userId);
 
       // Create school_profiles row
       const { error: profileError } = await supabase

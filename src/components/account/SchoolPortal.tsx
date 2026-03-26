@@ -139,6 +139,16 @@ const SchoolPortal: React.FC<SchoolPortalProps> = ({ userId, isTitle1 }) => {
           experience_level: data.experience_level || '',
           program_notes: data.program_notes || '',
         });
+      } else {
+        // No school profile yet — prepopulate school_name from customers.company
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('company')
+          .eq('id', userId)
+          .maybeSingle();
+        if (customer?.company) {
+          setFormData(prev => ({ ...prev, school_name: customer.company }));
+        }
       }
     } catch (err: any) {
       console.error('Error fetching school profile:', err);
@@ -198,6 +208,12 @@ const SchoolPortal: React.FC<SchoolPortalProps> = ({ userId, isTitle1 }) => {
         .upsert(payload, { onConflict: 'customer_id' });
 
       if (error) throw error;
+
+      // Sync school_name → customers.company
+      await supabase
+        .from('customers')
+        .update({ company: formData.school_name })
+        .eq('id', userId);
 
       setHasExistingProfile(true);
       setSaveSuccess(true);
