@@ -1240,7 +1240,7 @@ export function useCreateOrder() {
       )
       // Use pre-calculated tax from caller; fallback to 7% GA rate for backward compat
       const tax = preCalculatedTax != null ? preCalculatedTax : Math.round(subtotal * 0.07 * 100) / 100
-      const total = subtotal + shippingCost + tax - discountAmount
+      const total = Math.max(0, subtotal + shippingCost + tax - discountAmount)
 
       // Prepare order data for RPC
       const orderData = {
