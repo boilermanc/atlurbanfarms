@@ -285,18 +285,31 @@ const SchoolPartnerPage: React.FC<SchoolPartnerPageProps> = ({ onNavigate }) => 
           variants={staggerContainer}
           className="max-w-4xl mx-auto text-center"
         >
+          <motion.p
+            variants={fadeIn}
+            className="text-sm md:text-base font-bold uppercase tracking-widest text-emerald-600 mb-3"
+          >
+            Education First
+          </motion.p>
           <motion.h1
             variants={fadeIn}
             className="text-4xl md:text-6xl font-heading font-extrabold text-gray-900 tracking-tight mb-4"
           >
-            Aeroponics Doesn't Have to Feel Overwhelming. That's What We're Here For!
+            The ATL School Partner Program
           </motion.h1>
           <motion.p
             variants={fadeIn}
-            className="text-xl md:text-2xl text-emerald-600 font-heading font-bold mb-8"
+            className="text-xl md:text-2xl text-gray-600 mb-10"
           >
-            For the teacher who wants to grow curious minds — not just plants.
+            Providing discounts, support &amp; resources for aeroponic educators
           </motion.p>
+          <motion.div variants={fadeIn} className="mb-12">
+            <img
+              src="/school-partner-hero.png"
+              alt="ATL Urban Farms School Partner Program — students learning with aeroponic gardens"
+              className="w-full rounded-2xl shadow-sm"
+            />
+          </motion.div>
           <motion.div
             variants={fadeIn}
             className="text-lg text-gray-600 leading-relaxed mb-8 max-w-3xl mx-auto text-left space-y-4"
