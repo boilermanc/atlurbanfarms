@@ -78,6 +78,12 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
   const tagInputRef = useRef<HTMLInputElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Category dropdown state
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [categoryInput, setCategoryInput] = useState('');
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
   // Close tag dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -179,6 +185,33 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
       fetchPost();
     }
   }, [isEditMode, fetchPost]);
+
+  // Fetch existing categories for dropdown
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data } = await supabase
+        .from('blog_posts')
+        .select('category')
+        .not('category', 'is', null)
+        .neq('category', '');
+      if (data) {
+        const unique = [...new Set(data.map(r => r.category as string))].sort();
+        setExistingCategories(unique);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  // Close category dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -881,14 +914,54 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
             {/* Category */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
               <label className="block text-sm font-semibold text-slate-800 mb-2">Category</label>
-              <input
-                type="text"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                placeholder="e.g. Growing Tips, News..."
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-              />
+              <div className="relative" ref={categoryDropdownRef}>
+                <input
+                  type="text"
+                  value={formData.category}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, category: e.target.value }));
+                    setCategoryInput(e.target.value);
+                    setCategoryDropdownOpen(true);
+                  }}
+                  onFocus={() => setCategoryDropdownOpen(true)}
+                  placeholder="Select or type a new category..."
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                {categoryDropdownOpen && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {existingCategories
+                      .filter(c => c.toLowerCase().includes(formData.category.toLowerCase()))
+                      .map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, category: cat }));
+                            setCategoryDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-emerald-50 transition-colors ${
+                            formData.category === cat ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-slate-700'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    {formData.category.trim() && !existingCategories.some(c => c.toLowerCase() === formData.category.trim().toLowerCase()) && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoryDropdownOpen(false)}
+                        className="w-full text-left px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-1.5"
+                      >
+                        <Plus size={14} />
+                        Create "{formData.category.trim()}"
+                      </button>
+                    )}
+                    {!formData.category.trim() && existingCategories.length === 0 && (
+                      <div className="px-4 py-2 text-sm text-slate-400">No categories yet — type to create one</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Tags */}
