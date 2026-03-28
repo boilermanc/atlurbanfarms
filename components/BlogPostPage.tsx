@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import { supabase } from '../src/lib/supabase';
 import { useAuth } from '../src/hooks/useAuth';
 import { useCustomerProfile } from '../src/hooks/useSupabase';
+import { ShareButtons } from './ShareButtons';
 
 type PostVisibility = 'public' | 'portal_school' | 'portal_wholesale' | 'members_only';
 
@@ -221,6 +222,12 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack, onNavigate })
               </div>
             </div>
           )}
+          {/* Share Buttons */}
+          <ShareButtons
+            title={post.title}
+            slug={post.slug}
+            imageUrl={post.featured_image_url ?? undefined}
+          />
         </motion.div>
 
         {/* Featured Image */}
