@@ -22,6 +22,7 @@ import {
 import { getOrderStatusLabel } from '../../constants/orderStatus';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import useShipmentManagement from '../hooks/useShipmentManagement';
+import { useShippingPackages } from '../hooks/useShippingPackages';
 import { supabase } from '../../lib/supabase';
 import { useBrandingSettings } from '../../hooks/useSupabase';
 import { Pencil, Check, Plus, X, Search, Loader2, AlertTriangle, Trash2, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -47,6 +48,7 @@ interface OrderDetailPageProps {
 const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName, onNavigateOrder }) => {
   const { adminUser } = useAdminAuth();
   const { settings: brandingSettings } = useBrandingSettings();
+  const { getPackageForQuantity } = useShippingPackages();
 
   // Fetch order data
   const { order, loading, error, refetch } = useOrder(orderId);
@@ -154,18 +156,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     if (totalQty <= 0) return;
 
     const SEEDLING_WEIGHT_LBS = 0.12;
-    // Box selection by seedling count
-    let box: { length: number; width: number; height: number; empty_weight: number };
-    if (totalQty <= 10) {
-      box = { length: 12, width: 5, height: 5, empty_weight: 0.25 };
-    } else if (totalQty <= 20) {
-      box = { length: 11.25, width: 8.75, height: 5, empty_weight: 0.50 };
-    } else {
-      box = { length: 11.25, width: 8.75, height: 10, empty_weight: 0.75 };
-    }
-    const weight = Math.round((box.empty_weight + totalQty * SEEDLING_WEIGHT_LBS) * 100) / 100;
-    setLabelPackages([{ weight, length: box.length, width: box.width, height: box.height }]);
-  }, [order?.items]);
+    const pkg = getPackageForQuantity(totalQty);
+    if (!pkg) return;
+
+    const weight = Math.round((pkg.empty_weight + totalQty * SEEDLING_WEIGHT_LBS) * 100) / 100;
+    setLabelPackages([{ weight, length: pkg.length, width: pkg.width, height: pkg.height }]);
+  }, [order?.items, getPackageForQuantity]);
 
   // Print mode: auto-print when opened via ?print=true
   const [isPrintMode] = useState(() => {
