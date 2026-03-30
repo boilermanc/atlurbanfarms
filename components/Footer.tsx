@@ -154,6 +154,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           grid-template-columns: 1fr 1fr;
           gap: 64px;
           align-items: center;
+          max-width: 1280px;
+          margin: 0 auto;
         }
 
         @media (max-width: 900px) {
@@ -386,6 +388,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
           gap: 40px;
+          max-width: 1280px;
+          margin: 0 auto;
         }
         .footer-col-heading {
           font-size: 11px;
@@ -485,6 +489,8 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           display: flex;
           align-items: center;
           justify-content: space-between;
+          max-width: 1280px;
+          margin: 0 auto;
         }
         .footer-copyright {
           font-size: 13px;
