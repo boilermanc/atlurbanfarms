@@ -805,7 +805,12 @@ ${ordersToprint.map(order => `<div class="order">
                           {selectedOrders.has(order.id) && (<svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>)}
                         </button>
                       </td>
-                      <td className="px-6 py-4"><span className="font-mono text-slate-800 font-medium">{order.order_number}</span></td>
+                      <td className="px-6 py-4">
+                        <span className="font-mono text-slate-800 font-medium">{order.order_number}</span>
+                        {order.payment_method === 'purchase_order' && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold rounded border border-violet-200 uppercase tracking-wide">PO</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-slate-600">{formatDate(order.created_at)}</td>
                       <td className="px-6 py-4 text-slate-800">{order.customer_name || (<span className="text-slate-400 italic">Guest</span>)}</td>
                       <td className="px-6 py-4 text-slate-500 text-sm">{order.customer_email}</td>

@@ -2,6 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 
+interface POOrder {
+  id: string;
+  order_number: string;
+  created_at: string;
+  status: string;
+  total: number;
+  po_number: string | null;
+  po_status: string | null;
+}
+
 interface SchoolPortalProps {
   userId: string;
   isTitle1: boolean;
@@ -115,6 +125,10 @@ const SchoolPortal: React.FC<SchoolPortalProps> = ({ userId, isTitle1 }) => {
   const [filesError, setFilesError] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
+  // ── PO Orders State ──
+  const [poOrders, setPOOrders] = useState<POOrder[]>([]);
+  const [poLoading, setPOLoading] = useState(true);
+
   // ── Fetch school profile ──
   const fetchProfile = useCallback(async () => {
     setProfileLoading(true);
@@ -179,10 +193,31 @@ const SchoolPortal: React.FC<SchoolPortalProps> = ({ userId, isTitle1 }) => {
     }
   }, []);
 
+  // ── Fetch PO orders ──
+  const fetchPOOrders = useCallback(async () => {
+    setPOLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, created_at, status, total, po_number, po_status')
+        .eq('customer_id', userId)
+        .eq('payment_method', 'purchase_order')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPOOrders(data || []);
+    } catch (err: any) {
+      console.error('Error fetching PO orders:', err);
+    } finally {
+      setPOLoading(false);
+    }
+  }, [userId]);
+
   useEffect(() => {
     fetchProfile();
     fetchFiles();
-  }, [fetchProfile, fetchFiles]);
+    fetchPOOrders();
+  }, [fetchProfile, fetchFiles, fetchPOOrders]);
 
   // ── Save school profile ──
   const handleSave = async (e: React.FormEvent) => {
@@ -538,28 +573,73 @@ const SchoolPortal: React.FC<SchoolPortalProps> = ({ userId, isTitle1 }) => {
         )}
       </div>
 
-      {/* ── SECTION 3: PO Order Management (Placeholder) ── */}
+      {/* ── SECTION 3: PO Order Management ── */}
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
         <h2 className="font-heading font-bold text-gray-900 mb-4">Purchase Order Management</h2>
-        <div className="py-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-xl flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" viewBox="0 0 24 24">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
+
+        {poLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map(i => (
+              <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+            ))}
           </div>
-          <p className="text-gray-900 font-medium text-sm mb-1">Purchase Order ordering is coming soon.</p>
-          <p className="text-gray-500 text-sm">
-            Contact{' '}
-            <a href="mailto:sheree@atlurbanfarms.com" className="text-emerald-600 hover:underline font-medium">
-              sheree@atlurbanfarms.com
-            </a>
-            {' '}to place a PO order.
-          </p>
-        </div>
+        ) : poOrders.length === 0 ? (
+          <div className="py-6 text-center">
+            <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-xl flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </div>
+            <p className="text-gray-500 text-sm">
+              No purchase orders yet. You can use a PO number at checkout.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {poOrders.map(po => {
+              const statusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
+                pending_verification: { label: 'Pending Verification', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+                verified: { label: 'Verified', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+                invoiced: { label: 'Invoiced', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+                paid: { label: 'Paid', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+                cancelled: { label: 'Cancelled', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+              };
+              const st = statusConfig[po.po_status || 'pending_verification'] || statusConfig.pending_verification;
+              const date = new Date(po.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const total = `$${po.total.toFixed(2)}`;
+
+              return (
+                <div key={po.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-bold text-gray-900">{po.order_number}</span>
+                      {po.po_number && (
+                        <span className="text-xs text-gray-500">PO# {po.po_number}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">{date}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full border ${st.bg} ${st.text} ${st.border}`}>
+                      {st.label}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900 w-20 text-right">{total}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-xs text-gray-400 mt-2">
+              Questions about a PO?{' '}
+              <a href="mailto:sheree@atlurbanfarms.com" className="text-emerald-600 hover:underline font-medium">
+                Contact Sheree
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

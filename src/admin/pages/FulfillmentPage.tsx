@@ -1393,6 +1393,9 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                         <span className="font-mono text-slate-800 font-medium">
                           {order.order_number}
                         </span>
+                        {order.payment_method === 'purchase_order' && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-bold rounded border border-violet-200 uppercase tracking-wide">PO</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-center">
                         {order.is_pickup ? (

@@ -67,6 +67,8 @@ interface Order {
   customer_email: string | null;
   customer_notes: string | null;
   payment_method: string | null;
+  po_number: string | null;
+  po_status: string | null;
   paid_at: string | null;
   stripe_payment_intent_id: string | null;
   billing_first_name: string | null;
@@ -434,7 +436,10 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
     if (!order.isLegacy) {
       const o = order as Order;
       const method = o.payment_method || 'stripe';
-      const methodLabel = method === 'stripe' ? 'Credit Card (Stripe)' : method.charAt(0).toUpperCase() + method.slice(1);
+      const methodLabel = method === 'purchase_order'
+        ? `Purchase Order${o.po_number ? ` (PO# ${o.po_number})` : ''}`
+        : method === 'stripe' ? 'Credit Card (Stripe)'
+        : method.charAt(0).toUpperCase() + method.slice(1);
       const paidDate = o.paid_at ? formatDate(o.paid_at) : '';
       paymentHtml = `
         <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
@@ -664,6 +669,11 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                       <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusColor(order.status)}`}>
                         {order.isLegacy ? getLegacyStatusLabel(order.status) : getOrderStatusLabel(order.status)}
                       </span>
+                      {!order.isLegacy && (order as Order).payment_method === 'purchase_order' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                          PO{(order as Order).po_number ? ` #${(order as Order).po_number}` : ''}
+                        </span>
+                      )}
                       {order.isLegacy && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
                           Historical
@@ -878,6 +888,36 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
                           </div>
                         );
                       })()}
+
+                      {/* Purchase Order Status - PO Orders */}
+                      {!order.isLegacy && (order as Order).payment_method === 'purchase_order' && (
+                        <div className="border-t border-gray-100 pt-4">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">
+                            Purchase Order
+                          </h4>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {(order as Order).po_number && (
+                              <span className="text-sm text-gray-700 font-medium">PO# {(order as Order).po_number}</span>
+                            )}
+                            {(() => {
+                              const poStatus = (order as Order).po_status || 'pending_verification';
+                              const cfg: Record<string, { label: string; cls: string }> = {
+                                pending_verification: { label: 'Pending Verification', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+                                verified: { label: 'Verified', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+                                invoiced: { label: 'Invoiced', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+                                paid: { label: 'Paid', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                                cancelled: { label: 'Cancelled', cls: 'bg-red-50 text-red-700 border-red-200' },
+                              };
+                              const s = cfg[poStatus] || cfg.pending_verification;
+                              return (
+                                <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${s.cls}`}>
+                                  {s.label}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Payment Method - Legacy Orders */}
                       {order.isLegacy && (order as LegacyOrder).payment_method && (

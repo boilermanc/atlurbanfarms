@@ -209,6 +209,13 @@ export interface Order {
   gift_card_code?: string | null;
   gift_card_amount?: number | null;
   giftup_transaction_id?: string | null;
+  // Purchase order fields
+  payment_method?: string | null;
+  po_number?: string | null;
+  po_status?: string | null;
+  po_verified_at?: string | null;
+  po_invoiced_at?: string | null;
+  po_paid_at?: string | null;
   // Legacy order fields
   isLegacy?: boolean;
   woo_order_id?: number;
