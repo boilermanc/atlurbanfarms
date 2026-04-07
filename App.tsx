@@ -42,6 +42,7 @@ import UnsubscribePage from './src/pages/UnsubscribePage';
 import { useBrandingSettings } from './src/hooks/useSupabase';
 import { Product, CartItem } from './types';
 import { useCartSync } from './src/hooks/useCartSync';
+import SEO from './src/components/SEO';
 
 // Helper function to convert hex color to RGB values
 function hexToRgb(hex: string): string {
@@ -725,6 +726,10 @@ const App: React.FC = () => {
       default:
         return (
           <div className="min-h-screen bg-site selection:bg-emerald-100 selection:text-emerald-900">
+            <SEO
+              title="ATL Urban Farms | Premium Live Plant Seedlings"
+              description="Premium live plant seedlings delivered to your doorstep. Optimized for home gardeners, schools, and vertical farmers in Atlanta."
+            />
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             

@@ -6,6 +6,7 @@ import { supabase } from '../src/lib/supabase';
 import { useAuth } from '../src/hooks/useAuth';
 import { useCustomerProfile } from '../src/hooks/useSupabase';
 import { ShareButtons } from './ShareButtons';
+import SEO from '../src/components/SEO';
 
 type PostVisibility = 'public' | 'portal_school' | 'portal_wholesale' | 'members_only';
 
@@ -171,6 +172,13 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ slug, onBack, onNavigate })
 
   return (
     <div className="min-h-screen pt-40 pb-20 bg-site">
+      <SEO
+        title={`${post.title} | ATL Urban Farms`}
+        description={post.excerpt || post.title}
+        image={post.featured_image_url || undefined}
+        url={`/blog/${post.slug}`}
+        type="article"
+      />
       <div className="max-w-3xl mx-auto px-4 md:px-12">
         {/* Back Link */}
         <motion.div

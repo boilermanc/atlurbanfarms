@@ -36,74 +36,42 @@ function replaceVariables(template: string, variables: Record<string, any>): str
   })
 }
 
-// Fetch email template from database
+// Fetch email template from database (with one retry for transient errors)
 async function getEmailTemplate(
   supabase: any,
   templateKey: string
 ): Promise<EmailTemplate | null> {
-  const { data, error } = await supabase
-    .from('email_templates')
-    .select('*')
-    .eq('template_key', templateKey)
-    .eq('is_active', true)
-    .single()
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { data, error } = await supabase
+      .from('email_templates')
+      .select('*')
+      .eq('template_key', templateKey)
+      .eq('is_active', true)
+      .single()
 
-  if (error) {
-    console.log(`Template "${templateKey}" not found in database, using fallback`)
-    return null
+    if (!error) return data
+
+    console.error(
+      `[getEmailTemplate] attempt ${attempt}/2 failed for "${templateKey}":`,
+      JSON.stringify({ code: error.code, message: error.message, details: error.details })
+    )
+
+    // Retry once after a short delay for transient errors
+    if (attempt === 1) {
+      await new Promise(r => setTimeout(r, 500))
+    }
   }
 
-  return data
+  console.error(`[getEmailTemplate] "${templateKey}" not found after 2 attempts — will use fallback`)
+  return null
 }
 
 // Fallback templates (used if database templates not available)
 // The `brand` parameter carries colors from config_settings so fallback emails use the configured brand.
+// IMPORTANT: order_confirmation intentionally removed — the DB template (designed by Sheree)
+// is the source of truth. If it can't be loaded, we send a minimal confirmation rather than
+// a stale developer template that looks like a "revert" (#40).
 const fallbackTemplates: Record<string, (data: any, brand: Record<string, string>) => { subject: string; html: string }> = {
-  order_confirmation: (data: any, brand: Record<string, string>) => ({
-    subject: `Order Confirmation - #${data.orderNumber || data.order_id}`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: ${brand.primary_color}; color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 12px 12px; }
-          .footer { background: ${brand.primary_color}; color: white; padding: 20px; text-align: center; border-radius: 0 0 12px 12px; }
-          .btn { display: inline-block; background: ${brand.primary_color}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Thank You for Your Order!</h1>
-            <p>Order #${data.orderNumber || data.order_id}</p>
-          </div>
-          <div class="content">
-            <p>Hi ${data.customerName || data.customer_first_name || 'there'},</p>
-            <p>We've received your order and are getting it ready!</p>
-            ${data.items ? formatOrderItems(data.items) : ''}
-            ${generateDeliveryInfoHtml(data)}
-            ${!data.pickupInfo ? `<p style="margin-top: 30px; color: #6b7280; font-size: 0.875rem;">
-              Remember: We ship live plants Monday through Wednesday only to ensure they arrive fresh!
-            </p>` : ''}
-            ${data.siteUrl ? `<p style="text-align: center; margin-top: 30px;"><a href="${data.siteUrl}/account/orders" class="btn">View Invoice</a></p>` : ''}
-            ${data.isGuest ? `<div style="background-color: #f0fdf4; border-radius: 8px; padding: 24px; text-align: center; margin-top: 30px;">
-              <p style="color: #166534; font-size: 16px; font-weight: bold; margin: 0 0 8px;">Track your order and access your dashboard</p>
-              <p style="color: #333; font-size: 14px; line-height: 1.5; margin: 0 0 20px;">Create a free ATL Urban Farms account to track this order, save your shipping info, and unlock your Customer Dashboard.</p>
-              <a href="https://atlurbanfarms.com/register" class="btn">Create Your Account &rarr;</a>
-            </div>` : ''}
-          </div>
-          <div class="footer">
-            <p style="margin: 0 0 5px; font-size: 14px;">www.AtlUrbanFarms.com</p>
-            <p style="margin: 0; font-size: 12px;">ATL Urban Farms, a Sweetwater Urban Farms company – Powered by Sweetwater Technology</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `
-  }),
 
   shipping_notification: (data: any, brand: Record<string, string>) => ({
     subject: `Your Order Has Shipped - #${data.orderNumber || data.order_id}`,
@@ -985,7 +953,7 @@ serve(async (req) => {
         emailSubject = emailSubject || generated.subject
         emailHtml = emailHtml || generated.html
       } else {
-        console.warn(`Template "${templateKey}" not found`)
+        console.error(`[CRITICAL] Template "${templateKey}" not found in DB and no fallback — email will NOT be sent`)
       }
     }
 
