@@ -415,6 +415,57 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     }
   }, [orderError]);
 
+  // Auto-fetch shipping rates when all address fields are valid (debounced).
+  // This is a safety net for the stale-closure issue in handleZipBlur: React 18
+  // may not flush the re-render between the last keystroke's onChange and the
+  // subsequent onBlur, so handleZipBlur can see a ZIP that is one character short.
+  // Watching state directly in a useEffect avoids the stale-closure problem.
+  const autoFetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Don't run on initial mount (all fields empty)
+    if (!formData.address1.trim() && !formData.city.trim() && !formData.state.trim() && !formData.zip.trim()) {
+      return;
+    }
+
+    // All conditions must be met
+    if (
+      !shipEngineEnabled ||
+      addressValidated ||
+      fetchingRates ||
+      !formData.address1.trim() ||
+      !formData.city.trim() ||
+      !formData.state.trim() ||
+      !formData.zip.trim() ||
+      !/^\d{5}(-\d{4})?$/.test(formData.zip.trim())
+    ) {
+      return;
+    }
+
+    // Debounce 600ms so we don't fire on every keystroke
+    if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
+    autoFetchTimerRef.current = setTimeout(() => {
+      const address: ShippingAddress = {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        phone: formData.phone,
+        address_line1: formData.address1,
+        address_line2: formData.address2 || undefined,
+        city_locality: formData.city,
+        state_province: formData.state,
+        postal_code: formData.zip,
+        country_code: 'US',
+      };
+      setAddressValidated(true);
+      const orderItems = items.map(item => ({
+        quantity: item.quantity * (item.seedlingsPerUnit || 1),
+      }));
+      fetchRates(address, orderItems);
+    }, 600);
+
+    return () => {
+      if (autoFetchTimerRef.current) clearTimeout(autoFetchTimerRef.current);
+    };
+  }, [shipEngineEnabled, addressValidated, fetchingRates, formData.address1, formData.city, formData.state, formData.zip, formData.firstName, formData.lastName, formData.phone, formData.address2, items, fetchRates]);
+
   // Auto-select first rate when rates are loaded
   useEffect(() => {
     if (shippingRates.length > 0 && !selectedShippingRate) {
