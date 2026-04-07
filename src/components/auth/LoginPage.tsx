@@ -219,9 +219,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
           <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-2">
             Returning Customer
           </h2>
-          <p className="text-sm text-gray-400 mb-6">
-            Ordered from us before March 2026? Your previous account won't work here. Please create a new account on the right — your order history will be linked automatically.
-          </p>
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6">
+            <p className="text-xs text-amber-900 leading-relaxed">
+              Ordered from us before March 2026? Your previous account won't work here. Please create a new account on the right — your order history will be linked automatically.
+            </p>
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-5 flex-1 flex flex-col">
             {loginError && (
