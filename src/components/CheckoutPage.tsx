@@ -1686,11 +1686,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
         discount: bestDiscount > 0 ? bestDiscount : undefined,
         discountLabel: bestDiscount > 0 ? activeDiscountLabel : undefined,
         promoCode: bestDiscount > 0 && activePromo?.promotion_code ? activePromo.promotion_code : undefined,
-        giftCardCode: giftCardApplied ? giftCardData?.code : undefined,
-        giftCardAmount: giftCardApplied ? giftCardDiscount : undefined,
-        customerNotes: customerNotes.trim() || undefined,
-        customerPhone: formData.phone || undefined,
-        customerEmail: formData.email,
         isGuest: !user,
       });
     } catch (emailError) {

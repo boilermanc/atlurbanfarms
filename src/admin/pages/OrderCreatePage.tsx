@@ -748,8 +748,6 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
         tax,
         total,
         is_pickup: isPickup,
-        customerEmail: recipientEmail,
-        customerPhone: selectedCustomer?.phone || shippingAddress.phone || undefined,
         siteUrl: window.location.origin,
       };
 
