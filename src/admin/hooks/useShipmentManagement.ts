@@ -59,14 +59,14 @@ export interface VoidLabelResult {
  * Hook for managing shipments and labels in the admin panel
  */
 export function useShipmentManagement(orderId: string | null) {
-  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch shipment for order
+  // Fetch all shipments for order
   const fetchShipment = useCallback(async () => {
     if (!orderId) {
-      setShipment(null);
+      setShipments([]);
       return;
     }
 
@@ -78,8 +78,7 @@ export function useShipmentManagement(orderId: string | null) {
         .from('shipments')
         .select('*')
         .eq('order_id', orderId)
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false });
 
       if (fetchError) {
         console.warn('Shipment fetch warning:', fetchError.code, fetchError.message);
@@ -88,7 +87,7 @@ export function useShipmentManagement(orderId: string | null) {
         return;
       }
 
-      setShipment(data?.[0] || null);
+      setShipments(data || []);
     } catch (err: any) {
       // Silently handle errors - shipment data is optional.
       // Don't overwrite existing (optimistic) shipment data on error.
@@ -165,10 +164,9 @@ export function useShipmentManagement(orderId: string | null) {
         return data;
       }
 
-      // Optimistically update shipment state from the response so the UI
-      // switches from "Create Label" to "Label Details" immediately, even
-      // if the subsequent DB fetch fails (e.g. RLS, timing).
-      setShipment({
+      // Optimistically add the new shipment so the UI updates immediately,
+      // even if the subsequent DB fetch fails (e.g. RLS, timing).
+      const optimisticShipment: Shipment = {
         id: '',
         order_id: orderId!,
         label_id: data.label_id || null,
@@ -189,7 +187,8 @@ export function useShipmentManagement(orderId: string | null) {
         voided_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      };
+      setShipments(prev => [optimisticShipment, ...prev]);
 
       // Also fetch the full record from the DB (will overwrite optimistic
       // data with the real row including the server-generated id).
@@ -259,14 +258,22 @@ export function useShipmentManagement(orderId: string | null) {
     }
   }, [orderId, fetchShipment]);
 
-  // Check if we can create a label
-  const canCreateLabel = !shipment || shipment.voided;
+  // Active (non-voided) shipments
+  const activeShipments = shipments.filter(s => !s.voided);
 
-  // Check if we can void a label
+  // Backward-compat: latest shipment (used for conditional checks elsewhere)
+  const shipment = activeShipments[0] || shipments[0] || null;
+
+  // Can create a new label when no active shipments exist
+  const canCreateLabel = activeShipments.length === 0;
+
+  // Per-shipment void check is now in the UI; keep this for simple checks
   const canVoidLabel = shipment && shipment.label_id && !shipment.voided;
 
   return {
     shipment,
+    shipments,
+    activeShipments,
     loading,
     error,
     createLabel,

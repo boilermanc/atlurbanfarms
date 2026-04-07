@@ -125,7 +125,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [trackingForm, setTrackingForm] = useState({ shipping_method_name: '', shipping_cost: 0, tracking_number: '', tracking_url: '', estimated_delivery_date: '' });
 
   // Shipping Label state
-  const { shipment, loading: shipmentLoading, error: shipmentError, createLabel, voidLabel, canCreateLabel, canVoidLabel, refetch: refetchShipment } = useShipmentManagement(orderId);
+  const { shipment, activeShipments, loading: shipmentLoading, error: shipmentError, createLabel, voidLabel, canCreateLabel, canVoidLabel, refetch: refetchShipment } = useShipmentManagement(orderId);
   const [labelServiceCode, setLabelServiceCode] = useState('ups_ground');
   const [labelPackages, setLabelPackages] = useState<Array<{ weight: number; length: number; width: number; height: number }>>([
     { weight: 1, length: 12, width: 5, height: 5 }
@@ -133,7 +133,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   const [labelCreating, setLabelCreating] = useState(false);
   const [labelVoiding, setLabelVoiding] = useState(false);
   const [labelError, setLabelError] = useState<string | null>(null);
-  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
+  const [showVoidConfirm, setShowVoidConfirm] = useState<string | null>(null);
   const [copiedTracking, setCopiedTracking] = useState(false);
   const [overridePickup, setOverridePickup] = useState(false);
   // Rates state
@@ -2218,7 +2218,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         {(!order.is_pickup || overridePickup || shipment) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Label</h2>
+              <h2 className="text-lg font-semibold text-slate-800 font-admin-display">Shipping Label{activeShipments.length > 1 ? 's' : ''}</h2>
               {shipmentLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
             </div>
             <div className="p-6">
@@ -2466,138 +2466,145 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     )}
                   </button>
                 </div>
-              ) : shipment && !shipment.voided ? (
-                /* STATE B: Label Exists */
+              ) : activeShipments.length > 0 ? (
+                /* STATE B: Labels Exist — show all active shipments */
                 <div className="space-y-4">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-slate-400 text-sm">Tracking Number</p>
-                      <div className="flex items-center gap-2">
-                        {(() => {
-                          const trackingUrl = order.tracking_url || (shipment.tracking_number
-                            ? (shipment.carrier_code === 'usps'
-                              ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${shipment.tracking_number}`
-                              : `https://www.ups.com/track?tracknum=${shipment.tracking_number}`)
-                            : null);
-                          return shipment.tracking_number && trackingUrl ? (
-                            <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 font-medium font-mono">{shipment.tracking_number}</a>
-                          ) : (
-                            <p className="text-slate-700 font-medium font-mono">{shipment.tracking_number || 'N/A'}</p>
-                          );
-                        })()}
-                        {shipment.tracking_number && (
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(shipment.tracking_number!);
-                              setCopiedTracking(true);
-                              setTimeout(() => setCopiedTracking(false), 2000);
-                            }}
-                            className="text-slate-400 hover:text-emerald-600 transition-colors"
-                            title="Copy tracking number"
+                  {activeShipments.map((s, idx) => (
+                    <div key={s.id || idx} className={`space-y-4${activeShipments.length > 1 ? ' border border-slate-200 rounded-lg p-4' : ''}`}>
+                      {activeShipments.length > 1 && (
+                        <p className="text-xs font-semibold text-slate-500">Label {idx + 1}</p>
+                      )}
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-slate-400 text-sm">Tracking Number</p>
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const trackingUrl = order.tracking_url || (s.tracking_number
+                                ? (s.carrier_code === 'usps'
+                                  ? `https://tools.usps.com/go/TrackConfirmAction?tLabels=${s.tracking_number}`
+                                  : `https://www.ups.com/track?tracknum=${s.tracking_number}`)
+                                : null);
+                              return s.tracking_number && trackingUrl ? (
+                                <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700 font-medium font-mono">{s.tracking_number}</a>
+                              ) : (
+                                <p className="text-slate-700 font-medium font-mono">{s.tracking_number || 'N/A'}</p>
+                              );
+                            })()}
+                            {s.tracking_number && (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(s.tracking_number!);
+                                  setCopiedTracking(true);
+                                  setTimeout(() => setCopiedTracking(false), 2000);
+                                }}
+                                className="text-slate-400 hover:text-emerald-600 transition-colors"
+                                title="Copy tracking number"
+                              >
+                                {copiedTracking ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-slate-400 text-sm">Carrier & Service</p>
+                          <p className="text-slate-700">{(s.carrier_code || 'UPS').toUpperCase()} — {s.service_code?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400 text-sm">Label Cost</p>
+                          <p className="text-slate-700">{s.shipment_cost != null ? `$${Number(s.shipment_cost).toFixed(2)}` : 'N/A'}</p>
+                        </div>
+                        {s.tracking_status && (
+                          <div>
+                            <p className="text-slate-400 text-sm">Tracking Status</p>
+                            <p className="text-slate-700">{s.tracking_status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}{s.tracking_status_description ? ` — ${s.tracking_status_description}` : ''}</p>
+                          </div>
+                        )}
+                        {s.estimated_delivery_date && (
+                          <div>
+                            <p className="text-slate-400 text-sm">Estimated Delivery</p>
+                            <p className="text-slate-700">{formatDate(s.estimated_delivery_date)}</p>
+                          </div>
+                        )}
+                        {s.last_tracking_update && (
+                          <div>
+                            <p className="text-slate-400 text-sm">Last Tracking Update</p>
+                            <p className="text-slate-700">{formatDate(s.last_tracking_update, true)}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {s.label_url && (
+                          <a
+                            href={s.label_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
                           >
-                            {copiedTracking ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download Label (PDF)
+                          </a>
+                        )}
+                        {s.label_id && !s.voided && (
+                          <button
+                            onClick={() => setShowVoidConfirm(s.label_id!)}
+                            disabled={labelVoiding}
+                            className="px-4 py-2.5 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-colors"
+                          >
+                            {labelVoiding ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
+                              'Void Label'
                             )}
                           </button>
                         )}
                       </div>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-sm">Carrier & Service</p>
-                      <p className="text-slate-700">{(shipment.carrier_code || 'UPS').toUpperCase()} — {shipment.service_code?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 text-sm">Label Cost</p>
-                      <p className="text-slate-700">{shipment.shipment_cost != null ? `$${Number(shipment.shipment_cost).toFixed(2)}` : 'N/A'}</p>
-                    </div>
-                    {shipment.tracking_status && (
-                      <div>
-                        <p className="text-slate-400 text-sm">Tracking Status</p>
-                        <p className="text-slate-700">{shipment.tracking_status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}{shipment.tracking_status_description ? ` — ${shipment.tracking_status_description}` : ''}</p>
-                      </div>
-                    )}
-                    {shipment.estimated_delivery_date && (
-                      <div>
-                        <p className="text-slate-400 text-sm">Estimated Delivery</p>
-                        <p className="text-slate-700">{formatDate(shipment.estimated_delivery_date)}</p>
-                      </div>
-                    )}
-                    {shipment.last_tracking_update && (
-                      <div>
-                        <p className="text-slate-400 text-sm">Last Tracking Update</p>
-                        <p className="text-slate-700">{formatDate(shipment.last_tracking_update, true)}</p>
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="flex gap-2">
-                    {shipment.label_url && (
-                      <a
-                        href={shipment.label_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download Label (PDF)
-                      </a>
-                    )}
-                    {canVoidLabel && (
-                      <button
-                        onClick={() => setShowVoidConfirm(true)}
-                        disabled={labelVoiding}
-                        className="px-4 py-2.5 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 border border-red-200 disabled:opacity-50 transition-colors"
-                      >
-                        {labelVoiding ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          'Void Label'
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Void Confirmation Dialog */}
-                  {showVoidConfirm && (
-                    <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700 font-medium mb-3">Are you sure you want to void this label?</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            setLabelVoiding(true);
-                            setLabelError(null);
-                            const result = await voidLabel(shipment.label_id!);
-                            setLabelVoiding(false);
-                            setShowVoidConfirm(false);
-                            if (!result.success) {
-                              setLabelError(result.error?.message || 'Failed to void label');
-                            } else {
-                              setLabelError(null);
-                              refetch();
-                              refetchShipment();
-                            }
-                          }}
-                          disabled={labelVoiding}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                        >
-                          {labelVoiding && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                          Yes, Void Label
-                        </button>
-                        <button
-                          onClick={() => setShowVoidConfirm(false)}
-                          className="px-3 py-1.5 bg-white text-slate-600 text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      {/* Void Confirmation Dialog */}
+                      {showVoidConfirm === s.label_id && (
+                        <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-700 font-medium mb-3">Are you sure you want to void this label?</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                setLabelVoiding(true);
+                                setLabelError(null);
+                                const result = await voidLabel(s.label_id!);
+                                setLabelVoiding(false);
+                                setShowVoidConfirm(null);
+                                if (!result.success) {
+                                  setLabelError(result.error?.message || 'Failed to void label');
+                                } else {
+                                  setLabelError(null);
+                                  refetch();
+                                  refetchShipment();
+                                }
+                              }}
+                              disabled={labelVoiding}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                            >
+                              {labelVoiding && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                              Yes, Void Label
+                            </button>
+                            <button
+                              onClick={() => setShowVoidConfirm(null)}
+                              className="px-3 py-1.5 bg-white text-slate-600 text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               ) : null}
             </div>
