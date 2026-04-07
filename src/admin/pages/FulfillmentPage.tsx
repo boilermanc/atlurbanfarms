@@ -477,9 +477,6 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
           .customer-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #854d0e; margin-bottom: 4px; }
           .customer-note-text { font-size: 13px; line-height: 1.5; }
-          .internal-note { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
-          .internal-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #0369a1; margin-bottom: 4px; }
-          .internal-note-text { font-size: 13px; line-height: 1.5; }
 
 
           @media print {
@@ -627,13 +624,6 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                 </tr>
               </tbody>
             </table>
-
-            ${order.internal_notes ? `
-              <div class="internal-note">
-                <div class="internal-note-label">Internal Notes</div>
-                <div class="internal-note-text">${escapeHtml(order.internal_notes).replace(/\n/g, '<br>')}</div>
-              </div>
-            ` : ''}
 
           </div>`;
         }).join('')}
