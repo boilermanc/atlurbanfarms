@@ -24,21 +24,18 @@ CREATE TABLE IF NOT EXISTS order_activity_log (
 );
 
 -- Index for fast lookups by order
-CREATE INDEX IF NOT EXISTS idx_order_activity_log_order_id ON order_activity_log(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_activity_log_created_at ON order_activity_log(created_at);
+CREATE INDEX idx_order_activity_log_order_id ON order_activity_log(order_id);
+CREATE INDEX idx_order_activity_log_created_at ON order_activity_log(created_at);
 
 -- Enable RLS
 ALTER TABLE order_activity_log ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated users (admins) to read and insert
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admins can read order activity' AND tablename = 'order_activity_log') THEN
-    CREATE POLICY "Admins can read order activity" ON order_activity_log FOR SELECT TO authenticated USING (true);
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admins can insert order activity' AND tablename = 'order_activity_log') THEN
-    CREATE POLICY "Admins can insert order activity" ON order_activity_log FOR INSERT TO authenticated WITH CHECK (true);
-  END IF;
-END $$;
+CREATE POLICY "Admins can read order activity" ON order_activity_log
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Admins can insert order activity" ON order_activity_log
+  FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Backfill: create 'order_created' entries from existing orders
 INSERT INTO order_activity_log (order_id, activity_type, description, created_by_name, created_at)
