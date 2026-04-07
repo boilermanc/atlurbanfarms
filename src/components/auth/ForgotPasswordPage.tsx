@@ -22,18 +22,13 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) =
     setIsLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-
-      if (resetError) {
-        throw resetError;
-      }
-
-      setIsSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+    } catch {
+      // Silently ignore — never reveal whether the email exists
     } finally {
+      setIsSuccess(true);
       setIsLoading(false);
     }
   };
@@ -112,11 +107,10 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigate }) =
                 Check Your Email
               </h2>
               <p className="text-gray-500 mb-6">
-                We've sent a password reset link to{' '}
-                <span className="font-semibold text-gray-700">{email}</span>
+                If an account exists for this email, you'll receive a reset link shortly.
               </p>
               <p className="text-sm text-gray-400 mb-8">
-                Didn't receive the email? Check your spam folder or try again.
+                If you don't receive an email within a few minutes, you may need to create a new account — your order history will be linked automatically.
               </p>
               <button
                 onClick={() => {

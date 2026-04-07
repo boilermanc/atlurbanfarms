@@ -216,9 +216,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
           transition={{ duration: 0.4, delay: 0.1 }}
           className={cardClass}
         >
-          <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-6">
+          <h2 className="text-2xl font-heading font-extrabold text-gray-900 mb-2">
             Returning Customer
           </h2>
+          <p className="text-sm text-gray-400 mb-6">
+            Ordered from us before March 2026? Your previous account won't work here. Please create a new account on the right — your order history will be linked automatically.
+          </p>
 
           <form onSubmit={handleLogin} className="space-y-5 flex-1 flex flex-col">
             {loginError && (
