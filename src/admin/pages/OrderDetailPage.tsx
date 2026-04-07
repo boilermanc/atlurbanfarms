@@ -1021,6 +1021,149 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     printWindow.document.close();
   };
 
+  const handlePrintPackingList = () => {
+    if (!order) return;
+
+    const orderItems = order.items || [];
+    const orderNum = order.order_number;
+    const orderDate = formatDate(order.created_at);
+
+    // Line items — quantity focused, no prices
+    let itemsHtml = '';
+    orderItems.forEach((item, idx) => {
+      itemsHtml += `
+        <tr>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${idx + 1}</td>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${item.product_name || 'Product'}</td>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 15px; font-weight: 700;">${item.quantity}</td>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 13px; width: 60px;">☐</td>
+        </tr>`;
+    });
+
+    // Ship To / Pickup destination
+    let destinationHtml = '';
+    if (order.is_pickup) {
+      const pickupDate = order.pickup_date ? new Date(order.pickup_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+      const pickupStart = order.pickup_time_start ? formatPickupTime(order.pickup_time_start) : '';
+      const pickupEnd = order.pickup_time_end ? formatPickupTime(order.pickup_time_end) : '';
+      const timeRange = pickupStart && pickupEnd ? `${pickupStart} - ${pickupEnd}` : pickupStart || '';
+      destinationHtml = `
+        <div>
+          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Pickup</h3>
+          <p style="margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600;">Local Pickup</p>
+          ${pickupDate ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${pickupDate}</p>` : ''}
+          ${timeRange ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${timeRange}</p>` : ''}
+        </div>`;
+    } else {
+      const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
+      const shipStreet = order.shipping_address_line1;
+      const shipStreet2 = order.shipping_address_line2;
+      const shipCity = order.shipping_city;
+      const shipState = order.shipping_state;
+      const shipZip = order.shipping_zip;
+      destinationHtml = `
+        <div>
+          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
+          ${shipName ? `<p style="margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600;">${shipName}</p>` : ''}
+          ${shipStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet}</p>` : ''}
+          ${shipStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet2}</p>` : ''}
+          ${shipStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>` : ''}
+        </div>`;
+    }
+
+    // Shipping method
+    const shippingMethod = order.is_pickup ? 'Local Pickup' : (order.shipping_method || order.shipping_carrier || 'Standard Shipping');
+
+    // Customer notes
+    const notesHtml = order.customer_notes ? `
+      <div style="margin-top: 16px; padding: 12px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 8px;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #92400e; margin: 0 0 4px;">Customer Notes</h3>
+        <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.5;">${order.customer_notes}</p>
+      </div>` : '';
+
+    // Logo
+    const logoUrl = brandingSettings.logo_url;
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="ATL Urban Farms" style="max-height: 40px; width: auto;" />`
+      : `<p style="margin: 0; font-size: 16px; font-weight: 800; color: #10b981;">ATL URBAN FARMS</p>`;
+
+    const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Packing List #${orderNum} - ATL Urban Farms</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 30px; color: #111827; font-size: 13px; }
+          @media print {
+            body { padding: 15px; }
+            @page { size: portrait; margin: 0.4in; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 700px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #10b981; padding-bottom: 14px;">
+            <div>
+              ${logoHtml}
+              <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 800; color: #111827;">PACKING LIST</h1>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0; font-weight: 700; font-size: 14px;">Order #${orderNum}</p>
+              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Date: ${orderDate}</p>
+              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Method: ${shippingMethod}</p>
+            </div>
+          </div>
+
+          <!-- Destination -->
+          <div style="margin-bottom: 20px; padding: 12px 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;">
+            ${destinationHtml}
+          </div>
+
+          ${notesHtml}
+
+          <!-- Items Table -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="padding: 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 30px;">#</th>
+                <th style="padding: 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Item</th>
+                <th style="padding: 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 60px;">Qty</th>
+                <th style="padding: 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 60px;">Packed</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+
+          <!-- Summary -->
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 2px solid #111827; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; color: #6b7280;">Total Items: <strong style="color: #111827;">${totalItems}</strong> (${orderItems.length} unique)</span>
+          </div>
+
+          <!-- Packed By -->
+          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end;">
+            <div>
+              <p style="margin: 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Packed By</p>
+              <div style="margin-top: 6px; width: 200px; border-bottom: 1px solid #d1d5db;">&nbsp;</div>
+            </div>
+            <div>
+              <p style="margin: 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Date</p>
+              <div style="margin-top: 6px; width: 120px; border-bottom: 1px solid #d1d5db;">&nbsp;</div>
+            </div>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // --- Inline editing: start-edit helpers ---
   const startEditStatus = () => {
     if (!order) return;
@@ -1458,6 +1601,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
                 Print Invoice
+              </button>
+              <button
+                onClick={handlePrintPackingList}
+                title="Print a packing list for fulfillment"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Packing List
               </button>
               <button
                 onClick={handleExport}
