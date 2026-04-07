@@ -638,6 +638,19 @@ function normalizeTemplateData(templateKey: string, data: Record<string, any>): 
     normalized.promo_code = data.promoCode || data.promo_code || ''
     normalized.discount_label = data.discountLabel || data.discount_label || ''
 
+    // Gift card
+    if (data.giftCardAmount !== undefined && data.giftCardAmount > 0) {
+      normalized.gift_card_amount = formatCurrency(data.giftCardAmount)
+    } else {
+      normalized.gift_card_amount = ''
+    }
+    normalized.gift_card_code = data.giftCardCode || data.gift_card_code || ''
+
+    // Customer contact & notes
+    normalized.customer_notes = data.customerNotes || data.customer_notes || ''
+    normalized.customer_phone = data.customerPhone || data.customer_phone || ''
+    normalized.customer_email = data.customerEmail || data.customer_email || ''
+
     // Add order_date if not provided (use Eastern Time to avoid showing tomorrow's date)
     if (!data.order_date) {
       normalized.order_date = new Date().toLocaleDateString('en-US', {
@@ -850,6 +863,38 @@ serve(async (req) => {
             allVariables.discount_row = `<tr><td style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">${discountLabel}</td><td align="right" style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">-${allVariables.discount_amount}</td></tr>`
           } else {
             allVariables.discount_row = ''
+          }
+
+          // Build gift card row if a gift card was applied
+          if (allVariables.gift_card_amount && allVariables.gift_card_amount !== '') {
+            const gcLabel = allVariables.gift_card_code
+              ? `Gift Card (${allVariables.gift_card_code})`
+              : 'Gift Card'
+            allVariables.gift_card_row = `<tr><td style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">${gcLabel}</td><td align="right" style="padding:8px 0;font-size:15px;font-family:Arial,Helvetica,sans-serif;color:#16a34a;">-${allVariables.gift_card_amount}</td></tr>`
+          } else {
+            allVariables.gift_card_row = ''
+          }
+
+          // Build customer details block (email, phone, notes)
+          const detailLines: string[] = []
+          if (allVariables.customer_email) {
+            detailLines.push(`<tr><td style="padding:4px 0;font-size:14px;font-family:Arial,Helvetica,sans-serif;color:#555;"><strong>Email:</strong> ${allVariables.customer_email}</td></tr>`)
+          }
+          if (allVariables.customer_phone) {
+            detailLines.push(`<tr><td style="padding:4px 0;font-size:14px;font-family:Arial,Helvetica,sans-serif;color:#555;"><strong>Phone:</strong> ${allVariables.customer_phone}</td></tr>`)
+          }
+          if (allVariables.customer_notes) {
+            detailLines.push(`<tr><td style="padding:4px 0;font-size:14px;font-family:Arial,Helvetica,sans-serif;color:#555;"><strong>Notes:</strong> ${allVariables.customer_notes}</td></tr>`)
+          }
+          if (detailLines.length > 0) {
+            allVariables.customer_details_block = `<tr><td style="padding:0 20px;background-color:#ffffff;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e5e7eb;border-radius:10px;background-color:#f9fafb;border-collapse:separate;margin-top:10px;">
+                <tr><td style="padding:12px 16px 4px;font-size:16px;font-weight:700;font-family:Arial,Helvetica,sans-serif;color:#000;">Customer Details</td></tr>
+                <tr><td style="padding:4px 16px 12px;"><table width="100%" cellpadding="0" cellspacing="0" border="0">${detailLines.join('')}</table></td></tr>
+              </table>
+            </td></tr>`
+          } else {
+            allVariables.customer_details_block = ''
           }
 
           // Generate header content — use logo image if available, otherwise text

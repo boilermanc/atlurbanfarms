@@ -148,6 +148,11 @@ export function useEmailService() {
       discount?: number
       discountLabel?: string
       promoCode?: string
+      giftCardCode?: string
+      giftCardAmount?: number
+      customerNotes?: string
+      customerPhone?: string
+      customerEmail?: string
       is_pickup?: boolean
       isGuest?: boolean
     }
