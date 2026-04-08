@@ -14,10 +14,10 @@ SELECT
     p.name AS product_name,
     p.quantity_available AS product_quantity,
     p.is_active AS product_is_active,
-    p.category_id AS product_category_id,
-    pc.name AS product_category_name,
     c.first_name AS customer_first_name,
-    c.last_name AS customer_last_name
+    c.last_name AS customer_last_name,
+    p.category_id AS product_category_id,
+    pc.name AS product_category_name
 FROM public.back_in_stock_alerts a
 LEFT JOIN public.products p ON a.product_id = p.id
 LEFT JOIN public.product_categories pc ON p.category_id = pc.id
