@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import {
@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle,
+  Users,
 } from 'lucide-react';
 import {
   useBackInStockAlerts,
@@ -24,25 +25,73 @@ import {
   BackInStockAlert,
   ProductWithAlerts,
 } from '../hooks/useAlerts';
+import { supabase } from '../../lib/supabase';
 
 type TabType = 'subscribers' | 'products';
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 const AlertsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('subscribers');
+  const [activeTab, setActiveTab] = useState<TabType>('products');
   const [filters, setFilters] = useState<AlertsFilter>({ status: 'pending' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [productsSearchTerm, setProductsSearchTerm] = useState('');
+  const [productsCategoryFilter, setProductsCategoryFilter] = useState<string>('all');
+  const [productsStockFilter, setProductsStockFilter] = useState<string>('all');
   const [confirmNotify, setConfirmNotify] = useState<ProductWithAlerts | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<BackInStockAlert | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [subscribersProductFilter, setSubscribersProductFilter] = useState<ProductWithAlerts | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const { alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useBackInStockAlerts({
     ...filters,
     search: searchTerm,
+    productId: subscribersProductFilter?.product_id,
   });
   const { products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useProductsWithPendingAlerts();
   const { stats, loading: statsLoading, refetch: refetchStats } = useAlertStats();
   const { notifySubscribers, notifying } = useNotifyBackInStock();
   const { cancelAlert, cancelling } = useCancelAlert();
+
+  // Fetch categories for filter dropdown
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data } = await supabase
+        .from('product_categories')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (data) setCategories(data);
+    };
+    fetchCategories();
+  }, []);
+
+  // Filter products client-side by search, category, and stock status
+  const filteredProducts = useMemo(() => {
+    let result = products;
+
+    if (productsSearchTerm) {
+      const search = productsSearchTerm.toLowerCase();
+      result = result.filter((p) => p.product_name?.toLowerCase().includes(search));
+    }
+
+    if (productsCategoryFilter !== 'all') {
+      result = result.filter((p) => p.product_category_id === productsCategoryFilter);
+    }
+
+    if (productsStockFilter === 'in_stock') {
+      result = result.filter((p) => p.product_quantity > 0);
+    } else if (productsStockFilter === 'out_of_stock') {
+      result = result.filter((p) => p.product_quantity === 0);
+    }
+
+    return result;
+  }, [products, productsSearchTerm, productsCategoryFilter, productsStockFilter]);
 
   const handleNotifySubscribers = useCallback(async () => {
     if (!confirmNotify) return;
@@ -50,11 +99,16 @@ const AlertsPage: React.FC = () => {
     const result = await notifySubscribers(confirmNotify.product_id);
     if (result.success) {
       setSuccessMessage(`Successfully emailed ${result.count} subscriber${result.count !== 1 ? 's' : ''} for "${confirmNotify.product_name}"`);
+      setErrorMessage(null);
       setConfirmNotify(null);
       refetchAlerts();
       refetchProducts();
       refetchStats();
       setTimeout(() => setSuccessMessage(null), 5000);
+    } else {
+      setErrorMessage(result.error || 'Failed to send notifications. Please try again.');
+      setConfirmNotify(null);
+      setTimeout(() => setErrorMessage(null), 8000);
     }
   }, [confirmNotify, notifySubscribers, refetchAlerts, refetchProducts, refetchStats]);
 
@@ -71,6 +125,22 @@ const AlertsPage: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 5000);
     }
   }, [confirmCancel, cancelAlert, refetchAlerts, refetchProducts, refetchStats]);
+
+  // Navigate to subscribers tab filtered by a specific product
+  const handleViewSubscribers = useCallback((product: ProductWithAlerts) => {
+    setSubscribersProductFilter(product);
+    setActiveTab('subscribers');
+    setFilters({ status: 'pending' });
+    setSearchTerm('');
+  }, []);
+
+  // Clear product filter when switching back to products tab
+  const handleTabChange = useCallback((tab: TabType) => {
+    if (tab === 'products') {
+      setSubscribersProductFilter(null);
+    }
+    setActiveTab(tab);
+  }, []);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -109,8 +179,8 @@ const AlertsPage: React.FC = () => {
   };
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'subscribers', label: 'All Subscribers' },
     { id: 'products', label: 'Products with Alerts' },
+    { id: 'subscribers', label: 'All Subscribers' },
   ];
 
   const loading = activeTab === 'subscribers' ? alertsLoading : productsLoading;
@@ -183,13 +253,28 @@ const AlertsPage: React.FC = () => {
           )}
         </AnimatePresence>
 
+        {/* Error Message */}
+        <AnimatePresence>
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 flex items-center gap-3"
+            >
+              <AlertTriangle size={20} />
+              {errorMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Tabs */}
         <div className="border-b border-slate-200">
           <nav className="flex gap-6">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`relative pb-3 text-sm font-medium transition-colors ${
                   activeTab === tab.id
                     ? 'text-emerald-600'
@@ -231,6 +316,22 @@ const AlertsPage: React.FC = () => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
+                {/* Product filter banner */}
+                {subscribersProductFilter && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+                    <span className="text-sm text-blue-700">
+                      Showing subscribers for <strong>{subscribersProductFilter.product_name}</strong>
+                    </span>
+                    <button
+                      onClick={() => setSubscribersProductFilter(null)}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+                    >
+                      <X size={14} />
+                      Clear filter
+                    </button>
+                  </div>
+                )}
+
                 {/* Filters */}
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -281,7 +382,7 @@ const AlertsPage: React.FC = () => {
                               <Bell size={32} className="text-slate-400" />
                             </div>
                             <p className="text-slate-500">
-                              {searchTerm || filters.status !== 'pending'
+                              {searchTerm || filters.status !== 'pending' || subscribersProductFilter
                                 ? 'No alerts found matching your filters'
                                 : 'No pending back-in-stock alerts'}
                             </p>
@@ -355,29 +456,77 @@ const AlertsPage: React.FC = () => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
+                {/* Products Filters */}
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={productsSearchTerm}
+                      onChange={(e) => setProductsSearchTerm(e.target.value)}
+                      placeholder="Search by product name..."
+                      className="w-full pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 placeholder-slate-400 transition-all"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <select
+                      value={productsCategoryFilter}
+                      onChange={(e) => setProductsCategoryFilter(e.target.value)}
+                      className="pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="all">All Categories</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                    <select
+                      value={productsStockFilter}
+                      onChange={(e) => setProductsStockFilter(e.target.value)}
+                      className="pl-10 pr-4 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="all">All Stock</option>
+                      <option value="in_stock">In Stock</option>
+                      <option value="out_of_stock">Out of Stock</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
                   <div className="overflow-x-auto">
                   <table className="w-full min-w-[600px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
                         <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Stock</th>
                         <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Waiting Subscribers</th>
                         <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {products.length === 0 ? (
+                      {filteredProducts.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center">
+                          <td colSpan={5} className="px-6 py-12 text-center">
                             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                               <Package size={32} className="text-slate-400" />
                             </div>
-                            <p className="text-slate-500">No products with pending alerts</p>
+                            <p className="text-slate-500">
+                              {productsSearchTerm || productsCategoryFilter !== 'all' || productsStockFilter !== 'all'
+                                ? 'No products match your filters'
+                                : 'No products with pending alerts'}
+                            </p>
                           </td>
                         </tr>
                       ) : (
-                        products.map((product) => (
+                        filteredProducts.map((product) => (
                           <tr key={product.product_id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
@@ -386,6 +535,9 @@ const AlertsPage: React.FC = () => {
                                 </div>
                                 <p className="text-slate-800 font-medium">{product.product_name}</p>
                               </div>
+                            </td>
+                            <td className="px-6 py-4 text-slate-600 text-sm">
+                              {product.product_category_name || <span className="text-slate-400">Uncategorized</span>}
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span
@@ -409,10 +561,14 @@ const AlertsPage: React.FC = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-center">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                                <Mail size={12} />
+                              <button
+                                onClick={() => handleViewSubscribers(product)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors cursor-pointer"
+                                title="View subscribers"
+                              >
+                                <Users size={12} />
                                 {product.alert_count} subscriber{product.alert_count !== 1 ? 's' : ''}
-                              </span>
+                              </button>
                             </td>
                             <td className="px-6 py-4 text-right">
                               {product.product_quantity > 0 && (

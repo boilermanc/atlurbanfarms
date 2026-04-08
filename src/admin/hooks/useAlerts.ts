@@ -12,6 +12,8 @@ export interface BackInStockAlert {
   product_name: string;
   product_quantity: number;
   product_is_active: boolean;
+  product_category_id: string | null;
+  product_category_name: string | null;
   customer_first_name: string | null;
   customer_last_name: string | null;
 }
@@ -26,6 +28,8 @@ export interface ProductWithAlerts {
   product_id: string;
   product_name: string;
   product_quantity: number;
+  product_category_id: string | null;
+  product_category_name: string | null;
   alert_count: number;
 }
 
@@ -105,7 +109,7 @@ export function useProductsWithPendingAlerts() {
       // Get all pending alerts grouped by product
       const { data, error: fetchError } = await supabase
         .from('back_in_stock_alerts_with_product')
-        .select('product_id, product_name, product_quantity')
+        .select('product_id, product_name, product_quantity, product_category_id, product_category_name')
         .eq('status', 'pending');
 
       if (fetchError) throw fetchError;
@@ -122,14 +126,16 @@ export function useProductsWithPendingAlerts() {
             product_id: alert.product_id,
             product_name: alert.product_name,
             product_quantity: alert.product_quantity,
+            product_category_id: alert.product_category_id,
+            product_category_name: alert.product_category_name,
             alert_count: 1,
           });
         }
       });
 
-      // Convert to array and sort by alert count
+      // Convert to array and sort alphabetically by product name
       const productsArray = Array.from(productMap.values()).sort(
-        (a, b) => b.alert_count - a.alert_count
+        (a, b) => (a.product_name || '').localeCompare(b.product_name || '')
       );
 
       setProducts(productsArray);
