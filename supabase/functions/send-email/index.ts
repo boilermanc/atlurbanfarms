@@ -1063,7 +1063,16 @@ serve(async (req) => {
       },
     })
 
-    const bccRecipients = bcc ? (Array.isArray(bcc) ? bcc.join(', ') : bcc) : undefined
+    // Auto-BCC Sheree on all customer-facing emails for record-keeping
+    const SHEREE_BCC = 'sheree@atlurbanfarms.com'
+    const internalAddresses = ['sheree@atlurbanfarms.com', 'orders@atlurbanfarms.com']
+    const isInternalEmail = recipients.some(r => internalAddresses.includes(r.toLowerCase()))
+
+    const bccList: string[] = bcc ? (Array.isArray(bcc) ? [...bcc] : [bcc]) : []
+    if (!isInternalEmail && !bccList.some(b => b.toLowerCase() === SHEREE_BCC)) {
+      bccList.push(SHEREE_BCC)
+    }
+    const bccRecipients = bccList.length > 0 ? bccList.join(', ') : undefined
 
     const info = await transport.sendMail({
       from: fromAddress,

@@ -346,7 +346,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
               </svg>
               <h3 className="text-lg font-bold text-emerald-800 mb-2">Check Your Email</h3>
               <p className="text-sm text-emerald-700">
-                We've sent a verification link to <strong>{registerData.email}</strong>. Please check your inbox to complete registration.
+                We've sent a confirmation email to <strong>{registerData.email}</strong>. Please check your inbox to complete registration.
+              </p>
+              <p className="text-xs text-emerald-600 mt-2">
+                Don't see it? Check your spam folder. If you use a work or school email address, your organization may filter external emails — your account is still active and you can log in now.
               </p>
             </motion.div>
           ) : (
