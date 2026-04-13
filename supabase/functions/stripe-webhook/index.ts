@@ -176,6 +176,18 @@ serve(async (req) => {
           .maybeSingle()
 
         if (pendingOrder && pendingOrder.status === 'pending') {
+          // Re-check for an order created between our first check and now (race guard)
+          const { data: raceCheckOrder } = await supabaseClient
+            .from('orders')
+            .select('id')
+            .eq('stripe_payment_intent_id', piId)
+            .maybeSingle()
+
+          if (raceCheckOrder) {
+            console.log(`Order already exists for PI ${piId}, skipping creation`)
+            break
+          }
+
           // Browser closed after payment — create order from stored data
           console.log(`Webhook: Creating order from pending_orders for PI ${piId}`)
 

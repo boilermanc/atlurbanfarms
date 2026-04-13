@@ -302,6 +302,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [emailTypoWarning, setEmailTypoWarning] = useState(false);
+  const [emailTypoDismissed, setEmailTypoDismissed] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pendingPaymentIntentId, setPendingPaymentIntentId] = useState<string | null>(null);
@@ -329,6 +331,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   // Guard to prevent duplicate order submissions
   const orderCompletedRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   // Ref for scrolling to error banner on validation failure
   const orderErrorRef = useRef<HTMLDivElement>(null);
@@ -1225,6 +1228,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       return;
     }
 
+    // Guard against rapid double-clicks (useRef avoids render-timing gaps)
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     try {
     setSubmitAttempted(true);
     setOrderError(null);
@@ -1239,6 +1246,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
       // top of the form in the Contact section. If the user is scrolled down (e.g.,
       // after selecting pickup), they see nothing. Scroll to the form so errors
       // are visible.
+      const formEl = document.querySelector('form');
+      if (formEl) {
+        formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+
+    // Check for email typos on submit (in case user didn't blur the field)
+    if (checkEmailForTypos(formData.email) && !emailTypoDismissed) {
+      setEmailTypoWarning(true);
       const formEl = document.querySelector('form');
       if (formEl) {
         formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1463,6 +1480,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     } catch (err: any) {
       console.error('Checkout error:', err);
       setOrderError(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
@@ -1834,6 +1853,25 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
 
   const handlePaymentError = (error: string) => {
     setOrderError(error);
+  };
+
+  // Detect common email typos (TLD misspellings and popular domain typos)
+  const SUSPICIOUS_EMAIL_PATTERNS = [
+    /\.coom$/i, /\.ocm$/i, /\.con$/i, /\.cmo$/i,
+    /@gamil\.com$/i, /@gmai\.com$/i, /@yahooo\.com$/i, /@yaho\.com$/i,
+  ];
+  const checkEmailForTypos = (email: string): boolean =>
+    SUSPICIOUS_EMAIL_PATTERNS.some(p => p.test(email.trim()));
+
+  const handleEmailBlur = () => {
+    saveAbandonedCart();
+    const email = formData.email.trim();
+    if (email && checkEmailForTypos(email)) {
+      setEmailTypoWarning(true);
+      setEmailTypoDismissed(false);
+    } else {
+      setEmailTypoWarning(false);
+    }
   };
 
   const getInputClassName = (fieldName: string) => {
@@ -2259,13 +2297,25 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      onBlur={saveAbandonedCart}
+                      onBlur={handleEmailBlur}
                       type="email"
                       placeholder="you@example.com"
                       className={getInputClassName('email')}
                     />
                     {formErrors.email && submitAttempted && (
                       <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
+                    )}
+                    {emailTypoWarning && !emailTypoDismissed && (
+                      <div className="flex items-center gap-2 mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <span>This email looks like it may have a typo. Please double-check before continuing.</span>
+                        <button
+                          type="button"
+                          onClick={() => setEmailTypoDismissed(true)}
+                          className="ml-auto text-amber-500 hover:text-amber-700 font-medium whitespace-nowrap"
+                        >
+                          It's correct
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="space-y-2">
