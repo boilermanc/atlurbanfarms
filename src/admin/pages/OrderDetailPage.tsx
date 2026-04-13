@@ -163,22 +163,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     setLabelPackages([{ weight, length: pkg.length, width: pkg.width, height: pkg.height }]);
   }, [order?.items, getPackageForQuantity]);
 
-  // Print mode: auto-print when opened via ?print=true
-  const [isPrintMode] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get('print') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  useEffect(() => {
-    if (isPrintMode && order && !loading) {
-      const timer = setTimeout(() => window.print(), 600);
-      return () => clearTimeout(timer);
-    }
-  }, [isPrintMode, order, loading]);
-
   // Toast auto-dismiss
   useEffect(() => {
     if (toast) {
