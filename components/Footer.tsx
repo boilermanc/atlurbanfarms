@@ -33,6 +33,7 @@ interface BrandingSettings {
 
 const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
@@ -116,6 +117,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       setStatus('loading');
       await submitNewsletterPreference({
         email: trimmedEmail,
+        firstName: firstName.trim() || undefined,
         source: 'footer',
       });
       setStatus('success');
@@ -229,13 +231,13 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         }
 
         .footer-brand-box {
-          background: #e8f4fd;
-          border: 1px solid rgba(147,197,253,0.4);
+          background: #ffffff;
+          border: 1px solid rgba(0,0,0,0.08);
           border-radius: 16px;
           padding: 36px 40px;
           display: flex;
-          align-items: center;
-          gap: 32px;
+          flex-direction: column;
+          gap: 20px;
         }
         .footer-brand-logo {
           display: flex;
@@ -243,7 +245,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           flex-shrink: 0;
         }
         .footer-logo-img {
-          height: 72px;
+          height: 96px;
           width: auto;
         }
         .footer-tagline {
@@ -251,7 +253,6 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           line-height: 1.7;
           color: #1e4d35;
           font-weight: 400;
-          flex: 1;
           margin: 0;
         }
         .footer-socials {
@@ -260,7 +261,6 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           flex-wrap: nowrap;
           gap: 10px;
           align-items: center;
-          flex-shrink: 0;
         }
         .social-btn {
           width: 38px;
@@ -321,6 +321,12 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           font-weight: 400;
           margin-bottom: 24px;
           line-height: 1.6;
+        }
+        .newsletter-fields {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-bottom: 10px;
         }
         .newsletter-row {
           display: flex;
@@ -386,7 +392,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           padding: 52px 64px;
           border-bottom: 1px solid rgba(255,255,255,0.1);
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(5, 1fr);
           gap: 40px;
           max-width: 1280px;
           margin: 0 auto;
@@ -543,7 +549,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   className="footer-logo-img"
                 />
               ) : (
-                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: '#0d3d2a' }}>
+                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 30, fontWeight: 700, color: '#0d3d2a' }}>
                   ATL Urban Farms
                 </span>
               )}
@@ -589,9 +595,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </svg>
             </div>
             <div className="newsletter-eyebrow">Newsletter</div>
-            <h3 className="newsletter-heading">{newsletterContent.headline || 'Join the Garden'}</h3>
+            <h3 className="newsletter-heading">{newsletterContent.headline || 'Join our Garden!'}</h3>
             <p className="newsletter-sub">
-              {newsletterContent.description || 'Growing tips, nursery updates, and early access to seasonal seedlings.'}
+              {newsletterContent.description || 'Receive growing tips, greenhouse updates, and early access to new products and specials.'}
             </p>
             {status === 'success' ? (
               <div className="newsletter-success">
@@ -600,29 +606,39 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
             ) : (
               <form onSubmit={handleNewsletterSubmit}>
-                <div className="newsletter-row">
+                <div className="newsletter-fields">
                   <input
                     className="newsletter-input"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (status !== 'idle') {
-                        setStatus('idle');
-                        setMessage(null);
-                      }
-                    }}
-                    aria-label="Email address"
-                    required
+                    type="text"
+                    placeholder="First Name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    aria-label="First name"
                   />
-                  <button
-                    className="newsletter-btn"
-                    type="submit"
-                    disabled={status === 'loading'}
-                  >
-                    {status === 'loading' ? 'Sending...' : 'Subscribe'}
-                  </button>
+                  <div className="newsletter-row">
+                    <input
+                      className="newsletter-input"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (status !== 'idle') {
+                          setStatus('idle');
+                          setMessage(null);
+                        }
+                      }}
+                      aria-label="Email address"
+                      required
+                    />
+                    <button
+                      className="newsletter-btn"
+                      type="submit"
+                      disabled={status === 'loading'}
+                    >
+                      {status === 'loading' ? 'Sending...' : 'Subscribe'}
+                    </button>
+                  </div>
                 </div>
                 <p className="newsletter-fine">
                   By subscribing you agree to receive newsletters. Unsubscribe anytime.
@@ -663,10 +679,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </ul>
           </div>
           <div>
-            <div className="footer-col-heading">Contact</div>
-            <div className="contact-label">Visit Our Nursery</div>
+            <div className="footer-col-heading">Visit</div>
             <div className="contact-address">
-              {businessSettings?.ship_from_address_line1 || '123 High-Tech Way'}
+              180 Tidwell Drive
               {businessSettings?.ship_from_address_line2 && <><br />{businessSettings.ship_from_address_line2}</>}
               <br />
               {businessSettings?.ship_from_city || 'Atlanta'}, {businessSettings?.ship_from_state || 'GA'} {businessSettings?.ship_from_zip || '30318'}
@@ -686,7 +701,7 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 onClick={(e) => {
                   e.preventDefault();
                   if (onNavigate) {
-                    onNavigate('calendar', undefined, { calendarFilter: 'open_hours' });
+                    onNavigate('calendar');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
@@ -695,7 +710,9 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 Hours
               </button>
             </div>
-            <div className="contact-label">Grow Support</div>
+          </div>
+          <div>
+            <div className="footer-col-heading">Contact</div>
             <div className="contact-detail">
               {businessSettings?.support_email ? (
                 <a href={`mailto:${businessSettings.support_email}`}>{businessSettings.support_email}</a>
@@ -704,10 +721,13 @@ const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               )}
             </div>
             {businessSettings?.support_phone && (
-              <div className="contact-detail">
+              <div className="contact-detail" style={{ marginTop: 8 }}>
                 <a href={`tel:${businessSettings.support_phone}`}>{businessSettings.support_phone}</a>
               </div>
             )}
+            <div className="contact-detail" style={{ marginTop: 16, color: '#8aad9b', fontSize: 13 }}>
+              Closed Sundays
+            </div>
           </div>
         </div>
 
