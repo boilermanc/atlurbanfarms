@@ -694,6 +694,12 @@ export async function enrichBundleStock(products) {
         if (!child) return 0
         // If child doesn't track inventory, check stock_status
         if (child.track_inventory === false) {
+          // If quantity_available is explicitly 0 or less, treat as OOS even when
+          // inventory tracking is off — covers the case where qty was zeroed out
+          // but stock_status wasn't updated (see issue #70).
+          if (child.quantity_available != null && child.quantity_available <= 0) {
+            return 0
+          }
           return child.stock_status === 'in_stock' ? 999 : 0
         }
         const childQty = child.quantity_available ?? 0

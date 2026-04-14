@@ -167,9 +167,14 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const currentImage = allImages[selectedImageIndex] || allImages[0];
   const imageUrl = currentImage?.url || 'https://placehold.co/600x600?text=No+Image';
   const categoryName = product.category?.name || 'Uncategorized';
-  const inStock = product.track_inventory === false
+  const baseInStock = product.track_inventory === false
     ? product.stock_status === 'in_stock'
     : (product.quantity_available || 0) > 0;
+  // For bundles, once component items have loaded, verify all are in stock.
+  // This is a safety net in case enrichBundleStock didn't run (e.g. query error).
+  const inStock = product.product_type === 'bundle' && bundleItems.length > 0
+    ? bundleItems.every(item => (item.product?.quantity_available ?? 0) > 0) && baseInStock
+    : baseInStock;
   const isExternal = product.product_type === 'external' && !!product.external_url;
   const hasMultipleImages = allImages.length > 1;
 

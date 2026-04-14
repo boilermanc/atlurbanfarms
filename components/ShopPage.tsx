@@ -271,6 +271,11 @@ const CategorySubsection: React.FC<CategorySubsectionProps> = ({
 
 // Helper to check if a product is in stock based on inventory rules
 const isProductInStock = (rawProduct: any): boolean => {
+  // For bundles, trust the stock_status set by enrichBundleStock (derived from components).
+  // This catches bundles whose own quantity_available / track_inventory fields are stale.
+  if (rawProduct.product_type === 'bundle') {
+    return rawProduct.stock_status === 'in_stock' && (rawProduct.quantity_available || 0) > 0;
+  }
   // If track_inventory is false, check stock_status
   if (rawProduct.track_inventory === false) {
     return rawProduct.stock_status === 'in_stock';
