@@ -1005,141 +1005,297 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     printWindow.document.close();
   };
 
-  const handlePrintPackingList = () => {
+  const handlePrintPackingList = async () => {
     if (!order) return;
 
-    const orderItems = order.items || [];
-    const orderNum = order.order_number;
-    const orderDate = formatDate(order.created_at);
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 
-    // Line items — quantity focused, no prices
-    let itemsHtml = '';
-    orderItems.forEach((item, idx) => {
-      itemsHtml += `
-        <tr>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${idx + 1}</td>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">${item.product_name || 'Product'}</td>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 15px; font-weight: 700;">${item.quantity}</td>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 13px; width: 60px;">☐</td>
-        </tr>`;
-    });
+    const formatDateForPrint = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
 
-    // Ship To / Pickup destination
-    let destinationHtml = '';
-    if (order.is_pickup) {
-      const pickupDate = order.pickup_date ? new Date(order.pickup_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
-      const pickupStart = order.pickup_time_start ? formatPickupTime(order.pickup_time_start) : '';
-      const pickupEnd = order.pickup_time_end ? formatPickupTime(order.pickup_time_end) : '';
-      const timeRange = pickupStart && pickupEnd ? `${pickupStart} - ${pickupEnd}` : pickupStart || '';
-      destinationHtml = `
-        <div>
-          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Pickup</h3>
-          <p style="margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600;">Local Pickup</p>
-          ${pickupDate ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${pickupDate}</p>` : ''}
-          ${timeRange ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${timeRange}</p>` : ''}
-        </div>`;
-    } else {
-      const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
-      const shipStreet = order.shipping_address_line1;
-      const shipStreet2 = order.shipping_address_line2;
-      const shipCity = order.shipping_city;
-      const shipState = order.shipping_state;
-      const shipZip = order.shipping_zip;
-      destinationHtml = `
-        <div>
-          <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 6px;">Ship To</h3>
-          ${shipName ? `<p style="margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600;">${shipName}</p>` : ''}
-          ${shipStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet}</p>` : ''}
-          ${shipStreet2 ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipStreet2}</p>` : ''}
-          ${shipStreet ? `<p style="margin: 0; font-size: 13px; line-height: 1.5;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>` : ''}
-        </div>`;
-    }
-
-    // Shipping method
-    const shippingMethod = order.is_pickup ? 'Local Pickup' : (order.shipping_method || order.shipping_carrier || 'Standard Shipping');
-
-    // Customer notes
-    const notesHtml = order.customer_notes ? `
-      <div style="margin-top: 16px; padding: 12px; background: #fef9c3; border: 1px solid #fde68a; border-radius: 8px;">
-        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #92400e; margin: 0 0 4px;">Customer Notes</h3>
-        <p style="margin: 0; font-size: 13px; color: #78350f; line-height: 1.5;">${order.customer_notes}</p>
-      </div>` : '';
-
-    // Logo
-    const logoUrl = brandingSettings.logo_url;
-    const logoHtml = logoUrl
-      ? `<img src="${logoUrl}" alt="ATL Urban Farms" style="max-height: 40px; width: auto;" />`
-      : `<p style="margin: 0; font-size: 16px; font-weight: 800; color: #10b981;">ATL URBAN FARMS</p>`;
-
-    const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+    const formatPhone = (p: string) => {
+      const d = p.replace(/\D/g, '');
+      if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+      if (d.length === 11 && d[0] === '1') return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+      return p;
+    };
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
+    // Fetch logo URL from branding settings
+    const logoUrl = brandingSettings.logo_url || '';
+
+    // Fetch bundle children for this order's items
+    const allProductIds = [...new Set((order.items || []).map(i => i.product_id).filter(Boolean))];
+    const bundleChildrenMap: Record<string, { name: string; quantity: number; product_id: string }[]> = {};
+    if (allProductIds.length > 0) {
+      const { data: bundleData } = await supabase
+        .from('product_relationships')
+        .select('parent_product_id, child_product_id, quantity, sort_order')
+        .in('parent_product_id', allProductIds)
+        .eq('relationship_type', 'bundle')
+        .order('sort_order');
+      if (bundleData && bundleData.length > 0) {
+        const childIds = [...new Set(bundleData.map((r: any) => r.child_product_id))];
+        const { data: childProducts } = await supabase
+          .from('products')
+          .select('id, name')
+          .in('id', childIds);
+        const productNameMap: Record<string, string> = {};
+        (childProducts || []).forEach((p: any) => { productNameMap[p.id] = p.name; });
+        for (const rel of bundleData) {
+          if (!bundleChildrenMap[rel.parent_product_id]) {
+            bundleChildrenMap[rel.parent_product_id] = [];
+          }
+          bundleChildrenMap[rel.parent_product_id].push({
+            name: productNameMap[rel.child_product_id] || 'Unknown',
+            quantity: rel.quantity || 1,
+            product_id: rel.child_product_id,
+          });
+        }
+      }
+    }
+
+    // Fetch category assignments
+    const allChildIds = Object.values(bundleChildrenMap).flatMap(children => children.map(c => c.product_id));
+    const allProductIdsForCategory = [...new Set([...allProductIds, ...allChildIds])];
+    const categoryMap: Record<string, { name: string; sort_order: number }> = {};
+    if (allProductIdsForCategory.length > 0) {
+      const { data: catData } = await supabase
+        .from('product_category_assignments')
+        .select('product_id, product_categories(name, sort_order)')
+        .in('product_id', allProductIdsForCategory);
+      (catData || []).forEach((row: any) => {
+        if (!categoryMap[row.product_id] && row.product_categories) {
+          categoryMap[row.product_id] = {
+            name: row.product_categories.name,
+            sort_order: row.product_categories.sort_order ?? 9999,
+          };
+        }
+      });
+    }
+
+    // Build pickup info
+    const getPickupInfo = () => {
+      const res = order.pickup_reservation;
+      const directLoc = order.pickup_location;
+      const locName = res?.location?.name || directLoc?.name || 'Local Pickup';
+      const locAddr1 = (res?.location as any)?.address_line1 || directLoc?.address_line1 || '';
+      const locCity = (res?.location as any)?.city || directLoc?.city || '';
+      const locState = (res?.location as any)?.state || directLoc?.state || '';
+      const locZip = (res?.location as any)?.postal_code || directLoc?.postal_code || '';
+      const date = order.pickup_date || res?.pickup_date;
+      const start = order.pickup_time_start || res?.pickup_time_start;
+      const end = order.pickup_time_end || res?.pickup_time_end;
+      let dateStr = '';
+      if (date) {
+        const d = new Date(date + 'T00:00:00');
+        dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      let timeStr = '';
+      if (start && end) {
+        const fmt = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+        };
+        timeStr = `${fmt(start)} – ${fmt(end)}`;
+      }
+      return { locName, locAddr1, locCity, locState, locZip, dateStr, timeStr };
+    };
+
+    const isPickup = order.is_pickup;
+    const badgeCls = isPickup ? 'badge-pickup' : 'badge-ship';
+    const badgeText = isPickup ? 'PICKUP' : 'SHIP';
+    const pickup = isPickup ? getPickupInfo() : null;
+    const shippingCompany = (order as any).shipping_company || '';
+
+    // Flatten bundles into individual child rows
+    const flatItems: { product_id: string; product_name: string; quantity: number }[] = [];
+    for (const item of order.items || []) {
+      const children = bundleChildrenMap[item.product_id];
+      if (children && children.length > 0) {
+        for (const child of children) {
+          flatItems.push({
+            product_id: child.product_id,
+            product_name: child.name,
+            quantity: child.quantity * item.quantity,
+          });
+        }
+      } else {
+        flatItems.push({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+        });
+      }
+    }
+
+    // Sort by category sort_order, then category name, then product name
+    flatItems.sort((a, b) => {
+      const catA = categoryMap[a.product_id];
+      const catB = categoryMap[b.product_id];
+      const sortA = catA ? catA.sort_order : 9999;
+      const sortB = catB ? catB.sort_order : 9999;
+      const nameA = catA ? catA.name : 'zzz';
+      const nameB = catB ? catB.name : 'zzz';
+      if (sortA !== sortB) return sortA - sortB;
+      if (nameA !== nameB) return nameA.localeCompare(nameB);
+      return a.product_name.localeCompare(b.product_name);
+    });
+
+    // Build rows with category headers
+    let currentCat = '';
+    let totalQty = 0;
+    const itemRows = flatItems.map(item => {
+      const cat = categoryMap[item.product_id]?.name || 'Uncategorized';
+      let catHeader = '';
+      if (cat !== currentCat) {
+        currentCat = cat;
+        catHeader = `<tr class="cat-row"><td colspan="3">${escapeHtml(cat)}</td></tr>`;
+      }
+      totalQty += item.quantity;
+      return `${catHeader}<tr>
+        <td class="col-num"></td>
+        <td class="col-qty">${item.quantity}</td>
+        <td>${escapeHtml(item.product_name)}</td>
+      </tr>`;
+    }).join('');
+
+    // Build ship-to block
+    const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Packing List #${orderNum} - ATL Urban Farms</title>
+        <title>Packing List #${order.order_number} - ATL Urban Farms</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 30px; color: #111827; font-size: 13px; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #1e293b; }
+
+          .order-block { padding: 24px; }
+
+          /* Header */
+          .pl-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 3px solid #1e293b; margin-bottom: 18px; }
+          .pl-logo-block { display: flex; align-items: center; gap: 12px; }
+          .pl-brand-name { font-size: 16px; font-weight: 700; color: #1e293b; line-height: 1.2; }
+          .pl-brand-contact { font-size: 11px; color: #64748b; line-height: 1.8; }
+          .pl-order-meta { text-align: right; }
+          .pl-order-num { font-family: monospace; font-size: 20px; font-weight: 800; }
+          .pl-order-date { font-size: 11px; color: #64748b; margin-top: 2px; text-align: right; }
+          .badge-ship { background: #dbeafe; color: #1e40af; border: 1.5px solid #1e40af; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }
+          .badge-pickup { background: #fef3c7; color: #92400e; border: 1.5px solid #92400e; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 6px; }
+
+          /* Two-column info block */
+          .pl-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+          .pl-block { padding: 10px 12px; border: 0.5px solid #e2e8f0; border-radius: 6px; }
+          .pl-block-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #94a3b8; margin-bottom: 6px; }
+          .pl-block p { margin: 2px 0; font-size: 13px; line-height: 1.5; }
+          .pl-block .muted { color: #64748b; }
+          .pl-pickup-divider { border: none; border-top: 0.5px solid #e2e8f0; margin: 6px 0; }
+
+          /* Items table */
+          .items-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; }
+          .items-table col.col-num { width: 68px; }
+          .items-table col.col-qty { width: 44px; }
+          .items-table th { background: #f1f5f9; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; padding: 6px 8px; border-bottom: 1.5px solid #cbd5e1; white-space: nowrap; }
+          .items-table th.col-num, .items-table th.col-qty { text-align: center; }
+          .items-table td { padding: 4px 8px; border-bottom: 0.5px solid #e2e8f0; font-size: 13px; color: #1e293b; }
+          .items-table td.col-num { text-align: center; color: #94a3b8; font-size: 10px; }
+          .items-table td.col-qty { text-align: center; font-weight: 700; font-size: 14px; }
+          .items-table tr.cat-row td { background: #f8fafc; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; padding: 4px 8px; }
+          .items-table tr.totals-row td { border-top: 2px solid #334155; font-weight: 700; padding-top: 6px; font-size: 13px; }
+          .items-table tr.totals-row td.col-qty { font-size: 14px; }
+
+          /* Notes */
+          .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
+          .customer-note-label { font-weight: 700; font-size: 12px; text-transform: uppercase; color: #854d0e; margin-bottom: 4px; }
+          .customer-note-text { font-size: 13px; line-height: 1.5; }
+
           @media print {
-            body { padding: 15px; }
-            @page { size: portrait; margin: 0.4in; }
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            .order-block { padding: 16px 0; }
           }
         </style>
       </head>
       <body>
-        <div style="max-width: 700px; margin: 0 auto;">
-          <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #10b981; padding-bottom: 14px;">
-            <div>
-              ${logoHtml}
-              <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 800; color: #111827;">PACKING LIST</h1>
+        <div class="order-block">
+          <div class="pl-header">
+            <div class="pl-logo-block">
+              ${logoUrl ? `<img src="${logoUrl}" style="height:56px;width:auto;border-radius:8px;" onerror="this.style.display='none'" alt="ATL Urban Farms" />` : ''}
+              <div>
+                <div class="pl-brand-name">ATL Urban Farms</div>
+                <div class="pl-brand-contact">(770) 678-6552<br>support@atlurbanfarms.com</div>
+              </div>
             </div>
-            <div style="text-align: right;">
-              <p style="margin: 0; font-weight: 700; font-size: 14px;">Order #${orderNum}</p>
-              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Date: ${orderDate}</p>
-              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Method: ${shippingMethod}</p>
+            <div class="pl-order-meta">
+              <div class="pl-order-num">${order.order_number}</div>
+              <div class="pl-order-date">${formatDateForPrint(order.created_at)}</div>
+              <span class="${badgeCls}">${badgeText}</span>
             </div>
           </div>
 
-          <!-- Destination -->
-          <div style="margin-bottom: 20px; padding: 12px 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;">
-            ${destinationHtml}
+          <div class="pl-two-col">
+            <div class="pl-block">
+              <div class="pl-block-label">Customer</div>
+              <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
+              ${order.customer_email ? `<p class="muted">${escapeHtml(order.customer_email)}</p>` : ''}
+              ${order.customer_phone ? `<p class="muted">${escapeHtml(formatPhone(order.customer_phone))}</p>` : ''}
+            </div>
+            <div class="pl-block">
+              <div class="pl-block-label">${isPickup ? 'Pickup Location' : 'Ship To'}</div>
+              ${isPickup && pickup ? `
+                <p style="font-weight:700">${escapeHtml(pickup.locName)}</p>
+                ${pickup.locAddr1 ? `<p class="muted">${escapeHtml(pickup.locAddr1)}</p>` : ''}
+                ${(pickup.locCity || pickup.locState) ? `<p class="muted">${escapeHtml([pickup.locCity, pickup.locState, pickup.locZip].filter(Boolean).join(', '))}</p>` : ''}
+                ${(pickup.dateStr || pickup.timeStr) ? `<hr class="pl-pickup-divider">` : ''}
+                ${pickup.dateStr ? `<p style="font-weight:700">${escapeHtml(pickup.dateStr)}</p>` : ''}
+                ${pickup.timeStr ? `<p class="muted">${escapeHtml(pickup.timeStr)}</p>` : ''}
+              ` : `
+                <p style="font-weight:700">${escapeHtml(shipName || '')}</p>
+                ${shippingCompany ? `<p>${escapeHtml(shippingCompany)}</p>` : ''}
+                ${order.shipping_address_line1 ? `<p>${escapeHtml(order.shipping_address_line1)}</p>` : ''}
+                ${order.shipping_address_line2 ? `<p>${escapeHtml(order.shipping_address_line2)}</p>` : ''}
+                <p>${escapeHtml(order.shipping_city || '')}${order.shipping_city && order.shipping_state ? ', ' : ''}${escapeHtml(order.shipping_state || '')} ${escapeHtml(order.shipping_zip || '')}</p>
+              `}
+            </div>
           </div>
 
-          ${notesHtml}
+          ${order.customer_notes ? `
+            <div class="customer-note">
+              <div class="customer-note-label">Customer Note</div>
+              <div class="customer-note-text">${escapeHtml(order.customer_notes).replace(/\n/g, '<br>')}</div>
+            </div>
+          ` : ''}
 
-          <!-- Items Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+          <table class="items-table">
+            <colgroup>
+              <col class="col-num">
+              <col class="col-qty">
+              <col>
+            </colgroup>
             <thead>
-              <tr style="border-bottom: 2px solid #e5e7eb;">
-                <th style="padding: 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 30px;">#</th>
-                <th style="padding: 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Item</th>
-                <th style="padding: 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 60px;">Qty</th>
-                <th style="padding: 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; width: 60px;">Packed</th>
+              <tr>
+                <th class="col-num">Seedling #</th>
+                <th class="col-qty">Qty</th>
+                <th>Product</th>
               </tr>
             </thead>
-            <tbody>${itemsHtml}</tbody>
+            <tbody>
+              ${itemRows}
+              <tr class="totals-row">
+                <td class="col-num"></td>
+                <td class="col-qty">${totalQty}</td>
+                <td>Total</td>
+              </tr>
+            </tbody>
           </table>
 
-          <!-- Summary -->
-          <div style="margin-top: 16px; padding-top: 12px; border-top: 2px solid #111827; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; color: #6b7280;">Total Items: <strong style="color: #111827;">${totalItems}</strong> (${orderItems.length} unique)</span>
-          </div>
-
-          <!-- Packed By -->
-          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end;">
-            <div>
-              <p style="margin: 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Packed By</p>
-              <div style="margin-top: 6px; width: 200px; border-bottom: 1px solid #d1d5db;">&nbsp;</div>
-            </div>
-            <div>
-              <p style="margin: 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Date</p>
-              <div style="margin-top: 6px; width: 120px; border-bottom: 1px solid #d1d5db;">&nbsp;</div>
-            </div>
-          </div>
         </div>
         <script>window.onload = function() { window.print(); }</script>
       </body>
