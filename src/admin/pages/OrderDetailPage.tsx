@@ -2981,6 +2981,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                         <span>-{formatCurrency(order.discount_amount)}</span>
                       </div>
                     )}
+                    {(order.gift_card_amount ?? 0) > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>{order.gift_card_code ? `Gift Card (${order.gift_card_code})` : 'Gift Card'}</span>
+                        <span>-{formatCurrency(order.gift_card_amount)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-slate-600">
                       <span>Shipping</span>
                       <span>{formatCurrency(order.shipping_cost)}</span>
@@ -3134,6 +3140,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       <div className="flex justify-between text-emerald-600">
                         <span>{order.promotion_code ? `Promo Code (${order.promotion_code})` : (order.discount_description || 'Discount')}</span>
                         <span>-{formatCurrency(order.discount_amount)}</span>
+                      </div>
+                    )}
+                    {(order.gift_card_amount ?? 0) > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>{order.gift_card_code ? `Gift Card (${order.gift_card_code})` : 'Gift Card'}</span>
+                        <span>-{formatCurrency(order.gift_card_amount)}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-slate-800 font-bold text-lg pt-2 border-t border-slate-200">

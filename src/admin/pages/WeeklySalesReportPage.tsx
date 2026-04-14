@@ -286,6 +286,8 @@ const WeeklySalesReportPage: React.FC = () => {
       totalShipping: orders.reduce((s, o) => s + o.shippingIncome, 0),
       totalSeedlingIncome: orders.reduce((s, o) => s + o.seedlingIncome, 0),
       totalRevenue: orders.reduce((s, o) => s + o.orderTotal, 0),
+      totalDiscount: orders.reduce((s, o) => s + o.discount, 0),
+      totalGiftCard: orders.reduce((s, o) => s + o.giftCardAmount, 0),
       pickupCount: pickups.length,
       replacementCount: replacements.length,
       shippedCount: shipped.length,
@@ -296,16 +298,18 @@ const WeeklySalesReportPage: React.FC = () => {
   const dailySummary = useMemo(() => {
     if (!orders || orders.length === 0) return null;
 
-    const byDate = new Map<string, { orders: number; cancelled: number; subtotal: number; shipping: number; tax: number; revenue: number }>();
+    const byDate = new Map<string, { orders: number; cancelled: number; subtotal: number; shipping: number; tax: number; discount: number; giftCard: number; revenue: number }>();
 
     // Build a date → stats map
     for (const o of orders) {
       const key = toDateInputValue(o.orderDate);
-      const entry = byDate.get(key) || { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, revenue: 0 };
+      const entry = byDate.get(key) || { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, discount: 0, giftCard: 0, revenue: 0 };
       entry.orders += 1;
       entry.subtotal += o.seedlingIncome + o.otherRevenue;
       entry.shipping += o.shippingIncome;
       entry.tax += o.tax;
+      entry.discount += o.discount;
+      entry.giftCard += o.giftCardAmount;
       entry.revenue += o.orderTotal;
       byDate.set(key, entry);
     }
@@ -322,9 +326,11 @@ const WeeklySalesReportPage: React.FC = () => {
         subtotal: acc.subtotal + r.subtotal,
         shipping: acc.shipping + r.shipping,
         tax: acc.tax + r.tax,
+        discount: acc.discount + r.discount,
+        giftCard: acc.giftCard + r.giftCard,
         revenue: acc.revenue + r.revenue,
       }),
-      { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, revenue: 0 },
+      { orders: 0, cancelled: 0, subtotal: 0, shipping: 0, tax: 0, discount: 0, giftCard: 0, revenue: 0 },
     );
 
     return { rows, totals };
@@ -370,11 +376,13 @@ const WeeklySalesReportPage: React.FC = () => {
     <div class="card"><div class="card-label">Total Orders</div><div class="card-value">${summary?.totalOrders ?? 0}</div></div>
     <div class="card"><div class="card-label">Total Seedlings</div><div class="card-value">${(summary?.totalSeedlings ?? 0).toLocaleString()}</div></div>
     <div class="card"><div class="card-label">Shipping Income</div><div class="card-value">${formatCurrency(summary?.totalShipping ?? 0)}</div></div>
+    ${(summary?.totalDiscount ?? 0) > 0 ? `<div class="card"><div class="card-label">Discounts</div><div class="card-value" style="color:#059669">-${formatCurrency(summary?.totalDiscount ?? 0)}</div></div>` : ''}
+    ${(summary?.totalGiftCard ?? 0) > 0 ? `<div class="card"><div class="card-label">Gift Cards</div><div class="card-value" style="color:#059669">-${formatCurrency(summary?.totalGiftCard ?? 0)}</div></div>` : ''}
     <div class="card"><div class="card-label">Total Revenue</div><div class="card-value">${formatCurrency(summary?.totalRevenue ?? 0)}</div></div>
   </div>
   <table>
     <thead><tr>
-      <th>Date</th><th>Orders</th><th>Cancelled</th><th>Gross Subtotal</th><th>Shipping</th><th>Tax</th><th>Revenue</th>
+      <th>Date</th><th>Orders</th><th>Cancelled</th><th>Gross Subtotal</th><th>Shipping</th><th>Discounts</th><th>Gift Cards</th><th>Tax</th><th>Revenue</th>
     </tr></thead>
     <tbody>
       ${dailySummary.rows.map(r => {
@@ -383,12 +391,16 @@ const WeeklySalesReportPage: React.FC = () => {
         return `<tr>
           <td>${label}</td><td>${r.orders}</td><td>${r.cancelled}</td>
           <td>${formatCurrency(r.subtotal)}</td><td>${formatCurrency(r.shipping)}</td>
+          <td style="color:#059669">${r.discount > 0 ? '-' + formatCurrency(r.discount) : formatCurrency(0)}</td>
+          <td style="color:#059669">${r.giftCard > 0 ? '-' + formatCurrency(r.giftCard) : formatCurrency(0)}</td>
           <td>${formatCurrency(r.tax)}</td><td>${formatCurrency(r.revenue)}</td>
         </tr>`;
       }).join('')}
       <tr class="totals-row">
         <td>TOTALS</td><td>${dailySummary.totals.orders}</td><td>${dailySummary.totals.cancelled}</td>
         <td>${formatCurrency(dailySummary.totals.subtotal)}</td><td>${formatCurrency(dailySummary.totals.shipping)}</td>
+        <td style="color:#059669">${dailySummary.totals.discount > 0 ? '-' + formatCurrency(dailySummary.totals.discount) : formatCurrency(0)}</td>
+        <td style="color:#059669">${dailySummary.totals.giftCard > 0 ? '-' + formatCurrency(dailySummary.totals.giftCard) : formatCurrency(0)}</td>
         <td>${formatCurrency(dailySummary.totals.tax)}</td><td>${formatCurrency(dailySummary.totals.revenue)}</td>
       </tr>
     </tbody>
@@ -655,7 +667,7 @@ const WeeklySalesReportPage: React.FC = () => {
           <h2 className="text-lg font-semibold text-slate-800 mb-1 font-admin-display">{weekRangeLabel}</h2>
           <p className="text-sm text-slate-500 mb-4">Report Summary</p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             <div className="bg-slate-50 rounded-lg p-4">
               <div className="text-sm text-slate-500">Total Orders</div>
               <div className="text-2xl font-bold text-slate-800">{summary.totalOrders}</div>
@@ -668,6 +680,18 @@ const WeeklySalesReportPage: React.FC = () => {
               <div className="text-sm text-slate-500">Shipping Income</div>
               <div className="text-2xl font-bold text-slate-800">{formatCurrency(summary.totalShipping)}</div>
             </div>
+            {summary.totalDiscount > 0 && (
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="text-sm text-slate-500">Discounts</div>
+                <div className="text-2xl font-bold text-emerald-600">-{formatCurrency(summary.totalDiscount)}</div>
+              </div>
+            )}
+            {summary.totalGiftCard > 0 && (
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="text-sm text-slate-500">Gift Cards</div>
+                <div className="text-2xl font-bold text-emerald-600">-{formatCurrency(summary.totalGiftCard)}</div>
+              </div>
+            )}
             <div className="bg-slate-50 rounded-lg p-4">
               <div className="text-sm text-slate-500">Total Revenue</div>
               <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.totalRevenue)}</div>
@@ -697,6 +721,8 @@ const WeeklySalesReportPage: React.FC = () => {
                     <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Cancelled</th>
                     <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Gross Subtotal</th>
                     <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Shipping</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Discounts</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Gift Cards</th>
                     <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Tax</th>
                     <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Revenue</th>
                   </tr>
@@ -712,6 +738,8 @@ const WeeklySalesReportPage: React.FC = () => {
                         <td className="py-3 px-4 text-right text-slate-700">{row.cancelled}</td>
                         <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.subtotal)}</td>
                         <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.shipping)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-600">{row.discount > 0 ? `-${formatCurrency(row.discount)}` : formatCurrency(0)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-600">{row.giftCard > 0 ? `-${formatCurrency(row.giftCard)}` : formatCurrency(0)}</td>
                         <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.tax)}</td>
                         <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(row.revenue)}</td>
                       </tr>
@@ -723,6 +751,8 @@ const WeeklySalesReportPage: React.FC = () => {
                     <td className="py-3 px-4 text-right text-slate-900">{dailySummary.totals.cancelled}</td>
                     <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.subtotal)}</td>
                     <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.shipping)}</td>
+                    <td className="py-3 px-4 text-right text-emerald-700 font-bold">{dailySummary.totals.discount > 0 ? `-${formatCurrency(dailySummary.totals.discount)}` : formatCurrency(0)}</td>
+                    <td className="py-3 px-4 text-right text-emerald-700 font-bold">{dailySummary.totals.giftCard > 0 ? `-${formatCurrency(dailySummary.totals.giftCard)}` : formatCurrency(0)}</td>
                     <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.tax)}</td>
                     <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(dailySummary.totals.revenue)}</td>
                   </tr>
