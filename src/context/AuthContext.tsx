@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -23,6 +23,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const welcomeEmailSentRef = useRef(false);
 
   useEffect(() => {
     // Get initial session
@@ -38,14 +39,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(session?.user ?? null);
       setLoading(false);
 
+      // Reset welcome email guard on sign-out so a new signup in the same session can send again
+      if (event === 'SIGNED_OUT') {
+        welcomeEmailSentRef.current = false;
+      }
+
       // Send welcome email when user confirms their email for the first time.
       // Detected by: SIGNED_IN event + email_confirmed_at is within the last 60 seconds.
-      if (event === 'SIGNED_IN' && session?.user) {
+      // Guard: ref prevents duplicate sends when SIGNED_IN fires multiple times.
+      if (event === 'SIGNED_IN' && session?.user && !welcomeEmailSentRef.current) {
         const confirmedAt = session.user.email_confirmed_at;
         if (confirmedAt) {
           const confirmedMs = new Date(confirmedAt).getTime();
           const nowMs = Date.now();
           if (nowMs - confirmedMs < 60_000) {
+            welcomeEmailSentRef.current = true;
             const firstName = session.user.user_metadata?.first_name || '';
             supabase.functions.invoke('send-email', {
               body: {
