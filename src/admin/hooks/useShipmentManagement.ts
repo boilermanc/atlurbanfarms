@@ -264,8 +264,8 @@ export function useShipmentManagement(orderId: string | null) {
   // Backward-compat: latest shipment (used for conditional checks elsewhere)
   const shipment = activeShipments[0] || shipments[0] || null;
 
-  // Can create a new label when no active shipments exist
-  const canCreateLabel = activeShipments.length === 0;
+  // Always allow creating additional labels (orders may need multiple boxes)
+  const canCreateLabel = true;
 
   // Per-shipment void check is now in the UI; keep this for simple checks
   const canVoidLabel = shipment && shipment.label_id && !shipment.voided;

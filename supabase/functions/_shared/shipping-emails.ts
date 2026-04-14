@@ -293,19 +293,24 @@ export async function sendShippingEmail(
     }
 
     // Fetch shipment details if shipping-related template
+    // An order may have multiple shipments (multi-box orders) — fetch all active ones
     let shipmentData: any = {}
+    let allShipmentTrackingNumbers: string[] = []
     if (templateSlug.startsWith('shipping_')) {
-      const { data: shipment } = await supabaseClient
+      const { data: shipments } = await supabaseClient
         .from('shipments')
         .select('*')
         .eq('order_id', orderId)
         .eq('voided', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+        .order('created_at', { ascending: true })
 
-      if (shipment) {
-        shipmentData = shipment
+      if (shipments && shipments.length > 0) {
+        // Use the first (or most relevant) shipment as primary data source
+        shipmentData = shipments[0]
+        // Collect all tracking numbers for multi-box orders
+        allShipmentTrackingNumbers = shipments
+          .map((s: any) => s.tracking_number)
+          .filter(Boolean)
       }
     }
 
@@ -324,6 +329,19 @@ export async function sendShippingEmail(
     // Format order date
     const orderDate = additionalData?.order_date || formatDateForEmail(order.created_at)
 
+    // For multi-box orders, build a combined tracking block with all tracking numbers
+    const allTrackingUrls = allShipmentTrackingNumbers.map(tn => ({
+      number: tn,
+      url: generateTrackingUrl(tn, carrierCode),
+    }))
+    // If there are multiple tracking numbers, build an HTML list for the email
+    let allTrackingHtml = ''
+    if (allTrackingUrls.length > 1) {
+      allTrackingHtml = allTrackingUrls.map((t, i) =>
+        `<p style="margin: 4px 0;"><strong>Box ${i + 1}:</strong> <a href="${t.url}" style="color: #10b981;">${t.number}</a></p>`
+      ).join('')
+    }
+
     const templateData: Record<string, string> = {
       customer_name: customerName || 'Valued Customer',
       customer_email: customerEmail,
@@ -332,6 +350,10 @@ export async function sendShippingEmail(
       order_date: orderDate,
       order_items: orderItemsText,
       tracking_number: trackingNumber,
+      // all_tracking_numbers: comma-separated list for plain text
+      all_tracking_numbers: allShipmentTrackingNumbers.length > 1 ? allShipmentTrackingNumbers.join(', ') : trackingNumber,
+      // all_tracking_html: formatted HTML block with links for each box
+      all_tracking_html: allTrackingHtml,
       carrier: additionalData?.carrier || getCarrierDisplayName(carrierCode),
       tracking_url: additionalData?.tracking_url || generateTrackingUrl(trackingNumber, carrierCode),
       estimated_delivery: additionalData?.estimated_delivery || formatDateForEmail(shipmentData.estimated_delivery_date),

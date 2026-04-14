@@ -385,12 +385,12 @@ serve(async (req) => {
     const labelData: ShipEngineLabelResponse = await labelResponse.json()
     console.log(`[create-label] Label created: ${labelData.label_id}, tracking: ${labelData.tracking_number}`)
 
-    // --- Write shipment record ---
+    // --- Write shipment record (insert, not upsert — orders can have multiple labels/boxes) ---
     const trackingUrl = generateTrackingUrl(labelData.tracking_number, 'ups')
 
     const { error: shipmentError } = await supabaseClient
       .from('shipments')
-      .upsert({
+      .insert({
         order_id,
         label_id: labelData.label_id,
         tracking_number: labelData.tracking_number,
@@ -406,17 +406,31 @@ serve(async (req) => {
         // Schedule shipping notification email for 24 hours from now
         shipping_email_send_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         shipping_email_sent_at: null,
-      }, { onConflict: 'order_id' })
+      })
 
     if (shipmentError) {
       console.error('[create-label] Error saving shipment record:', shipmentError)
     }
 
-    // --- Update order status ---
+    // --- Update order status & aggregate tracking numbers from all active shipments ---
+    // Fetch all non-voided tracking numbers for this order
+    const { data: allShipments } = await supabaseClient
+      .from('shipments')
+      .select('tracking_number')
+      .eq('order_id', order_id)
+      .eq('voided', false)
+      .order('created_at', { ascending: true })
+
+    const allTrackingNumbers = (allShipments || [])
+      .map((s: any) => s.tracking_number)
+      .filter(Boolean)
+    // Store comma-separated tracking numbers so customer-facing pages show all of them
+    const aggregatedTracking = allTrackingNumbers.join(', ')
+
     const { error: orderUpdateError } = await supabaseClient
       .from('orders')
       .update({
-        tracking_number: labelData.tracking_number,
+        tracking_number: aggregatedTracking,
         tracking_url: trackingUrl,
         status: 'shipped',
         shipped_at: new Date().toISOString(),
