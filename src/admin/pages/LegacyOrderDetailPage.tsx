@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useLegacyOrder, LegacyOrderItem } from '../hooks/useOrders';
+import { useBrandingSettings } from '../../hooks/useSupabase';
 
 interface LegacyOrderDetailPageProps {
   orderId: string;
@@ -17,6 +18,7 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
   customerContextName,
 }) => {
   const { order, items, loading, error } = useLegacyOrder(orderId);
+  const { settings: brandingSettings } = useBrandingSettings();
 
   // Format date
   const formatDate = (dateString: string | null | undefined, includeTime = false) => {
@@ -68,6 +70,163 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
         {config.label}
       </span>
     );
+  };
+
+  const handlePrintInvoice = () => {
+    if (!order) return;
+
+    const orderNum = `WC-${order.woo_order_id}`;
+    const orderDate = formatDate(order.order_date);
+
+    // Line items
+    let itemsHtml = '';
+    items.forEach((item: LegacyOrderItem) => {
+      const unitPrice = item.quantity > 0 ? item.line_total / item.quantity : item.line_total;
+      itemsHtml += `
+        <tr>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; font-size: 13px;">${item.product_name || 'Product'}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 13px;">${item.quantity}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">${formatCurrency(unitPrice)}</td>
+          <td style="padding: 5px 6px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px;">${formatCurrency(item.line_total)}</td>
+        </tr>`;
+    });
+
+    // Customer info
+    const customerName = (order.billing_first_name || order.billing_last_name)
+      ? `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim()
+      : (order.customers?.first_name || order.customers?.last_name)
+        ? `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim()
+        : 'Unknown Customer';
+    const customerEmail = order.billing_email || order.customers?.email || '';
+    const customerPhone = order.customers?.phone || '';
+    const customerHtml = `
+      <div style="flex: 1;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Customer</h3>
+        ${customerName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${customerName}</p>` : ''}
+        ${customerEmail ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${customerEmail}</p>` : ''}
+        ${customerPhone ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${customerPhone}</p>` : ''}
+      </div>`;
+
+    // Bill To
+    const billName = `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim();
+    const billToHtml = `
+      <div style="flex: 1;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Bill To</h3>
+        ${billName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${billName}</p>` : ''}
+        ${order.billing_address ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${order.billing_address}</p>` : ''}
+        ${order.billing_city || order.billing_state || order.billing_zip ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${order.billing_city || ''}${order.billing_city && order.billing_state ? ', ' : ''}${order.billing_state || ''} ${order.billing_zip || ''}</p>` : ''}
+      </div>`;
+
+    // Ship To
+    const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
+    const deliveryHtml = `
+      <div style="flex: 1;">
+        <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Ship To</h3>
+        ${shipName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${shipName}</p>` : ''}
+        ${order.shipping_address ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${order.shipping_address}</p>` : ''}
+        ${order.shipping_city || order.shipping_state || order.shipping_zip ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${order.shipping_city || ''}${order.shipping_city && order.shipping_state ? ', ' : ''}${order.shipping_state || ''} ${order.shipping_zip || ''}</p>` : ''}
+      </div>`;
+
+    // Payment
+    const payMethod = order.payment_method || 'Unknown';
+    const payMethodLabel = payMethod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const paymentHtml = `<div style="font-size: 12px; color: #4b5563; line-height: 1.5;"><strong style="color: #111827;">Payment:</strong> ${payMethodLabel}</div>`;
+
+    // Logo
+    const logoUrl = brandingSettings.logo_url;
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="ATL Urban Farms" style="max-height: 48px; width: auto;" />`
+      : `<p style="margin: 0 0 4px; font-size: 18px; font-weight: 800; color: #10b981; letter-spacing: 0.5px;">ATL URBAN FARMS</p>`;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice ${orderNum} - ATL Urban Farms</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 30px; color: #111827; font-size: 13px; }
+          @media print {
+            body { padding: 15px; }
+            @page { size: portrait; margin: 0.4in; }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 700px; margin: 0 auto;">
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #10b981; padding-bottom: 14px;">
+            <div>
+              ${logoHtml}
+              <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 800; color: #111827;">INVOICE</h1>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 0; font-weight: 700; font-size: 14px;">Order ${orderNum}</p>
+              <p style="margin: 3px 0 0; color: #6b7280; font-size: 12px;">Ordered: ${orderDate}</p>
+              <p style="margin: 2px 0 0; color: #f59e0b; font-size: 11px; font-weight: 600;">Legacy Order</p>
+            </div>
+          </div>
+
+          <!-- Customer / Bill To / Ship To -->
+          <div style="display: flex; gap: 24px; margin-bottom: 20px;">
+            ${customerHtml}
+            ${billToHtml}
+            ${deliveryHtml}
+          </div>
+
+          <!-- Line Items Table -->
+          ${itemsHtml ? `
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+            <thead>
+              <tr style="border-bottom: 2px solid #e5e7eb;">
+                <th style="padding: 5px 6px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Product</th>
+                <th style="padding: 5px 6px; text-align: center; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Qty</th>
+                <th style="padding: 5px 6px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Unit Price</th>
+                <th style="padding: 5px 6px; text-align: right; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af;">Line Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          ` : '<p style="color: #6b7280; font-style: italic;">No line items available for this legacy order.</p>'}
+
+          <!-- Totals Block -->
+          <div style="margin-left: auto; width: 240px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+              <span style="color: #6b7280;">Subtotal</span>
+              <span>${formatCurrency(order.subtotal)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+              <span style="color: #6b7280;">Shipping</span>
+              <span>${order.shipping > 0 ? formatCurrency(order.shipping) : '$0.00'}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;">
+              <span style="color: #6b7280;">Tax</span>
+              <span>${formatCurrency(order.tax)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-top: 2px solid #111827; font-weight: 700; font-size: 15px;">
+              <span>Total</span>
+              <span>${formatCurrency(order.total)}</span>
+            </div>
+          </div>
+
+          <!-- Payment -->
+          <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+            ${paymentHtml}
+          </div>
+
+          <!-- Footer -->
+          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 11px;">
+            <p style="margin: 0;">Thank you for your order!</p>
+            <p style="margin: 3px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
+          </div>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   if (loading) {
@@ -172,6 +331,15 @@ const LegacyOrderDetailPage: React.FC<LegacyOrderDetailPageProps> = ({
                 Placed on {formatDate(order.order_date, true)}
               </p>
             </div>
+            <button
+              onClick={handlePrintInvoice}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors text-sm font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print Invoice
+            </button>
           </div>
         </div>
 
