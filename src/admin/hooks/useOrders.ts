@@ -689,15 +689,24 @@ export function useOrders(filters: OrderFilters = {}) {
         internal_notes: null,
         created_at: order.order_date,
         updated_at: order.order_date,
-        items: (order.legacy_order_items || []).map((item: any) => ({
-          id: item.id,
-          product_id: item.product_id || '',
-          product_name: item.product_name,
-          product_image: null,
-          quantity: item.quantity,
-          unit_price: item.line_total / (item.quantity || 1),
-          line_total: item.line_total,
-        })),
+        items: (() => {
+          // Deduplicate legacy items (NULL woo_product_id can bypass unique constraint)
+          const seen = new Set<string>();
+          return (order.legacy_order_items || []).filter((item: any) => {
+            const key = `${item.product_name}|${item.quantity}|${item.line_total}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).map((item: any) => ({
+            id: item.id,
+            product_id: item.product_id || '',
+            product_name: item.product_name,
+            product_image: null,
+            quantity: item.quantity,
+            unit_price: item.line_total / (item.quantity || 1),
+            line_total: item.line_total,
+          }));
+        })(),
         is_pickup: false,
         pickup_location_id: null,
         pickup_date: null,
@@ -1500,7 +1509,16 @@ export function useLegacyOrder(orderId: string | null) {
         console.error('Error fetching legacy order items:', itemsError);
       }
 
-      setItems(itemsData || []);
+      // Deduplicate items by product_name+quantity+line_total
+      // (handles WooCommerce import duplicates caused by NULL woo_product_id bypassing unique constraint)
+      const seen = new Set<string>();
+      const dedupedItems = (itemsData || []).filter((item: any) => {
+        const key = `${item.product_name}|${item.quantity}|${item.line_total}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setItems(dedupedItems);
     } catch (err: any) {
       console.error('Error fetching legacy order:', err);
       setError(err.message || 'Failed to fetch legacy order');
