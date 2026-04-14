@@ -20,14 +20,15 @@ function isOtherItem(productName: string): boolean {
 function getCurrentWeekDates(): { start: string; end: string } {
   const now = new Date();
   const day = now.getDay(); // 0=Sun, 1=Mon
+  // Previous Monday: go back to this week's Monday, then subtract 7 days
   const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() + diffToMonday);
+  const prevMonday = new Date(thisMonday);
+  prevMonday.setDate(thisMonday.getDate() - 7);
   return {
-    start: toDateInputValue(monday),
-    end: toDateInputValue(sunday),
+    start: toDateInputValue(prevMonday),
+    end: toDateInputValue(now),
   };
 }
 
