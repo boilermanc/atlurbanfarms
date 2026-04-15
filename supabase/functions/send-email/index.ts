@@ -1025,6 +1025,28 @@ serve(async (req) => {
     const templateKey = template ? (templateKeyMap[template] || template) : null
     const isMarketingEmail = templateKey && MARKETING_TEMPLATES.has(templateKey)
 
+    // Welcome-email dedup guard (server-side, 24h window)
+    if (templateKey === 'welcome') {
+      const recipientEmail = recipients[0]
+      const { data: existing } = await supabaseClient
+        .from('email_logs')
+        .select('id')
+        .eq('recipient_email', recipientEmail)
+        .eq('template_key', 'welcome')
+        .eq('status', 'sent')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .limit(1)
+        .maybeSingle()
+
+      if (existing) {
+        console.log(`Welcome email already sent to ${recipientEmail} within 24 hours, skipping`)
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'duplicate_welcome' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // Build unsubscribe URL for List-Unsubscribe header
     let listUnsubscribeHeaders: Record<string, string> | undefined
     if (isMarketingEmail) {
