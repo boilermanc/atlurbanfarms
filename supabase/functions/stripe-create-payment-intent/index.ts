@@ -218,7 +218,7 @@ serve(async (req) => {
       const productIds = cartItems.map(item => item.productId)
       const { data: products, error: productsError } = await supabaseClient
         .from('products')
-        .select('id, name, quantity_available')
+        .select('id, name, quantity_available, track_inventory')
         .in('id', productIds)
 
       if (productsError) {
@@ -239,6 +239,7 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
+        if (product.track_inventory === false) continue
         if ((product.quantity_available ?? 0) < item.quantity) {
           const availableMsg = product.quantity_available > 0
             ? `Only ${product.quantity_available} left in stock.`

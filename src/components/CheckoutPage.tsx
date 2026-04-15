@@ -1101,7 +1101,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     const productIds = items.map(item => item.id);
     const { data: products, error } = await supabase
       .from('products')
-      .select('id, name, quantity_available')
+      .select('id, name, quantity_available, track_inventory')
       .in('id', productIds);
 
     if (error || !products) {
@@ -1112,6 +1112,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     const issues: StockIssue[] = [];
     for (const item of items) {
       const product = products.find((p: any) => p.id === item.id);
+      if (product?.track_inventory === false) continue;
       const available = product?.quantity_available ?? 0;
       if (available < item.quantity) {
         issues.push({
