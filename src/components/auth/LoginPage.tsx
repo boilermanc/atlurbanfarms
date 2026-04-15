@@ -44,6 +44,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [existingAccount, setExistingAccount] = useState(false);
+  const [emailTypoWarning, setEmailTypoWarning] = useState(false);
+  const [emailTypoDismissed, setEmailTypoDismissed] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
@@ -101,6 +103,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
     return null;
   };
 
+  // Detect common email typos (TLD misspellings and popular domain typos)
+  const SUSPICIOUS_EMAIL_PATTERNS = [
+    /\.coom$/i, /\.ocm$/i, /\.con$/i, /\.cmo$/i,
+    /@gamil\.com$/i, /@gmai\.com$/i, /@yahooo\.com$/i, /@yaho\.com$/i,
+  ];
+  const checkEmailForTypos = (email: string): boolean =>
+    SUSPICIOUS_EMAIL_PATTERNS.some(p => p.test(email.trim()));
+
+  const handleRegisterEmailBlur = () => {
+    const email = registerData.email.trim();
+    if (email && checkEmailForTypos(email)) {
+      setEmailTypoWarning(true);
+      setEmailTypoDismissed(false);
+    } else {
+      setEmailTypoWarning(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError(null);
@@ -109,6 +129,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
     const validationError = validateRegister();
     if (validationError) {
       setRegisterError(validationError);
+      return;
+    }
+
+    // Check for email typos on submit (in case user didn't blur the field)
+    if (checkEmailForTypos(registerData.email) && !emailTypoDismissed) {
+      setEmailTypoWarning(true);
       return;
     }
 
@@ -417,10 +443,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccess }) => {
                   name="email"
                   value={registerData.email}
                   onChange={handleRegisterChange}
+                  onBlur={handleRegisterEmailBlur}
                   placeholder="you@example.com"
                   required
                   className={inputClass}
                 />
+                {emailTypoWarning && !emailTypoDismissed && (
+                  <div className="flex items-center gap-2 mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span>This email looks like it may have a typo. Please double-check before continuing.</span>
+                    <button
+                      type="button"
+                      onClick={() => setEmailTypoDismissed(true)}
+                      className="ml-auto text-amber-500 hover:text-amber-700 font-medium whitespace-nowrap"
+                    >
+                      It's correct
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Password */}
