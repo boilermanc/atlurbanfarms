@@ -2913,11 +2913,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-800 font-admin-display">
                   Order Items
-                  {order.items && order.items.length > 0 && (
-                    <span className="ml-2 text-sm font-normal text-slate-500">
-                      ({order.items.reduce((sum, item) => sum + (item.quantity ?? 0), 0)} {order.items.reduce((sum, item) => sum + (item.quantity ?? 0), 0) === 1 ? 'item' : 'items'})
-                    </span>
-                  )}
+                  {order.items && order.items.length > 0 && (() => {
+                    const seedlingCount = getOrderSeedlingTotal(order.items);
+                    return (
+                      <span className="ml-2 text-sm font-normal text-slate-500">
+                        ({seedlingCount} {seedlingCount === 1 ? 'seedling' : 'seedlings'})
+                      </span>
+                    );
+                  })()}
                 </h2>
                 {!editingItems && (
                   <button
@@ -2971,10 +2974,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     )}
                   </div>
                   <div className="px-6 py-4 border-t border-slate-200 space-y-2 bg-slate-50">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Subtotal ({order.items?.reduce((sum, item) => sum + (item.quantity ?? 0), 0) || 0} {(order.items?.reduce((sum, item) => sum + (item.quantity ?? 0), 0) || 0) === 1 ? 'item' : 'items'})</span>
-                      <span>{formatCurrency(order.subtotal)}</span>
-                    </div>
+                    {(() => {
+                      const seedlingCount = getOrderSeedlingTotal(order.items || []);
+                      return (
+                        <div className="flex justify-between text-slate-600">
+                          <span>Subtotal ({seedlingCount} {seedlingCount === 1 ? 'seedling' : 'seedlings'})</span>
+                          <span>{formatCurrency(order.subtotal)}</span>
+                        </div>
+                      );
+                    })()}
                     {(order.discount_amount ?? 0) > 0 && (
                       <div className="flex justify-between text-emerald-600">
                         <span>{order.promotion_code ? `Promo Code (${order.promotion_code})` : (order.discount_description || 'Discount')}</span>
