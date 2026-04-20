@@ -41,6 +41,14 @@ interface ShipEngineLabelResponse {
   carrier_id: string
   carrier_code: string
   service_code: string
+  // Multi-package shipments return per-package tracking numbers here.
+  // Single-package shipments may omit this or return a one-element array.
+  packages?: Array<{
+    package_code?: string
+    tracking_number?: string
+    weight?: { value: number; unit: string }
+    dimensions?: { length: number; width: number; height: number; unit: string }
+  }>
 }
 
 const VALID_SERVICE_CODES = ['ups_ground', 'ups_2nd_day_air', 'ups_3_day_select']
@@ -385,31 +393,53 @@ serve(async (req) => {
     const labelData: ShipEngineLabelResponse = await labelResponse.json()
     console.log(`[create-label] Label created: ${labelData.label_id}, tracking: ${labelData.tracking_number}`)
 
-    // --- Write shipment record (insert, not upsert — orders can have multiple labels/boxes) ---
-    const trackingUrl = generateTrackingUrl(labelData.tracking_number, 'ups')
+    // --- Write shipment record(s) ---
+    // Multi-package shipments return per-package tracking numbers in
+    // labelData.packages[]. Insert one shipments row per package so each
+    // tracking number is stored and rendered separately in the admin UI.
+    // All rows share the same label_id (UNIQUE constraint dropped in
+    // 20260420100000) and the same combined PDF label_url.
+    const perPackageTracking = (labelData.packages || [])
+      .map(p => p?.tracking_number)
+      .filter((tn): tn is string => Boolean(tn))
+
+    const trackingNumbers = perPackageTracking.length > 0
+      ? perPackageTracking
+      : [labelData.tracking_number]
+
+    const trackingUrl = generateTrackingUrl(trackingNumbers[0], 'ups')
+    const labelUrl = labelData.label_download?.pdf || labelData.label_download?.href
+    const emailSendAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+
+    // Only the first row carries shipment_cost (full shipment cost, not per-package)
+    // and shipping_email_send_at — so the scheduled email job sends one email
+    // per shipment, not one per box. The email's multi-box block already lists
+    // every active tracking number for the order.
+    const shipmentRows = trackingNumbers.map((tn, i) => ({
+      order_id,
+      label_id: labelData.label_id,
+      tracking_number: tn,
+      carrier_id: UPS_CARRIER_ID,
+      carrier_code: 'ups',
+      service_code,
+      label_url: labelUrl,
+      label_format: 'pdf',
+      shipment_cost: i === 0 ? labelData.shipment_cost?.amount : null,
+      status: 'label_created',
+      voided: false,
+      voided_at: null,
+      shipping_email_send_at: i === 0 ? emailSendAt : null,
+      shipping_email_sent_at: null,
+    }))
 
     const { error: shipmentError } = await supabaseClient
       .from('shipments')
-      .insert({
-        order_id,
-        label_id: labelData.label_id,
-        tracking_number: labelData.tracking_number,
-        carrier_id: UPS_CARRIER_ID,
-        carrier_code: 'ups',
-        service_code,
-        label_url: labelData.label_download?.pdf || labelData.label_download?.href,
-        label_format: 'pdf',
-        shipment_cost: labelData.shipment_cost?.amount,
-        status: 'label_created',
-        voided: false,
-        voided_at: null,
-        // Schedule shipping notification email for 24 hours from now
-        shipping_email_send_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        shipping_email_sent_at: null,
-      })
+      .insert(shipmentRows)
 
     if (shipmentError) {
-      console.error('[create-label] Error saving shipment record:', shipmentError)
+      console.error('[create-label] Error saving shipment record(s):', shipmentError)
+    } else if (shipmentRows.length > 1) {
+      console.log(`[create-label] Inserted ${shipmentRows.length} shipment rows for MPS label ${labelData.label_id}`)
     }
 
     // --- Update order status & aggregate tracking numbers from all active shipments ---
