@@ -247,29 +247,49 @@ const BulkInventoryPage: React.FC<BulkInventoryPageProps> = ({ onEditProduct }) 
         p.alert_count > 0
       );
 
+      let totalNotified = 0;
+      const notifyErrors: string[] = [];
+
       if (restockedWithAlerts.length > 0) {
         console.log(`Sending back-in-stock notifications for ${restockedWithAlerts.length} product(s)`);
         const notifyResults = await Promise.allSettled(
           restockedWithAlerts.map(p =>
             supabase.functions.invoke('back-in-stock-notify', {
               body: { product_id: p.id },
-            })
+            }).then(res => ({ product: p, res }))
           )
         );
-        const notifiedCount = notifyResults.filter(r => r.status === 'fulfilled').length;
-        if (notifiedCount > 0) {
-          console.log(`Back-in-stock notifications sent for ${notifiedCount} product(s)`);
+
+        for (const result of notifyResults) {
+          if (result.status !== 'fulfilled') {
+            notifyErrors.push(`Notification request failed: ${result.reason?.message || result.reason}`);
+            continue;
+          }
+          const { product, res } = result.value;
+          if (res.error) {
+            notifyErrors.push(`"${product.name}": ${res.error.message || 'Edge function error'}`);
+            continue;
+          }
+          const data = res.data as { success?: boolean; notified?: number; error?: string } | null;
+          if (!data?.success) {
+            notifyErrors.push(`"${product.name}": ${data?.error || 'Notification failed'}`);
+            continue;
+          }
+          totalNotified += data.notified ?? 0;
         }
       }
 
       // Show success message
       const notifyMsg = restockedWithAlerts.length > 0
-        ? ` Notified ${restockedWithAlerts.reduce((sum, p) => sum + p.alert_count, 0)} subscriber(s).`
+        ? ` Notified ${totalNotified} subscriber(s).`
+        : '';
+      const notifyErrMsg = notifyErrors.length > 0
+        ? ` Notification issues: ${notifyErrors.join('; ')}.`
         : '';
       if (errors.length > 0) {
-        setSuccessMessage(`Updated ${updatedCount} product(s). Some failed: ${errors.join('; ')}${notifyMsg}`);
+        setSuccessMessage(`Updated ${updatedCount} product(s). Some failed: ${errors.join('; ')}${notifyMsg}${notifyErrMsg}`);
       } else {
-        setSuccessMessage(`Successfully updated ${updatedCount} product(s).${notifyMsg}`);
+        setSuccessMessage(`Successfully updated ${updatedCount} product(s).${notifyMsg}${notifyErrMsg}`);
       }
 
       // Clear changes
