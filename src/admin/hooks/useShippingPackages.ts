@@ -153,20 +153,26 @@ export function useShippingPackages() {
   // Get appropriate package for a given quantity
   const getPackageForQuantity = useCallback((quantity: number): ShippingPackage | null => {
     const activePackages = packages.filter(p => p.is_active);
+    if (activePackages.length === 0) return null;
 
     // Find package where quantity fits in range
     const matchingPackage = activePackages.find(
       p => quantity >= p.min_quantity && quantity <= p.max_quantity
     );
-
     if (matchingPackage) return matchingPackage;
 
-    // Fallback to default package
-    const defaultPackage = activePackages.find(p => p.is_default);
-    if (defaultPackage) return defaultPackage;
+    const largest = [...activePackages].sort((a, b) => b.max_quantity - a.max_quantity)[0];
 
-    // Fallback to largest package
-    return activePackages.sort((a, b) => b.max_quantity - a.max_quantity)[0] || null;
+    // Overflow above the biggest box — pick the largest. The admin will split
+    // into multiple packages manually if needed.
+    if (quantity > largest.max_quantity) return largest;
+
+    // Underflow below the smallest box — pick the smallest.
+    const smallest = [...activePackages].sort((a, b) => a.min_quantity - b.min_quantity)[0];
+    if (quantity < smallest.min_quantity) return smallest;
+
+    // Gap in coverage — prefer the configured default, else fall back to largest.
+    return activePackages.find(p => p.is_default) || largest;
   }, [packages]);
 
   // Validate quantity ranges don't overlap
