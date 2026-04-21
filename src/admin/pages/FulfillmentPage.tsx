@@ -500,26 +500,36 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
             return p;
           };
 
-          // Flatten bundles into individual child rows
-          const flatItems: { product_id: string; product_name: string; quantity: number }[] = [];
+          // Flatten bundles into individual child rows, merging duplicates (e.g., a bundle's
+          // Arugula + a separately added Arugula combine into a single line).
+          const flatMap = new Map<string, { product_id: string; product_name: string; quantity: number }>();
+          const pushFlat = (row: { product_id: string; product_name: string; quantity: number }) => {
+            const existing = flatMap.get(row.product_id);
+            if (existing) {
+              existing.quantity += row.quantity;
+            } else {
+              flatMap.set(row.product_id, { ...row });
+            }
+          };
           for (const item of order.items || []) {
             const children = bundleChildrenMap[item.product_id];
             if (children && children.length > 0) {
               for (const child of children) {
-                flatItems.push({
+                pushFlat({
                   product_id: child.product_id,
                   product_name: child.name,
                   quantity: child.quantity * item.quantity,
                 });
               }
             } else {
-              flatItems.push({
+              pushFlat({
                 product_id: item.product_id,
                 product_name: item.product_name,
                 quantity: item.quantity,
               });
             }
           }
+          const flatItems = Array.from(flatMap.values());
 
           // Sort by category sort_order, then category name, then product name
           flatItems.sort((a, b) => {
