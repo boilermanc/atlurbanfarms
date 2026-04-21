@@ -16,6 +16,8 @@ import {
 } from '../../hooks/usePickup';
 import { calculateTax } from '../../lib/tax';
 import { useTaxConfig } from '../../hooks/useTaxConfig';
+import { useCartDiscount } from '../../hooks/usePromotions';
+import type { CartDiscountResult } from '../types/promotions';
 
 interface Customer {
   id: string;
@@ -180,6 +182,12 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentStatus, setPaymentStatus] = useState<string>('paid');
   const [internalNotes, setInternalNotes] = useState<string>('');
+
+  // Promo code state
+  const [promoCode, setPromoCode] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<CartDiscountResult | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const { calculateDiscount, loading: promoLoading } = useCartDiscount();
 
   // Admin always bypasses inventory checks (warnings shown in ProductLineItems)
 
@@ -499,7 +507,10 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
   // Calculate totals
   const calculateTotals = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
-    const shipping = deliveryMethod === 'pickup' ? 0 : shippingCost;
+    const baseShipping = deliveryMethod === 'pickup' ? 0 : shippingCost;
+    const promoFreeShipping = !!appliedPromo?.valid && appliedPromo.free_shipping === true;
+    const shipping = promoFreeShipping ? 0 : baseShipping;
+    const discount = appliedPromo?.valid && !promoFreeShipping ? (appliedPromo.discount || 0) : 0;
 
     const taxResult = calculateTax({
       subtotal,
@@ -509,12 +520,50 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
       config: taxConfig,
     });
     const tax = taxResult.taxAmount;
-    const total = subtotal + tax + shipping;
+    const total = Math.max(0, subtotal + tax + shipping - discount);
 
-    return { subtotal, tax, shipping, total, taxResult };
+    return { subtotal, discount, tax, shipping, total, taxResult, promoFreeShipping };
   };
 
-  const { subtotal, tax, shipping, total, taxResult } = calculateTotals();
+  const { subtotal, discount, tax, shipping, total, taxResult, promoFreeShipping } = calculateTotals();
+
+  const handleApplyPromo = async () => {
+    const code = promoCode.trim();
+    if (!code) return;
+    setPromoError(null);
+
+    if (lineItems.length === 0) {
+      setPromoError('Add at least one product before applying a promo code');
+      return;
+    }
+
+    const cartItems = lineItems.map((item) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+      price: item.product_price,
+    }));
+
+    const result = await calculateDiscount(
+      cartItems,
+      code,
+      selectedCustomer?.id,
+      selectedCustomer?.email || guestEmail.trim() || undefined
+    );
+
+    if (result.valid && (result.discount > 0 || result.free_shipping)) {
+      setAppliedPromo(result);
+      setPromoError(null);
+    } else {
+      setAppliedPromo(null);
+      setPromoError(result.message || 'Invalid promo code');
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCode('');
+    setPromoError(null);
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -707,7 +756,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
       const submitSubtotal = submitTotals.subtotal;
       const submitTax = submitTotals.tax;
       const submitShipping = submitTotals.shipping;
-      const submitTotal = submitSubtotal + submitTax + submitShipping;
+      const submitDiscount = submitTotals.discount;
+      const submitTotal = submitTotals.total;
 
       // Prepare order data
       const orderData = {
@@ -728,6 +778,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         skip_inventory_check: true,
         tax_rate_applied: submitTotals.taxResult.taxRate,
         tax_note: submitTotals.taxResult.taxNote,
+        promotion_id: appliedPromo?.promotion_id || null,
+        promotion_code: appliedPromo?.promotion_code || null,
+        promotion_discount: submitDiscount,
+        discount_amount: submitDiscount,
+        discount_description: appliedPromo?.description || null,
         billing_first_name: billingAddress.firstName || null,
         billing_last_name: billingAddress.lastName || null,
         billing_address_line1: billingAddress.addressLine1 || null,
@@ -1763,6 +1818,64 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Promo Code <span className="text-slate-400">(optional)</span>
+                </label>
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div className="text-sm text-emerald-800">
+                      <span className="font-semibold">{appliedPromo.promotion_code || promoCode.toUpperCase()}</span>
+                      <span className="ml-2 text-emerald-700">
+                        {appliedPromo.free_shipping
+                          ? 'applied — free shipping'
+                          : `applied — ${formatCurrency(appliedPromo.discount || 0)} off`}
+                      </span>
+                      {appliedPromo.description && (
+                        <div className="text-xs text-emerald-700/80 mt-0.5">{appliedPromo.description}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      className="text-sm font-medium text-emerald-700 hover:text-red-600 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyPromo();
+                          }
+                        }}
+                        placeholder="Enter code"
+                        disabled={promoLoading}
+                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyPromo}
+                        disabled={promoLoading || !promoCode.trim()}
+                        className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 text-white rounded-xl font-medium transition-colors"
+                      >
+                        {promoLoading ? 'Applying...' : 'Apply'}
+                      </button>
+                    </div>
+                    {promoError && (
+                      <p className="text-xs text-red-600 font-medium">{promoError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Internal Notes <span className="text-slate-400">(optional)</span>
                 </label>
                 <textarea
@@ -1797,12 +1910,30 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
               </div>
               <div className="flex items-center justify-between text-slate-700">
                 <span>Shipping</span>
-                <span className="font-medium">{formatCurrency(shipping)}</span>
+                <span className="font-medium">
+                  {promoFreeShipping ? (
+                    <span className="text-emerald-600">FREE</span>
+                  ) : (
+                    formatCurrency(shipping)
+                  )}
+                </span>
               </div>
               <div className="flex items-center justify-between text-slate-700">
                 <span>{taxResult.taxLabel}</span>
                 <span className="font-medium">{formatCurrency(tax)}</span>
               </div>
+              {appliedPromo && (discount > 0 || promoFreeShipping) && (
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span>
+                    Promo ({appliedPromo.promotion_code || promoCode.toUpperCase()})
+                  </span>
+                  <span className="font-medium">
+                    {promoFreeShipping
+                      ? `-${formatCurrency(shippingCost)}`
+                      : `-${formatCurrency(discount)}`}
+                  </span>
+                </div>
+              )}
               <div className="h-px bg-slate-200" />
               <div className="flex items-center justify-between text-lg font-semibold text-slate-900">
                 <span>Total</span>
