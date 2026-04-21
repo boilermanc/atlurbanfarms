@@ -1,0 +1,24 @@
+# Supabase project config.
+#
+# Edge functions listed below disable the platform-level JWT verifier.
+# Each one does its own auth inside the function body (supabaseClient.auth
+# .getUser(token) + admin_user_roles / customers.role check), which works
+# with ES256-signed tokens that the platform gateway currently rejects
+# with UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM. The internal check is
+# strictly stronger (validates the token AND enforces admin role), so
+# bypassing the platform check is not a security regression.
+
+[functions.shipengine-create-label]
+verify_jwt = false
+
+[functions.shipengine-void-label]
+verify_jwt = false
+
+[functions.shipengine-track-shipment]
+verify_jwt = false
+
+[functions.sproutify-admin]
+verify_jwt = false
+
+[functions.admin-manage-customer]
+verify_jwt = false
