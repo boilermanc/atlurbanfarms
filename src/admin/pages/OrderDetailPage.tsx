@@ -43,9 +43,10 @@ interface OrderDetailPageProps {
   onBackToCustomer?: () => void;
   customerContextName?: string;
   onNavigateOrder?: (orderId: string) => void;
+  onDuplicateOrder?: (orderId: string) => void;
 }
 
-const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName, onNavigateOrder }) => {
+const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBackToCustomer, customerContextName, onNavigateOrder, onDuplicateOrder }) => {
   const { adminUser } = useAdminAuth();
   const { settings: brandingSettings } = useBrandingSettings();
   const { getPackageForQuantity } = useShippingPackages();
@@ -1762,6 +1763,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                 </svg>
                 Export
               </button>
+              {onDuplicateOrder && (
+                <button
+                  onClick={() => onDuplicateOrder(orderId)}
+                  title="Duplicate this order — opens the create-order form pre-filled from this order"
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                  Duplicate
+                </button>
+              )}
             </div>
           </div>
         </div>

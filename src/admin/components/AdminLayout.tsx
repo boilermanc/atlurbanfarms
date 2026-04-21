@@ -527,6 +527,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
   const [currentPage, setCurrentPage] = useState(urlOrderMatch ? 'order-detail' : initialPage);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(urlOrderMatch?.[1] || null);
   const [isLegacyOrder, setIsLegacyOrder] = useState(false);
+  const [duplicateFromOrderId, setDuplicateFromOrderId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
@@ -623,6 +624,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     if (page === 'gift-cards') setSelectedGiftCardId(null);
     if (page === 'blog') setSelectedBlogPostId(null);
     if (page !== 'order-detail' && page !== 'legacy-order-detail') setOrderContext(null);
+    if (page !== 'order-create') setDuplicateFromOrderId(null);
+  };
+
+  const handleDuplicateOrder = (orderId: string) => {
+    setDuplicateFromOrderId(orderId);
+    setCurrentPage('order-create');
   };
 
   const handleEditBatch = (batchId?: string) => {
@@ -713,7 +720,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
 
     switch (currentPage) {
       case 'orders':
-        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} initialGrowingSystem={ordersInitialGrowingSystem} onGrowingSystemFilterConsumed={() => setOrdersInitialGrowingSystem(null)} />;
+        return <OrdersPage onViewOrder={handleViewOrder} onNavigate={handleNavigate} onDuplicateOrder={handleDuplicateOrder} initialDateFilter={ordersInitialDateFilter} onDateFilterConsumed={() => setOrdersInitialDateFilter(null)} initialGrowingSystem={ordersInitialGrowingSystem} onGrowingSystemFilterConsumed={() => setOrdersInitialGrowingSystem(null)} />;
       case 'purchase-orders':
         return <PurchaseOrdersPage onViewOrder={handleViewOrder} />;
       case 'order-detail':
@@ -724,6 +731,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}
             customerContextName={orderContext?.customerName}
             onNavigateOrder={(id: string) => { setSelectedOrderId(id); }}
+            onDuplicateOrder={handleDuplicateOrder}
           />
         ) : null;
       case 'legacy-order-detail':
@@ -736,7 +744,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
           />
         ) : null;
       case 'order-create':
-        return <OrderCreatePage onNavigate={handleNavigate} />;
+        return (
+          <OrderCreatePage
+            onNavigate={handleNavigate}
+            duplicateFromOrderId={duplicateFromOrderId}
+            onDuplicateConsumed={() => setDuplicateFromOrderId(null)}
+          />
+        );
       case 'products':
         return <ProductsPage onEditProduct={handleEditProduct} />;
       case 'product-edit':

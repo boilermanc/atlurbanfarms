@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import { useOrders, ORDER_STATUSES, ORDER_STATUS_CONFIG, OrderStatus, Order, useUpdateOrderStatus, ViewOrderHandler, getOrderSeedlingTotal } from '../hooks/useOrders';
 import { supabase } from '../../lib/supabase';
-import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText, Package, CheckCircle2, XCircle, AlertCircle, ChevronDown, RotateCcw } from 'lucide-react';
+import { Printer, X, RefreshCw, Search, Plus, Mail, Trash2, FileText, Package, CheckCircle2, XCircle, AlertCircle, ChevronDown, RotateCcw, Copy } from 'lucide-react';
 
 const formatStatusLabel = (status: string) =>
   ORDER_STATUS_CONFIG[status as OrderStatus]?.label || status.replace(/_/g, ' ');
@@ -11,13 +11,14 @@ const formatStatusLabel = (status: string) =>
 interface OrdersPageProps {
   onViewOrder: ViewOrderHandler;
   onNavigate?: (page: string) => void;
+  onDuplicateOrder?: (orderId: string) => void;
   initialDateFilter?: { from: string; to: string } | null;
   onDateFilterConsumed?: () => void;
   initialGrowingSystem?: string | null;
   onGrowingSystemFilterConsumed?: () => void;
 }
 
-const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, initialDateFilter, onDateFilterConsumed, initialGrowingSystem, onGrowingSystemFilterConsumed }) => {
+const OrdersPage: React.FC<OrdersPageProps> = ({ onViewOrder, onNavigate, onDuplicateOrder, initialDateFilter, onDateFilterConsumed, initialGrowingSystem, onGrowingSystemFilterConsumed }) => {
 
   // Filter state
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -835,21 +836,30 @@ ${ordersToprint.map(order => `<div class="order">
                         )}
                       </td>
                       <td className="px-2 py-4 text-center">
-                        {showTrash ? (
-                          <button onClick={(e) => { e.stopPropagation(); restoreFromTrash(order.id); }}
-                            disabled={trashLoading === order.id}
-                            title="Restore from Trash"
-                            className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50">
-                            {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                          </button>
-                        ) : order.status === 'cancelled' && !order.isLegacy ? (
-                          <button onClick={(e) => { e.stopPropagation(); moveToTrash(order.id); }}
-                            disabled={trashLoading === order.id}
-                            title="Move to Trash"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
-                            {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                          </button>
-                        ) : null}
+                        <div className="flex items-center justify-center gap-1">
+                          {!showTrash && !order.isLegacy && onDuplicateOrder && (
+                            <button onClick={(e) => { e.stopPropagation(); onDuplicateOrder(order.id); }}
+                              title="Duplicate order"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                              <Copy size={14} />
+                            </button>
+                          )}
+                          {showTrash ? (
+                            <button onClick={(e) => { e.stopPropagation(); restoreFromTrash(order.id); }}
+                              disabled={trashLoading === order.id}
+                              title="Restore from Trash"
+                              className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+                              {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                            </button>
+                          ) : order.status === 'cancelled' && !order.isLegacy ? (
+                            <button onClick={(e) => { e.stopPropagation(); moveToTrash(order.id); }}
+                              disabled={trashLoading === order.id}
+                              title="Move to Trash"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
+                              {trashLoading === order.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </motion.tr>
                   ))}

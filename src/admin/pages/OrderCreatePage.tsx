@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import AdminPageWrapper from '../components/AdminPageWrapper';
 import CustomerSearchSelector from '../components/CustomerSearchSelector';
@@ -62,6 +62,8 @@ interface ShippingRate {
 
 interface OrderCreatePageProps {
   onNavigate: (page: string) => void;
+  duplicateFromOrderId?: string | null;
+  onDuplicateConsumed?: () => void;
 }
 
 const US_STATES = [
@@ -119,7 +121,7 @@ const US_STATES = [
 
 type DeliveryMethod = 'shipping' | 'pickup';
 
-const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
+const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicateFromOrderId, onDuplicateConsumed }) => {
   // Customer state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [guestEmail, setGuestEmail] = useState('');
@@ -195,6 +197,15 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
   const [invoiceSent, setInvoiceSent] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
+  // Duplicate-from-order banner state
+  const [duplicatedFromNumber, setDuplicatedFromNumber] = useState<string | null>(null);
+
+  // When prefilling from a source order we set selectedCustomer programmatically.
+  // The customer-addresses effect would otherwise overwrite our copied shipping
+  // address with the customer's default saved address. This ref tells that
+  // effect to skip the auto-fill exactly once.
+  const skipNextAddressAutoFillRef = useRef(false);
+
   // Fetch customer addresses when customer is selected
   useEffect(() => {
     const fetchCustomerAddresses = async () => {
@@ -215,6 +226,11 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
 
         if (error) throw error;
         setCustomerAddresses(data || []);
+
+        if (skipNextAddressAutoFillRef.current) {
+          skipNextAddressAutoFillRef.current = false;
+          return;
+        }
 
         // Auto-select default address if exists (fall back to first address)
         const defaultAddress = data?.find((addr) => addr.is_default) || data?.[0];
@@ -279,6 +295,135 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
       });
     }
   }, [billingSameAsShipping, shippingAddress]);
+
+  // Pre-fill the form from a source order when duplicating.
+  // Shipping rate IDs and pickup slots aren't carried over (rate IDs expire,
+  // pickup slot dates are in the past) — admin re-selects those before saving.
+  // Line-item prices and stock are pulled fresh from products, not copied.
+  useEffect(() => {
+    if (!duplicateFromOrderId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data: sourceOrder, error: orderErr } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', duplicateFromOrderId)
+          .single();
+        if (orderErr || !sourceOrder || cancelled) {
+          if (orderErr) console.error('Duplicate prefill: failed to load source order', orderErr);
+          onDuplicateConsumed?.();
+          return;
+        }
+
+        // Suppress the customer-addresses auto-fill so it doesn't overwrite
+        // the shipping address we're about to copy from the source order.
+        if (sourceOrder.customer_id) {
+          skipNextAddressAutoFillRef.current = true;
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('id, email, first_name, last_name, phone, is_tax_exempt, tax_exempt_reason, created_at')
+            .eq('id', sourceOrder.customer_id)
+            .single();
+          if (cancelled) return;
+          if (customer) {
+            setSelectedCustomer(customer);
+          } else {
+            // Customer was deleted — fall back to email
+            setGuestEmail(sourceOrder.customer_email || '');
+            skipNextAddressAutoFillRef.current = false;
+          }
+        } else {
+          setGuestEmail(sourceOrder.guest_email || sourceOrder.customer_email || '');
+        }
+
+        setDeliveryMethod(sourceOrder.is_pickup ? 'pickup' : 'shipping');
+
+        if (sourceOrder.is_pickup && sourceOrder.pickup_location_id) {
+          setSelectedPickupLocation(sourceOrder.pickup_location_id);
+        }
+
+        // Disable billing-same-as-shipping BEFORE setting addresses so the
+        // sync effect doesn't clobber the billing copy with the shipping copy.
+        setBillingSameAsShipping(false);
+        setShippingAddress({
+          name: `${sourceOrder.shipping_first_name || ''} ${sourceOrder.shipping_last_name || ''}`.trim(),
+          street: sourceOrder.shipping_address_line1 || '',
+          street2: sourceOrder.shipping_address_line2 || '',
+          city: sourceOrder.shipping_city || '',
+          state: sourceOrder.shipping_state || '',
+          zip: sourceOrder.shipping_zip || '',
+          phone: sourceOrder.shipping_phone || '',
+        });
+        setBillingAddress({
+          firstName: sourceOrder.billing_first_name || '',
+          lastName: sourceOrder.billing_last_name || '',
+          addressLine1: sourceOrder.billing_address_line1 || '',
+          addressLine2: sourceOrder.billing_address_line2 || '',
+          city: sourceOrder.billing_city || '',
+          state: sourceOrder.billing_state || '',
+          zip: sourceOrder.billing_zip || '',
+        });
+
+        if (sourceOrder.internal_notes) setInternalNotes(sourceOrder.internal_notes);
+        if (sourceOrder.payment_method) setPaymentMethod(sourceOrder.payment_method);
+        if (sourceOrder.payment_status) setPaymentStatus(sourceOrder.payment_status);
+
+        // Fetch line items and resolve fresh product data (price + stock).
+        const { data: items } = await supabase
+          .from('order_items')
+          .select('product_id, quantity')
+          .eq('order_id', duplicateFromOrderId);
+
+        const productIds = [...new Set((items || []).map((i: any) => i.product_id).filter(Boolean))];
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from('products')
+            .select('id, name, price, quantity_available, seedlings_per_unit, images:product_images(url, is_primary)')
+            .in('id', productIds);
+          if (cancelled) return;
+
+          const productMap = new Map(
+            (products || []).map((p: any) => {
+              const imgs = (p.images || []) as { url: string; is_primary: boolean }[];
+              const primary = imgs.find((img) => img.is_primary) || imgs[0] || null;
+              return [p.id, { ...p, primary_image: primary }];
+            })
+          );
+
+          const newLineItems: OrderLineItem[] = [];
+          for (const item of items || []) {
+            const product: any = productMap.get(item.product_id);
+            if (!product) continue; // Product was deleted — skip silently
+            const price = Number(product.price) || 0;
+            const qty = Number(item.quantity) || 1;
+            newLineItems.push({
+              product_id: product.id,
+              product_name: product.name,
+              product_price: price,
+              product_image: product.primary_image?.url || null,
+              quantity: qty,
+              line_total: price * qty,
+              available_stock: Number(product.quantity_available) || 0,
+              seedlings_per_unit: Number(product.seedlings_per_unit) || 1,
+            });
+          }
+          setLineItems(newLineItems);
+        }
+
+        setDuplicatedFromNumber(sourceOrder.order_number || null);
+      } catch (err) {
+        console.error('Duplicate prefill failed:', err);
+      } finally {
+        onDuplicateConsumed?.();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [duplicateFromOrderId]);
 
   // Handle saved address selection
   const handleSavedAddressSelect = (addressId: string) => {
@@ -846,6 +991,12 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate }) => {
             <h1 className="text-2xl font-bold text-slate-900">Create Order</h1>
           </div>
         </div>
+
+        {duplicatedFromNumber && !createdOrder && (
+          <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+            Pre-filled from order <strong>{duplicatedFromNumber}</strong>. Review the items, address, and shipping/pickup selection, then save to create a new order with a new order number.
+          </div>
+        )}
 
         {createdOrder ? (
           <motion.div
