@@ -386,7 +386,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   >
                     {/* Header */}
                     <div className="mb-6">
-                      <div className="flex items-start gap-3 mb-2">
+                      <div className="flex items-start gap-3 mb-2 pr-16">
                         <h2 className="text-3xl lg:text-4xl font-heading font-extrabold text-gray-900 flex-1">
                           {product.name}
                         </h2>
