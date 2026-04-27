@@ -600,6 +600,8 @@ export function useOrders(filters: OrderFilters = {}) {
         tracking_number: order.tracking_number,
         estimated_delivery: order.estimated_delivery,
         internal_notes: order.internal_notes,
+        customer_notes: order.customer_notes,
+        growing_system: order.growing_system,
         created_at: order.created_at,
         updated_at: order.updated_at,
         items: (order.order_items_with_product || []).map((item: any) => ({
