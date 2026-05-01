@@ -7,7 +7,7 @@ export interface InventoryReportRow {
   name: string;
   price: number;
   salePrice: number | null;
-  pendingOrders: number;
+  itemsSold: number;
   currentInventory: number;
   alertCount: number;
 }
@@ -56,7 +56,7 @@ interface CategoryGroup {
   rows: InventoryReportRow[];
   varietyCount: number;
   totalInventory: number;
-  totalPendingOrders: number;
+  totalItemsSold: number;
   totalAlerts: number;
 }
 
@@ -74,14 +74,14 @@ const groupByCategory = (rows: InventoryReportRow[]): CategoryGroup[] => {
         rows: [],
         varietyCount: 0,
         totalInventory: 0,
-        totalPendingOrders: 0,
+        totalItemsSold: 0,
         totalAlerts: 0,
       };
     }
     currentGroup!.rows.push(row);
     currentGroup!.varietyCount++;
     currentGroup!.totalInventory += row.currentInventory;
-    currentGroup!.totalPendingOrders += row.pendingOrders || 0;
+    currentGroup!.totalItemsSold += row.itemsSold || 0;
     currentGroup!.totalAlerts += row.alertCount || 0;
   }
   if (currentGroup) groups.push(currentGroup);
@@ -106,7 +106,8 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
 
   const grandTotalVarieties = rows.length;
   const grandTotalInventory = rows.reduce((sum, r) => sum + r.currentInventory, 0);
-  const grandTotalPending = rows.reduce((sum, r) => sum + (r.pendingOrders || 0), 0);
+  const grandTotalItemsSold = rows.reduce((sum, r) => sum + (r.itemsSold || 0), 0);
+  const grandTotalAlerts = rows.reduce((sum, r) => sum + (r.alertCount || 0), 0);
 
   return (
     <div className="inventory-print-overlay" role="dialog" aria-modal="true">
@@ -182,21 +183,23 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
             <>
             <table className="inventory-print-table">
               <colgroup>
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '15%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '14%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
               </colgroup>
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th className="text-left-col">Product Name</th>
+                  <th className="text-left-col">Product</th>
+                  <th>Price / Sale</th>
+                  <th>Alerts</th>
+                  <th>Items Sold</th>
                   <th>Online Inventory</th>
                   <th>New Inventory</th>
-                  <th>Alerts</th>
-                  <th>Price / Sale Price</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,10 +214,11 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                         <td className="text-left-col">
                           <span className="product-name">{row.name}</span>
                         </td>
+                        <td>{formatPriceCell(row.price, row.salePrice)}</td>
+                        <td>{row.alertCount > 0 ? row.alertCount : ''}</td>
+                        <td>{row.itemsSold > 0 ? row.itemsSold : ''}</td>
                         <td>{row.currentInventory}</td>
                         <td></td>
-                        <td>{row.alertCount > 0 ? row.alertCount : ''}</td>
-                        <td>{formatPriceCell(row.price, row.salePrice)}</td>
                       </tr>
                     ))}
                     <tr className="subtotal-row">
@@ -222,12 +226,11 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
                       <td className="subtotal-label">
                         {group.category} Subtotal
                       </td>
+                      <td className="subtotal-info">{group.varietyCount} varieties</td>
+                      <td className="subtotal-value">{group.totalAlerts || ''}</td>
+                      <td className="subtotal-value">{group.totalItemsSold || ''}</td>
                       <td className="subtotal-value">{group.totalInventory}</td>
                       <td></td>
-                      <td className="subtotal-value">{group.totalAlerts || ''}</td>
-                      <td className="subtotal-info">
-                        {group.varietyCount} varieties &middot; {group.totalPendingOrders} pending
-                      </td>
                     </tr>
                   </React.Fragment>
                 ))}
@@ -235,23 +238,23 @@ const InventoryPrintReport: React.FC<InventoryPrintReportProps> = ({
             </table>
             <table className="inventory-print-table grand-total-table">
               <colgroup>
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '15%' }} />
-                <col style={{ width: '15%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '14%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '15%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '14%' }} />
               </colgroup>
               <tbody>
                 <tr className="grand-total-row">
                   <td></td>
                   <td className="grand-total-label">GRAND TOTAL</td>
+                  <td className="grand-total-info">{grandTotalVarieties} varieties</td>
+                  <td className="grand-total-value">{grandTotalAlerts || ''}</td>
+                  <td className="grand-total-value">{grandTotalItemsSold}</td>
                   <td className="grand-total-value">{grandTotalInventory}</td>
                   <td></td>
-                  <td></td>
-                  <td className="grand-total-info">
-                    {grandTotalVarieties} varieties &middot; {grandTotalPending} pending
-                  </td>
                 </tr>
               </tbody>
             </table>

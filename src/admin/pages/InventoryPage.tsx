@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { Printer } from 'lucide-react';
 import InventoryPrintReport, { InventoryReportRow } from '../components/InventoryPrintReport';
 
-const UNFULFILLED_ORDER_STATUSES = ['processing', 'on_hold'];
+const ITEMS_SOLD_ORDER_STATUSES = ['processing'];
 
 interface InventoryPageProps {
   onNavigateToBatchEdit?: (batchId?: string) => void;
@@ -77,22 +77,22 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
       }));
 
       const productIds = mappedProducts.map((product) => product.id);
-      const pendingMap = new Map<string, number>();
+      const itemsSoldMap = new Map<string, number>();
       const alertCountMap = new Map<string, number>();
 
       if (productIds.length > 0) {
-        const { data: pendingData, error: pendingError } = await supabase
+        const { data: soldData, error: soldError } = await supabase
           .from('order_items')
           .select('product_id, quantity, orders!inner(status)')
           .in('product_id', productIds)
-          .in('orders.status', UNFULFILLED_ORDER_STATUSES);
+          .in('orders.status', ITEMS_SOLD_ORDER_STATUSES);
 
-        if (pendingError) throw pendingError;
+        if (soldError) throw soldError;
 
-        (pendingData || []).forEach((item: any) => {
+        (soldData || []).forEach((item: any) => {
           const qty = Number(item.quantity) || 0;
-          const current = pendingMap.get(item.product_id) || 0;
-          pendingMap.set(item.product_id, current + qty);
+          const current = itemsSoldMap.get(item.product_id) || 0;
+          itemsSoldMap.set(item.product_id, current + qty);
         });
 
         // Fetch pending back-in-stock alert counts
@@ -115,7 +115,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onEditProduct }) => {
           name: product.name,
           price: product.price,
           salePrice: product.compare_at_price,
-          pendingOrders: pendingMap.get(product.id) || 0,
+          itemsSold: itemsSoldMap.get(product.id) || 0,
           currentInventory: product.quantity_available,
           alertCount: alertCountMap.get(product.id) || 0,
         }))
