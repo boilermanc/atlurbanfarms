@@ -53,6 +53,7 @@ interface OrderItem {
   quantity: number;
   product_name: string;
   line_total: number;
+  product_id?: string | null;
 }
 
 type OrderType = 'PICKUP' | 'REPLACEMENT' | 'SHIP';
@@ -122,14 +123,19 @@ function classifyNew(o: { is_pickup: boolean; promotion_code?: string }): OrderT
   return 'SHIP';
 }
 
-function tallyItems(items: OrderItem[]) {
+function tallyItems(items: OrderItem[], bundleQtyMap: Record<string, number> = {}) {
   let seedlingQty = 0, otherQty = 0, seedlingIncome = 0, otherRevenue = 0;
   for (const item of items) {
+    // For bundle parents (e.g. "32-pack of Misty"), the child quantities sum
+    // to the actual seedling count. Multiply by ordered qty so the bundle
+    // counts as the full pack size, not 1 line.
+    const bundleSize = item.product_id ? bundleQtyMap[item.product_id] : undefined;
+    const effectiveQty = bundleSize ? bundleSize * item.quantity : item.quantity;
     if (isOtherItem(item.product_name)) {
-      otherQty += item.quantity;
+      otherQty += effectiveQty;
       otherRevenue += item.line_total;
     } else {
-      seedlingQty += item.quantity;
+      seedlingQty += effectiveQty;
       seedlingIncome += item.line_total;
     }
   }
@@ -182,7 +188,7 @@ const WeeklySalesReportPage: React.FC = () => {
             customers!orders_customer_id_fkey ( email, phone ),
             shipping_method_name, discount_amount, promotion_code, is_pickup, status,
             customer_notes, gift_card_amount, billing_first_name, billing_last_name,
-            order_items ( quantity, product_name, line_total )
+            order_items ( quantity, product_name, line_total, product_id )
           `)
           .gte('created_at', startISO)
           .lt('created_at', endISO)
@@ -195,6 +201,26 @@ const WeeklySalesReportPage: React.FC = () => {
 
       if (legacyResult.error) throw legacyResult.error;
       if (newResult.error) throw newResult.error;
+
+      // Build a parent_product_id → total child seedling count map so bundle
+      // parents (e.g. "32-pack of Misty") count as the full pack size in the
+      // seedling tally, matching the packing list fix in 1340ec0/dab4d0a.
+      const newOrderProductIds = [...new Set(
+        (newResult.data || [])
+          .flatMap((o: any) => (o.order_items || []).map((i: any) => i.product_id))
+          .filter(Boolean),
+      )];
+      const bundleQtyMap: Record<string, number> = {};
+      if (newOrderProductIds.length > 0) {
+        const { data: bundleData } = await supabase
+          .from('product_relationships')
+          .select('parent_product_id, quantity')
+          .in('parent_product_id', newOrderProductIds)
+          .eq('relationship_type', 'bundle');
+        for (const rel of bundleData || []) {
+          bundleQtyMap[rel.parent_product_id] = (bundleQtyMap[rel.parent_product_id] || 0) + (rel.quantity || 1);
+        }
+      }
 
       const normalized: NormalizedOrder[] = [];
 
@@ -230,7 +256,7 @@ const WeeklySalesReportPage: React.FC = () => {
       // New orders
       for (const o of newResult.data || []) {
         const items: OrderItem[] = o.order_items || [];
-        const tally = tallyItems(items);
+        const tally = tallyItems(items, bundleQtyMap);
         normalized.push({
           orderId: String(o.order_number || o.id),
           orderDate: new Date(o.created_at),
