@@ -2695,8 +2695,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                         className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                       >
                         <option value="ups_ground">UPS Ground</option>
-                        <option value="ups_2nd_day_air">UPS 2nd Day Air</option>
                         <option value="ups_3_day_select">UPS 3 Day Select</option>
+                        <option value="ups_2nd_day_air">UPS 2nd Day Air</option>
+                        <option value="ups_next_day_air_saver">UPS Next Day Air Saver</option>
+                        <option value="ups_next_day_air">UPS Next Day Air</option>
                       </select>
                     </div>
                   )}
