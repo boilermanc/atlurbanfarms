@@ -51,7 +51,7 @@ interface ShipEngineLabelResponse {
   }>
 }
 
-const VALID_SERVICE_CODES = ['ups_ground', 'ups_2nd_day_air', 'ups_3_day_select']
+const VALID_SERVICE_CODES = ['ups_ground', 'ups_3_day_select', 'ups_2nd_day_air', 'ups_next_day_air_saver', 'ups_next_day_air']
 const UPS_CARRIER_ID = 'se-4751564'
 
 /**
