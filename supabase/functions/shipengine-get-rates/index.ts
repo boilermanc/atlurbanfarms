@@ -755,8 +755,8 @@ serve(async (req) => {
     let rates: ShippingRate[] = (rateResponse.rate_response?.rates || [])
       .filter((rate: any) => rate.shipping_amount?.amount != null)
       .filter((rate: any) => {
-        // Filter by max transit days if zone requires it
-        if (zoneCheck.max_transit_days && rate.delivery_days) {
+        // Filter by max transit days if zone requires it (skip for admin — Sheree picks deliberately)
+        if (!is_admin && zoneCheck.max_transit_days && rate.delivery_days) {
           if (rate.delivery_days > zoneCheck.max_transit_days) {
             return false
           }
@@ -826,15 +826,16 @@ serve(async (req) => {
       .sort((a: ShippingRate, b: ShippingRate) => a.shipping_amount - b.shipping_amount)
 
     // Filter by allowed service codes from config (e.g. ups_ground, ups_2nd_day_air, ups_3_day_select)
+    // Admin requests bypass this whitelist so Sheree can pick any service for one-off orders.
     const allowedServiceCodes: string[] | undefined = shippingSettings.allowed_service_codes
-    if (allowedServiceCodes && Array.isArray(allowedServiceCodes) && allowedServiceCodes.length > 0) {
+    if (!is_admin && allowedServiceCodes && Array.isArray(allowedServiceCodes) && allowedServiceCodes.length > 0) {
       const beforeCount = rates.length
       rates = rates.filter(rate => allowedServiceCodes.includes(rate.service_code))
       console.log(`Filtered rates by allowed_service_codes: ${beforeCount} → ${rates.length} (allowed: ${allowedServiceCodes.join(', ')})`)
     }
 
-    // If zone requires specific services, filter or mark rates
-    if (zoneCheck.required_services?.length && rates.length > 0) {
+    // If zone requires specific services, filter or mark rates (skip for admin)
+    if (!is_admin && zoneCheck.required_services?.length && rates.length > 0) {
       const priorityServices = ['priority', 'express', 'expedited', '2_day', '1_day', 'overnight']
       const requiredServiceTypes = zoneCheck.required_services.map(s => s.toLowerCase())
 
@@ -860,9 +861,10 @@ serve(async (req) => {
       }
     }
 
-    // Forced service assignment: filter to a single service based on destination state
+    // Forced service assignment: filter to a single service based on destination state.
+    // Admin requests bypass this so Sheree sees the full rate menu, not the customer-facing single option.
     const forcedDefault = shippingSettings.forced_service_default
-    if (forcedDefault && rates.length > 0) {
+    if (!is_admin && forcedDefault && rates.length > 0) {
       const overrides = shippingSettings.forced_service_overrides || { service_code: '', states: [] }
       const destState = (ship_to.state_province || '').toUpperCase()
       const forcedCode = (Array.isArray(overrides.states) && overrides.states.includes(destState) && overrides.service_code)

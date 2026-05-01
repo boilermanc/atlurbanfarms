@@ -623,7 +623,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         },
         order_items: lineItems.map(item => ({
           quantity: item.quantity * (item.seedlings_per_unit || 1)
-        }))
+        })),
+        is_admin: true
       };
 
       const { data, error } = await supabase.functions.invoke('shipengine-get-rates', {
