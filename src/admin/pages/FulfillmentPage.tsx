@@ -412,18 +412,37 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
     const allChildIds = Object.values(bundleChildrenMap).flatMap(children => children.map(c => c.product_id));
     const allProductIdsForCategory = [...new Set([...allProductIds, ...allChildIds])];
 
+    // Identify the "Seedlings" parent category so we can split seedlings
+    // from accessories (e.g. Tower Garden grow clips) on the packing list.
+    const { data: seedlingsParent } = await supabase
+      .from('product_categories')
+      .select('id')
+      .ilike('name', 'Seedlings')
+      .is('parent_id', null)
+      .limit(1)
+      .maybeSingle();
+    const seedlingsParentId: string | null = seedlingsParent?.id || null;
+
     // Fetch category assignments
-    const categoryMap: Record<string, { name: string; sort_order: number }> = {};
+    const categoryMap: Record<string, { name: string; sort_order: number; is_seedling: boolean }> = {};
     if (allProductIdsForCategory.length > 0) {
       const { data: catData } = await supabase
         .from('product_category_assignments')
-        .select('product_id, product_categories(name, sort_order)')
+        .select('product_id, product_categories(id, name, sort_order, parent_id)')
         .in('product_id', allProductIdsForCategory);
       (catData || []).forEach((row: any) => {
-        if (!categoryMap[row.product_id] && row.product_categories) {
+        const cat = row.product_categories;
+        if (!cat) return;
+        const isSeedling = !!seedlingsParentId &&
+          (cat.id === seedlingsParentId || cat.parent_id === seedlingsParentId);
+        const existing = categoryMap[row.product_id];
+        // Prefer a seedling category over a non-seedling one when a product
+        // is assigned to multiple categories.
+        if (!existing || (isSeedling && !existing.is_seedling)) {
           categoryMap[row.product_id] = {
-            name: row.product_categories.name,
-            sort_order: row.product_categories.sort_order ?? 9999,
+            name: cat.name,
+            sort_order: cat.sort_order ?? 9999,
+            is_seedling: isSeedling,
           };
         }
       });
@@ -472,6 +491,7 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           .items-table tr.cat-row td { background: #f8fafc; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; padding: 4px 8px; }
           .items-table tr.totals-row td { border-top: 2px solid #334155; font-weight: 700; padding-top: 6px; font-size: 13px; }
           .items-table tr.totals-row td.col-qty { font-size: 14px; }
+          .items-table tr.accessory-header-row td { background: #f1f5f9; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #475569; padding: 8px; border-top: 1.5px solid #cbd5e1; padding-top: 10px; }
 
           /* Notes */
           .customer-note { background: #fefce8; border: 2px solid #facc15; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; }
@@ -531,36 +551,52 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           }
           const flatItems = Array.from(flatMap.values());
 
+          // Default unmatched products to "seedling" so existing behavior is
+          // preserved for products that haven't been assigned a category yet.
+          const isSeedlingItem = (productId: string) =>
+            categoryMap[productId]?.is_seedling !== false;
+
           // Sort by category sort_order, then category name, then product name
-          flatItems.sort((a, b) => {
-            const catA = categoryMap[a.product_id];
-            const catB = categoryMap[b.product_id];
-            const sortA = catA ? catA.sort_order : 9999;
-            const sortB = catB ? catB.sort_order : 9999;
-            const nameA = catA ? catA.name : 'zzz';
-            const nameB = catB ? catB.name : 'zzz';
-            if (sortA !== sortB) return sortA - sortB;
-            if (nameA !== nameB) return nameA.localeCompare(nameB);
-            return a.product_name.localeCompare(b.product_name);
-          });
+          const sortItems = (items: typeof flatItems) =>
+            items.sort((a, b) => {
+              const catA = categoryMap[a.product_id];
+              const catB = categoryMap[b.product_id];
+              const sortA = catA ? catA.sort_order : 9999;
+              const sortB = catB ? catB.sort_order : 9999;
+              const nameA = catA ? catA.name : 'zzz';
+              const nameB = catB ? catB.name : 'zzz';
+              if (sortA !== sortB) return sortA - sortB;
+              if (nameA !== nameB) return nameA.localeCompare(nameB);
+              return a.product_name.localeCompare(b.product_name);
+            });
+
+          const seedlingItems = sortItems(flatItems.filter(i => isSeedlingItem(i.product_id)));
+          const accessoryItems = sortItems(flatItems.filter(i => !isSeedlingItem(i.product_id)));
 
           // Build rows with category headers
-          let currentCat = '';
-          let totalQty = 0;
-          const itemRows = flatItems.map(item => {
-            const cat = categoryMap[item.product_id]?.name || 'Uncategorized';
-            let catHeader = '';
-            if (cat !== currentCat) {
-              currentCat = cat;
-              catHeader = `<tr class="cat-row"><td colspan="3">${escapeHtml(cat)}</td></tr>`;
-            }
-            totalQty += item.quantity;
-            return `${catHeader}<tr>
-              <td class="col-num"></td>
-              <td class="col-qty">${item.quantity}</td>
-              <td>${escapeHtml(item.product_name)}</td>
-            </tr>`;
-          }).join('');
+          const buildRows = (items: typeof flatItems) => {
+            let currentCat = '';
+            let total = 0;
+            const rows = items.map(item => {
+              const cat = categoryMap[item.product_id]?.name || 'Uncategorized';
+              let catHeader = '';
+              if (cat !== currentCat) {
+                currentCat = cat;
+                catHeader = `<tr class="cat-row"><td colspan="3">${escapeHtml(cat)}</td></tr>`;
+              }
+              total += item.quantity;
+              return `${catHeader}<tr>
+                <td class="col-num"></td>
+                <td class="col-qty">${item.quantity}</td>
+                <td>${escapeHtml(item.product_name)}</td>
+              </tr>`;
+            }).join('');
+            return { rows, total };
+          };
+
+          const { rows: seedlingRows, total: totalQty } = buildRows(seedlingItems);
+          const { rows: accessoryRows } = buildRows(accessoryItems);
+          const itemRows = seedlingRows;
 
           return `
           <div class="order-block">
@@ -630,8 +666,12 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                 <tr class="totals-row">
                   <td class="col-num"></td>
                   <td class="col-qty">${totalQty}</td>
-                  <td>Total</td>
+                  <td>Seedling Total</td>
                 </tr>
+                ${accessoryRows ? `
+                  <tr class="accessory-header-row"><td colspan="3">Accessories</td></tr>
+                  ${accessoryRows}
+                ` : ''}
               </tbody>
             </table>
 
