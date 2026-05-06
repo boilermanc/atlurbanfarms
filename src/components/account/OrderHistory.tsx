@@ -67,6 +67,7 @@ interface Order {
   customer_email: string | null;
   customer_notes: string | null;
   payment_method: string | null;
+  payment_status: string | null;
   po_number: string | null;
   po_status: string | null;
   paid_at: string | null;
@@ -431,7 +432,7 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
       ? (order as LegacyOrder).shipping
       : (order as Order).shipping_cost;
 
-    // Payment info
+    // Payment info — reflect actual payment status (don't claim payment was received unless it was)
     let paymentHtml = '';
     if (!order.isLegacy) {
       const o = order as Order;
@@ -441,10 +442,23 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
         : method === 'stripe' ? 'Credit Card (Stripe)'
         : method.charAt(0).toUpperCase() + method.slice(1);
       const paidDate = o.paid_at ? formatDate(o.paid_at) : '';
+      const paymentStatus = (o.payment_status || '').toLowerCase();
+      const isPaid = ['paid', 'completed', 'refunded'].includes(paymentStatus);
+      let paymentDisplay: string;
+      if (isPaid) {
+        paymentDisplay = `${methodLabel}${paidDate ? ` &mdash; Paid ${paidDate}` : ''}`;
+      } else if (paymentStatus === 'pending' || paymentStatus === 'pending_payment') {
+        paymentDisplay = `<span style="color: #b45309; font-weight: 600;">Awaiting Payment</span>`;
+      } else if (paymentStatus === 'failed') {
+        paymentDisplay = `<span style="color: #b91c1c; font-weight: 600;">Payment Failed</span>`;
+      } else if (paymentStatus === 'partial') {
+        paymentDisplay = `${methodLabel} &mdash; <span style="color: #b45309; font-weight: 600;">Partial Payment</span>`;
+      } else {
+        paymentDisplay = paymentStatus || 'Unknown';
+      }
       paymentHtml = `
         <div style="font-size: 13px; color: #4b5563; line-height: 1.6;">
-          <strong style="color: #111827;">Payment:</strong> ${methodLabel}
-          ${paidDate ? ` &mdash; Paid ${paidDate}` : ''}
+          <strong style="color: #111827;">Payment:</strong> ${paymentDisplay}
         </div>`;
     } else {
       const lo = order as LegacyOrder;
@@ -553,9 +567,10 @@ const OrderHistory: React.FC<OrderHistoryProps> = ({ userId, onNavigate }) => {
           </div>
 
           <!-- Thank You -->
-          <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 12px;">
-            <p style="margin: 0;">Thank you for your order!</p>
-            <p style="margin: 4px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
+          <div style="margin-top: 36px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
+            <p style="margin: 0; font-weight: 600; color: #111827;">Thank you for your order!</p>
+            <p style="margin: 8px 0 0;">ATL Urban Farms &bull; 180 Tidwell Drive, Alpharetta, GA 30004</p>
+            <p style="margin: 2px 0 0;">Support@atlurbanfarms.com &bull; 770.678.6552 &bull; www.atlurbanfarms.com</p>
           </div>
         </div>
         <script>window.onload = function() { window.print(); }</script>

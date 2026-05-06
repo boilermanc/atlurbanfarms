@@ -994,9 +994,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
           </div>
 
           <!-- Footer -->
-          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 11px;">
-            <p style="margin: 0;">Thank you for your order!</p>
-            <p style="margin: 3px 0 0;">ATL Urban Farms &bull; www.atlurbanfarms.com</p>
+          <div style="margin-top: 28px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 11px;">
+            <p style="margin: 0; font-weight: 600; color: #111827;">Thank you for your order!</p>
+            <p style="margin: 6px 0 0;">ATL Urban Farms &bull; 180 Tidwell Drive, Alpharetta, GA 30004</p>
+            <p style="margin: 2px 0 0;">Support@atlurbanfarms.com &bull; 770.678.6552 &bull; www.atlurbanfarms.com</p>
           </div>
         </div>
         <script>window.onload = function() { window.print(); }</script>
