@@ -655,6 +655,13 @@ export function useOrders(filters: OrderFilters = {}) {
             shipment_voided: activeShipment.voided,
           };
         })(),
+        billing_first_name: order.billing_first_name,
+        billing_last_name: order.billing_last_name,
+        billing_address_line1: order.billing_address_line1,
+        billing_address_line2: order.billing_address_line2,
+        billing_city: order.billing_city,
+        billing_state: order.billing_state,
+        billing_zip: order.billing_zip,
         isLegacy: false,
       }));
 

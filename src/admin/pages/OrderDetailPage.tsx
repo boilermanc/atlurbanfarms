@@ -1293,6 +1293,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
               ${order.customer_email ? `<p class="muted">${escapeHtml(order.customer_email)}</p>` : ''}
               ${order.customer_phone ? `<p class="muted">${escapeHtml(formatPhone(order.customer_phone))}</p>` : ''}
+              ${isPickup && (order.billing_address_line1 || order.billing_city) ? `
+                <hr class="pl-pickup-divider">
+                ${order.billing_address_line1 ? `<p class="muted">${escapeHtml(order.billing_address_line1)}</p>` : ''}
+                ${order.billing_address_line2 ? `<p class="muted">${escapeHtml(order.billing_address_line2)}</p>` : ''}
+                ${(order.billing_city || order.billing_state || order.billing_zip) ? `<p class="muted">${escapeHtml([order.billing_city, order.billing_state, order.billing_zip].filter(Boolean).join(', '))}</p>` : ''}
+              ` : ''}
             </div>
             <div class="pl-block">
               <div class="pl-block-label">${isPickup ? 'Pickup Location' : 'Ship To'}</div>

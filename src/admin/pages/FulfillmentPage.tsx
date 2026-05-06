@@ -621,6 +621,12 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
                 <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
                 ${order.customer_email ? `<p class="muted">${escapeHtml(order.customer_email)}</p>` : ''}
                 ${order.customer_phone ? `<p class="muted">${escapeHtml(formatPhone(order.customer_phone))}</p>` : ''}
+                ${isPickup && (order.billing_address_line1 || order.billing_city) ? `
+                  <hr class="pl-pickup-divider">
+                  ${order.billing_address_line1 ? `<p class="muted">${escapeHtml(order.billing_address_line1)}</p>` : ''}
+                  ${order.billing_address_line2 ? `<p class="muted">${escapeHtml(order.billing_address_line2)}</p>` : ''}
+                  ${(order.billing_city || order.billing_state || order.billing_zip) ? `<p class="muted">${escapeHtml([order.billing_city, order.billing_state, order.billing_zip].filter(Boolean).join(', '))}</p>` : ''}
+                ` : ''}
               </div>
               <div class="pl-block">
                 <div class="pl-block-label">${isPickup ? 'Pickup Location' : 'Ship To'}</div>
@@ -807,6 +813,13 @@ ${emailBody.split('\n').map(line => `<p style="margin: 0 0 12px 0; color: #333; 
           product_type: item.product_type || null,
           seedlings_per_unit: item.bundle_item_count || null,
         })),
+        billing_first_name: order.billing_first_name,
+        billing_last_name: order.billing_last_name,
+        billing_address_line1: order.billing_address_line1,
+        billing_address_line2: order.billing_address_line2,
+        billing_city: order.billing_city,
+        billing_state: order.billing_state,
+        billing_zip: order.billing_zip,
         is_pickup: order.is_pickup || false,
         pickup_location_id: order.pickup_location_id,
         pickup_date: order.pickup_date,
