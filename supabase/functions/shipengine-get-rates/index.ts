@@ -121,6 +121,44 @@ interface ShippingZoneRule {
 // ShippingPackageConfig imported from _shared/packages.ts
 
 /**
+ * Compute the next ship date (YYYY-MM-DD) used to request rates from ShipEngine.
+ *
+ * Business rule: orders are batched with a Sunday 11:59 PM ET cutoff and ship the
+ * immediately following Tuesday. Without a ship_date, ShipEngine quotes delivery
+ * relative to "today," which makes the customer-facing and admin-facing ETA wrong
+ * (issue #86).
+ *
+ * Day-of-week (ET) → days added: Sun→2, Mon→8, Tue→7, Wed→6, Thu→5, Fri→4, Sat→3.
+ */
+function getNextShipDate(): string {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = fmt.formatToParts(new Date())
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const day = weekdayMap[get('weekday')]
+  const year = parseInt(get('year'), 10)
+  const month = parseInt(get('month'), 10)
+  const dayOfMonth = parseInt(get('day'), 10)
+
+  const daysUntilCutoffSunday = (7 - day) % 7
+  const daysUntilShip = daysUntilCutoffSunday + 2
+
+  const baseUtcMs = Date.UTC(year, month - 1, dayOfMonth)
+  const shipUtc = new Date(baseUtcMs + daysUntilShip * 86400000)
+
+  const yyyy = shipUtc.getUTCFullYear()
+  const mm = String(shipUtc.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(shipUtc.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+/**
  * Get shipping config settings from config_settings table
  */
 async function getShippingSettings(supabaseClient: any, keys: string[]): Promise<Record<string, any>> {
@@ -660,11 +698,13 @@ serve(async (req) => {
     }
 
     // Build ShipEngine rate request
+    const shipDate = getNextShipDate()
     const rateRequest = {
       rate_options: {
         carrier_ids: carrierIds
       },
       shipment: {
+        ship_date: shipDate,
         ship_from: {
           name: warehouseAddress.name || 'ATL Urban Farms',
           company_name: warehouseAddress.company_name || 'ATL Urban Farms',
@@ -698,6 +738,7 @@ serve(async (req) => {
     // Call ShipEngine rates API
     console.log('[shipengine-get-rates] Request to ShipEngine:', JSON.stringify({
       carrier_ids: carrierIds,
+      ship_date: shipDate,
       ship_from: `${rateRequest.shipment.ship_from.city_locality}, ${rateRequest.shipment.ship_from.state_province} ${rateRequest.shipment.ship_from.postal_code}`,
       ship_to: `${rateRequest.shipment.ship_to.city_locality}, ${rateRequest.shipment.ship_to.state_province} ${rateRequest.shipment.ship_to.postal_code}`,
       packages: rateRequest.shipment.packages.map((p: any) => ({
