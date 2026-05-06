@@ -18,6 +18,7 @@ import PromotionalBanner from './components/PromotionalBanner';
 import OutageBanner from './components/OutageBanner';
 import FAQPage from './components/FAQPage';
 import AboutPage from './components/AboutPage';
+import ContactPage from './components/ContactPage';
 import SchoolsPage from './components/SchoolsPage';
 import LeadMagnetPopup from './components/LeadMagnetPopup';
 import ContentPage from './components/ContentPage';
@@ -104,7 +105,7 @@ interface OrderData {
   poNumber?: string;
 }
 
-type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'schools' | 'school-partner' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
+type ViewType = 'home' | 'shop' | 'checkout' | 'order-confirmation' | 'tracking' | 'faq' | 'about' | 'contact' | 'schools' | 'school-partner' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'register' | 'forgot-password' | 'reset-password' | 'account' | 'welcome' | 'admin' | 'admin-login' | 'privacy' | 'terms' | 'newsletter-confirmed' | 'newsletter-unsubscribed' | 'unsubscribe';
 
 // Get initial view based on URL path
 const getViewFromPath = (pathname: string): ViewType => {
@@ -124,6 +125,7 @@ const getViewFromPath = (pathname: string): ViewType => {
   if (path === '/shop' || path.startsWith('/shop/')) return 'shop';
   if (path === '/faq') return 'faq';
   if (path === '/about') return 'about';
+  if (path === '/contact') return 'contact';
   if (path === '/login') return 'login';
   if (path === '/register') return 'register';
   if (path === '/forgot-password') return 'forgot-password';
@@ -152,6 +154,7 @@ const getPathForView = (view: ViewType): string => {
     case 'shop': return '/shop';
     case 'faq': return '/faq';
     case 'about': return '/about';
+    case 'contact': return '/contact';
     case 'login': return '/login';
     case 'register': return '/register';
     case 'forgot-password': return '/forgot-password';
@@ -579,6 +582,15 @@ const App: React.FC = () => {
             <PromotionalBanner />
             <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
             <AboutPage />
+            <Footer onNavigate={handleNavigate} />
+          </>
+        );
+      case 'contact':
+        return (
+          <>
+            <PromotionalBanner />
+            <Header cartCount={cartCount} onOpenCart={() => setIsCartOpen(true)} onNavigate={handleNavigate} currentView={view} onSearch={handleSearch} />
+            <ContactPage onNavigate={handleNavigate} />
             <Footer onNavigate={handleNavigate} />
           </>
         );

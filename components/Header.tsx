@@ -8,7 +8,7 @@ import { useAuth } from '../src/hooks/useAuth';
 interface HeaderProps {
   cartCount: number;
   onOpenCart: () => void;
-  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'account', category?: string) => void;
+  onNavigate: (view: 'home' | 'shop' | 'faq' | 'about' | 'contact' | 'schools' | 'calendar' | 'blog' | 'gift-cards' | 'login' | 'account', category?: string) => void;
   currentView?: string;
   onSearch?: (query: string) => void;
 }
@@ -419,6 +419,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                   // { key: 'schools', label: 'Schools' }, // Hidden pre-launch — re-enable when Schools page is ready
                   { key: 'calendar', label: 'Calendar' },
                   { key: 'blog', label: 'Blog' },
+                  { key: 'contact', label: 'Contact' },
                 ].map((item) => (
                   <button
                     key={item.key}
@@ -823,6 +824,24 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onNavigate, curr
                         <path d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z" />
                       </svg>
                       Blog
+                    </button>
+
+                    {/* Contact */}
+                    <button
+                      onClick={() => {
+                        onNavigate('contact');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`w-full text-left flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${
+                        currentView === 'contact'
+                          ? 'brand-bg-light brand-text font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50 font-medium'
+                      }`}
+                    >
+                      <svg className="w-5 h-5 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                        <path d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                      Contact
                     </button>
 
                     {/* About Us + sub-items */}
