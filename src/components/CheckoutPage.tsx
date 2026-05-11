@@ -227,7 +227,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
   const { value: weeklyCutoffDay } = useSetting('shipping', 'weekly_cutoff_day');
   const { value: weeklyCutoffTime } = useSetting('shipping', 'weekly_cutoff_time');
   const { value: customerShippingMessage } = useSetting('shipping', 'customer_shipping_message');
-  const { createPaymentIntent, processing: paymentProcessing, error: paymentError } = useStripePayment();
+  const { createPaymentIntent, updatePaymentIntentOrderNumber, processing: paymentProcessing, error: paymentError } = useStripePayment();
   const { sendOrderConfirmation } = useEmailService();
   const { taxConfig } = useTaxConfig();
   const { systems: growingSystems } = useGrowingSystems();
@@ -1598,6 +1598,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ items, onBack, onNavigate, 
     localStorage.removeItem('cart');
     try { sessionStorage.removeItem('atluf_promo_code'); } catch {}
     orderCompletedRef.current = true;
+
+    // Patch Stripe PI with order number (fire-and-forget; cosmetic, must not block flow).
+    // Skipped for $0 orders and PO orders which have no PaymentIntent.
+    if (pendingPaymentIntentId && order?.id) {
+      void updatePaymentIntentOrderNumber({
+        orderId: order.id,
+        paymentIntentId: pendingPaymentIntentId
+      }).catch((err) => console.error('Stripe PI update failed (non-fatal):', err));
+    }
 
     // Mark abandoned cart as converted so no reminder is sent
     if (abandonedCartSavedRef.current) {

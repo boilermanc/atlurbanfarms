@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1'
 import { getIntegrationSettings } from '../_shared/settings.ts'
+import { updatePaymentIntentOrderNumber } from '../_shared/stripe.ts'
 
 interface StripePaymentIntent {
   id: string
@@ -269,6 +270,13 @@ serve(async (req) => {
             }
 
             console.log(`Webhook: Force-created order ${forceResult.order_number} for PI ${piId} (stock warning)`)
+
+            // Patch PI description with order number (fire-and-forget; cosmetic, must not throw)
+            try {
+              await updatePaymentIntentOrderNumber(settings.stripe_secret_key, piId, forceResult.order_number)
+            } catch (err) {
+              console.error(`Webhook: Failed to update PI ${piId} description (non-fatal):`, err)
+            }
             break
           }
 
@@ -300,6 +308,13 @@ serve(async (req) => {
             }
 
             console.log(`Webhook: Created order ${rpcResult.order_number} from pending_orders for PI ${piId}`)
+
+            // Patch PI description with order number (fire-and-forget; cosmetic, must not throw)
+            try {
+              await updatePaymentIntentOrderNumber(settings.stripe_secret_key, piId, rpcResult.order_number)
+            } catch (err) {
+              console.error(`Webhook: Failed to update PI ${piId} description (non-fatal):`, err)
+            }
           }
         } else if (pendingOrder && pendingOrder.status === 'completed' && pendingOrder.completed_order_id) {
           // Already completed by another path — ensure order is marked as paid

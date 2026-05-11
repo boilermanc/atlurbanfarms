@@ -150,5 +150,30 @@ export function useStripePayment() {
     }
   }, [])
 
-  return { createPaymentIntent, processing, error }
+  const updatePaymentIntentOrderNumber = useCallback(async (
+    params: { orderId: string; paymentIntentId: string }
+  ): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/stripe-update-payment-intent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          orderId: params.orderId,
+          paymentIntentId: params.paymentIntentId
+        })
+      })
+
+      const result = await response.json()
+      return !!result.success
+    } catch {
+      return false
+    }
+  }, [])
+
+  return { createPaymentIntent, updatePaymentIntentOrderNumber, processing, error }
 }
