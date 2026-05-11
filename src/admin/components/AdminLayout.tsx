@@ -31,6 +31,7 @@ const CustomersPage = lazy(() => import('../pages/CustomersPage'));
 const CustomerDetailPage = lazy(() => import('../pages/CustomerDetailPage'));
 const OrdersPage = lazy(() => import('../pages/OrdersPage'));
 const OrderDetailPage = lazy(() => import('../pages/OrderDetailPage'));
+const FulfillmentOrderDetailPage = lazy(() => import('../pages/FulfillmentOrderDetailPage'));
 const PurchaseOrdersPage = lazy(() => import('../pages/PurchaseOrdersPage'));
 const OrderCreatePage = lazy(() => import('../pages/OrderCreatePage'));
 const FAQPage = lazy(() => import('../pages/FAQPage'));
@@ -657,6 +658,13 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     setCurrentPage(options?.isLegacy ? 'legacy-order-detail' : 'order-detail');
   };
 
+  const handleViewFulfillmentOrder: ViewOrderHandler = (orderId, options) => {
+    setSelectedOrderId(orderId);
+    setIsLegacyOrder(false);
+    setOrderContext(null);
+    setCurrentPage('fulfillment-order-detail');
+  };
+
   const handleViewCustomer = (customerId: string) => {
     setSelectedCustomerId(customerId);
     setCurrentPage('customer-detail');
@@ -712,6 +720,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
     handleNavigate('orders');
   };
 
+  const handleBackToFulfillment = () => {
+    setOrderContext(null);
+    handleNavigate('fulfillment');
+  };
+
   const handleBackToCustomerFromOrder = () => {
     if (!orderContext) return;
     handleViewCustomer(orderContext.customerId);
@@ -747,6 +760,15 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
             onBack={handleBackToOrders}
             onBackToCustomer={orderContext ? handleBackToCustomerFromOrder : undefined}
             customerContextName={orderContext?.customerName}
+          />
+        ) : null;
+      case 'fulfillment-order-detail':
+        return selectedOrderId ? (
+          <FulfillmentOrderDetailPage
+            orderId={selectedOrderId}
+            onBack={handleBackToFulfillment}
+            onNavigateOrder={(id: string) => { setSelectedOrderId(id); }}
+            onDuplicateOrder={handleDuplicateOrder}
           />
         ) : null;
       case 'order-create':
@@ -788,7 +810,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
       case 'shipping':
         return <ShippingPage />;
       case 'fulfillment':
-        return <FulfillmentPage onViewOrder={handleViewOrder} />;
+        return <FulfillmentPage onViewOrder={handleViewFulfillmentOrder} />;
       case 'weekly-sales-report':
         return <WeeklySalesReportPage />;
       case 'zones':
