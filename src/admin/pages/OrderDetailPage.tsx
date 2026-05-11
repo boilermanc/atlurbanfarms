@@ -1431,13 +1431,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       const previousStatus = order.status;
       const newOrderStatus = statusForm.status;
 
-      const { error: err } = await supabase.from('orders').update({
+      const orderUpdates: Record<string, any> = {
         status: newOrderStatus,
         payment_status: statusForm.payment_status,
         internal_notes: statusForm.internal_notes || null,
         customer_notes: statusForm.customer_notes || null,
         updated_at: new Date().toISOString(),
-      }).eq('id', order.id);
+      };
+      // Set paid_at when admin flips into 'paid'; preserve historical timestamp otherwise.
+      if (statusForm.payment_status === 'paid' && order.payment_status !== 'paid') {
+        orderUpdates.paid_at = new Date().toISOString();
+      }
+      const { error: err } = await supabase.from('orders').update(orderUpdates).eq('id', order.id);
       if (err) throw err;
 
       // Record status change in order_status_history if status actually changed

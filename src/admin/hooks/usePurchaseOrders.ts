@@ -160,6 +160,7 @@ export function useUpdatePOStatus() {
           break;
         case 'paid':
           updates.po_paid_at = now;
+          updates.paid_at = now;
           updates.payment_status = 'paid';
           updates.status = 'processing';
           break;

@@ -143,13 +143,15 @@ serve(async (req) => {
         // Check if the order was already created (by the client after payment success)
         const { data: existingOrder } = await supabaseClient
           .from('orders')
-          .select('id, payment_status, status')
+          .select('id, payment_status, status, paid_at')
           .eq('stripe_payment_intent_id', piId)
           .maybeSingle()
 
         if (existingOrder) {
-          // Order exists (client created it) — ensure it's marked as paid
-          if (existingOrder.payment_status !== 'paid') {
+          // Order exists (client created it) — ensure it's marked as paid AND has paid_at.
+          // The paid_at fallback repairs rows where the RPC dropped the field
+          // (see manual_fixes/2026-05-11_fix_paid_at_inconsistency.sql).
+          if (existingOrder.payment_status !== 'paid' || !existingOrder.paid_at) {
             await supabaseClient
               .from('orders')
               .update({
