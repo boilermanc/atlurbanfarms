@@ -919,19 +919,24 @@ const ProductEditPage: React.FC<ProductEditPageProps> = ({ productId, onBack, on
                   </div>
                 </div>
               ) : (
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-1">Stock Status</label>
-                  <select
-                    name="stock_status"
-                    value={formData.stock_status}
-                    onChange={handleChange}
-                    className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                  >
-                    <option value="in_stock">In Stock</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                  </select>
-                  <p className="text-slate-500 text-sm mt-1">Manually set whether this product is available for purchase</p>
-                </div>
+                <>
+                  <p className="text-slate-500 text-sm">
+                    Inventory not tracked. Use Stock Status below to mark out of stock when supply runs out.
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-1">Stock Status</label>
+                    <select
+                      name="stock_status"
+                      value={formData.stock_status}
+                      onChange={handleChange}
+                      className="w-full max-w-xs px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    >
+                      <option value="in_stock">In Stock</option>
+                      <option value="out_of_stock">Out of Stock</option>
+                    </select>
+                    <p className="text-slate-500 text-sm mt-1">Manually set whether this product is available for purchase</p>
+                  </div>
+                </>
               )}
             </div>
           ) : formData.product_type === 'external' ? (
