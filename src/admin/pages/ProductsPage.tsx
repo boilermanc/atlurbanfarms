@@ -438,6 +438,10 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ onEditProduct }) => {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${product.stock_status === 'in_stock' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
                           {product.stock_status === 'in_stock' ? 'In Stock' : 'Out of Stock'}
                         </span>
+                      ) : product.track_inventory === false ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${product.stock_status === 'out_of_stock' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                          {product.stock_status === 'out_of_stock' ? 'Out of Stock' : 'Always Available'}
+                        </span>
                       ) : (
                         <span className={`font-semibold ${product.quantity_available <= 0 ? 'text-red-600' : product.quantity_available <= 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{product.quantity_available}</span>
                       )}

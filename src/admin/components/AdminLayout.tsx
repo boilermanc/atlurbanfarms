@@ -54,6 +54,7 @@ const AlertsPage = lazy(() => import('../pages/AlertsPage'));
 const GiftCardsPage = lazy(() => import('../pages/GiftCardsPage'));
 const GiftCardDetailPage = lazy(() => import('../pages/GiftCardDetailPage'));
 const GiftCardCreateModal = lazy(() => import('./GiftCardCreateModal'));
+const InventoryHealthCheck = lazy(() => import('./InventoryHealthCheck'));
 const WooImportPage = lazy(() => import('../pages/WooImportPage'));
 const ProductTagsPage = lazy(() => import('../pages/ProductTagsPage'));
 const CustomerTagsPage = lazy(() => import('../pages/CustomerTagsPage'));
@@ -105,7 +106,7 @@ interface DashboardStats {
 }
 
 // Dashboard Component
-const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: ViewOrderHandler }> = ({ onNavigate, onViewOrder }) => {
+const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: ViewOrderHandler; onEditProduct: (productId: string) => void }> = ({ onNavigate, onViewOrder, onEditProduct }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -352,6 +353,11 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
           </div>
         ))}
       </div>
+
+      {/* Inventory Health Check */}
+      <Suspense fallback={null}>
+        <InventoryHealthCheck onEditProduct={onEditProduct} />
+      </Suspense>
 
       {/* Quick Actions & Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -875,7 +881,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         );
       case 'dashboard':
       default:
-        return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} />;
+        return <Dashboard onNavigate={handleNavigate} onViewOrder={handleViewOrder} onEditProduct={handleEditProduct} />;
     }
   };
 
