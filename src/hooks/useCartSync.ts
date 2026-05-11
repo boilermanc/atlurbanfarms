@@ -84,6 +84,38 @@ function saveLocalCart(items: CartItem[]) {
 }
 
 /**
+ * Cart-sync failure surface.
+ *
+ * Every catch site for a cart DB write funnels through here so we have a
+ * single place to wire customer-facing feedback. Today we log to the
+ * console and dispatch a `cart-sync-error` CustomEvent on window; the
+ * matching `cart-sync-success` event is reserved for a future "Cart saved"
+ * confirmation but isn't emitted yet. Detail shape for both:
+ *   { message: string }
+ *
+ * The customer-facing toast UI is intentionally deferred to a follow-up
+ * PR — no toast library is currently installed and a new one is out of
+ * scope here. A future Toast component should listen for these events.
+ *
+ * TODO: integrate Sentry (`@sentry/react`) once it is wired up at the app
+ * entry point. Until then we deliberately do NOT reference window.Sentry
+ * — it doesn't exist in this codebase.
+ */
+function notifyCartSyncFailure(err: unknown) {
+  console.error('Cart sync failed:', err);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('cart-sync-error', {
+        detail: {
+          message:
+            "We couldn't save your cart just now. Please try again or refresh the page.",
+        },
+      })
+    );
+  }
+}
+
+/**
  * Merge two cart arrays. Union of products; higher quantity wins.
  * Always prefers DB cart prices (freshly calculated from products table)
  * over local cart prices (may be stale from localStorage).
@@ -129,7 +161,9 @@ export function useCartSync() {
   const initialLoadDoneRef = useRef(false);
   // Track whether we've reconciled prices for the current session
   const priceReconciledRef = useRef(false);
-  // Prevent concurrent handleLogin invocations from racing inside writeCartToDb
+  // Prevent concurrent handleLogin invocations from clobbering each other's
+  // merge/setCart sequence (writeCartToDb is now atomic via the
+  // sync_cart_items RPC; the surrounding flow is not — see doc block below)
   const handlingLoginRef = useRef(false);
   // Coordinate between initial getSession() and the INITIAL_SESSION event
   // so handleLogin runs exactly once per page load
@@ -196,19 +230,18 @@ export function useCartSync() {
   }
 
   async function writeCartToDb(cartId: string, items: CartItem[]) {
-    // Replace all items atomically
-    await supabase.from('cart_items').delete().eq('cart_id', cartId);
-
-    if (items.length > 0) {
-      const { error } = await supabase.from('cart_items').insert(
-        items.map(item => ({
-          cart_id: cartId,
-          product_id: item.id,
-          quantity: item.quantity,
-        }))
-      );
-      if (error) throw error;
-    }
+    // Atomic reconcile via Postgres RPC (sync_cart_items). The function
+    // upserts every row and deletes anything not in p_items in a single
+    // statement, which closes the duplicate-key race that delete-then-
+    // insert used to expose under concurrent writers.
+    const { error } = await supabase.rpc('sync_cart_items', {
+      p_cart_id: cartId,
+      p_items: items.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+      })),
+    });
+    if (error) throw error;
   }
 
   // ── Reconcile localStorage prices against current DB prices ──
@@ -261,7 +294,7 @@ export function useCartSync() {
       if (!cId) return;
       isSyncingRef.current = true;
       writeCartToDb(cId, cart)
-        .catch(err => console.error('Failed to sync cart to DB:', err))
+        .catch(notifyCartSyncFailure)
         .finally(() => { isSyncingRef.current = false; });
     }, 500);
 
@@ -307,8 +340,11 @@ export function useCartSync() {
      *   SIGNED_OUT      → Clear local cart and reset coordination refs so a
      *                     subsequent login fires fresh.
      *
-     * handlingLoginRef gates concurrent handleLogin invocations so the
-     * non-atomic delete-then-insert in writeCartToDb can't race with itself.
+     * handlingLoginRef gates concurrent handleLogin invocations so two
+     * simultaneous logins don't clobber each other's merge results — the
+     * underlying writeCartToDb call is itself atomic now (sync_cart_items
+     * RPC, see migration 20260511100000), but the surrounding fetch →
+     * merge → setCart flow is not.
      * bootstrapHandledRef coordinates between the initial getSession() and
      * the INITIAL_SESSION event so handleLogin runs exactly once on load.
      *
@@ -335,7 +371,7 @@ export function useCartSync() {
           initialLoadDoneRef.current = true;
         }
       } catch (err) {
-        console.error('Failed to sync cart on login:', err);
+        notifyCartSyncFailure(err);
         // Keep local cart as fallback
         initialLoadDoneRef.current = true;
       } finally {
@@ -445,7 +481,7 @@ export function useCartSync() {
     const cId = cartIdRef.current;
     if (cId) {
       supabase.from('cart_items').delete().eq('cart_id', cId)
-        .then(({ error }) => { if (error) console.error('Failed to clear DB cart:', error); });
+        .then(({ error }) => { if (error) notifyCartSyncFailure(error); });
     }
   }, []);
 
