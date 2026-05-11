@@ -129,6 +129,11 @@ export function useCartSync() {
   const initialLoadDoneRef = useRef(false);
   // Track whether we've reconciled prices for the current session
   const priceReconciledRef = useRef(false);
+  // Prevent concurrent handleLogin invocations from racing inside writeCartToDb
+  const handlingLoginRef = useRef(false);
+  // Coordinate between initial getSession() and the INITIAL_SESSION event
+  // so handleLogin runs exactly once per page load
+  const bootstrapHandledRef = useRef(false);
 
   // ── DB helpers ──────────────────────────────────────────────
 
@@ -276,7 +281,45 @@ export function useCartSync() {
   useEffect(() => {
     let mounted = true;
 
+    /**
+     * Auth event handling matrix:
+     *
+     *   SIGNED_IN       → New sign-in or re-sign-in. Run handleLogin when the
+     *                     uid changes. Defends against Supabase emitting
+     *                     SIGNED_IN multiple times in a row (commit cfd9275
+     *                     patched AuthContext for the same root cause —
+     *                     this hook needs the same dedup).
+     *
+     *   INITIAL_SESSION → Fires on subscribe in Supabase v2+. Run handleLogin
+     *                     if a session is present and the bootstrap
+     *                     getSession() call hasn't already handled it.
+     *                     Without this, Safari under ITP can leave us
+     *                     authenticated-but-unregistered here: userIdRef
+     *                     stays null and every debounced DB sync silently
+     *                     early-returns at the guard on line ~254.
+     *
+     *   TOKEN_REFRESHED → Recovery path. If we never observed SIGNED_IN /
+     *                     INITIAL_SESSION (prevUid is null) but the SDK is
+     *                     now refreshing a token, we missed the login.
+     *                     Treat the first TOKEN_REFRESHED with a session as
+     *                     the login event.
+     *
+     *   SIGNED_OUT      → Clear local cart and reset coordination refs so a
+     *                     subsequent login fires fresh.
+     *
+     * handlingLoginRef gates concurrent handleLogin invocations so the
+     * non-atomic delete-then-insert in writeCartToDb can't race with itself.
+     * bootstrapHandledRef coordinates between the initial getSession() and
+     * the INITIAL_SESSION event so handleLogin runs exactly once on load.
+     *
+     * If you remove any branch here, re-read the Safari ITP audit before
+     * shipping. This file's pattern is load-bearing for cart_items writes.
+     */
+
     async function handleLogin(userId: string) {
+      if (handlingLoginRef.current) return;
+      handlingLoginRef.current = true;
+      bootstrapHandledRef.current = true;
       setLoading(true);
       isSyncingRef.current = true;
       try {
@@ -297,53 +340,22 @@ export function useCartSync() {
         initialLoadDoneRef.current = true;
       } finally {
         isSyncingRef.current = false;
+        handlingLoginRef.current = false;
         if (mounted) setLoading(false);
       }
     }
 
-    async function loadFromDb(userId: string) {
-      setLoading(true);
-      isSyncingRef.current = true;
-      try {
-        const localCart = getLocalCart();
-        const dbCart = await fetchCartFromDb(userId);
-
-        // Always ensure a DB cart row exists so cartIdRef is set
-        // and the debounced sync effect can write future changes
-        const cartId = await getOrCreateCart(userId);
-
-        const merged = mergeCarts(dbCart, localCart);
-
-        // Only write to DB if local has items not already in DB
-        // (avoids unnecessary delete+reinsert on every page load)
-        const needsSync = localCart.some(localItem => {
-          const dbItem = dbCart.find(d => d.id === localItem.id);
-          return !dbItem || localItem.quantity > dbItem.quantity;
-        });
-        if (needsSync) {
-          await writeCartToDb(cartId, merged);
-        }
-
-        if (mounted) {
-          setCart(merged);
-          initialLoadDoneRef.current = true;
-        }
-      } catch (err) {
-        console.error('Failed to load cart from DB:', err);
-        initialLoadDoneRef.current = true;
-      } finally {
-        isSyncingRef.current = false;
-        if (mounted) setLoading(false);
-      }
-    }
-
-    // Check initial session
+    // Bootstrap: if a session is present and no auth event has beaten us to
+    // it, fire handleLogin; otherwise the onAuthStateChange listener below
+    // will. bootstrapHandledRef is the coordination point.
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       const uid = session?.user?.id ?? null;
       userIdRef.current = uid;
       if (uid) {
-        loadFromDb(uid);
+        if (!bootstrapHandledRef.current) {
+          handleLogin(uid);
+        }
       } else {
         // Guest user: reconcile localStorage prices against current DB data.
         // This catches stale prices when a sale starts/ends after items were cached.
@@ -361,20 +373,31 @@ export function useCartSync() {
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       const uid = session?.user?.id ?? null;
       const prevUid = userIdRef.current;
       userIdRef.current = uid;
 
-      if (event === 'SIGNED_IN' && uid && uid !== prevUid) {
-        handleLogin(uid);
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         cartIdRef.current = null;
+        bootstrapHandledRef.current = false;
         initialLoadDoneRef.current = true;
         setCart([]);
         localStorage.removeItem(CART_STORAGE_KEY);
+        return;
+      }
+
+      if (!uid) return;
+
+      if (event === 'SIGNED_IN' && uid !== prevUid) {
+        handleLogin(uid);
+      } else if (event === 'INITIAL_SESSION' && uid !== prevUid && !bootstrapHandledRef.current) {
+        handleLogin(uid);
+      } else if (event === 'TOKEN_REFRESHED' && prevUid === null) {
+        // Safari recovery: we never registered this user. Treat the refresh
+        // as the login so cart sync stops early-returning.
+        handleLogin(uid);
       }
     });
 
