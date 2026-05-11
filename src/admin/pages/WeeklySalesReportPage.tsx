@@ -151,12 +151,18 @@ const WeeklySalesReportPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<NormalizedOrder[] | null>(null);
+  // Open orders ('processing' / 'on_hold') are fetched without a date filter
+  // so a long-running fulfillment doesn't fall off the report as weeks roll
+  // forward. Held in separate state so they don't pollute weekly revenue
+  // totals (summary, dailySummary, Excel TOTALS row).
+  const [openOrders, setOpenOrders] = useState<NormalizedOrder[] | null>(null);
 
   // --- Fetch orders ---
   const generateReport = useCallback(async () => {
     setLoading(true);
     setError(null);
     setOrders(null);
+    setOpenOrders(null);
 
     try {
       const startISO = new Date(weekStart + 'T00:00:00').toISOString();
@@ -166,7 +172,19 @@ const WeeklySalesReportPage: React.FC = () => {
 
       console.log('Fetching orders with params:', { startDate: startISO, endDate: endISO, weekStart, weekEnd });
 
-      const [legacyResult, newResult] = await Promise.all([
+      // Shared select for orders table — used by both the date-filtered
+      // "closed sales" query and the un-date-filtered "open orders" query.
+      const ORDERS_SELECT = `
+            id, order_number, created_at, shipping_cost, subtotal, tax, total,
+            shipping_first_name, shipping_last_name, shipping_state, shipping_city, shipping_zip,
+            shipping_phone, guest_email,
+            customers!orders_customer_id_fkey ( email, phone ),
+            shipping_method_name, discount_amount, promotion_code, is_pickup, status,
+            customer_notes, gift_card_amount, billing_first_name, billing_last_name,
+            order_items ( quantity, product_name, line_total, product_id )
+          `;
+
+      const [legacyResult, newResult, openResult] = await Promise.all([
         supabase
           .from('legacy_orders')
           .select(`
@@ -179,34 +197,44 @@ const WeeklySalesReportPage: React.FC = () => {
           .lt('order_date', endISO)
           .eq('status', 'completed')
           .order('order_date', { ascending: true }),
+        // Closed sales this week — status-bounded to terminal "money in"
+        // states so unpaid checkouts (pending_payment) and failures don't
+        // inflate revenue. Replaces the prior `.not('status','in','(cancelled,pending)')`
+        // filter, which referenced the literal 'pending' — a status that
+        // doesn't exist in the live constraint (the real value is
+        // 'pending_payment'), so abandoned carts silently counted as revenue.
         supabase
           .from('orders')
-          .select(`
-            id, order_number, created_at, shipping_cost, subtotal, tax, total,
-            shipping_first_name, shipping_last_name, shipping_state, shipping_city, shipping_zip,
-            shipping_phone, guest_email,
-            customers!orders_customer_id_fkey ( email, phone ),
-            shipping_method_name, discount_amount, promotion_code, is_pickup, status,
-            customer_notes, gift_card_amount, billing_first_name, billing_last_name,
-            order_items ( quantity, product_name, line_total, product_id )
-          `)
+          .select(ORDERS_SELECT)
           .gte('created_at', startISO)
           .lt('created_at', endISO)
-          .not('status', 'in', '(cancelled,pending)')
+          .in('status', ['completed', 'shipped', 'picked_up'])
+          .order('created_at', { ascending: true }),
+        // Open orders — no date filter. These stay visible across weeks so
+        // a stuck 'processing' / 'on_hold' order can't fall off the radar.
+        // Held separately so they don't roll into weekly revenue totals.
+        supabase
+          .from('orders')
+          .select(ORDERS_SELECT)
+          .in('status', ['processing', 'on_hold'])
           .order('created_at', { ascending: true }),
       ]);
 
       console.log('Legacy orders result:', { error: legacyResult.error, count: legacyResult.data?.length });
       console.log('New orders result:', { error: newResult.error, count: newResult.data?.length });
+      console.log('Open orders result:', { error: openResult.error, count: openResult.data?.length });
 
       if (legacyResult.error) throw legacyResult.error;
       if (newResult.error) throw newResult.error;
+      if (openResult.error) throw openResult.error;
 
       // Build a parent_product_id → total child seedling count map so bundle
       // parents (e.g. "32-pack of Misty") count as the full pack size in the
       // seedling tally, matching the packing list fix in 1340ec0/dab4d0a.
+      // Source product ids from both closed and open new-orders results so
+      // an open-order bundle is also expanded correctly.
       const newOrderProductIds = [...new Set(
-        (newResult.data || [])
+        [...(newResult.data || []), ...(openResult.data || [])]
           .flatMap((o: any) => (o.order_items || []).map((i: any) => i.product_id))
           .filter(Boolean),
       )];
@@ -253,42 +281,57 @@ const WeeklySalesReportPage: React.FC = () => {
         });
       }
 
-      // New orders
-      for (const o of newResult.data || []) {
+      // Shared mapper for rows out of the orders table — used for both the
+      // closed-sales bucket and the open-orders bucket so adding a field
+      // touches one site, not two.
+      const mapNewOrderRow = (o: any): NormalizedOrder => {
         const items: OrderItem[] = o.order_items || [];
         const tally = tallyItems(items, bundleQtyMap);
-        normalized.push({
+        return {
           orderId: String(o.order_number || o.id),
           orderDate: new Date(o.created_at),
           shippingIncome: o.shipping_cost || 0,
           ...tally,
           discount: o.discount_amount || 0,
           orderTotal: o.total || 0,
-          giftCardAmount: (o as any).gift_card_amount || 0,
+          giftCardAmount: o.gift_card_amount || 0,
           firstName: o.shipping_first_name || '',
           lastName: o.shipping_last_name || '',
-          email: o.guest_email || (o as any).customers?.email || '',
-          phone: o.shipping_phone || (o as any).customers?.phone || '',
+          email: o.guest_email || o.customers?.email || '',
+          phone: o.shipping_phone || o.customers?.phone || '',
           city: o.shipping_city || '',
           zip: o.shipping_zip || '',
           state: o.shipping_state || '',
-          customerNote: (o as any).customer_notes || '',
+          customerNote: o.customer_notes || '',
           tax: o.tax || 0,
           promotionCode: o.promotion_code || '',
           shippingMethod: o.shipping_method_name || '',
-          billingFirstName: (o as any).billing_first_name || '',
-          billingLastName: (o as any).billing_last_name || '',
+          billingFirstName: o.billing_first_name || '',
+          billingLastName: o.billing_last_name || '',
           type: classifyNew(o),
-        });
+        };
+      };
+
+      // New orders (closed sales this week)
+      for (const o of newResult.data || []) {
+        normalized.push(mapNewOrderRow(o));
+      }
+
+      // Open orders (no date filter — see ORDERS_SELECT / openResult above)
+      const normalizedOpen: NormalizedOrder[] = [];
+      for (const o of openResult.data || []) {
+        normalizedOpen.push(mapNewOrderRow(o));
       }
 
       // Sort by date
       normalized.sort((a, b) => a.orderDate.getTime() - b.orderDate.getTime());
+      normalizedOpen.sort((a, b) => a.orderDate.getTime() - b.orderDate.getTime());
 
-      if (normalized.length === 0) {
+      if (normalized.length === 0 && normalizedOpen.length === 0) {
         setError('No orders found for this date range.');
       }
       setOrders(normalized);
+      setOpenOrders(normalizedOpen);
     } catch (err: unknown) {
       console.error('WeeklySalesReport error:', err);
       const message = err instanceof Error ? err.message : 'Failed to load orders.';
@@ -431,12 +474,33 @@ const WeeklySalesReportPage: React.FC = () => {
       </tr>
     </tbody>
   </table>
+  ${openOrders && openOrders.length > 0 ? `
+  <h2 style="font-size:16px; margin-top:8px; margin-bottom:4px;">Open Orders — Needs Attention</h2>
+  <div class="subtitle">Status: processing / on_hold. Not included in weekly revenue above.</div>
+  <table>
+    <thead><tr>
+      <th>Order ID</th><th>Date</th><th>Customer</th><th>City / State</th><th>Type</th><th>Total</th>
+    </tr></thead>
+    <tbody>
+      ${openOrders.map(o => `
+        <tr>
+          <td>${o.orderId}</td>
+          <td>${formatDateDisplay(o.orderDate)}</td>
+          <td>${[o.firstName, o.lastName].filter(Boolean).join(' ') || '—'}</td>
+          <td>${[o.city, o.state].filter(Boolean).join(', ') || '—'}</td>
+          <td>${o.type}</td>
+          <td>${formatCurrency(o.orderTotal)}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  ` : ''}
 </body></html>`;
 
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.onload = () => { printWindow.print(); };
-  }, [dailySummary, weekRangeLabel, summary]);
+  }, [dailySummary, weekRangeLabel, summary, openOrders]);
 
   // --- Excel export ---
   const downloadExcel = useCallback(() => {
@@ -510,8 +574,13 @@ const WeeklySalesReportPage: React.FC = () => {
     addSection('PICKUPS', pickups);
     addSection('REPLACE, ETC.', replacements);
     addSection('SHIP', shipped);
+    if (openOrders && openOrders.length > 0) {
+      addSection('OPEN — NEEDS ATTENTION (not included in weekly revenue)', openOrders);
+    }
 
-    // TOTALS row (last row — no summary rows after)
+    // TOTALS row (last row — no summary rows after).
+    // NOTE: openOrders are intentionally excluded from these sums so the
+    // weekly revenue figure stays scoped to closed sales for the week.
     const sumShipping = orders.reduce((s, o) => s + o.shippingIncome, 0);
     const sumSeedlings = orders.reduce((s, o) => s + o.seedlingQty, 0);
     const sumOtherQty = orders.reduce((s, o) => s + o.otherQty, 0);
@@ -629,7 +698,7 @@ const WeeklySalesReportPage: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, fileName);
-  }, [orders, weekStart]);
+  }, [orders, openOrders, weekStart]);
 
   // --- Render ---
   return (
@@ -802,6 +871,54 @@ const WeeklySalesReportPage: React.FC = () => {
               <Printer size={18} />
               Print Report
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Open orders — rendered independently of the weekly summary so it
+          shows even when there are no closed sales for the selected range. */}
+      {openOrders && openOrders.length > 0 && !loading && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mt-6">
+          <div className="flex items-center gap-3 mb-1">
+            <AlertCircle className="text-amber-600 flex-shrink-0" size={20} />
+            <h2 className="text-lg font-semibold text-amber-900 font-admin-display">
+              Open Orders — Needs Attention ({openOrders.length})
+            </h2>
+          </div>
+          <p className="text-sm text-amber-800 mb-4">
+            Status: <code className="font-mono text-xs bg-amber-100 px-1 py-0.5 rounded">processing</code> /{' '}
+            <code className="font-mono text-xs bg-amber-100 px-1 py-0.5 rounded">on_hold</code>, regardless of date.
+            Not included in the weekly revenue totals above.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-amber-300">
+                  <th className="text-left py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">Order ID</th>
+                  <th className="text-left py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">Date</th>
+                  <th className="text-left py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">Customer</th>
+                  <th className="text-left py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">City / State</th>
+                  <th className="text-left py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">Type</th>
+                  <th className="text-right py-2 px-3 font-semibold text-amber-900 text-xs uppercase tracking-wide">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openOrders.map((o, idx) => {
+                  const customer = [o.firstName, o.lastName].filter(Boolean).join(' ') || '—';
+                  const location = [o.city, o.state].filter(Boolean).join(', ') || '—';
+                  return (
+                    <tr key={o.orderId} className={idx % 2 === 0 ? 'bg-white' : 'bg-amber-50/60'}>
+                      <td className="py-2 px-3 font-mono text-xs text-slate-800">{o.orderId}</td>
+                      <td className="py-2 px-3 text-slate-700">{formatDateDisplay(o.orderDate)}</td>
+                      <td className="py-2 px-3 text-slate-700">{customer}</td>
+                      <td className="py-2 px-3 text-slate-700">{location}</td>
+                      <td className="py-2 px-3 text-slate-700">{o.type}</td>
+                      <td className="py-2 px-3 text-right text-slate-700">{formatCurrency(o.orderTotal)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
