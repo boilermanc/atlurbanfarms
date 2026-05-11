@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Plus, User, Mail, Phone, X } from 'lucide-react';
+import { Search, Plus, User, Mail, Phone, Building2, X } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -8,6 +8,7 @@ interface Customer {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  company: string | null;
   created_at: string;
 }
 
@@ -40,6 +41,7 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
     first_name: '',
     last_name: '',
     phone: '',
+    company: '',
   });
   const [creating, setCreating] = useState(false);
 
@@ -175,6 +177,7 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
             first_name: newCustomer.first_name,
             last_name: newCustomer.last_name,
             phone: newCustomer.phone || null,
+            company: newCustomer.company.trim() || null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -188,7 +191,7 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
       onCustomerSelected(data);
 
       // Reset form
-      setNewCustomer({ email: '', first_name: '', last_name: '', phone: '' });
+      setNewCustomer({ email: '', first_name: '', last_name: '', phone: '', company: '' });
       setMode('search');
     } catch (err: any) {
       console.error('Error creating customer:', err);
@@ -252,6 +255,12 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
                 <div className="font-medium text-slate-900">
                   {selectedCustomer.first_name} {selectedCustomer.last_name}
                 </div>
+                {selectedCustomer.company && (
+                  <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
+                    <Building2 size={14} />
+                    {selectedCustomer.company}
+                  </div>
+                )}
                 <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
                   <Mail size={14} />
                   {selectedCustomer.email}
@@ -388,6 +397,22 @@ const CustomerSearchSelector: React.FC<CustomerSearchSelectorProps> = ({
               placeholder="(555) 123-4567"
               className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Company / School <span className="text-slate-400">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={newCustomer.company}
+              onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
+              placeholder="e.g. Roswell Elementary School"
+              className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Set this for school or business accounts so it appears on orders and invoices.
+            </p>
           </div>
 
           <button

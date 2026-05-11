@@ -113,12 +113,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
   // Section 2: Shipping Address editing
   const [editingShipping, setEditingShipping] = useState(false);
   const [savingShipping, setSavingShipping] = useState(false);
-  const [shippingForm, setShippingForm] = useState({ shipping_first_name: '', shipping_last_name: '', shipping_address_line1: '', shipping_address_line2: '', shipping_city: '', shipping_state: '', shipping_zip: '', shipping_phone: '' });
+  const [shippingForm, setShippingForm] = useState({ shipping_first_name: '', shipping_last_name: '', shipping_company: '', shipping_address_line1: '', shipping_address_line2: '', shipping_city: '', shipping_state: '', shipping_zip: '', shipping_phone: '' });
 
   // Section 3: Billing Address editing
   const [editingBilling, setEditingBilling] = useState(false);
   const [savingBilling, setSavingBilling] = useState(false);
-  const [billingForm, setBillingForm] = useState({ billing_first_name: '', billing_last_name: '', billing_address_line1: '', billing_address_line2: '', billing_city: '', billing_state: '', billing_zip: '' });
+  const [billingForm, setBillingForm] = useState({ billing_first_name: '', billing_last_name: '', billing_company: '', billing_address_line1: '', billing_address_line2: '', billing_city: '', billing_state: '', billing_zip: '' });
 
   // Section 4: Shipping Method & Tracking editing
   const [editingTracking, setEditingTracking] = useState(false);
@@ -835,6 +835,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
 
     // Bill To
     const billName = `${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim();
+    const billCompany = order.billing_company || '';
     const billStreet = order.billing_address_line1;
     const billStreet2 = order.billing_address_line2;
     const billCity = order.billing_city;
@@ -844,6 +845,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       <div style="flex: 1;">
         <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Bill To</h3>
         ${billName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${billName}</p>` : ''}
+        ${billCompany ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billCompany}</p>` : ''}
         ${billStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billStreet}</p>` : ''}
         ${billStreet2 ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billStreet2}</p>` : ''}
         ${billStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${billCity || ''}${billCity && billState ? ', ' : ''}${billState || ''} ${billZip || ''}</p>` : ''}
@@ -865,6 +867,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         </div>`;
     } else {
       const shipName = `${order.shipping_first_name || ''} ${order.shipping_last_name || ''}`.trim();
+      const shipCompany = order.shipping_company || '';
       const shipStreet = order.shipping_address_line1;
       const shipStreet2 = order.shipping_address_line2;
       const shipCity = order.shipping_city;
@@ -874,6 +877,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
         <div style="flex: 1;">
           <h3 style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #9ca3af; margin: 0 0 4px;">Ship To</h3>
           ${shipName ? `<p style="margin: 0; font-size: 12px; line-height: 1.4; font-weight: 600;">${shipName}</p>` : ''}
+          ${shipCompany ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipCompany}</p>` : ''}
           ${shipStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipStreet}</p>` : ''}
           ${shipStreet2 ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipStreet2}</p>` : ''}
           ${shipStreet ? `<p style="margin: 0; font-size: 12px; line-height: 1.4;">${shipCity || ''}${shipCity && shipState ? ', ' : ''}${shipState || ''} ${shipZip || ''}</p>` : ''}
@@ -1294,8 +1298,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
               <p style="font-weight:700">${escapeHtml(order.customer_name || 'Guest')}</p>
               ${order.customer_email ? `<p class="muted">${escapeHtml(order.customer_email)}</p>` : ''}
               ${order.customer_phone ? `<p class="muted">${escapeHtml(formatPhone(order.customer_phone))}</p>` : ''}
-              ${isPickup && (order.billing_address_line1 || order.billing_city) ? `
+              ${isPickup && (order.billing_address_line1 || order.billing_city || order.billing_company) ? `
                 <hr class="pl-pickup-divider">
+                ${order.billing_company ? `<p class="muted">${escapeHtml(order.billing_company)}</p>` : ''}
                 ${order.billing_address_line1 ? `<p class="muted">${escapeHtml(order.billing_address_line1)}</p>` : ''}
                 ${order.billing_address_line2 ? `<p class="muted">${escapeHtml(order.billing_address_line2)}</p>` : ''}
                 ${(order.billing_city || order.billing_state || order.billing_zip) ? `<p class="muted">${escapeHtml([order.billing_city, order.billing_state, order.billing_zip].filter(Boolean).join(', '))}</p>` : ''}
@@ -1379,6 +1384,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     setShippingForm({
       shipping_first_name: order.shipping_first_name || '',
       shipping_last_name: order.shipping_last_name || '',
+      shipping_company: order.shipping_company || order.customer_company || '',
       shipping_address_line1: order.shipping_address_line1 || '',
       shipping_address_line2: order.shipping_address_line2 || '',
       shipping_city: order.shipping_city || '',
@@ -1394,6 +1400,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
     setBillingForm({
       billing_first_name: order.billing_first_name || '',
       billing_last_name: order.billing_last_name || '',
+      billing_company: order.billing_company || order.customer_company || '',
       billing_address_line1: order.billing_address_line1 || '',
       billing_address_line2: order.billing_address_line2 || '',
       billing_city: order.billing_city || '',
@@ -1489,6 +1496,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       const { error: err } = await supabase.from('orders').update({
         shipping_first_name: shippingForm.shipping_first_name,
         shipping_last_name: shippingForm.shipping_last_name,
+        shipping_company: shippingForm.shipping_company || null,
         shipping_address_line1: shippingForm.shipping_address_line1,
         shipping_address_line2: shippingForm.shipping_address_line2,
         shipping_city: shippingForm.shipping_city,
@@ -1524,6 +1532,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
       const { error: err } = await supabase.from('orders').update({
         billing_first_name: billingForm.billing_first_name,
         billing_last_name: billingForm.billing_last_name,
+        billing_company: billingForm.billing_company || null,
         billing_address_line1: billingForm.billing_address_line1,
         billing_address_line2: billingForm.billing_address_line2,
         billing_city: billingForm.billing_city,
@@ -2132,6 +2141,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                     {order.shipping_address_line1 ? (
                       <address className="text-slate-600 not-italic leading-relaxed">
                         <p className="font-medium text-slate-800">{[order.shipping_first_name, order.shipping_last_name].filter(Boolean).join(' ') || 'Name not provided'}</p>
+                        {order.shipping_company && <p className="text-slate-700">{order.shipping_company}</p>}
                         <p>{order.shipping_address_line1}</p>
                         {order.shipping_address_line2 && <p>{order.shipping_address_line2}</p>}
                         <p>
@@ -2163,6 +2173,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                         <label className="block text-xs font-medium text-slate-500">Last Name</label>
                         <input type="text" value={shippingForm.shipping_last_name} onChange={(e) => setShippingForm(f => ({ ...f, shipping_last_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                       </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-slate-500">Company / School (optional)</label>
+                      <input type="text" value={shippingForm.shipping_company} onChange={(e) => setShippingForm(f => ({ ...f, shipping_company: e.target.value }))} placeholder={order.customer_company || 'e.g., Riverside Elementary'} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                      {order.customer_company && !shippingForm.shipping_company && (
+                        <button type="button" onClick={() => setShippingForm(f => ({ ...f, shipping_company: order.customer_company || '' }))} className="text-xs text-emerald-600 hover:text-emerald-700 underline">
+                          Use customer company: {order.customer_company}
+                        </button>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-slate-500">Address Line 1</label>
@@ -2225,6 +2244,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                   {order.billing_address_line1 ? (
                     <address className="text-slate-600 not-italic leading-relaxed">
                       <p className="font-medium text-slate-800">{`${order.billing_first_name || ''} ${order.billing_last_name || ''}`.trim() || 'Name not provided'}</p>
+                      {order.billing_company && <p className="text-slate-700">{order.billing_company}</p>}
                       <p>{order.billing_address_line1 || 'Street not provided'}</p>
                       {order.billing_address_line2 && <p>{order.billing_address_line2}</p>}
                       <p>
@@ -2246,6 +2266,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ orderId, onBack, onBa
                       <label className="block text-xs font-medium text-slate-500">Last Name</label>
                       <input type="text" value={billingForm.billing_last_name} onChange={(e) => setBillingForm(f => ({ ...f, billing_last_name: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                     </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-slate-500">Company / School (optional)</label>
+                    <input type="text" value={billingForm.billing_company} onChange={(e) => setBillingForm(f => ({ ...f, billing_company: e.target.value }))} placeholder={order.customer_company || 'e.g., Riverside Elementary'} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    {order.customer_company && !billingForm.billing_company && (
+                      <button type="button" onClick={() => setBillingForm(f => ({ ...f, billing_company: order.customer_company || '' }))} className="text-xs text-emerald-600 hover:text-emerald-700 underline">
+                        Use customer company: {order.customer_company}
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="block text-xs font-medium text-slate-500">Address Line 1</label>

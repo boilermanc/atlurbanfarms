@@ -25,6 +25,7 @@ interface Customer {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  company: string | null;
   is_tax_exempt?: boolean;
   tax_exempt_reason?: string | null;
   created_at: string;
@@ -331,7 +332,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
           skipNextAddressAutoFillRef.current = true;
           const { data: customer } = await supabase
             .from('customers')
-            .select('id, email, first_name, last_name, phone, is_tax_exempt, tax_exempt_reason, created_at')
+            .select('id, email, first_name, last_name, phone, company, is_tax_exempt, tax_exempt_reason, created_at')
             .eq('id', sourceOrder.customer_id)
             .single();
           if (cancelled) return;
@@ -786,6 +787,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         discount_description: appliedPromo?.description || null,
         billing_first_name: billingAddress.firstName || null,
         billing_last_name: billingAddress.lastName || null,
+        billing_company: selectedCustomer?.company || null,
         billing_address_line1: billingAddress.addressLine1 || null,
         billing_address_line2: billingAddress.addressLine2 || null,
         billing_city: billingAddress.city || null,
@@ -798,6 +800,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         Object.assign(orderData, {
           shipping_first_name: shippingAddress.name.split(' ')[0] || shippingAddress.name,
           shipping_last_name: shippingAddress.name.split(' ').slice(1).join(' ') || '',
+          shipping_company: selectedCustomer?.company || null,
           shipping_address_line1: shippingAddress.street || null,
           shipping_address_line2: shippingAddress.street2 || null,
           shipping_city: shippingAddress.city || null,
@@ -852,6 +855,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         Object.assign(orderData, {
           shipping_first_name: selectedCustomer?.first_name || '',
           shipping_last_name: selectedCustomer?.last_name || '',
+          shipping_company: selectedCustomer?.company || null,
           shipping_address_line1: pickupShippingLine1,
           shipping_address_line2: pickupShippingLine2,
           shipping_city: pickupShippingCity,

@@ -173,6 +173,7 @@ export interface Order {
   // Raw address fields for inline editing
   shipping_first_name?: string | null;
   shipping_last_name?: string | null;
+  shipping_company?: string | null;
   shipping_address_line1?: string | null;
   shipping_address_line2?: string | null;
   shipping_city?: string | null;
@@ -181,11 +182,13 @@ export interface Order {
   shipping_phone?: string | null;
   billing_first_name?: string | null;
   billing_last_name?: string | null;
+  billing_company?: string | null;
   billing_address_line1?: string | null;
   billing_address_line2?: string | null;
   billing_city?: string | null;
   billing_state?: string | null;
   billing_zip?: string | null;
+  customer_company?: string | null;
   // Additional shipping/tracking fields
   shipping_method_name?: string | null;
   tracking_url?: string | null;
@@ -795,7 +798,8 @@ export function useOrder(orderId: string | null) {
             first_name,
             last_name,
             email,
-            phone
+            phone,
+            company
           ),
           order_items_with_product (
             id,
@@ -978,6 +982,7 @@ export function useOrder(orderId: string | null) {
         // Raw address fields for inline editing
         shipping_first_name: orderData.shipping_first_name || null,
         shipping_last_name: orderData.shipping_last_name || null,
+        shipping_company: orderData.shipping_company || null,
         shipping_address_line1: orderData.shipping_address_line1 || null,
         shipping_address_line2: orderData.shipping_address_line2 || null,
         shipping_city: orderData.shipping_city || null,
@@ -986,11 +991,13 @@ export function useOrder(orderId: string | null) {
         shipping_phone: orderData.shipping_phone || null,
         billing_first_name: orderData.billing_first_name || null,
         billing_last_name: orderData.billing_last_name || null,
+        billing_company: orderData.billing_company || null,
         billing_address_line1: orderData.billing_address_line1 || null,
         billing_address_line2: orderData.billing_address_line2 || null,
         billing_city: orderData.billing_city || null,
         billing_state: orderData.billing_state || null,
         billing_zip: orderData.billing_zip || null,
+        customer_company: orderData.customers?.company || null,
         shipping_method_name: orderData.shipping_method_name || null,
         tracking_url: orderData.tracking_url || null,
         estimated_delivery_date: orderData.estimated_delivery_date || null,

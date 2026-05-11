@@ -96,6 +96,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
     first_name: '',
     last_name: '',
     phone: '',
+    company: '',
     role: 'customer',
     newsletter_subscribed: false,
     sms_opt_in: false,
@@ -107,6 +108,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
       first_name: '',
       last_name: '',
       phone: '',
+      company: '',
       role: 'customer',
       newsletter_subscribed: false,
       sms_opt_in: false,
@@ -165,6 +167,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
           phone: formData.phone.trim() || null,
+          company: formData.company.trim() || null,
           role: formData.role,
           newsletter_subscribed: formData.newsletter_subscribed,
           sms_opt_in: formData.sms_opt_in,
@@ -1151,6 +1154,22 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
                       className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                       placeholder="(555) 123-4567"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Company / School
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.company}
+                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      placeholder="e.g. Roswell Elementary School"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Leave blank for individual customers. Set for schools or businesses so it appears on orders and invoices.
+                    </p>
                   </div>
 
                   <div>

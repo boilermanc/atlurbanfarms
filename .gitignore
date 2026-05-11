@@ -33,3 +33,7 @@ supabase/.temp/
 ATLUrbanFarmsCard.tsx
 *.docx
 INTEGRATION_MANAGEMENT_BLUEPRINT.md
+
+.env
+.env.local
+.env.*.local
