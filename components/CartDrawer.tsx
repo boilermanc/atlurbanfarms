@@ -21,6 +21,45 @@ const ACCOUNT_TYPE_DISCOUNTS: Record<string, { pct: number; label: string }> = {
   title1_partner: { pct: 0.20, label: 'Title I Partner 20% Off' },
 };
 
+interface CartQuantityInputProps {
+  itemId: string;
+  quantity: number;
+  onUpdateQuantity: (id: string, delta: number) => void;
+}
+
+const CartQuantityInput: React.FC<CartQuantityInputProps> = ({ itemId, quantity, onUpdateQuantity }) => {
+  const [value, setValue] = useState(String(quantity));
+
+  useEffect(() => {
+    setValue(String(quantity));
+  }, [quantity]);
+
+  const commit = (raw: string) => {
+    const n = parseInt(raw, 10);
+    const next = Number.isNaN(n) || n < 1 ? 1 : n;
+    const delta = next - quantity;
+    if (delta !== 0) onUpdateQuantity(itemId, delta);
+    setValue(String(next));
+  };
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={1}
+      value={value}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+      className="w-10 h-8 text-center text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      aria-label="Quantity"
+    />
+  );
+};
+
 const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemove, onUpdateQuantity, onCheckout }) => {
   const subtotal = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const { value: customerShippingMessage } = useSetting('shipping', 'customer_shipping_message');
@@ -196,7 +235,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, items, onRemov
                           >
                             -
                           </button>
-                          <span className="w-8 text-center text-xs font-bold">{item.quantity}</span>
+                          <CartQuantityInput itemId={item.id} quantity={item.quantity} onUpdateQuantity={onUpdateQuantity} />
                           <button 
                             onClick={() => onUpdateQuantity(item.id, 1)}
                             className="w-8 h-8 flex items-center justify-center hover:bg-gray-50 transition-colors"

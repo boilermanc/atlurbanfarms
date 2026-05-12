@@ -79,6 +79,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onAddToCart
 }) => {
   const [quantity, setQuantity] = useState(1);
+  const [quantityInput, setQuantityInput] = useState('1');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
 
@@ -98,6 +99,7 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setQuantity(1);
+      setQuantityInput('1');
       setSelectedImageIndex(0);
       setShowNotifyForm(false);
       setNotifyEmail('');
@@ -105,6 +107,11 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       setBundleItems([]);
     }
   }, [isOpen, product?.id, resetNotify]);
+
+  // Keep input string in sync when quantity changes via +/- buttons
+  useEffect(() => {
+    setQuantityInput(String(quantity));
+  }, [quantity]);
 
   // Fetch bundle items when product is a bundle
   useEffect(() => {
@@ -653,9 +660,32 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                               >
                                 -
                               </button>
-                              <span className="w-12 text-center text-sm font-black text-gray-900">
-                                {quantity}
-                              </span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={product.track_inventory === false ? 99 : (product.quantity_available || 99)}
+                                value={quantityInput}
+                                onFocus={(e) => e.currentTarget.select()}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  setQuantityInput(raw);
+                                  const n = parseInt(raw, 10);
+                                  if (!Number.isNaN(n) && n >= 1) {
+                                    const max = product.track_inventory === false ? 99 : (product.quantity_available || 99);
+                                    setQuantity(Math.min(max, n));
+                                  }
+                                }}
+                                onBlur={() => {
+                                  const n = parseInt(quantityInput, 10);
+                                  const max = product.track_inventory === false ? 99 : (product.quantity_available || 99);
+                                  const next = Number.isNaN(n) || n < 1 ? 1 : Math.min(max, n);
+                                  setQuantity(next);
+                                  setQuantityInput(String(next));
+                                }}
+                                className="w-12 text-center text-sm font-black text-gray-900 bg-white rounded-xl border border-gray-100 shadow-sm h-10 focus:outline-none focus:ring-2 focus:ring-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                aria-label="Quantity"
+                              />
                               <button
                                 onClick={() => setQuantity(q => Math.min(product.track_inventory === false ? 99 : (product.quantity_available || 99), q + 1))}
                                 className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-gray-900 hover:text-emerald-600 transition-colors font-black border border-gray-100 active:scale-90"
