@@ -653,6 +653,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                   value={formData.content}
                   onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
                   placeholder="Write your blog post content..."
+                  minHeight="600px"
                 />
               )}
 
@@ -745,7 +746,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
                     onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                     placeholder="<p>Paste your HTML content here...</p>"
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-mono text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-y"
-                    rows={20}
+                    rows={30}
                     spellCheck={false}
                   />
                 </div>
@@ -754,7 +755,7 @@ const BlogEditPage: React.FC<BlogEditPageProps> = ({ postId, onBack, onSave }) =
               {editorMode === 'preview' && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden">
                   {formData.content ? (
-                    <div className="p-6 md:p-8 bg-white min-h-[300px]">
+                    <div className="p-6 md:p-8 bg-white min-h-[600px]">
                       <div
                         className="prose prose-lg max-w-none
                           prose-headings:font-bold prose-headings:text-gray-900

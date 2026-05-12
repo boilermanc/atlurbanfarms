@@ -16,6 +16,7 @@ interface RichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  minHeight?: string;
 }
 
 const MenuButton: React.FC<{
@@ -74,7 +75,7 @@ function rgbToHex(r: number, g: number, b: number): string {
   return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
 }
 
-const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder }) => {
+const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder, minHeight = '200px' }) => {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showVideoInput, setShowVideoInput] = useState(false);
@@ -134,7 +135,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeh
     content: value,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] px-4 py-3',
+        class: 'prose prose-sm max-w-none focus:outline-none px-4 py-3',
+        style: `min-height: ${minHeight}`,
       },
     },
     onCreate: () => {
