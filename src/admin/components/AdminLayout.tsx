@@ -72,6 +72,7 @@ const EmailReportsPage = lazy(() => import('../pages/EmailReportsPage'));
 const StripeReconciliationPage = lazy(() => import('../pages/StripeReconciliationPage'));
 const SchoolPartnersPage = lazy(() => import('../pages/SchoolPartnersPage'));
 const SalesTaxReportPage = lazy(() => import('../pages/SalesTaxReportPage'));
+const AbandonedCartsPage = lazy(() => import('../pages/AbandonedCartsPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -441,7 +442,11 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
         </div>
 
         {/* Abandoned Carts Card */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+        <button
+          type="button"
+          onClick={() => onNavigate('abandoned-carts')}
+          className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 text-left hover:border-amber-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+        >
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-xl bg-amber-100">
               <ShoppingCart size={24} className="text-amber-600" />
@@ -456,7 +461,7 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
               )}
             </div>
           </div>
-        </div>
+        </button>
 
         {/* Inventory Status Card */}
         {stats?.inventoryHealth === 'critical' ? (
@@ -803,6 +808,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <CustomersPage onViewCustomer={handleViewCustomer} />;
       case 'alerts':
         return <AlertsPage />;
+      case 'abandoned-carts':
+        return <AbandonedCartsPage onViewCustomer={handleViewCustomer} />;
       case 'customer-detail':
         return selectedCustomerId ? (
           <CustomerDetailPage

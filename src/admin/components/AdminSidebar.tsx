@@ -32,6 +32,7 @@ import {
   ExternalLink,
   GraduationCap,
   Receipt,
+  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -67,6 +68,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'customers', label: 'Customers', icon: Users },
       { id: 'school-partners', label: 'School Partners', icon: GraduationCap },
       { id: 'alerts', label: 'Alerts', icon: Bell },
+      { id: 'abandoned-carts', label: 'Abandoned Carts', icon: ShoppingCart },
       { id: 'promotions', label: 'Promotions', icon: Tag },
       { id: 'gift-cards', label: 'Gift Cards', icon: Gift, externalUrl: 'https://giftup.app/Account/Login?ReturnUrl=%2F' },
       { id: 'sproutify-credits', label: 'Sproutify Credits', icon: Leaf },
