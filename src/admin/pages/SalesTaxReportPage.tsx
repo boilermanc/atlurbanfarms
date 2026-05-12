@@ -11,6 +11,8 @@ interface SalesTaxRow {
   customer_email: string | null;
   shipping_state: string | null;
   total_seedlings: number;
+  total_products: number;
+  total_shipping: number;
   total_tax: number;
   total_order: number;
   paid_date: string;
@@ -164,6 +166,8 @@ const SalesTaxReportPage: React.FC = () => {
     return {
       orderCount: rows.length,
       totalSeedlings: rows.reduce((s, r) => s + (Number(r.total_seedlings) || 0), 0),
+      totalProducts: rows.reduce((s, r) => s + (Number(r.total_products) || 0), 0),
+      totalShipping: rows.reduce((s, r) => s + (Number(r.total_shipping) || 0), 0),
       totalTax: rows.reduce((s, r) => s + (Number(r.total_tax) || 0), 0),
       totalOrder: rows.reduce((s, r) => s + (Number(r.total_order) || 0), 0),
     };
@@ -171,7 +175,7 @@ const SalesTaxReportPage: React.FC = () => {
 
   const downloadCsv = () => {
     if (rows.length === 0) return;
-    const headers = ['Order Number', 'Paid Date', 'Customer Name', 'Customer Email', 'Shipping State', 'Total Seedlings', 'Total Tax', 'Total Order'];
+    const headers = ['Order Number', 'Paid Date', 'Customer Name', 'Customer Email', 'Shipping State', 'Total Seedlings', 'Total Products', 'Total Shipping', 'Total Tax'];
     const lines = [headers.join(',')];
     for (const r of rows) {
       lines.push([
@@ -181,8 +185,9 @@ const SalesTaxReportPage: React.FC = () => {
         escapeCsv(r.customer_email),
         escapeCsv(r.shipping_state),
         String(r.total_seedlings ?? 0),
+        (Number(r.total_products) || 0).toFixed(2),
+        (Number(r.total_shipping) || 0).toFixed(2),
         (Number(r.total_tax) || 0).toFixed(2),
-        (Number(r.total_order) || 0).toFixed(2),
       ].join(','));
     }
     const csv = lines.join('\n');
@@ -312,24 +317,41 @@ const SalesTaxReportPage: React.FC = () => {
 
       {/* Summary */}
       {!loading && !error && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Orders</div>
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.orderCount}</div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-3">
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Orders</div>
+              <div className="text-2xl font-bold text-slate-800 mt-1">{summary.orderCount}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Seedlings</div>
+              <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalSeedlings.toLocaleString()}</div>
+            </div>
+            <div className="bg-green-50 rounded-xl border-2 border-green-500 p-4 ring-1 ring-green-200 shadow-sm">
+              <div className="text-xs uppercase tracking-wider text-green-700 font-bold">Total Products</div>
+              <div className="text-3xl font-extrabold text-green-700 mt-1">{formatCurrency(summary.totalProducts)}</div>
+              <div className="text-[11px] text-green-700/80 font-medium mt-1">Filing base (GA DOR)</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Shipping</div>
+              <div className="text-2xl font-bold text-slate-800 mt-1">{formatCurrency(summary.totalShipping)}</div>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Tax Collected</div>
+              <div className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(summary.totalTax)}</div>
+            </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Seedlings</div>
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalSeedlings.toLocaleString()}</div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-6 text-xs">
+            <p className="text-slate-600 italic">
+              Georgia sales tax is filed on the <span className="font-semibold text-slate-800">Total Products</span> amount only.
+              Shipping is an optional service and is not taxed.
+            </p>
+            <p className="text-slate-500">
+              Grand total incl. shipping &amp; tax:{' '}
+              <span className="font-semibold text-slate-700">{formatCurrency(summary.totalOrder)}</span>
+            </p>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Tax Collected</div>
-            <div className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(summary.totalTax)}</div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Total Order Revenue</div>
-            <div className="text-2xl font-bold text-slate-800 mt-1">{formatCurrency(summary.totalOrder)}</div>
-          </div>
-        </div>
+        </>
       )}
 
       {/* Results */}
@@ -360,39 +382,62 @@ const SalesTaxReportPage: React.FC = () => {
                   <th className="text-left py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Customer</th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">State</th>
                   <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Seedlings</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Products</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Shipping</th>
                   <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Tax</th>
-                  <th className="text-right py-3 px-4 font-semibold text-slate-600 text-xs uppercase tracking-wide">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, idx) => (
-                  <tr key={r.order_id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    <td className="py-3 px-4">
-                      <a
-                        href={`/admin/orders/${r.order_id}`}
-                        className="text-green-700 hover:text-green-900 font-medium font-mono text-xs"
-                      >
-                        {r.order_number}
-                      </a>
-                    </td>
-                    <td className="py-3 px-4 text-slate-700">{formatPaidDate(r.paid_date)}</td>
-                    <td className="py-3 px-4 text-slate-700">
-                      <div>{r.customer_name || '—'}</div>
-                      {r.customer_email && (
-                        <div className="text-xs text-slate-500">{r.customer_email}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-slate-700">{r.shipping_state || '—'}</td>
-                    <td className="py-3 px-4 text-right text-slate-700">{(Number(r.total_seedlings) || 0).toLocaleString()}</td>
-                    <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(Number(r.total_tax) || 0)}</td>
-                    <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(Number(r.total_order) || 0)}</td>
-                  </tr>
-                ))}
+                {rows.map((r, idx) => {
+                  const stateCode = (r.shipping_state || '').trim().toUpperCase();
+                  const isNonGA = stateCode !== '' && stateCode !== 'GA';
+                  return (
+                    <tr key={r.order_id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="py-3 px-4">
+                        <a
+                          href={`/admin/orders/${r.order_id}`}
+                          className="text-green-700 hover:text-green-900 font-medium font-mono text-xs"
+                        >
+                          {r.order_number}
+                        </a>
+                      </td>
+                      <td className="py-3 px-4 text-slate-700">{formatPaidDate(r.paid_date)}</td>
+                      <td className="py-3 px-4 text-slate-700">
+                        <div>{r.customer_name || '—'}</div>
+                        {r.customer_email && (
+                          <div className="text-xs text-slate-500">{r.customer_email}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {r.shipping_state ? (
+                          isNonGA ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold"
+                              title="Non-GA order — verify before filing"
+                            >
+                              <AlertCircle size={12} />
+                              {r.shipping_state}
+                            </span>
+                          ) : (
+                            <span className="text-slate-700">{r.shipping_state}</span>
+                          )
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right text-slate-700">{(Number(r.total_seedlings) || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(Number(r.total_products) || 0)}</td>
+                      <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(Number(r.total_shipping) || 0)}</td>
+                      <td className="py-3 px-4 text-right text-slate-700">{formatCurrency(Number(r.total_tax) || 0)}</td>
+                    </tr>
+                  );
+                })}
                 <tr className="border-t-2 border-slate-800 font-bold bg-slate-50">
                   <td className="py-3 px-4 text-slate-900" colSpan={4}>TOTALS</td>
                   <td className="py-3 px-4 text-right text-slate-900">{summary.totalSeedlings.toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right text-green-700">{formatCurrency(summary.totalProducts)}</td>
+                  <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(summary.totalShipping)}</td>
                   <td className="py-3 px-4 text-right text-green-700">{formatCurrency(summary.totalTax)}</td>
-                  <td className="py-3 px-4 text-right text-slate-900">{formatCurrency(summary.totalOrder)}</td>
                 </tr>
               </tbody>
             </table>
