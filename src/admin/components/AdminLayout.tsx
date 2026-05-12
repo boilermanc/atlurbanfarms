@@ -71,6 +71,7 @@ const WeeklySalesReportPage = lazy(() => import('../pages/WeeklySalesReportPage'
 const EmailReportsPage = lazy(() => import('../pages/EmailReportsPage'));
 const StripeReconciliationPage = lazy(() => import('../pages/StripeReconciliationPage'));
 const SchoolPartnersPage = lazy(() => import('../pages/SchoolPartnersPage'));
+const SalesTaxReportPage = lazy(() => import('../pages/SalesTaxReportPage'));
 
 // Loading component for Suspense
 const PageLoader = () => (
@@ -531,7 +532,10 @@ const Dashboard: React.FC<{ onNavigate: (page: string) => void; onViewOrder: Vie
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dashboard' }) => {
   // Deep-link support: parse /admin/orders/:id from URL (used by print invoice flow)
   const urlOrderMatch = window.location.pathname.match(/^\/admin\/orders\/([a-f0-9-]+)/i);
-  const [currentPage, setCurrentPage] = useState(urlOrderMatch ? 'order-detail' : initialPage);
+  const urlSalesTaxMatch = window.location.pathname.match(/^\/admin\/reports\/sales-tax\/?$/i);
+  const [currentPage, setCurrentPage] = useState(
+    urlOrderMatch ? 'order-detail' : urlSalesTaxMatch ? 'sales-tax-report' : initialPage
+  );
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(urlOrderMatch?.[1] || null);
   const [isLegacyOrder, setIsLegacyOrder] = useState(false);
   const [duplicateFromOrderId, setDuplicateFromOrderId] = useState<string | null>(null);
@@ -845,6 +849,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, initialPage = 'dash
         return <EmailReportsPage />;
       case 'stripe-reconciliation':
         return <StripeReconciliationPage />;
+      case 'sales-tax-report':
+        return <SalesTaxReportPage />;
       case 'users-roles':
         return <AdminUsersPage />;
       case 'audit-log':

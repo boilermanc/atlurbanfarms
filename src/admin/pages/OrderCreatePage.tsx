@@ -124,6 +124,39 @@ const US_STATES = [
 
 type DeliveryMethod = 'shipping' | 'pickup';
 
+// US Eastern offset for a YYYY-MM-DD date. Matches the helper in
+// SalesTaxReportPage.tsx — keep behavior identical so backdated orders land
+// in the same quarter the report computes.
+function easternOffsetFor(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const dateMs = Date.UTC(y, m - 1, d, 12);
+  const marchFirst = new Date(Date.UTC(y, 2, 1));
+  const firstSundayMarch = 1 + ((7 - marchFirst.getUTCDay()) % 7);
+  const dstStart = Date.UTC(y, 2, firstSundayMarch + 7);
+  const novFirst = new Date(Date.UTC(y, 10, 1));
+  const firstSundayNov = 1 + ((7 - novFirst.getUTCDay()) % 7);
+  const dstEnd = Date.UTC(y, 10, firstSundayNov);
+  return dateMs >= dstStart && dateMs < dstEnd ? '-04:00' : '-05:00';
+}
+
+function todayInEastern(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Returns YYYY-MM-DD for `daysAgo` days before today, in Eastern time.
+function easternDateNDaysAgo(daysAgo: number): string {
+  const now = new Date();
+  now.setUTCDate(now.getUTCDate() - daysAgo);
+  return now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Build a noon-Eastern timestamptz string from a YYYY-MM-DD date.
+function orderDateToTimestamp(yyyyMmDd: string): string {
+  return `${yyyyMmDd}T12:00:00${easternOffsetFor(yyyyMmDd)}`;
+}
+
+const MAX_BACKDATE_DAYS = 365 * 2;
+
 const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicateFromOrderId, onDuplicateConsumed }) => {
   // Customer state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -183,6 +216,9 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentStatus, setPaymentStatus] = useState<string>('paid');
   const [internalNotes, setInternalNotes] = useState<string>('');
+  // Order date (for backdating Square greenhouse sales into the correct sales-tax quarter).
+  // Stored as YYYY-MM-DD in Eastern time; converted to a noon-ET timestamptz at submit.
+  const [orderDate, setOrderDate] = useState<string>(todayInEastern());
 
   // Promo code state
   const [promoCode, setPromoCode] = useState<string>('');
@@ -586,6 +622,19 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
       errors.push('Please add at least one product');
     }
 
+    // Order date: not in the future, not more than 2 years in the past
+    if (!orderDate) {
+      errors.push('Please enter an order date');
+    } else {
+      const today = todayInEastern();
+      const minDate = easternDateNDaysAgo(MAX_BACKDATE_DAYS);
+      if (orderDate > today) {
+        errors.push('Order date cannot be in the future');
+      } else if (orderDate < minDate) {
+        errors.push(`Order date cannot be more than 2 years in the past (earliest: ${minDate})`);
+      }
+    }
+
     setValidationErrors(errors);
     return errors.length === 0;
   };
@@ -750,8 +799,20 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
             ? 'failed'
             : 'pending_payment';
 
-      // Build internal notes
-      const finalInternalNotes = internalNotes || '';
+      // Build the order timestamp (noon ET on the selected order date).
+      // Used for both paid_at and created_at so backdated entries land in the
+      // correct quarter for both Sales Tax Report and Weekly Sales Report.
+      const today = todayInEastern();
+      const isBackdated = orderDate !== today;
+      const orderTimestamp = orderDateToTimestamp(orderDate);
+
+      // Build internal notes. Auto-stamp an audit marker when the order is
+      // backdated so future audits can identify Square greenhouse entries.
+      const backdatedMarker = isBackdated ? `[Backdated entry — sale on ${orderDate}]` : '';
+      const finalInternalNotes = [internalNotes, backdatedMarker]
+        .filter(Boolean)
+        .join('\n')
+        .trim() || '';
 
       // Recalculate totals at submit time to guarantee correctness
       const submitTotals = calculateTotals();
@@ -774,7 +835,8 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
         status: orderStatus,
         payment_method: paymentMethod,
         payment_status: paymentStatus,
-        paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
+        paid_at: paymentStatus === 'paid' || paymentStatus === 'partial' ? orderTimestamp : null,
+        created_at: orderTimestamp,
         created_by_admin_id: user.id,
         internal_notes: finalInternalNotes || null,
         skip_inventory_check: true,
@@ -1027,6 +1089,7 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
     setPaymentMethod('cash');
     setPaymentStatus('paid');
     setInternalNotes('');
+    setOrderDate(todayInEastern());
     setInvoiceSent(false);
     setInvoiceError(null);
     setSendingInvoice(false);
@@ -1788,6 +1851,26 @@ const OrderCreatePage: React.FC<OrderCreatePageProps> = ({ onNavigate, duplicate
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Order Date <span className="text-red-500">*</span>{' '}
+                  <span className="text-slate-400 font-normal">(backdate Square greenhouse sales for sales-tax reporting)</span>
+                </label>
+                <input
+                  type="date"
+                  value={orderDate}
+                  onChange={(e) => setOrderDate(e.target.value)}
+                  max={todayInEastern()}
+                  min={easternDateNDaysAgo(MAX_BACKDATE_DAYS)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                />
+                {orderDate && orderDate !== todayInEastern() && (
+                  <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Backdating to {orderDate}. This timestamp is used by the Sales Tax Report and Weekly Sales Report.
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
