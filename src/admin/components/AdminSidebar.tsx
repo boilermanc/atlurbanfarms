@@ -31,6 +31,7 @@ import {
   CreditCard,
   ExternalLink,
   GraduationCap,
+  Receipt,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -110,6 +111,7 @@ const NAV_SECTIONS: NavSection[] = [
       { id: 'reports', label: 'Reports', icon: BarChart3 },
       { id: 'email-reports', label: 'Email Reports', icon: Mail },
       { id: 'stripe-reconciliation', label: 'Stripe Reconciliation', icon: CreditCard },
+      { id: 'sales-tax-report', label: 'Sales Tax Report', icon: Receipt },
     ],
   },
   {

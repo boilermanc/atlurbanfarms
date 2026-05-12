@@ -37,3 +37,4 @@ INTEGRATION_MANAGEMENT_BLUEPRINT.md
 .env
 .env.local
 .env.*.local
+supabase/.temp/
